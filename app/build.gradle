@@ -1,0 +1,40 @@
+plugins { id 'com.android.application' }
+
+def buildNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+
+android {
+    namespace 'sg.round2.tvhome'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'sg.round2.tvhome'
+        minSdk 23
+        targetSdk 34
+        versionCode buildNumber
+        versionName "1.0.${buildNumber}"
+    }
+    signingConfigs {
+        round2 {
+            // Stable key so every new build installs over the last one.
+            // signing/round2-tv.jks is created once by the workflow if missing (see README).
+            storeFile file('../signing/round2-tv.jks')
+            storePassword System.getenv('R2_KEY_PASS') ?: 'round2tv'
+            keyAlias 'round2'
+            keyPassword System.getenv('R2_KEY_PASS') ?: 'round2tv'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.round2
+        }
+    }
+    sourceSets { main { assets.srcDirs = ['../web-assets'] } }
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}

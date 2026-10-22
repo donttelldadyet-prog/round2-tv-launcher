@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320x180 TV banner: dark field, yellow ROUND2 bar -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><shape><solid android:color="#06050A" /></shape></item>
+    <item android:left="24dp" android:right="24dp" android:top="70dp" android:bottom="70dp">
+        <shape><solid android:color="#F2C21B" /></shape>
+    </item>
+</layer-list>

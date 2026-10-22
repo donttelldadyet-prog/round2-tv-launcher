@@ -1,0 +1,33 @@
+# Round2 TV cleanup list (TCL Google TV)
+# Apps are DISABLED, never uninstalled. ".\round2tv.ps1 undo" turns them all back on.
+# Lines starting with # are skipped. To include an optional app, delete the "# " in front of it.
+
+# --- A. Recommended: ads, promotions, recommendations, feedback, demo ---
+com.google.android.feedback
+# Google's "send feedback" app
+com.tcl.overseasappshow
+# TCL app-promotion showcase
+com.tcl.esticker
+# store-display energy-label sticker (retail demo)
+com.tcl.messagebox
+# TCL promotional push messages
+com.doodle.turboracing3d
+# preinstalled sponsored game
+com.refuelgames.rally
+# preinstalled sponsored game
+
+# --- B. Optional: data collection and auto-installs ---
+# com.tcl.bi
+# TCL usage analytics
+# android.autoinstalls.config.google.gtvpai
+# reinstalls partner apps after updates
+
+# --- C. Optional: streaming apps you may not use in the shop ---
+# com.amazon.amazonvideo.livingroom
+# com.apple.atve.androidtv.appletv
+# com.disney.disneyplus
+# com.iqiyi.i18n.tv
+# com.netflix.ninja
+# com.wbd.stream
+# tv.twitch.android.app
+# com.spotify.tv.android

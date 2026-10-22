@@ -1,0 +1,490 @@
+<title>Round2 TV Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+/* Layout: a fixed 1920x1080 TV stage scaled to fit the screen. Main menu on the left,
+   the room's character between the LED brackets, a preview card on the right.
+   Colours and type come from the round2.sg homepage. */
+:root {
+  --void: #06050a;
+  --ink: #f4f1fb;
+  --mute: #b9b0cf;
+  --dim: rgba(244, 241, 251, .62);
+  --rule: rgba(244, 241, 251, .45);
+  --panel: rgba(10, 8, 18, .8);
+  --accent: #F2C21B;
+  --room: #E8436A;
+  --room-ink: #0b0914;
+  --f-ui: 'Chakra Petch', 'Segoe UI', Roboto, sans-serif;
+  --f-pix: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; background: var(--void); color: var(--ink); overflow: hidden; }
+#stage {
+  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  transform-origin: 50% 50%; overflow: hidden; background: var(--void);
+  font-family: var(--f-ui); -webkit-font-smoothing: antialiased;
+}
+.layer { position: absolute; inset: 0; }
+.bg-glow {
+  background:
+    radial-gradient(38% 46% at 50% 52%, color-mix(in srgb, var(--room) 34%, transparent) 0%, transparent 70%),
+    radial-gradient(60% 60% at 50% 110%, color-mix(in srgb, var(--room) 18%, transparent) 0%, transparent 70%),
+    linear-gradient(180deg, #0d0a16 0%, #06050a 100%);
+}
+.bg-media { width: 100%; height: 100%; object-fit: cover; opacity: .5; }
+.bg-tint { background: var(--room); mix-blend-mode: color; opacity: .22; }
+.bg-shade { background: linear-gradient(90deg, rgba(6,5,10,.92) 0%, rgba(6,5,10,.5) 30%, rgba(6,5,10,0) 50%, rgba(6,5,10,.5) 72%, rgba(6,5,10,.9) 100%); }
+.scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0, rgba(0,0,0,.22) 1px, transparent 1px, transparent 3px); }
+
+.bracket { position: absolute; top: 150px; bottom: 210px; width: 70px; border: 7px solid var(--room);
+  box-shadow: 0 0 24px var(--room), inset 0 0 18px color-mix(in srgb, var(--room) 60%, transparent);
+  border-radius: 4px; animation: hum 4.8s ease-in-out infinite; }
+.bracket.l { left: 560px; border-right: 0; }
+.bracket.r { right: 690px; border-left: 0; }
+@keyframes hum { 0%, 100% { opacity: .95 } 50% { opacity: .72 } }
+
+.char { position: absolute; left: 600px; bottom: 0; height: 900px; width: 620px; object-fit: contain; object-position: 50% 100%;
+  filter: drop-shadow(0 0 30px rgba(0,0,0,.6)); transition: opacity .4s; }
+
+header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; align-items: center; justify-content: space-between; }
+.logo { height: 50px; }
+.wordmark { font-family: var(--f-ui); font-weight: 400; font-size: 40px; letter-spacing: .14em; border: 2px solid var(--ink); border-top: 0; border-bottom: 0; padding: 0 12px; line-height: 1; }
+.hud { display: flex; align-items: center; gap: 34px; font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; }
+.badge { display: flex; align-items: center; gap: 12px; color: var(--mute); }
+.badge b { font-weight: 400; padding: 8px 10px; background: var(--room); color: var(--room-ink); }
+.clock { font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+nav.menu { position: absolute; left: 72px; top: 196px; width: 540px; }
+.eyebrow { font-family: var(--f-pix); font-size: 15px; letter-spacing: .22em; color: #cfc8de; }
+.divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 30px; }
+.divider span { width: 150px; height: 1px; background: var(--rule); }
+.divider i { width: 12px; height: 12px; border: 2px solid var(--ink); transform: rotate(45deg); }
+.items { display: flex; flex-direction: column; gap: 8px; }
+.mi { display: flex; align-items: center; gap: 18px; width: 100%; height: 68px; padding: 0 24px; border: 0; background: transparent;
+  color: var(--dim); text-align: left; font: inherit; cursor: pointer;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); transition: background .12s, color .12s; }
+.mi svg { flex: none; opacity: 0; }
+.mi .label { flex: 1; font-size: 34px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.mi .hint { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; opacity: .45; }
+.mi.on { background: var(--room); color: var(--room-ink); }
+.mi.on svg { opacity: 1; }
+.mi.on .hint { opacity: .9; }
+.mi:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+
+.roomcard { position: absolute; right: 64px; bottom: 100px; width: 330px; padding: 18px 20px 20px; background: var(--panel); color: var(--ink);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%); }
+.roomcard .top { display: flex; justify-content: space-between; font-family: var(--f-pix); font-size: 10px; letter-spacing: .14em; color: var(--accent); }
+.roomcard .name { margin: 12px 0 6px; font-size: 44px; font-weight: 700; line-height: 1; letter-spacing: .06em; text-transform: uppercase; color: var(--room); }
+.roomcard .spec { font-size: 17px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #d6d0e3; }
+
+section.peek { position: absolute; right: 64px; top: 180px; width: 600px; padding: 42px; background: var(--panel);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid rgba(244,241,251,.16); }
+.peek .tag { font-family: var(--f-pix); font-size: 12px; letter-spacing: .16em; color: var(--room); }
+.peek h1 { margin: 20px 0 16px; font-size: 76px; line-height: .95; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; text-wrap: balance; }
+.peek p { margin: 0; font-size: 24px; line-height: 1.45; color: #d6d0e3; max-width: 30ch; }
+.peek dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 22px; margin: 28px 0 0; font-size: 20px; }
+.peek dt { font-family: var(--f-pix); font-size: 11px; letter-spacing: .14em; color: var(--mute); align-self: center; }
+.peek dd { margin: 0; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.peek .go { display: flex; align-items: center; gap: 12px; margin-top: 34px; padding-top: 22px; border-top: 1px solid rgba(244,241,251,.16);
+  font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; color: var(--accent); }
+.peek .go .bar { flex: 1; height: 10px; opacity: .5; background: repeating-linear-gradient(90deg, var(--accent) 0 12px, transparent 12px 18px); }
+.swap { animation: swap .32s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes swap { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+
+footer { position: absolute; left: 72px; right: 64px; bottom: 36px; display: flex; justify-content: space-between;
+  font-family: var(--f-pix); font-size: 12px; letter-spacing: .12em; color: var(--mute); }
+footer .keys { display: flex; gap: 30px; }
+
+#apps { position: absolute; inset: 0; background: rgba(4,3,8,.9); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 120px 140px; }
+#apps .eyebrow { margin-bottom: 40px; }
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; }
+.tile { position: relative; height: 170px; padding: 22px; border: 2px solid rgba(244,241,251,.14); background: rgba(16,13,26,.9);
+  color: var(--ink); font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%); }
+.tile .mono { font-family: var(--f-pix); font-size: 26px; color: var(--room); }
+.tile .nm { font-size: 26px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.tile .sub { position: absolute; right: 22px; top: 24px; font-family: var(--f-pix); font-size: 11px; letter-spacing: .12em; opacity: .7; }
+.tile.on { background: var(--room); color: var(--room-ink); border-color: var(--room); }
+.tile.on .mono { color: var(--room-ink); }
+
+#toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); padding: 18px 28px; background: var(--ink); color: var(--room-ink);
+  font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
+
+#preview { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: #0d0a16; border-top: 1px solid rgba(244,241,251,.12); font: 13px/1.3 var(--f-ui); color: var(--mute); }
+#preview .k { font-family: var(--f-pix); font-size: 9px; letter-spacing: .12em; color: var(--accent); }
+#preview button { font: 600 13px var(--f-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); background: transparent;
+  border: 1px solid rgba(244,241,251,.25); padding: 6px 10px; cursor: pointer; }
+#preview button[aria-pressed="true"] { background: var(--room); color: var(--room-ink); border-color: var(--room); }
+#preview .tip { margin-left: auto; }
+
+@media (prefers-reduced-motion: reduce) { .bracket, .swap { animation: none; } .mi { transition: none; } }
+</style>
+
+<div id="stage" role="application" aria-label="Round2 TV home screen">
+  <div class="layer bg-glow"></div>
+  <video id="bgVideo" class="layer bg-media" muted loop playsinline autoplay aria-hidden="true" hidden></video>
+  <img id="bgPhoto" class="layer bg-media" alt="" aria-hidden="true" hidden>
+  <div class="layer bg-tint"></div>
+  <div class="layer bg-shade"></div>
+  <div class="bracket l" aria-hidden="true"></div>
+  <div class="bracket r" aria-hidden="true"></div>
+  <img id="char" class="char" alt="" aria-hidden="true" hidden>
+  <div class="layer scan" aria-hidden="true"></div>
+
+  <header>
+    <div id="brand"><span class="wordmark">ROUND2</span></div>
+    <div class="hud">
+      <span class="badge">P1 <b id="roomBadge">VALE</b> <span id="tierBadge">NETFLIX ROOM</span></span>
+      <span class="clock" id="clock">--:--</span>
+    </div>
+  </header>
+
+  <nav class="menu" aria-label="Main menu">
+    <div class="eyebrow">MAIN MENU</div>
+    <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
+    <div class="items" id="items"></div>
+  </nav>
+
+  <div class="roomcard" aria-label="This room">
+    <div class="top"><span>&#9733; THIS ROOM</span><span id="paxBadge">1–3 PAX</span></div>
+    <div class="name" id="roomName">Vale</div>
+    <div class="spec" id="roomSpec">65" TV · PS4</div>
+  </div>
+
+  <section class="peek" aria-live="polite" id="peek"></section>
+
+  <footer>
+    <div class="keys"><span>[OK] SELECT</span><span>[&#9650;&#9660;] MOVE</span><span>[HOME] BACK TO THIS MENU</span></div>
+    <div>20 HAJI LANE · SINGAPORE</div>
+  </footer>
+
+  <div id="apps" hidden>
+    <div class="eyebrow" id="gridTitle">MORE APPS · [BACK] TO RETURN</div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div id="toast" role="status" hidden></div>
+</div>
+
+<div id="preview" hidden>
+  <span class="k">PREVIEW ROOM</span>
+  <span id="roomBtns"></span>
+  <span class="tip">Use the arrow keys and Enter, like the TV remote</span>
+</div>
+
+<script>
+/* ================= ROUND2 TV SETTINGS (one block per TV) ================= */
+window.R2_TV = {
+  room: '',              // leave empty: the TV asks on first start. Or set vale | kaeden | scarlett | bella | kai | atlas | maximillion
+  inputNames: {          // names shown in the Inputs menu; unnamed ports show as "Guest device"
+    'HDMI 1': 'PlayStation'
+  }
+};
+/* ========================================================================= */
+
+(function () {
+  'use strict';
+
+  var WIX = 'https://static.wixstatic.com/media/';
+  var ASSETS = {
+    logo: WIX + 'a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp',
+    idle: 'https://video.wixstatic.com/video/a46627_2584053005bc4034ace51b97bb5e89aa/file',
+    photo: {
+      vale: 'a46627_8915206851034ccb949dfae7f7840715~mv2.webp', kaeden: 'a46627_d8534727eaec41b4a40b6875f1a8773f~mv2.webp',
+      scarlett: 'a46627_f6a639578bb649ae9ab7171d8b53d42a~mv2.webp', bella: 'a46627_8be531aba0154917960845485a1a05b5~mv2.webp',
+      kai: 'a46627_cba34d42d720404f9d8eba243e6bff17~mv2.webp', atlas: 'a46627_e3bfb91790b044aba0e51090d693e699~mv2.webp',
+      maximillion: 'a46627_51d582707fae40c6b3213abb8df0ac97~mv2.webp'
+    },
+    char: {
+      vale: 'a46627_a583d7ac9f5e425c8770261a9f4a5dde~mv2.webp', kaeden: 'a46627_047b973fc70140b9935452a5eee426db~mv2.webp',
+      scarlett: 'a46627_feafbe9bf95d4bffbea8855d66d0a63c~mv2.webp', bella: 'a46627_a61b016ed61045f28c2dba9b6146e9d4~mv2.webp',
+      kai: 'a46627_2c836d63bbdd4332a4a67233df2fb631~mv2.webp', atlas: 'a46627_633e94e1767940b7a6297c4e597d25c3~mv2.webp',
+      maximillion: 'a46627_fb0c6ed29fdb4c74b8a4ce1a5c99050c~mv2.webp'
+    }
+  };
+
+  /* Rooms, from the round2.sg homepage */
+  var TIERS = { n: 'Netflix room', d: 'Deluxe room', v: 'VIP room' };
+  var ROOMS = {
+    vale:        { name: 'Vale',        t: 'n', color: '#E8436A', ink: '#0b0914', pax: '1–3 pax', screen: '65" TV', ps: 'PS4' },
+    kaeden:      { name: 'Kaeden',      t: 'n', color: '#4DB848', ink: '#0b0914', pax: '1–3 pax', screen: '65" TV', ps: 'PS4' },
+    scarlett:    { name: 'Scarlett',    t: 'n', color: '#F2C21B', ink: '#0b0914', pax: '1–3 pax', screen: '65" TV', ps: 'PS4' },
+    bella:       { name: 'Bella',       t: 'd', color: '#7A5BE0', ink: '#ffffff', pax: '1–4 pax', screen: '75" TV', ps: 'PS4 Pro' },
+    kai:         { name: 'Kai',         t: 'd', color: '#24B49A', ink: '#0b0914', pax: '1–4 pax', screen: '75" TV', ps: 'PS4 Pro' },
+    atlas:       { name: 'Atlas',       t: 'd', color: '#E9E7EF', ink: '#0b0914', pax: '1–5 pax', screen: '75" TV', ps: 'PS4 Pro' },
+    maximillion: { name: 'Maximillion', t: 'v', color: '#E0402F', ink: '#ffffff', pax: '1–6 pax', screen: '85" TV', ps: 'PS4 Pro' }
+  };
+
+  /* Apps, with each TV platform's app id */
+  var APPS = {
+    youtube: { name: 'YouTube',     android: 'com.google.android.youtube.tv',       tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
+    netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                   tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
+    prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom',   tizen: 'org.tizen.primevideo',    webos: 'amazon' },
+    max:     { name: 'HBO Max',     android: 'com.wbd.stream' }
+  };
+  var SAMPLE_MORE = [
+    { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
+    { name: 'Apple TV', android: 'com.apple.atve.androidtv.appletv' }, { name: 'Twitch', android: 'tv.twitch.android.app' },
+    { name: 'YouTube Music', android: 'com.google.android.youtube.tvmusic' }, { name: 'iQIYI', android: 'com.iqiyi.i18n.tv' },
+    { name: 'HBO Max', android: 'com.wbd.stream' }, { name: 'Google Play', android: 'com.android.vending' },
+    { name: 'TV Settings', android: 'com.android.tv.settings' }
+  ];
+
+  /* ---- Device adapter: one UI, each TV brand's own way of opening apps ---- */
+  var Device = {
+    kind: function () {
+      if (window.R2Android) return 'android';                      // Round2 launcher app (TCL, Sony)
+      if (window.tizen && window.tizen.application) return 'tizen'; // Samsung
+      if (window.webOS || window.PalmSystem) return 'webos';        // LG
+      return 'preview';
+    },
+    open: function (item, done) {
+      var k = Device.kind();
+      try {
+        if (k === 'android') {
+          var r = item.input ? window.R2Android.openInput(item.input) : window.R2Android.launch(item.android || '');
+          done(r === 'ok' ? null : (r || 'The TV could not open this.'));
+          return;
+        }
+        if (k === 'tizen' && item.tizen) {
+          window.tizen.application.launch(item.tizen, function () { done(null); }, function (e) { done(e && e.message); });
+          return;
+        }
+        if (k === 'webos' && item.webos && window.webOS && window.webOS.service) {
+          window.webOS.service.request('luna://com.webos.applicationManager', {
+            method: 'launch', parameters: { id: item.webos },
+            onSuccess: function () { done(null); }, onFailure: function (e) { done(e && e.errorText); }
+          });
+          return;
+        }
+      } catch (e) { done(String(e && e.message || e)); return; }
+      done('preview');
+    },
+    inputs: function () {
+      if (Device.kind() === 'android') { try { return JSON.parse(window.R2Android.inputs()); } catch (e) {} }
+      return [{ id: 'HDMI1', name: 'HDMI 1' }, { id: 'HDMI2', name: 'HDMI 2' }, { id: 'HDMI3', name: 'HDMI 3' }, { id: 'HDMI4', name: 'HDMI 4' }];
+    },
+    apps: function () {
+      if (Device.kind() === 'android') { try { return JSON.parse(window.R2Android.apps()); } catch (e) {} }
+      return SAMPLE_MORE;
+    }
+  };
+
+  function store(k, v) { try { if (v === undefined) return window.localStorage.getItem(k); window.localStorage.setItem(k, v); } catch (e) {} return null; }
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  var cfg = window.R2_TV;
+  var hashRoom = (location.hash || '').replace('#', '');
+  var savedRoom = store('r2.room');
+  var roomKey = ROOMS[hashRoom] ? hashRoom : ROOMS[savedRoom] ? savedRoom : (ROOMS[cfg.room] ? cfg.room : 'vale');
+  var needsRoom = !ROOMS[hashRoom] && !ROOMS[savedRoom] && !ROOMS[cfg.room];
+  var room, items = [], sel = 0, mode = 'menu', gridItems = [], gsel = 0;
+
+  function buildItems() {
+    var last = null;
+    try { last = JSON.parse(store('r2.last') || 'null'); } catch (e) {}
+    items = [
+      { key: 'continue', label: 'Continue', hint: last ? 'RESUME' : 'NEW GAME', last: last },
+      { key: 'inputs', label: 'Inputs', hint: 'HDMI' },
+      mk('youtube'), mk('netflix'), mk('prime')
+    ];
+    if (room.t !== 'n') items.push(mk('max'));
+    items.push({ key: 'more', label: 'More apps', hint: 'ALL' });
+  }
+  function mk(k) { var a = APPS[k]; return { key: k, label: a.name, hint: 'STREAM', android: a.android, tizen: a.tizen, webos: a.webos }; }
+
+  function peekHtml(it) {
+    var tag = 'PLAYER 1 · READY', title = it.label, body = '', rows = [];
+    if (it.key === 'continue') {
+      if (it.last) { title = 'Continue'; body = 'Jump back into ' + esc(it.last.name) + ', right where this TV left off.'; rows = [['LAST', it.last.name]]; }
+      else { title = 'New game'; body = 'Nothing played yet this session. Pick something from the menu to start.'; }
+    } else if (it.key === 'inputs') {
+      tag = 'PLAYER 2 · PLUG IN';
+      body = 'Play on the ' + esc(room.ps) + ', or plug in your own console or laptop and pick its HDMI port.';
+      rows = [];
+      for (var p in cfg.inputNames) if (cfg.inputNames.hasOwnProperty(p)) rows.push([p.toUpperCase(), cfg.inputNames[p] === 'PlayStation' ? room.ps : cfg.inputNames[p]]);
+      rows.push(['OTHER PORTS', 'Guest device']);
+    } else if (it.key === 'more') {
+      tag = 'LOADOUT';
+      body = 'Disney+, Spotify, Twitch and every other app on this TV.';
+    } else {
+      tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
+      body = 'Sign in with your own account if it asks. Sign out before your session ends so the next group starts fresh.';
+      rows = [['SCREEN', room.screen]];
+    }
+    var dl = '';
+    for (var i = 0; i < rows.length; i++) dl += '<dt>' + esc(rows[i][0]) + '</dt><dd>' + esc(rows[i][1]) + '</dd>';
+    return '<div class="swap"><div class="tag">' + tag + '</div><h1>' + esc(title) + '</h1><p>' + body + '</p>' +
+      (dl ? '<dl>' + dl + '</dl>' : '') +
+      '<div class="go"><span>&#9654; PRESS OK</span><span class="bar"></span><span style="color:var(--mute)">ROUND2.SG</span></div></div>';
+  }
+
+  function renderMenu() {
+    var html = '';
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      html += '<button type="button" class="mi' + (i === sel ? ' on' : '') + '" data-i="' + i + '" aria-current="' + (i === sel) + '">' +
+        '<svg width="16" height="18" viewBox="0 0 14 16" aria-hidden="true"><path d="M1 1l12 7-12 7z" fill="currentColor"/></svg>' +
+        '<span class="label">' + esc(it.label) + '</span><span class="hint">' + esc(it.hint) + '</span></button>';
+    }
+    $('items').innerHTML = html;
+    $('peek').innerHTML = peekHtml(items[sel]);
+  }
+
+  function renderGrid() {
+    var html = '';
+    for (var i = 0; i < gridItems.length; i++) {
+      var a = gridItems[i];
+      html += '<button type="button" class="tile' + (i === gsel ? ' on' : '') + '" data-g="' + i + '"><span class="mono">' +
+        esc(a.mono || a.name.charAt(0)) + '</span><span class="nm">' + esc(a.name) + '</span>' +
+        (a.sub ? '<span class="sub">' + esc(a.sub) + '</span>' : '') + '</button>';
+    }
+    $('grid').innerHTML = html;
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+
+  function launch(it) {
+    if (it.roomPick) { store('r2.room', it.roomPick); applyRoom(it.roomPick); closeGrid(); toast('This TV is now set to ' + room.name + '.'); return; }
+    if (it.key === 'continue') { if (it.last) return launch(it.last); toast('Pick something from the menu to start.'); return; }
+    if (it.key === 'more') { openGrid('apps'); return; }
+    if (it.key === 'inputs') { openGrid('inputs'); return; }
+    Device.open(it, function (err) {
+      if (err === 'preview') { toast('On the TV, this switches to ' + (it.input ? it.port : it.label || it.name) + '.'); }
+      else if (err) { toast(err); return; }
+      if (!it.input) {
+        store('r2.last', JSON.stringify({ key: it.key || 'app', name: it.label || it.name, android: it.android, tizen: it.tizen, webos: it.webos }));
+        buildItems(); renderMenu();
+      }
+    });
+  }
+
+  function inputTiles() {
+    var list = Device.inputs(), out = [];
+    for (var i = 0; i < list.length; i++) {
+      var port = list[i].name, named = cfg.inputNames[port];
+      out.push({ input: list[i].id, port: port, mono: port.replace(/[^0-9]/g, '') || port.charAt(0),
+        name: named ? (named === 'PlayStation' ? room.ps : named) : 'Guest device', sub: port });
+    }
+    return out;
+  }
+  function roomTiles() {
+    var out = [];
+    for (var k in ROOMS) if (ROOMS.hasOwnProperty(k)) out.push({ roomPick: k, name: ROOMS[k].name, sub: TIERS[ROOMS[k].t].split(' ')[0].toUpperCase() });
+    return out;
+  }
+  function openGrid(kind) {
+    gridItems = kind === 'inputs' ? inputTiles() : kind === 'rooms' ? roomTiles() : Device.apps();
+    $('gridTitle').textContent = kind === 'rooms' ? 'SET UP THIS TV · WHICH ROOM IS IT IN?' : (kind === 'inputs' ? 'INPUTS' : 'MORE APPS') + ' · [BACK] TO RETURN';
+    gsel = 0; mode = 'grid'; $('apps').hidden = false; renderGrid();
+  }
+  function closeGrid() { mode = 'menu'; $('apps').hidden = true; }
+
+  var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
+  function move(dir) {
+    if (mode === 'menu') {
+      if (dir === 'up') sel = (sel + items.length - 1) % items.length;
+      else if (dir === 'down') sel = (sel + 1) % items.length;
+      else if (dir === 'ok') { launch(items[sel]); return; }
+      else return;
+      renderMenu();
+    } else {
+      var cols = 5, n = gridItems.length;
+      if (dir === 'left') gsel = Math.max(0, gsel - 1);
+      else if (dir === 'right') gsel = Math.min(n - 1, gsel + 1);
+      else if (dir === 'up') gsel = gsel - cols >= 0 ? gsel - cols : gsel;
+      else if (dir === 'down') gsel = Math.min(n - 1, gsel + cols);
+      else if (dir === 'ok') { launch(gridItems[gsel]); return; }
+      else if (dir === 'back') { closeGrid(); return; }
+      renderGrid();
+    }
+  }
+  document.addEventListener('keydown', function (ev) {
+    var k = KEYS[ev.keyCode]; if (!k) return;
+    ev.preventDefault(); move(k);
+  });
+  window.r2Back = function () { if (mode === 'grid') closeGrid(); };
+  window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
+  window.r2Resume = function () { closeGrid(); buildItems(); renderMenu(); };   /* the Android app calls this when Home is pressed */   /* the Android app calls this for the remote's Back button */
+
+  $('items').addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('.mi') : null; if (!b) return;
+    sel = +b.getAttribute('data-i'); renderMenu(); launch(items[sel]);
+  });
+  $('grid').addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('.tile') : null; if (!b) return;
+    gsel = +b.getAttribute('data-g'); renderGrid(); launch(gridItems[gsel]);
+  });
+  $('apps').addEventListener('click', function (ev) { if (ev.target === $('apps')) closeGrid(); });
+
+  function showImg(img, src) {
+    img.onload = function () { img.hidden = false; };
+    img.onerror = function () { img.hidden = true; };
+    img.src = src;
+  }
+
+  function applyRoom(key) {
+    roomKey = key; room = ROOMS[key];
+    var r = document.documentElement.style;
+    r.setProperty('--room', room.color); r.setProperty('--room-ink', room.ink);
+    $('roomBadge').textContent = room.name.toUpperCase();
+    $('tierBadge').textContent = TIERS[room.t].toUpperCase();
+    $('roomName').textContent = room.name;
+    $('roomSpec').textContent = room.screen + ' · ' + room.ps;
+    $('paxBadge').textContent = room.pax.toUpperCase();
+    showImg($('bgPhoto'), WIX + ASSETS.photo[key]);
+    showImg($('char'), WIX + ASSETS.char[key]);
+    sel = 0; buildItems(); renderMenu();
+    var btns = document.querySelectorAll('#roomBtns button');
+    for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-r') === key);
+  }
+
+  function tick() {
+    var s;
+    try { s = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { var d = new Date(); s = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+    $('clock').textContent = s;
+  }
+
+  var PREVIEW_BAR = 0;
+  function fit() {
+    var w = window.innerWidth, h = window.innerHeight - PREVIEW_BAR;
+    var s = Math.min(w / 1920, h / 1080);
+    $('stage').style.transform = 'translate(-50%, calc(-50% - ' + (PREVIEW_BAR / 2) + 'px)) scale(' + s + ')';
+  }
+
+  /* Logo and background video from Wix (they load on the TV; a blocked load keeps the fallback) */
+  var logo = new Image();
+  logo.onload = function () { logo.className = 'logo'; logo.alt = 'Round2'; $('brand').innerHTML = ''; $('brand').appendChild(logo); };
+  logo.src = ASSETS.logo;
+  var v = $('bgVideo');
+  v.addEventListener('playing', function () { v.hidden = false; $('bgPhoto').style.display = 'none'; });
+  v.src = ASSETS.idle;
+
+  if (Device.kind() === 'preview') {
+    var html = '';
+    for (var k in ROOMS) if (ROOMS.hasOwnProperty(k)) html += '<button type="button" data-r="' + k + '">' + ROOMS[k].name + '</button> ';
+    $('roomBtns').innerHTML = html;
+    $('roomBtns').addEventListener('click', function (ev) {
+      var r = ev.target.getAttribute && ev.target.getAttribute('data-r'); if (r) { applyRoom(r); ev.target.blur(); }
+    });
+    $('preview').hidden = false;
+    PREVIEW_BAR = $('preview').offsetHeight;
+  }
+
+  window.addEventListener('resize', function () { if (!$('preview').hidden) PREVIEW_BAR = $('preview').offsetHeight; fit(); });
+  applyRoom(roomKey);
+  fit(); tick(); setInterval(tick, 15000);
+  if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');
+}());
+</script>
