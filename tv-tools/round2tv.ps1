@@ -300,6 +300,7 @@ function Cmd-Launcher([string]$repo) {
   Need-Tv; Need-Backup
   if (-not $repo) { $repo = 'donttelldadyet-prog/round2-tv-launcher' }
   $orig = Get-Home
+  $guardWasOn = (Q 'settings get secure enabled_accessibility_services') -match 'HomeGuard'
   $pkg = Cmd-Install $repo
   if (-not $pkg -and $repo -like '*round2-tv-launcher') { $pkg = 'sg.round2.tvhome' }
   if (-not $pkg) { $pkg = (Read-Host '  Package name of the launcher (e.g. sg.round2.tvhome)').Trim() }
@@ -311,6 +312,7 @@ function Cmd-Launcher([string]$repo) {
   Say 'Pressing Home to test the new home screen'
   Key 'KEYCODE_HOME' 3
   Look
+  if ($guardWasOn) { Cmd-HomeGuard; return }
   if ($script:Focus -match [regex]::Escape($pkg)) { Say "Done: the Home button now opens $pkg" }
   else { Say "This TV keeps its own home screen ($orig). Next step: .\round2tv.ps1 homeguard (reversible with undo)." }
 }
@@ -321,10 +323,19 @@ function Cmd-HomeGuard {
   if ((Get-Packages '') -notcontains 'sg.round2.tvhome') { Die 'Install Round2 Home first: .\round2tv.ps1 launcher' }
   $cur = Q 'settings get secure enabled_accessibility_services'
   $on = Q 'settings get secure accessibility_enabled'
-  if ($cur -match [regex]::Escape($svc)) { Say 'The Round2 Home button is already on.'; return }
-  if (-not $cur -or $cur -eq 'null') { Add-Undo 'settings delete secure enabled_accessibility_services'; $new = $svc }
-  else { Add-Undo "settings put secure enabled_accessibility_services $cur"; $new = "$($cur):$svc" }
-  if (-not $on -or $on -eq 'null') { Add-Undo 'settings delete secure accessibility_enabled' } else { Add-Undo "settings put secure accessibility_enabled $on" }
+  if ($cur -match [regex]::Escape($svc)) {
+    # Already enabled (e.g. after an app update): switch it off and on so Android starts it again
+    Say 'Restarting the Round2 Home button'
+    $others = (($cur -split ':') | Where-Object { $_ -and $_ -ne $svc }) -join ':'
+    if ($others) { Sh "settings put secure enabled_accessibility_services $others" } else { Sh 'settings delete secure enabled_accessibility_services' }
+    Start-Sleep -Seconds 1
+    $new = $cur
+  }
+  else {
+    if (-not $cur -or $cur -eq 'null') { Add-Undo 'settings delete secure enabled_accessibility_services'; $new = $svc }
+    else { Add-Undo "settings put secure enabled_accessibility_services $cur"; $new = "$($cur):$svc" }
+    if (-not $on -or $on -eq 'null') { Add-Undo 'settings delete secure accessibility_enabled' } else { Add-Undo "settings put secure accessibility_enabled $on" }
+  }
   Sh "settings put secure enabled_accessibility_services $new"
   Sh 'settings put secure accessibility_enabled 1'
   Start-Sleep -Seconds 2
