@@ -22,7 +22,7 @@
 }
 html, body { height: 100%; margin: 0; background: var(--void); color: var(--ink); overflow: hidden; }
 #stage {
-  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  position: fixed; left: 50%; top: 50%; width: 1920px; height: 1080px;
   transform-origin: 50% 50%; overflow: hidden; background: var(--void);
   font-family: var(--f-ui); -webkit-font-smoothing: antialiased;
 }
@@ -458,9 +458,11 @@ window.R2_TV = {
 
   var PREVIEW_BAR = 0;
   function fit() {
-    var de = document.documentElement;
-    var w = Math.max(window.innerWidth || 0, de.clientWidth || 0);
-    var h = Math.max(window.innerHeight || 0, de.clientHeight || 0) - PREVIEW_BAR;
+    /* measure what is actually visible: some TV browsers report a larger layout size than the screen */
+    var vv = window.visualViewport, de = document.documentElement;
+    var w = vv && vv.width ? vv.width : Math.min(window.innerWidth || 1e9, de.clientWidth || 1e9);
+    var h = (vv && vv.height ? vv.height : Math.min(window.innerHeight || 1e9, de.clientHeight || 1e9)) - PREVIEW_BAR;
+    if (w >= 1e9 || h >= 1e9) { w = 0; h = 0; }
     if (!w || !h) { setTimeout(fit, 100); return; }
     var s = Math.min(w / 1920, h / 1080);
     $('stage').style.transform = 'translate(-50%, calc(-50% - ' + (PREVIEW_BAR / 2) + 'px)) scale(' + s + ')';
@@ -488,7 +490,8 @@ window.R2_TV = {
   window.addEventListener('resize', function () { if (!$('preview').hidden) PREVIEW_BAR = $('preview').offsetHeight; fit(); });
   applyRoom(roomKey);
   fit(); tick(); setInterval(tick, 15000);
-  window.addEventListener('load', fit); setTimeout(fit, 400); setTimeout(fit, 1500);
+  window.addEventListener('load', fit);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fit); setTimeout(fit, 400); setTimeout(fit, 1500);
   if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');
 }());
 </script>
