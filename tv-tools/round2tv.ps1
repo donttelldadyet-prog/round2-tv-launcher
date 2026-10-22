@@ -301,7 +301,8 @@ function Cmd-Launcher([string]$repo) {
   if (-not $repo) { $repo = 'donttelldadyet-prog/round2-tv-launcher' }
   $orig = Get-Home
   $pkg = Cmd-Install $repo
-  if (-not $pkg) { $pkg = (Read-Host '  Package name of the launcher').Trim() }
+  if (-not $pkg -and $repo -like '*round2-tv-launcher') { $pkg = 'sg.round2.tvhome' }
+  if (-not $pkg) { $pkg = (Read-Host '  Package name of the launcher (e.g. sg.round2.tvhome)').Trim() }
   $acts = Q 'cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME'
   $comp = @([regex]::Matches($acts, '[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+') | ForEach-Object { $_.Value } | Where-Object { $_ -like "$pkg/*" }) | Select-Object -First 1
   if (-not $comp) { Die "$pkg doesn't register as a home-screen app" }
