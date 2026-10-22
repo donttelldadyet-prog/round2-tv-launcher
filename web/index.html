@@ -108,6 +108,18 @@ footer { position: absolute; left: 72px; right: 64px; bottom: 36px; display: fle
   font-family: var(--f-pix); font-size: 12px; letter-spacing: .12em; color: var(--mute); }
 footer .keys { display: flex; gap: 30px; }
 
+/* ---------- "low card" layout for scenes whose logo fills the upper right / centre ---------- */
+.card-low .roomcard { display: none; }
+.card-low section.peek { top: auto; bottom: 92px; width: 560px; padding: 30px 34px; }
+.card-low .peek h1 { margin: 14px 0 10px; font-size: 54px; }
+.card-low .peek p { font-size: 20px; }
+.card-low .peek dl { margin-top: 16px; font-size: 18px; }
+.card-low .peek .go { margin-top: 18px; padding-top: 14px; }
+.card-low #items .mi { width: 460px; }
+.card-low .bg-shade { background:
+    linear-gradient(90deg, rgba(6,5,10,.86) 0%, rgba(6,5,10,.38) 24%, rgba(6,5,10,0) 38%),
+    linear-gradient(0deg, rgba(6,5,10,.7) 0%, rgba(6,5,10,0) 34%); }
+
 /* ---------- app / input grid ---------- */
 #apps { position: absolute; inset: 0; background: rgba(4,3,8,.95); padding: 120px 140px; overflow: hidden; }
 .gridview { position: absolute; left: 140px; right: 140px; top: 200px; bottom: 90px; overflow: hidden; }
@@ -254,7 +266,11 @@ window.R2_TV = {
 
   /* Backgrounds that ship inside the app (media/), per room. Add new loops here. */
   var SCENES = {
-    kai: [{ id: 'summit', name: 'Neon Summit', video: 'media/summit-kai.mp4', thumb: 'media/summit-kai.jpg' }]
+    /* layout 'low' moves the description card below the logo; focus is where the launch dive flies to */
+    kai: [
+      { id: 'summit',  name: 'Neon Summit',          video: 'media/summit-kai-right.mp4',  thumb: 'media/summit-kai-right.jpg',  layout: 'low', focus: '65% 26%' },
+      { id: 'summit2', name: 'Neon Summit · Centre', video: 'media/summit-kai-centre.mp4', thumb: 'media/summit-kai-centre.jpg', layout: 'low', focus: '50% 50%' }
+    ]
   };
 
   /* Rooms, from the round2.sg homepage */
@@ -342,6 +358,8 @@ window.R2_TV = {
 
   function store(k, v) { try { if (v === undefined) return window.localStorage.getItem(k); window.localStorage.setItem(k, v); } catch (e) {} return null; }
   function $(id) { return document.getElementById(id); }
+  function addCls(c) { var st = $('stage'); if ((' ' + st.className + ' ').indexOf(' ' + c + ' ') < 0) st.className = (st.className + ' ' + c).trim(); }
+  function dropCls(c) { var st = $('stage'); st.className = (' ' + st.className + ' ').replace(' ' + c + ' ', ' ').trim(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   var cfg = window.R2_TV;
@@ -429,7 +447,7 @@ window.R2_TV = {
   /* ================= Options: Background + TV settings (after CleanFrame) ================= */
   function wallList() {
     var out = [], sc = SCENES[roomKey] || [], i;
-    for (i = 0; i < sc.length; i++) if (!missing[sc[i].id]) out.push({ id: sc[i].id, name: sc[i].name, video: sc[i].video, thumb: sc[i].thumb });
+    for (i = 0; i < sc.length; i++) if (!missing[sc[i].id]) out.push(sc[i]);
     out.push({ id: 'lounge', name: 'Round2 Lounge', video: ASSETS.lounge });
     var ph = ASSETS.photos[roomKey] || [];
     for (i = 0; i < ph.length; i++) out.push({ id: 'photo' + (i + 1), name: room.name + ' room · ' + (i + 1), image: photoUrl(ph[i]) });
@@ -453,13 +471,13 @@ window.R2_TV = {
       '<span class="label">' + esc(rows[i].label) + '</span><span class="hint">' + esc(rows[i].hint) + '</span></button>';
     $('setList').innerHTML = html;
     $('menuPanel').className = 'panel off'; $('setPanel').className = 'panel';
-    $('stage').className = '';
+    dropCls('picking');
     keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[BACK] MAIN MENU');
   }
   function closeSettings() {
     mode = 'menu';
     $('setPanel').className = 'panel off'; $('menuPanel').className = 'panel';
-    $('stage').className = '';
+    dropCls('picking');
     $('peek').innerHTML = peekHtml(items[sel]);
     keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[HOME] BACK TO THIS MENU');
   }
@@ -491,7 +509,7 @@ window.R2_TV = {
         '</span><span class="label">' + esc(w.name) + '</span><span class="picked">' + (w.id === cur ? 'IN USE' : '') + '</span></button>';
     }
     $('wallRows').innerHTML = html;
-    $('stage').className = 'picking';
+    addCls('picking');
     keys('[OK] USE THIS', '[&#9650;&#9660;] PREVIEW', '[BACK] KEEP CURRENT');
     moveWall(wsel, true);
   }
@@ -529,6 +547,8 @@ window.R2_TV = {
   function showWall(w) {
     if (!w || (shownWall && shownWall.id === w.id && shownWall.room === roomKey)) return;
     shownWall = { id: w.id, room: roomKey };
+    if (w.layout === 'low') addCls('card-low'); else dropCls('card-low');
+    $('world').style.transformOrigin = w.focus || '50% 50%';
     var back = front === 'bgA' ? 'bgB' : 'bgA', slot = $(back), old = $(front);
     var el;
     if (w.video) {
@@ -617,8 +637,6 @@ window.R2_TV = {
 
   /* Dive into the scene, then the picture closes to a glowing line; the app opens underneath */
   var leaving = false;
-  function addCls(c) { var st = $('stage'); if ((' ' + st.className + ' ').indexOf(' ' + c + ' ') < 0) st.className = (st.className + ' ' + c).trim(); }
-  function dropCls(c) { var st = $('stage'); st.className = (' ' + st.className + ' ').replace(' ' + c + ' ', ' ').trim(); }
   function dive(then) {
     leaving = true;
     addCls('leaving');

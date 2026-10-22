@@ -20,7 +20,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Prepare the menu page
+      - name: Install video tools
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+      - name: Prepare the menu page and scene videos
         run: bash tools/build-web.sh
       - name: Build the app
         run: gradle --no-daemon :app:assembleRelease
