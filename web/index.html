@@ -458,7 +458,10 @@ window.R2_TV = {
 
   var PREVIEW_BAR = 0;
   function fit() {
-    var w = window.innerWidth, h = window.innerHeight - PREVIEW_BAR;
+    var de = document.documentElement;
+    var w = Math.max(window.innerWidth || 0, de.clientWidth || 0);
+    var h = Math.max(window.innerHeight || 0, de.clientHeight || 0) - PREVIEW_BAR;
+    if (!w || !h) { setTimeout(fit, 100); return; }
     var s = Math.min(w / 1920, h / 1080);
     $('stage').style.transform = 'translate(-50%, calc(-50% - ' + (PREVIEW_BAR / 2) + 'px)) scale(' + s + ')';
   }
@@ -485,6 +488,7 @@ window.R2_TV = {
   window.addEventListener('resize', function () { if (!$('preview').hidden) PREVIEW_BAR = $('preview').offsetHeight; fit(); });
   applyRoom(roomKey);
   fit(); tick(); setInterval(tick, 15000);
+  window.addEventListener('load', fit); setTimeout(fit, 400); setTimeout(fit, 1500);
   if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');
 }());
 </script>

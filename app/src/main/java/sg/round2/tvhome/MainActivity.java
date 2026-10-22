@@ -51,6 +51,10 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);   // muted background video
         s.setAllowFileAccess(false);
+        s.setTextZoom(100);                // ignore the TV's large-text setting; the menu scales itself
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(true);
+        web.setInitialScale(0);
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {

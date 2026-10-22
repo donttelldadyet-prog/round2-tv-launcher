@@ -327,6 +327,10 @@ function Cmd-HomeGuard {
   if (-not $on -or $on -eq 'null') { Add-Undo 'settings delete secure accessibility_enabled' } else { Add-Undo "settings put secure accessibility_enabled $on" }
   Sh "settings put secure enabled_accessibility_services $new"
   Sh 'settings put secure accessibility_enabled 1'
+  Start-Sleep -Seconds 2
+  $bound = (Q 'dumpsys accessibility') -split "`n" | Where-Object { $_ -match 'Bound services' } | Select-Object -First 1
+  Say "Redirect status: $bound"
+  if ("$bound" -notmatch 'HomeGuard') { Say 'Android has not started the redirect yet. Send Claude this screen.' }
   Say 'Pressing Home to test'
   Key 'KEYCODE_HOME' 3
   Look
