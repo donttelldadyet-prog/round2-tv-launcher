@@ -23,6 +23,11 @@ public class HomeGuard extends AccessibilityService {
         if (pkg == null) return;
         String p = pkg.toString();
         if (!p.equals("com.google.android.apps.tv.launcherx") && !p.equals("com.google.android.tvlauncher")) return;
+        // Only the home screen itself, not other Google TV windows such as the
+        // Settings / quick-settings panel opened from the remote.
+        CharSequence cls = e.getClassName();
+        String c = cls == null ? "" : cls.toString();
+        if (!c.endsWith(".HomeActivity") && !c.endsWith(".MainActivity")) return;
         long now = System.currentTimeMillis();
         if (now - lastRedirect < 800) return;   // avoid bouncing
         lastRedirect = now;

@@ -182,6 +182,19 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** The TV's full Settings page. */
+        @JavascriptInterface
+        public String openSettings() {
+            try {
+                Intent i = new Intent(android.provider.Settings.ACTION_SETTINGS);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                act.startActivity(i);
+                return "ok";
+            } catch (Exception ex) {
+                return launch("com.android.tv.settings");
+            }
+        }
+
         /** Launchable apps for the "More apps" grid, as [{name, android}]. */
         @JavascriptInterface
         public String apps() {

@@ -235,7 +235,7 @@ window.R2_TV = {
     { name: 'Apple TV', android: 'com.apple.atve.androidtv.appletv' }, { name: 'Twitch', android: 'tv.twitch.android.app' },
     { name: 'YouTube Music', android: 'com.google.android.youtube.tvmusic' }, { name: 'iQIYI', android: 'com.iqiyi.i18n.tv' },
     { name: 'HBO Max', android: 'com.wbd.stream' }, { name: 'Google Play', android: 'com.android.vending' },
-    { name: 'TV Settings', android: 'com.android.tv.settings' }
+    { name: 'TV Settings', settings: true }
   ];
 
   /* ---- Device adapter: one UI, each TV brand's own way of opening apps ---- */
@@ -249,6 +249,11 @@ window.R2_TV = {
     open: function (item, done) {
       var k = Device.kind();
       try {
+        if (k === 'android' && item.settings) {
+          var rs = window.R2Android.openSettings();
+          done(rs === 'ok' ? null : (rs || 'The TV could not open Settings.'));
+          return;
+        }
         if (k === 'android') {
           var r = item.input ? window.R2Android.openInput(item.input) : window.R2Android.launch(item.android || '');
           done(r === 'ok' ? null : (r || 'The TV could not open this.'));
@@ -273,7 +278,14 @@ window.R2_TV = {
       return [{ id: 'HDMI1', name: 'HDMI 1' }, { id: 'HDMI2', name: 'HDMI 2' }, { id: 'HDMI3', name: 'HDMI 3' }, { id: 'HDMI4', name: 'HDMI 4' }];
     },
     apps: function () {
-      if (Device.kind() === 'android') { try { return JSON.parse(window.R2Android.apps()); } catch (e) {} }
+      if (Device.kind() === 'android') {
+        try {
+          var list = JSON.parse(window.R2Android.apps()), out = [];
+          for (var i = 0; i < list.length; i++) if (!/settings/i.test(list[i].name)) out.push(list[i]);
+          out.push({ name: 'TV Settings', settings: true });   /* always last */
+          return out;
+        } catch (e) {}
+      }
       return SAMPLE_MORE;
     }
   };
@@ -371,7 +383,7 @@ window.R2_TV = {
     Device.open(it, function (err) {
       if (err === 'preview') { toast('On the TV, this switches to ' + (it.input ? it.port : it.label || it.name) + '.'); }
       else if (err) { toast(err); return; }
-      if (!it.input) {
+      if (!it.input && !it.settings) {
         store('r2.last', JSON.stringify({ key: it.key || 'app', name: it.label || it.name, android: it.android, tizen: it.tizen, webos: it.webos }));
         buildItems(); renderMenu();
       }
