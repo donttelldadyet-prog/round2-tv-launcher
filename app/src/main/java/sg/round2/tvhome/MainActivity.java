@@ -189,6 +189,7 @@ public class MainActivity extends Activity {
             try {
                 PackageManager pm = act.getPackageManager();
                 Set<String> seen = new HashSet<>();
+                Set<String> seenNames = new HashSet<>();
                 seen.add(act.getPackageName());
                 List<ResolveInfo> found = new ArrayList<>();
                 Intent tv = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
@@ -199,9 +200,13 @@ public class MainActivity extends Activity {
                     if (seen.contains(pkg)) continue;
                     ApplicationInfo ai = r.activityInfo.applicationInfo;
                     if (ai != null && !ai.enabled) continue;
+                    String name = String.valueOf(r.loadLabel(pm)).trim();
+                    // one tile per app name: TCL lists several channel shortcuts under the same name
+                    if (name.isEmpty() || seenNames.contains(name.toLowerCase())) continue;
                     seen.add(pkg);
+                    seenNames.add(name.toLowerCase());
                     JSONObject o = new JSONObject();
-                    o.put("name", String.valueOf(r.loadLabel(pm)));
+                    o.put("name", name);
                     o.put("android", pkg);
                     rows.add(o);
                 }

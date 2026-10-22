@@ -330,7 +330,10 @@ function Cmd-HomeGuard {
   Start-Sleep -Seconds 2
   $bound = (Q 'dumpsys accessibility') -split "`n" | Where-Object { $_ -match 'Bound services' } | Select-Object -First 1
   Say "Redirect status: $bound"
-  if ("$bound" -notmatch 'HomeGuard') { Say 'Android has not started the redirect yet. Send Claude this screen.' }
+  if ("$bound" -notmatch 'HomeGuard') {
+    Say 'Android has not started the redirect yet. On the TV: Settings > Device Preferences > Accessibility >'
+    Say "'Round2 Home button': switch it Off, then On again. That starts it."
+  }
   Say 'Pressing Home to test'
   Key 'KEYCODE_HOME' 3
   Look

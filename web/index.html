@@ -97,9 +97,11 @@ footer { position: absolute; left: 72px; right: 64px; bottom: 36px; display: fle
   font-family: var(--f-pix); font-size: 12px; letter-spacing: .12em; color: var(--mute); }
 footer .keys { display: flex; gap: 30px; }
 
-#apps { position: absolute; inset: 0; background: rgba(4,3,8,.9); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 120px 140px; }
-#apps .eyebrow { margin-bottom: 40px; }
-.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; }
+#apps { position: absolute; inset: 0; background: rgba(4,3,8,.9); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 120px 140px; overflow: hidden; }
+#apps .eyebrow { display: flex; justify-content: space-between; margin-bottom: 40px; }
+.gridview { position: absolute; left: 140px; right: 140px; top: 200px; bottom: 90px; overflow: hidden; }
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; transition: transform .18s ease-out; }
+.more { position: absolute; left: 140px; right: 140px; bottom: 40px; text-align: center; font-family: var(--f-pix); font-size: 12px; letter-spacing: .14em; color: var(--mute); }
 .tile { position: relative; height: 170px; padding: 22px; border: 2px solid rgba(244,241,251,.14); background: rgba(16,13,26,.9);
   color: var(--ink); font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between;
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%); }
@@ -165,7 +167,8 @@ footer .keys { display: flex; gap: 30px; }
 
   <div id="apps" hidden>
     <div class="eyebrow" id="gridTitle">MORE APPS · [BACK] TO RETURN</div>
-    <div class="grid" id="grid"></div>
+    <div class="gridview"><div class="grid" id="grid"></div></div>
+    <div class="more" id="gridMore" hidden>&#9660; MORE BELOW</div>
   </div>
 
   <div id="toast" role="status" hidden></div>
@@ -284,7 +287,7 @@ window.R2_TV = {
   var savedRoom = store('r2.room');
   var roomKey = ROOMS[hashRoom] ? hashRoom : ROOMS[savedRoom] ? savedRoom : (ROOMS[cfg.room] ? cfg.room : 'vale');
   var needsRoom = !ROOMS[hashRoom] && !ROOMS[savedRoom] && !ROOMS[cfg.room];
-  var room, items = [], sel = 0, mode = 'menu', gridItems = [], gsel = 0;
+  var room, items = [], sel = 0, mode = 'menu', gridItems = [], gsel = 0, gridTop = 0;
 
   function buildItems() {
     var last = null;
@@ -346,6 +349,12 @@ window.R2_TV = {
         (a.sub ? '<span class="sub">' + esc(a.sub) + '</span>' : '') + '</button>';
     }
     $('grid').innerHTML = html;
+    /* keep the focused row on screen: 4 rows of 194px fit between the title and the footer */
+    var cols = 5, rowH = 194, rows = 4, row = Math.floor(gsel / cols), total = Math.ceil(gridItems.length / cols);
+    if (row < gridTop) gridTop = row;
+    if (row >= gridTop + rows) gridTop = row - rows + 1;
+    $('grid').style.transform = 'translateY(' + (-gridTop * rowH) + 'px)';
+    $('gridMore').hidden = gridTop + rows >= total;
   }
 
   var toastTimer;
@@ -386,7 +395,7 @@ window.R2_TV = {
   function openGrid(kind) {
     gridItems = kind === 'inputs' ? inputTiles() : kind === 'rooms' ? roomTiles() : Device.apps();
     $('gridTitle').textContent = kind === 'rooms' ? 'SET UP THIS TV · WHICH ROOM IS IT IN?' : (kind === 'inputs' ? 'INPUTS' : 'MORE APPS') + ' · [BACK] TO RETURN';
-    gsel = 0; mode = 'grid'; $('apps').hidden = false; renderGrid();
+    gsel = 0; gridTop = 0; mode = 'grid'; $('apps').hidden = false; renderGrid();
   }
   function closeGrid() { mode = 'menu'; $('apps').hidden = true; }
 
