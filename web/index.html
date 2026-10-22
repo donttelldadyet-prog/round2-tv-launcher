@@ -3,95 +3,95 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
-/* Layout: a fixed 1920x1080 TV stage scaled to fit the screen. Main menu on the left,
-   the room's character between the LED brackets, a preview card on the right.
-   Colours and type come from the round2.sg homepage. */
+/* Layout: a fixed 1920x1080 TV stage scaled to fit the screen. #world holds the moving
+   background; #ui holds the menu (left), the side card (right) and the room card.
+   Colours and type come from the round2.sg homepage. Motion uses transform/opacity only. */
 :root {
   --void: #06050a;
   --ink: #f4f1fb;
   --mute: #b9b0cf;
   --dim: rgba(244, 241, 251, .62);
   --rule: rgba(244, 241, 251, .45);
-  --panel: rgba(10, 8, 18, .8);
+  --panel: rgba(10, 8, 18, .9);
   --accent: #F2C21B;
   --room: #E8436A;
   --room-ink: #0b0914;
   --f-ui: 'Chakra Petch', 'Segoe UI', Roboto, sans-serif;
   --f-pix: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+  --ease: cubic-bezier(.2, .8, .2, 1);
   color-scheme: dark;
 }
 html, body { height: 100%; margin: 0; background: var(--void); color: var(--ink); overflow: hidden; }
 [hidden] { display: none !important; }
-*:focus, *:focus-visible { outline: none; }            /* the TV browser draws its own box otherwise; the menu shows focus itself */
+*:focus, *:focus-visible { outline: none; }   /* the TV browser draws its own box otherwise; the menu shows focus itself */
 * { -webkit-tap-highlight-color: transparent; }
-#stage {
-  position: fixed; left: 0; top: 0; width: 1920px; height: 1080px;
-  transform-origin: 0 0; overflow: hidden; background: var(--void);
-  font-family: var(--f-ui); -webkit-font-smoothing: antialiased;
-}
+
+#stage { position: fixed; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden;
+  background: var(--void); font-family: var(--f-ui); -webkit-font-smoothing: antialiased; }
 .layer { position: absolute; inset: 0; }
-.bg-glow {
-  background:
-    radial-gradient(38% 46% at 50% 52%, color-mix(in srgb, var(--room) 34%, transparent) 0%, transparent 70%),
-    radial-gradient(60% 60% at 50% 110%, color-mix(in srgb, var(--room) 18%, transparent) 0%, transparent 70%),
-    linear-gradient(180deg, #0d0a16 0%, #06050a 100%);
-}
-.bg-media { width: 100%; height: 100%; object-fit: cover; opacity: .5; }
-.bg-tint { background: var(--room); mix-blend-mode: color; opacity: .22; }
-.bg-shade { background: linear-gradient(90deg, rgba(6,5,10,.92) 0%, rgba(6,5,10,.5) 30%, rgba(6,5,10,0) 50%, rgba(6,5,10,.5) 72%, rgba(6,5,10,.9) 100%); }
-.scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0, rgba(0,0,0,.22) 1px, transparent 1px, transparent 3px); }
 
-.bracket { position: absolute; top: 150px; bottom: 210px; width: 70px; border: 7px solid var(--room);
-  box-shadow: 0 0 24px var(--room), inset 0 0 18px color-mix(in srgb, var(--room) 60%, transparent);
-  border-radius: 4px; animation: hum 4.8s ease-in-out infinite; will-change: opacity; }
-.bracket.l { left: 560px; border-right: 0; }
-.bracket.r { right: 690px; border-left: 0; }
-@keyframes hum { 0%, 100% { opacity: .95 } 50% { opacity: .72 } }
+/* ---------- background world ---------- */
+#world { transition: transform .34s cubic-bezier(.55, 0, .85, .35); will-change: transform; }
+.bg-glow { background:
+    radial-gradient(38% 46% at 50% 52%, color-mix(in srgb, var(--room) 30%, transparent) 0%, transparent 70%),
+    linear-gradient(180deg, #0d0a16 0%, #06050a 100%); }
+.bg-media { width: 100%; height: 100%; object-fit: cover; }
+#bgA, #bgB { transition: opacity .25s linear; }
+#bgB { opacity: 0; }
+.bg-shade { background: linear-gradient(90deg, rgba(6,5,10,.88) 0%, rgba(6,5,10,.45) 28%, rgba(6,5,10,0) 48%, rgba(6,5,10,0) 62%, rgba(6,5,10,.55) 100%);
+  transition: opacity .25s linear; }
+.scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 1px, transparent 1px, transparent 3px); }
 
-/* centre logo, used with the animated backgrounds */
-.mark { position: absolute; left: 640px; top: 300px; width: 520px; height: 360px; display: flex; align-items: center; justify-content: center; }
-.mark img { width: 460px; animation: breathe 7s ease-in-out infinite; will-change: transform, opacity; }
-.mark .glow { position: absolute; width: 460px; filter: blur(18px) brightness(1.6); opacity: .0; animation: glow 7s ease-in-out infinite; will-change: opacity; }
-@keyframes breathe { 0%, 100% { transform: scale(1); opacity: .92 } 50% { transform: scale(1.035); opacity: 1 } }
-@keyframes glow { 0%, 100% { opacity: .15 } 50% { opacity: .55 } }
-
-/* room character as a profile picture */
-.avatar { display: block; width: 58px; height: 58px; border: 3px solid var(--room); background: #120f1c no-repeat 50% 4% / 260% auto;
-  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
+/* ---------- interface ---------- */
+#ui { transition: transform .26s cubic-bezier(.55, 0, .85, .35), opacity .2s linear; will-change: transform, opacity; }
 
 header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; align-items: center; justify-content: space-between; }
 .logo { height: 50px; }
-.wordmark { font-family: var(--f-ui); font-weight: 400; font-size: 40px; letter-spacing: .14em; border: 2px solid var(--ink); border-top: 0; border-bottom: 0; padding: 0 12px; line-height: 1; }
-.hud { display: flex; align-items: center; gap: 34px; font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; }
+.wordmark { font-weight: 400; font-size: 40px; letter-spacing: .14em; border: 2px solid var(--ink); border-top: 0; border-bottom: 0; padding: 0 12px; line-height: 1; }
+.hud { display: flex; align-items: center; gap: 26px; font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; }
+.avatar { display: block; width: 58px; height: 58px; border: 3px solid var(--room); background: #120f1c no-repeat 50% 4% / 260% auto;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
 .badge { display: flex; align-items: center; gap: 12px; color: var(--mute); }
 .badge b { font-weight: 400; padding: 8px 10px; background: var(--room); color: var(--room-ink); }
 .clock { font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
 
-nav.menu { position: absolute; left: 72px; top: 196px; width: 540px; }
-.eyebrow { font-family: var(--f-pix); font-size: 15px; letter-spacing: .22em; color: #cfc8de; }
+.panel { position: absolute; left: 72px; top: 196px; width: 640px; transition: opacity .16s linear, transform .2s var(--ease); }
+.panel.off { opacity: 0; transform: translateX(-24px); pointer-events: none; }
+.eyebrow { display: flex; align-items: baseline; justify-content: space-between; font-family: var(--f-pix); font-size: 15px; letter-spacing: .22em; color: #cfc8de; }
+.eyebrow .count { font-size: 11px; letter-spacing: .14em; color: var(--mute); }
 .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 30px; }
 .divider span { width: 150px; height: 1px; background: var(--rule); }
 .divider i { width: 12px; height: 12px; border: 2px solid var(--ink); transform: rotate(45deg); }
-.items { display: flex; flex-direction: column; gap: 8px; }
-.mi { display: flex; align-items: center; gap: 18px; width: 100%; height: 68px; padding: 0 24px; border: 0; background: transparent;
+.list { display: flex; flex-direction: column; gap: 8px; }
+.mi { display: flex; align-items: center; gap: 18px; width: 540px; height: 68px; padding: 0 24px; border: 0; background: transparent;
   color: var(--dim); text-align: left; font: inherit; cursor: pointer;
   clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); transition: background .08s, color .08s; }
 .mi svg { flex: none; opacity: 0; }
-.mi .label { flex: 1; font-size: 34px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
-.mi .hint { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; opacity: .45; }
+.mi .label { flex: 1; font-size: 34px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mi .hint { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; opacity: .45; white-space: nowrap; }
 .mi.on { background: var(--room); color: var(--room-ink); }
 .mi.on svg { opacity: 1; }
 .mi.on .hint { opacity: .9; }
-.mi:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
 
-.roomcard { position: absolute; right: 64px; bottom: 100px; width: 330px; padding: 18px 20px 20px; background: var(--panel); color: var(--ink);
+/* background picker rows, after CleanFrame's wallpaper list */
+.wallview { position: relative; height: 552px; overflow: hidden; }
+.wallrows { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; gap: 8px; transition: transform .16s var(--ease); will-change: transform; }
+.mi.wall { width: 640px; height: 84px; padding: 0 20px 0 12px; }
+.thumb { flex: none; width: 104px; height: 58px; overflow: hidden; background: #1a1626; }
+.thumb img, .thumb video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mi.wall .label { font-size: 30px; }
+.picked { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; }
+
+.side { transition: opacity .2s linear; }
+.picking .side { opacity: 0; }
+.picking .bg-shade { opacity: .55; }
+.roomcard { position: absolute; right: 64px; bottom: 100px; width: 330px; padding: 18px 20px 20px; background: var(--panel);
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%); }
 .roomcard .top { display: flex; justify-content: space-between; font-family: var(--f-pix); font-size: 10px; letter-spacing: .14em; color: var(--accent); }
 .roomcard .name { margin: 12px 0 6px; font-size: 44px; font-weight: 700; line-height: 1; letter-spacing: .06em; text-transform: uppercase; color: var(--room); }
 .roomcard .spec { font-size: 17px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #d6d0e3; }
 
-section.peek { position: absolute; right: 64px; top: 180px; width: 600px; padding: 42px; background: rgba(10, 8, 18, .9);
-  border: 1px solid rgba(244,241,251,.16); }
+section.peek { position: absolute; right: 64px; top: 180px; width: 600px; padding: 42px; background: var(--panel); border: 1px solid rgba(244,241,251,.16); }
 .peek .tag { font-family: var(--f-pix); font-size: 12px; letter-spacing: .16em; color: var(--room); }
 .peek h1 { margin: 20px 0 16px; font-size: 76px; line-height: .95; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; text-wrap: balance; }
 .peek p { margin: 0; font-size: 24px; line-height: 1.45; color: #d6d0e3; max-width: 30ch; }
@@ -101,17 +101,17 @@ section.peek { position: absolute; right: 64px; top: 180px; width: 600px; paddin
 .peek .go { display: flex; align-items: center; gap: 12px; margin-top: 34px; padding-top: 22px; border-top: 1px solid rgba(244,241,251,.16);
   font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; color: var(--accent); }
 .peek .go .bar { flex: 1; height: 10px; opacity: .5; background: repeating-linear-gradient(90deg, var(--accent) 0 12px, transparent 12px 18px); }
-.swap { animation: swap .2s cubic-bezier(.2,.8,.2,1) both; }
+.swap { animation: swap .2s var(--ease) both; }
 @keyframes swap { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
 
 footer { position: absolute; left: 72px; right: 64px; bottom: 36px; display: flex; justify-content: space-between;
   font-family: var(--f-pix); font-size: 12px; letter-spacing: .12em; color: var(--mute); }
 footer .keys { display: flex; gap: 30px; }
 
+/* ---------- app / input grid ---------- */
 #apps { position: absolute; inset: 0; background: rgba(4,3,8,.95); padding: 120px 140px; overflow: hidden; }
-#apps .eyebrow { display: flex; justify-content: space-between; margin-bottom: 40px; }
 .gridview { position: absolute; left: 140px; right: 140px; top: 200px; bottom: 90px; overflow: hidden; }
-.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; transition: transform .16s cubic-bezier(.2,.8,.2,1); will-change: transform; }
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; transition: transform .16s var(--ease); will-change: transform; }
 .more { position: absolute; left: 140px; right: 140px; bottom: 40px; text-align: center; font-family: var(--f-pix); font-size: 12px; letter-spacing: .14em; color: var(--mute); }
 .tile { position: relative; height: 170px; padding: 22px; border: 2px solid rgba(244,241,251,.14); background: rgba(16,13,26,.9);
   color: var(--ink); font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between;
@@ -122,16 +122,18 @@ footer .keys { display: flex; gap: 30px; }
 .tile.on { background: var(--room); color: var(--room-ink); border-color: var(--room); }
 .tile.on .mono { color: var(--room-ink); }
 
-/* zoom into the logo when an app opens */
-#zoom { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
-#zoom img, #zoom .wordmark { will-change: transform; }
-#zoom.go { animation: zfade .26s ease-in forwards; }
-#zoom.go > * { animation: zin .26s cubic-bezier(.55,0,.9,.5) forwards; }
-#zoom.back { animation: zfade .22s ease-out reverse forwards; }
-#zoom.back > * { animation: zout .22s cubic-bezier(.1,.6,.3,1) forwards; }
-@keyframes zfade { from { opacity: 0 } 35% { opacity: 1 } to { opacity: 1 } }
-@keyframes zin { from { transform: scale(.7); opacity: 1 } to { transform: scale(16); opacity: 0 } }
-@keyframes zout { from { transform: scale(3); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+/* ---------- launch transition: dive into the scene, then the screen closes to a line ---------- */
+#crt { pointer-events: none; }
+#crt .t, #crt .b { position: absolute; left: 0; right: 0; height: 50%; background: #000; transform: scaleY(0); transition: transform .16s cubic-bezier(.7, 0, 1, .6); }
+#crt .t { top: 0; transform-origin: 50% 0; }
+#crt .b { bottom: 0; transform-origin: 50% 100%; }
+#crt .line { position: absolute; left: 0; right: 0; top: 539px; height: 2px; background: #fff;
+  box-shadow: 0 0 18px 4px var(--room), 0 0 60px 12px var(--room); opacity: 0; transform: scaleX(1); transition: opacity .08s linear, transform .14s ease-in; }
+.leaving #world { transform: scale(1.6); }
+.leaving #ui { opacity: 0; transform: scale(1.08); }
+.leaving #crt .t, .leaving #crt .b { transform: scaleY(1); transition-delay: .16s; }
+.leaving #crt .line { opacity: 1; transform: scaleX(0); transition-delay: .26s, .3s; }
+.snap #world, .snap #ui, .snap #crt .t, .snap #crt .b, .snap #crt .line { transition: none !important; }
 
 #toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); padding: 18px 28px; background: var(--ink); color: var(--room-ink);
   font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
@@ -146,55 +148,66 @@ footer .keys { display: flex; gap: 30px; }
 #preview button[aria-pressed="true"] { background: var(--room); color: var(--room-ink); border-color: var(--room); }
 #preview .tip { margin-left: auto; }
 
-@media (prefers-reduced-motion: reduce) { .bracket, .swap, .mark img, .mark .glow { animation: none; } .mi, .grid { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  #world, #ui, .panel, .wallrows, .grid, .mi, #bgA, #bgB, #crt .t, #crt .b, #crt .line { transition: none !important; }
+  .swap { animation: none; }
+}
 </style>
 
 <div id="stage" role="application" aria-label="Round2 TV home screen">
-  <div class="layer bg-glow"></div>
-  <video id="bgVideo" class="layer bg-media" muted loop playsinline autoplay aria-hidden="true" hidden></video>
-  <img id="bgPhoto" class="layer bg-media" alt="" aria-hidden="true" hidden>
-  <div class="layer bg-tint"></div>
-  <div class="layer bg-shade"></div>
-  <div class="bracket l" aria-hidden="true"></div>
-  <div class="bracket r" aria-hidden="true"></div>
-  <div class="mark" id="mark" hidden><img class="glow" id="markGlow" alt="" aria-hidden="true"><img id="markLogo" alt="Round2"></div>
-  <div class="layer scan" aria-hidden="true"></div>
+  <div id="world" class="layer">
+    <div class="layer bg-glow"></div>
+    <div class="layer" id="bgA"></div>
+    <div class="layer" id="bgB"></div>
+    <div class="layer bg-shade"></div>
+    <div class="layer scan" aria-hidden="true"></div>
+  </div>
 
-  <header>
-    <div id="brand"><span class="wordmark">ROUND2</span></div>
-    <div class="hud">
-      <span class="avatar" id="avatar" aria-hidden="true"></span>
-      <span class="badge">P1 <b id="roomBadge">VALE</b> <span id="tierBadge">NETFLIX ROOM</span></span>
-      <span class="clock" id="clock">--:--</span>
+  <div id="ui" class="layer">
+    <header>
+      <div id="brand"><span class="wordmark">ROUND2</span></div>
+      <div class="hud">
+        <span class="avatar" id="avatar" aria-hidden="true"></span>
+        <span class="badge">P1 <b id="roomBadge">VALE</b> <span id="tierBadge">NETFLIX ROOM</span></span>
+        <span class="clock" id="clock">--:--</span>
+      </div>
+    </header>
+
+    <nav class="panel" id="menuPanel" aria-label="Main menu">
+      <div class="eyebrow">MAIN MENU</div>
+      <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
+      <div class="list" id="items"></div>
+    </nav>
+
+    <nav class="panel off" id="setPanel" aria-label="Options">
+      <div class="eyebrow"><span id="setTitle">OPTIONS</span><span class="count" id="setCount"></span></div>
+      <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
+      <div class="list" id="setList"></div>
+      <div class="wallview" id="wallView" hidden><div class="wallrows" id="wallRows"></div></div>
+    </nav>
+
+    <div class="side">
+      <div class="roomcard" aria-label="This room">
+        <div class="top"><span>&#9733; THIS ROOM</span><span id="paxBadge">1–3 PAX</span></div>
+        <div class="name" id="roomName">Vale</div>
+        <div class="spec" id="roomSpec">65" TV · PS4</div>
+      </div>
+      <section class="peek" aria-live="polite" id="peek"></section>
     </div>
-  </header>
 
-  <nav class="menu" aria-label="Main menu">
-    <div class="eyebrow">MAIN MENU</div>
-    <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
-    <div class="items" id="items"></div>
-  </nav>
+    <footer>
+      <div class="keys" id="keys"><span>[OK] SELECT</span><span>[&#9650;&#9660;] MOVE</span><span>[HOME] BACK TO THIS MENU</span></div>
+      <div>20 HAJI LANE · SINGAPORE</div>
+    </footer>
 
-  <div class="roomcard" aria-label="This room">
-    <div class="top"><span>&#9733; THIS ROOM</span><span id="paxBadge">1–3 PAX</span></div>
-    <div class="name" id="roomName">Vale</div>
-    <div class="spec" id="roomSpec">65" TV · PS4</div>
+    <div id="apps" hidden>
+      <div class="eyebrow" id="gridTitle">MORE APPS · [BACK] TO RETURN</div>
+      <div class="gridview"><div class="grid" id="grid"></div></div>
+      <div class="more" id="gridMore" hidden>&#9660; MORE BELOW</div>
+    </div>
   </div>
 
-  <section class="peek" aria-live="polite" id="peek"></section>
-
-  <footer>
-    <div class="keys"><span>[OK] SELECT</span><span>[&#9650;&#9660;] MOVE</span><span>[HOME] BACK TO THIS MENU</span></div>
-    <div>20 HAJI LANE · SINGAPORE</div>
-  </footer>
-
-  <div id="apps" hidden>
-    <div class="eyebrow" id="gridTitle">MORE APPS · [BACK] TO RETURN</div>
-    <div class="gridview"><div class="grid" id="grid"></div></div>
-    <div class="more" id="gridMore" hidden>&#9660; MORE BELOW</div>
-  </div>
-
-  <div id="zoom" aria-hidden="true"></div>
+  <div id="crt" class="layer" aria-hidden="true"><div class="t"></div><div class="b"></div><div class="line"></div></div>
   <div id="toast" role="status" hidden></div>
 </div>
 
@@ -220,12 +233,15 @@ window.R2_TV = {
   var WIX = 'https://static.wixstatic.com/media/';
   var ASSETS = {
     logo: WIX + 'a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp',
-    idle: 'https://video.wixstatic.com/video/a46627_2584053005bc4034ace51b97bb5e89aa/file',
-    photo: {
-      vale: 'a46627_8915206851034ccb949dfae7f7840715~mv2.webp', kaeden: 'a46627_d8534727eaec41b4a40b6875f1a8773f~mv2.webp',
-      scarlett: 'a46627_f6a639578bb649ae9ab7171d8b53d42a~mv2.webp', bella: 'a46627_8be531aba0154917960845485a1a05b5~mv2.webp',
-      kai: 'a46627_cba34d42d720404f9d8eba243e6bff17~mv2.webp', atlas: 'a46627_e3bfb91790b044aba0e51090d693e699~mv2.webp',
-      maximillion: 'a46627_51d582707fae40c6b3213abb8df0ac97~mv2.webp'
+    lounge: 'https://video.wixstatic.com/video/a46627_2584053005bc4034ace51b97bb5e89aa/file',
+    photos: {
+      vale:        ['8915206851034ccb949dfae7f7840715', 'bb4db4e81e9e4837800381c577783aae', '1377d574756a4ff8aed1d44d8d69cb9b'],
+      kaeden:      ['d8534727eaec41b4a40b6875f1a8773f', '3858ff524cee4e0c92a43f430684ed46', '9dcb3d7422d74a5db06ea317da44a72e'],
+      scarlett:    ['f6a639578bb649ae9ab7171d8b53d42a', '74c8f643ea4146c3b466affe1b458ecb', '71879df9e36141b4bc4682820411c4fa'],
+      bella:       ['8be531aba0154917960845485a1a05b5', '024f6349f943406785419c6b7164e19c', '2e16bd912f2d48d3997d093bbd6f2d04'],
+      kai:         ['cba34d42d720404f9d8eba243e6bff17', 'ba20734453e242b0820f39f703e51f82', '007c615739c94b33967e8cdb9fafc3ea'],
+      atlas:       ['e3bfb91790b044aba0e51090d693e699', '4fc612195b5a444aaddf388daec9eb37', 'f892843cca7d488ba25e5448fe329799'],
+      maximillion: ['51d582707fae40c6b3213abb8df0ac97', 'f41acfb8a4134f5eb4b8b0f76a9a2481', 'ed115c81e4324adb975d2d0bb26118c1']
     },
     char: {
       vale: 'a46627_a583d7ac9f5e425c8770261a9f4a5dde~mv2.webp', kaeden: 'a46627_047b973fc70140b9935452a5eee426db~mv2.webp',
@@ -233,6 +249,12 @@ window.R2_TV = {
       kai: 'a46627_2c836d63bbdd4332a4a67233df2fb631~mv2.webp', atlas: 'a46627_633e94e1767940b7a6297c4e597d25c3~mv2.webp',
       maximillion: 'a46627_fb0c6ed29fdb4c74b8a4ce1a5c99050c~mv2.webp'
     }
+  };
+  function photoUrl(id) { return WIX + 'a46627_' + id + '~mv2.webp'; }
+
+  /* Backgrounds that ship inside the app (media/), per room. Add new loops here. */
+  var SCENES = {
+    kai: [{ id: 'summit', name: 'Neon Summit', video: 'media/summit-kai.mp4', thumb: 'media/summit-kai.jpg' }]
   };
 
   /* Rooms, from the round2.sg homepage */
@@ -249,34 +271,25 @@ window.R2_TV = {
 
   /* Apps, with each TV platform's app id */
   var APPS = {
-    youtube: { name: 'YouTube',     android: 'com.google.android.youtube.tv',       tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
-    netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                   tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
-    prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom',   tizen: 'org.tizen.primevideo',    webos: 'amazon' },
+    youtube: { name: 'YouTube',     android: 'com.google.android.youtube.tv',     tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
+    netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
+    prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
     max:     { name: 'HBO Max',     android: 'com.wbd.stream' },
     airplay: { name: 'AirPlay',     android: 'com.phairplay.googletv' }
   };
-  /* Animated logo backgrounds, per room (files ship inside the app) */
-  var LOOPS = { kai: 'media/zen-kai.mp4' };
-  var BACKGROUNDS = [
-    { bg: 'video', name: 'Room scene',  sub: 'VIDEO' },
-    { bg: 'photo', name: 'Room photo',  sub: 'PHOTO' },
-    { bg: 'loop',  name: 'Logo loop',   sub: 'ANIMATED', needsLoop: true },
-    { bg: 'plain', name: 'Plain',       sub: 'LED GLOW' }
-  ];
   var SAMPLE_MORE = [
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
     { name: 'Apple TV', android: 'com.apple.atve.androidtv.appletv' }, { name: 'Twitch', android: 'tv.twitch.android.app' },
     { name: 'YouTube Music', android: 'com.google.android.youtube.tvmusic' }, { name: 'iQIYI', android: 'com.iqiyi.i18n.tv' },
-    { name: 'HBO Max', android: 'com.wbd.stream' }, { name: 'Google Play', android: 'com.android.vending' },
-    { name: 'TV Settings', settings: true }
+    { name: 'Google Play', android: 'com.android.vending' }, { name: 'TV Settings', settings: true }
   ];
 
   /* ---- Device adapter: one UI, each TV brand's own way of opening apps ---- */
   var Device = {
     kind: function () {
       if (window.R2Android || /Round2Home/.test(navigator.userAgent)) return 'android';   // Round2 launcher app (TCL, Sony)
-      if (window.tizen && window.tizen.application) return 'tizen'; // Samsung
-      if (window.webOS || window.PalmSystem) return 'webos';        // LG
+      if (window.tizen && window.tizen.application) return 'tizen';                        // Samsung
+      if (window.webOS || window.PalmSystem) return 'webos';                               // LG
       return 'preview';
     },
     open: function (item, done) {
@@ -319,7 +332,7 @@ window.R2_TV = {
         try {
           var list = JSON.parse(window.R2Android.apps()), out = [];
           for (var i = 0; i < list.length; i++) if (!/settings/i.test(list[i].name)) out.push(list[i]);
-          out.push({ name: 'TV Settings', settings: true });   /* always last */
+          out.push({ name: 'TV Settings', settings: true });
           return out;
         } catch (e) {}
       }
@@ -336,9 +349,13 @@ window.R2_TV = {
   var savedRoom = store('r2.room');
   var roomKey = ROOMS[hashRoom] ? hashRoom : ROOMS[savedRoom] ? savedRoom : (ROOMS[cfg.room] ? cfg.room : 'vale');
   var needsRoom = !ROOMS[hashRoom] && !ROOMS[savedRoom] && !ROOMS[cfg.room];
-  var room, items = [], sel = 0, mode = 'menu', gridKind = '', gridItems = [], gsel = 0, gridTop = 0, itemEls = [];
-  var prefs = { bg: store('r2.bg') || 'video', avatar: store('r2.avatar') !== '0' };
+  var room, items = [], sel = 0, itemEls = [];
+  var mode = 'menu';                         /* menu | grid | settings | walls */
+  var gridItems = [], gsel = 0, gridTop = 0;
+  var setSel = 0, walls = [], wsel = 0, wtop = 0, wallPreviewTimer;
+  var missing = {};                          /* bundled scenes whose files aren't in this build */
 
+  /* ================= main menu ================= */
   function buildItems() {
     var last = null;
     try { last = JSON.parse(store('r2.last') || 'null'); } catch (e) {}
@@ -363,19 +380,18 @@ window.R2_TV = {
     } else if (it.key === 'inputs') {
       tag = 'PLAYER 2 · PLUG IN';
       body = 'Play on the ' + esc(room.ps) + ', or plug in your own console or laptop and pick its HDMI port.';
-      rows = [];
       for (var p in cfg.inputNames) if (cfg.inputNames.hasOwnProperty(p)) rows.push([p.toUpperCase(), cfg.inputNames[p] === 'PlayStation' ? room.ps : cfg.inputNames[p]]);
       rows.push(['OTHER PORTS', 'Guest device']);
+    } else if (it.key === 'airplay') {
+      tag = 'PLAYER 2 · MIRROR';
+      body = 'iPhone or iPad: open Control Centre, tap Screen Mirroring and pick this TV. Android phones: use Cast. Netflix, Disney+ and Apple TV+ won\'t mirror.';
     } else if (it.key === 'more') {
       tag = 'LOADOUT';
       body = 'Disney+, Spotify, Twitch and every other app on this TV.';
     } else if (it.key === 'options') {
       tag = 'SETTINGS';
-      body = 'Choose the background, show or hide the room avatar, or open the TV\'s full settings.';
-      rows = [['BACKGROUND', bgName(prefs.bg)], ['AVATAR', prefs.avatar ? 'On' : 'Off']];
-    } else if (it.key === 'airplay') {
-      tag = 'PLAYER 2 · MIRROR';
-      body = 'iPhone or iPad: open Control Centre, tap Screen Mirroring and pick this TV. Android phones: use Cast. Netflix, Disney+ and Apple TV+ won\'t mirror.';
+      body = 'Pick this TV\'s background, or open the TV\'s own settings.';
+      rows = [['BACKGROUND', currentWall().name]];
     } else {
       tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
       body = 'Sign in with your own account if it asks. Sign out before your session ends so the next group starts fresh.';
@@ -388,14 +404,13 @@ window.R2_TV = {
       '<div class="go"><span>&#9654; PRESS OK</span><span class="bar"></span><span style="color:var(--mute)">ROUND2.SG</span></div></div>';
   }
 
-  /* Build the menu once; moving only swaps two classes and the side card, so it stays instant */
+  var ARROW = '<svg width="16" height="18" viewBox="0 0 14 16" aria-hidden="true"><path d="M1 1l12 7-12 7z" fill="currentColor"/></svg>';
+  /* Built once; moving only swaps two classes, so holding a button stays smooth */
   function renderMenu() {
     var html = '';
     for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      html += '<button type="button" tabindex="-1" class="mi' + (i === sel ? ' on' : '') + '" data-i="' + i + '">' +
-        '<svg width="16" height="18" viewBox="0 0 14 16" aria-hidden="true"><path d="M1 1l12 7-12 7z" fill="currentColor"/></svg>' +
-        '<span class="label">' + esc(it.label) + '</span><span class="hint">' + esc(it.hint) + '</span></button>';
+      html += '<button type="button" tabindex="-1" class="mi' + (i === sel ? ' on' : '') + '" data-i="' + i + '">' + ARROW +
+        '<span class="label">' + esc(items[i].label) + '</span><span class="hint">' + esc(items[i].hint) + '</span></button>';
     }
     $('items').innerHTML = html;
     itemEls = $('items').children;
@@ -407,22 +422,148 @@ window.R2_TV = {
     if (itemEls[sel]) itemEls[sel].className = 'mi';
     sel = i;
     if (itemEls[sel]) itemEls[sel].className = 'mi on';
-    /* the card follows a beat later so holding the button stays smooth */
     clearTimeout(peekTimer);
     peekTimer = setTimeout(function () { $('peek').innerHTML = peekHtml(items[sel]); }, 40);
   }
 
+  /* ================= Options: Background + TV settings (after CleanFrame) ================= */
+  function wallList() {
+    var out = [], sc = SCENES[roomKey] || [], i;
+    for (i = 0; i < sc.length; i++) if (!missing[sc[i].id]) out.push({ id: sc[i].id, name: sc[i].name, video: sc[i].video, thumb: sc[i].thumb });
+    out.push({ id: 'lounge', name: 'Round2 Lounge', video: ASSETS.lounge });
+    var ph = ASSETS.photos[roomKey] || [];
+    for (i = 0; i < ph.length; i++) out.push({ id: 'photo' + (i + 1), name: room.name + ' room · ' + (i + 1), image: photoUrl(ph[i]) });
+    return out;
+  }
+  function currentWall() {
+    var list = wallList(), id = store('r2.wall.' + roomKey);
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return list[0];
+  }
+
+  function setRows() {
+    return [{ act: 'walls', label: 'Background', hint: currentWall().name.toUpperCase() }, { act: 'tv', label: 'TV settings', hint: 'SYSTEM' }];
+  }
+  function openSettings(focus) {
+    mode = 'settings'; setSel = focus || 0;
+    $('setTitle').textContent = 'OPTIONS'; $('setCount').textContent = '';
+    $('wallView').hidden = true; $('setList').hidden = false;
+    var rows = setRows(), html = '';
+    for (var i = 0; i < rows.length; i++) html += '<button type="button" tabindex="-1" class="mi' + (i === setSel ? ' on' : '') + '" data-s="' + i + '">' + ARROW +
+      '<span class="label">' + esc(rows[i].label) + '</span><span class="hint">' + esc(rows[i].hint) + '</span></button>';
+    $('setList').innerHTML = html;
+    $('menuPanel').className = 'panel off'; $('setPanel').className = 'panel';
+    $('stage').className = '';
+    keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[BACK] MAIN MENU');
+  }
+  function closeSettings() {
+    mode = 'menu';
+    $('setPanel').className = 'panel off'; $('menuPanel').className = 'panel';
+    $('stage').className = '';
+    $('peek').innerHTML = peekHtml(items[sel]);
+    keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[HOME] BACK TO THIS MENU');
+  }
+  function settingsKey(k) {
+    var n = $('setList').children.length;
+    if (k === 'up' || k === 'down') {
+      $('setList').children[setSel].className = 'mi';
+      setSel = (setSel + (k === 'up' ? n - 1 : 1)) % n;
+      $('setList').children[setSel].className = 'mi on';
+    } else if (k === 'ok') {
+      if (setRows()[setSel].act === 'walls') openWalls();
+      else launch({ name: 'TV settings', settings: true });
+    } else if (k === 'back' || k === 'left') closeSettings();
+  }
+
+  function openWalls() {
+    mode = 'walls'; walls = wallList();
+    var cur = currentWall().id;
+    wsel = 0;
+    for (var i = 0; i < walls.length; i++) if (walls[i].id === cur) wsel = i;
+    wtop = Math.max(0, Math.min(wsel - 2, walls.length - 6));
+    $('setTitle').textContent = 'BACKGROUND';
+    $('setList').hidden = true; $('wallView').hidden = false;
+    var html = '';
+    for (var j = 0; j < walls.length; j++) {
+      var w = walls[j], th = w.thumb || w.image;
+      html += '<button type="button" tabindex="-1" class="mi wall' + (j === wsel ? ' on' : '') + '" data-w="' + j + '"><span class="thumb">' +
+        (th ? '<img alt="" src="' + esc(th) + '">' : '<video muted playsinline preload="metadata" src="' + esc(w.video) + '#t=2"></video>') +
+        '</span><span class="label">' + esc(w.name) + '</span><span class="picked">' + (w.id === cur ? 'IN USE' : '') + '</span></button>';
+    }
+    $('wallRows').innerHTML = html;
+    $('stage').className = 'picking';
+    keys('[OK] USE THIS', '[&#9650;&#9660;] PREVIEW', '[BACK] KEEP CURRENT');
+    moveWall(wsel, true);
+  }
+  function moveWall(i, now) {
+    var rows = $('wallRows').children;
+    if (rows[wsel]) rows[wsel].className = 'mi wall';
+    wsel = i;
+    if (rows[wsel]) rows[wsel].className = 'mi wall on';
+    if (wsel < wtop) wtop = wsel;
+    if (wsel >= wtop + 6) wtop = wsel - 5;
+    $('wallRows').style.transform = 'translateY(' + (-wtop * 92) + 'px)';
+    $('setCount').textContent = (wsel + 1) + ' OF ' + walls.length;
+    /* live preview after a short pause, so scrolling past several stays quick */
+    clearTimeout(wallPreviewTimer);
+    wallPreviewTimer = setTimeout(function () { showWall(walls[wsel]); }, now ? 0 : 220);
+  }
+  function wallsKey(k) {
+    if (k === 'up' && wsel > 0) moveWall(wsel - 1);
+    else if (k === 'down' && wsel < walls.length - 1) moveWall(wsel + 1);
+    else if (k === 'ok') {
+      clearTimeout(wallPreviewTimer);
+      store('r2.wall.' + roomKey, walls[wsel].id);
+      showWall(walls[wsel]);
+      openSettings(0);
+      toast('Background: ' + walls[wsel].name);
+    } else if (k === 'back' || k === 'left') {
+      clearTimeout(wallPreviewTimer);
+      showWall(currentWall());
+      openSettings(0);
+    }
+  }
+
+  /* Two background slots cross-fade, so changing background never flashes black */
+  var front = 'bgA', shownWall = null;
+  function showWall(w) {
+    if (!w || (shownWall && shownWall.id === w.id && shownWall.room === roomKey)) return;
+    shownWall = { id: w.id, room: roomKey };
+    var back = front === 'bgA' ? 'bgB' : 'bgA', slot = $(back), old = $(front);
+    var el;
+    if (w.video) {
+      el = document.createElement('video');
+      el.muted = true; el.loop = true; el.autoplay = true; el.setAttribute('playsinline', ''); el.setAttribute('muted', '');
+      if (w.thumb) el.poster = w.thumb;
+    } else {
+      el = document.createElement('img'); el.alt = '';
+    }
+    el.className = 'bg-media';
+    var swapped = false;
+    function swap() {
+      if (swapped) return; swapped = true;
+      slot.style.opacity = '1'; old.style.opacity = '0';
+      front = back;
+      setTimeout(function () { if (front !== old.id) { var m = old.firstChild; if (m && m.pause) m.pause(); old.innerHTML = ''; } }, 300);
+    }
+    if (w.video) { el.addEventListener('loadeddata', swap); el.src = w.video; try { el.play(); } catch (e) {} setTimeout(swap, 900); }
+    else { el.onload = swap; el.src = w.image; }
+    slot.innerHTML = ''; slot.appendChild(el);
+  }
+
+  function keys(a, b, c) { $('keys').innerHTML = '<span>' + a + '</span><span>' + b + '</span><span>' + c + '</span>'; }
+
+  /* ================= app / input grids ================= */
   function renderGrid(moveOnly) {
     var tiles = $('grid').children;
     if (moveOnly && tiles.length === gridItems.length) {
       for (var t = 0; t < tiles.length; t++) tiles[t].className = 'tile' + (t === gsel ? ' on' : '');
-      scrollGrid();
-      return;
+      scrollGrid(); return;
     }
     var html = '';
     for (var i = 0; i < gridItems.length; i++) {
       var a = gridItems[i];
-      html += '<button type="button" class="tile' + (i === gsel ? ' on' : '') + '" data-g="' + i + '"><span class="mono">' +
+      html += '<button type="button" tabindex="-1" class="tile' + (i === gsel ? ' on' : '') + '" data-g="' + i + '"><span class="mono">' +
         esc(a.mono || a.name.charAt(0)) + '</span><span class="nm">' + esc(a.name) + '</span>' +
         (a.sub ? '<span class="sub">' + esc(a.sub) + '</span>' : '') + '</button>';
     }
@@ -430,58 +571,12 @@ window.R2_TV = {
     scrollGrid();
   }
   function scrollGrid() {
-    /* keep the focused row on screen: 4 rows of 194px fit between the title and the footer */
     var cols = 5, rowH = 194, rows = 4, row = Math.floor(gsel / cols), total = Math.ceil(gridItems.length / cols);
     if (row < gridTop) gridTop = row;
     if (row >= gridTop + rows) gridTop = row - rows + 1;
     $('grid').style.transform = 'translateY(' + (-gridTop * rowH) + 'px)';
     $('gridMore').hidden = gridTop + rows >= total;
   }
-
-  var toastTimer;
-  function toast(msg) {
-    var t = $('toast'); t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
-  }
-
-  function zoomOut(then) {
-    var z = $('zoom');
-    z.innerHTML = '';
-    var mark = $('brand').firstChild ? $('brand').firstChild.cloneNode(true) : document.createElement('span');
-    if (mark.tagName === 'IMG') mark.style.height = '90px';
-    z.appendChild(mark);
-    z.className = ''; void z.offsetWidth; z.className = 'go';
-    setTimeout(then, 150);                 /* open the app while the zoom finishes */
-  }
-  function zoomBack() {
-    var z = $('zoom');
-    if (z.className !== 'go') return;
-    z.className = ''; void z.offsetWidth; z.className = 'back';
-    setTimeout(function () { z.className = ''; z.innerHTML = ''; }, 260);
-  }
-
-  function launch(it) {
-    if (it.bg) { prefs.bg = it.bg; store('r2.bg', it.bg); applyBackground(); gridItems = optionTiles(); renderGrid(); return; }
-    if (it.toggleAvatar) { prefs.avatar = !prefs.avatar; store('r2.avatar', prefs.avatar ? '1' : '0'); applyAvatar(); gridItems = optionTiles(); renderGrid(); return; }
-    if (it.key === 'options') { openGrid('options'); return; }
-    if (it.roomPick) { store('r2.room', it.roomPick); applyRoom(it.roomPick); closeGrid(); toast('This TV is now set to ' + room.name + '.'); return; }
-    if (it.key === 'continue') { if (it.last) return launch(it.last); toast('Pick something from the menu to start.'); return; }
-    if (it.key === 'more') { openGrid('apps'); return; }
-    if (it.key === 'inputs') { openGrid('inputs'); return; }
-    if (Device.kind() === 'preview') { doOpen(it); return; }
-    zoomOut(function () { doOpen(it); });
-  }
-  function doOpen(it) {
-    Device.open(it, function (err) {
-      if (err === 'preview') { toast('On the TV, this switches to ' + (it.input ? it.port : it.label || it.name) + '.'); }
-      else if (err) { zoomBack(); toast(err); return; }
-      if (!it.input && !it.settings) {
-        store('r2.last', JSON.stringify({ key: it.key || 'app', name: it.label || it.name, android: it.android, tizen: it.tizen, webos: it.webos }));
-        var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu();
-      }
-    });
-  }
-
   function inputTiles() {
     var list = Device.inputs(), out = [];
     for (var i = 0; i < list.length; i++) {
@@ -496,56 +591,111 @@ window.R2_TV = {
     for (var k in ROOMS) if (ROOMS.hasOwnProperty(k)) out.push({ roomPick: k, name: ROOMS[k].name, sub: TIERS[ROOMS[k].t].split(' ')[0].toUpperCase() });
     return out;
   }
-  function bgName(k) { for (var i = 0; i < BACKGROUNDS.length; i++) if (BACKGROUNDS[i].bg === k) return BACKGROUNDS[i].name; return k; }
-  function optionTiles() {
-    var out = [];
-    for (var i = 0; i < BACKGROUNDS.length; i++) {
-      var b = BACKGROUNDS[i];
-      if (b.needsLoop && !LOOPS[roomKey]) continue;
-      out.push({ bg: b.bg, name: b.name, mono: '\u25A3', sub: prefs.bg === b.bg ? 'ON' : b.sub });
-    }
-    out.push({ toggleAvatar: true, name: 'Room avatar', mono: '\u263A', sub: prefs.avatar ? 'ON' : 'OFF' });
-    out.push({ name: 'TV Settings', settings: true, mono: '\u2699' });
-    return out;
-  }
   function openGrid(kind) {
-    gridKind = kind;
-    gridItems = kind === 'inputs' ? inputTiles() : kind === 'rooms' ? roomTiles() : kind === 'options' ? optionTiles() : Device.apps();
-    $('gridTitle').textContent = kind === 'rooms' ? 'SET UP THIS TV · WHICH ROOM IS IT IN?' :
-      ({ inputs: 'INPUTS', options: 'OPTIONS · CHOOSE BACKGROUND' }[kind] || 'MORE APPS') + ' · [BACK] TO RETURN';
+    gridItems = kind === 'inputs' ? inputTiles() : kind === 'rooms' ? roomTiles() : Device.apps();
+    $('gridTitle').textContent = kind === 'rooms' ? 'SET UP THIS TV · WHICH ROOM IS IT IN?' : (kind === 'inputs' ? 'INPUTS' : 'MORE APPS') + ' · [BACK] TO RETURN';
     gsel = 0; gridTop = 0; mode = 'grid'; $('apps').hidden = false; renderGrid();
   }
-  function closeGrid() { mode = 'menu'; $('apps').hidden = true; }
+  function closeGrid() { if (mode === 'grid') mode = 'menu'; $('apps').hidden = true; }
+  function gridKey(k) {
+    var cols = 5, n = gridItems.length;
+    if (k === 'left') gsel = Math.max(0, gsel - 1);
+    else if (k === 'right') gsel = Math.min(n - 1, gsel + 1);
+    else if (k === 'up') gsel = gsel - cols >= 0 ? gsel - cols : gsel;
+    else if (k === 'down') gsel = Math.min(n - 1, gsel + cols);
+    else if (k === 'ok') { launch(gridItems[gsel]); return; }
+    else if (k === 'back') { closeGrid(); return; }
+    renderGrid(true);
+  }
 
-  var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
-  function move(dir) {
+  /* ================= opening things ================= */
+  var toastTimer;
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+
+  /* Dive into the scene, then the picture closes to a glowing line; the app opens underneath */
+  var leaving = false;
+  function addCls(c) { var st = $('stage'); if ((' ' + st.className + ' ').indexOf(' ' + c + ' ') < 0) st.className = (st.className + ' ' + c).trim(); }
+  function dropCls(c) { var st = $('stage'); st.className = (' ' + st.className + ' ').replace(' ' + c + ' ', ' ').trim(); }
+  function dive(then) {
+    leaving = true;
+    addCls('leaving');
+    setTimeout(then, 230);
+  }
+  function surface() {
+    if (!leaving) return;
+    leaving = false;
+    var st = $('stage');
+    /* start from the closed state with no animation, then let every transition run back */
+    addCls('snap'); addCls('leaving');
+    void st.offsetWidth;
+    dropCls('snap');
+    void st.offsetWidth;
+    dropCls('leaving');
+  }
+
+  function launch(it) {
+    if (it.roomPick) { store('r2.room', it.roomPick); applyRoom(it.roomPick); closeGrid(); toast('This TV is now set to ' + room.name + '.'); return; }
+    if (it.key === 'continue') { if (it.last) return launch(it.last); toast('Pick something from the menu to start.'); return; }
+    if (it.key === 'more') { openGrid('apps'); return; }
+    if (it.key === 'inputs') { openGrid('inputs'); return; }
+    if (it.key === 'options') { openSettings(0); return; }
+    if (Device.kind() === 'preview') { dive(function () { doOpen(it); setTimeout(surface, 700); }); return; }
+    dive(function () { doOpen(it); });
+  }
+  function doOpen(it) {
+    Device.open(it, function (err) {
+      if (err === 'preview') toast('On the TV, this opens ' + (it.input ? it.port : it.label || it.name) + '.');
+      else if (err) { surface(); toast(err); return; }
+      if (!it.input && !it.settings) {
+        store('r2.last', JSON.stringify({ key: it.key || 'app', name: it.label || it.name, android: it.android, tizen: it.tizen, webos: it.webos }));
+        var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu();
+      }
+    });
+  }
+
+  /* ================= remote ================= */
+  var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 23: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
+  function press(k) {
+    if (leaving) return;
     if (mode === 'menu') {
-      if (dir === 'up') select((sel + items.length - 1) % items.length);
-      else if (dir === 'down') select((sel + 1) % items.length);
-      else if (dir === 'ok') launch(items[sel]);
-    } else {
-      var cols = 5, n = gridItems.length;
-      if (dir === 'left') gsel = Math.max(0, gsel - 1);
-      else if (dir === 'right') gsel = Math.min(n - 1, gsel + 1);
-      else if (dir === 'up') gsel = gsel - cols >= 0 ? gsel - cols : gsel;
-      else if (dir === 'down') gsel = Math.min(n - 1, gsel + cols);
-      else if (dir === 'ok') { launch(gridItems[gsel]); return; }
-      else if (dir === 'back') { closeGrid(); return; }
-      renderGrid(true);
-    }
+      if (k === 'up') select((sel + items.length - 1) % items.length);
+      else if (k === 'down') select((sel + 1) % items.length);
+      else if (k === 'ok') launch(items[sel]);
+    } else if (mode === 'grid') gridKey(k);
+    else if (mode === 'settings') settingsKey(k);
+    else if (mode === 'walls') wallsKey(k);
   }
   document.addEventListener('keydown', function (ev) {
     var k = KEYS[ev.keyCode]; if (!k) return;
-    ev.preventDefault(); move(k);
+    ev.preventDefault(); press(k);
   });
-  window.r2Back = function () { if (mode === 'grid') closeGrid(); };
+  /* the Android app calls these: Back on the remote, a room set from the computer, and returning here */
+  window.r2Back = function () { press('back'); };
   window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
-  /* the Android app calls these: Back on the remote, and returning to this screen */
-  window.r2Resume = function () { zoomBack(); if (gridKind !== 'options') closeGrid(); var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu(); };
+  window.r2Resume = function () {
+    surface();
+    if (mode === 'grid') closeGrid();
+    var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1);
+    if (mode === 'menu') renderMenu();
+    var v = $(front).firstChild; if (v && v.play) { try { v.play(); } catch (e) {} }
+  };
 
+  /* pointer support for the browser preview */
   $('items').addEventListener('click', function (ev) {
     var b = ev.target.closest ? ev.target.closest('.mi') : null; if (!b) return;
     select(+b.getAttribute('data-i')); launch(items[sel]);
+  });
+  $('setList').addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('.mi') : null; if (!b) return;
+    $('setList').children[setSel].className = 'mi'; setSel = +b.getAttribute('data-s'); settingsKey('ok');
+  });
+  $('wallRows').addEventListener('click', function (ev) {
+    var b = ev.target.closest ? ev.target.closest('.mi') : null; if (!b) return;
+    var i = +b.getAttribute('data-w');
+    if (i === wsel) wallsKey('ok'); else moveWall(i, true);
   });
   $('grid').addEventListener('click', function (ev) {
     var b = ev.target.closest ? ev.target.closest('.tile') : null; if (!b) return;
@@ -553,12 +703,7 @@ window.R2_TV = {
   });
   $('apps').addEventListener('click', function (ev) { if (ev.target === $('apps')) closeGrid(); });
 
-  function showImg(img, src) {
-    img.onload = function () { img.hidden = false; };
-    img.onerror = function () { img.hidden = true; };
-    img.src = src;
-  }
-
+  /* ================= room ================= */
   function applyRoom(key) {
     roomKey = key; room = ROOMS[key];
     var r = document.documentElement.style;
@@ -568,30 +713,11 @@ window.R2_TV = {
     $('roomName').textContent = room.name;
     $('roomSpec').textContent = room.screen + ' · ' + room.ps;
     $('paxBadge').textContent = room.pax.toUpperCase();
+    $('avatar').style.backgroundImage = 'url("' + WIX + ASSETS.char[key] + '")';
     sel = 0; buildItems(); renderMenu();
-    applyAvatar(); applyBackground();
+    showWall(currentWall());
     var btns = document.querySelectorAll('#roomBtns button');
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-r') === key);
-  }
-
-  function applyAvatar() {
-    var a = $('avatar');
-    a.hidden = !prefs.avatar;
-    a.style.backgroundImage = 'url("' + WIX + ASSETS.char[roomKey] + '")';
-  }
-  function applyBackground() {
-    var bg = prefs.bg;
-    if (bg === 'loop' && !LOOPS[roomKey]) bg = 'video';
-    var v = $('bgVideo'), ph = $('bgPhoto');
-    v.hidden = true; ph.hidden = true; $('mark').hidden = bg !== 'loop';
-    v.style.opacity = bg === 'loop' ? '1' : '';
-    if (bg === 'video' || bg === 'loop') {
-      var src = bg === 'loop' ? LOOPS[roomKey] : ASSETS.idle;
-      if (v.getAttribute('src') !== src) v.src = src;
-      try { v.play(); } catch (e) {}
-    } else { try { v.pause(); } catch (e) {} }
-    if (bg === 'photo') showImg(ph, WIX + ASSETS.photo[roomKey]);
-    $('stage').setAttribute('data-bg', bg);
   }
 
   function tick() {
@@ -603,7 +729,6 @@ window.R2_TV = {
 
   var PREVIEW_BAR = 0;
   function fit() {
-    /* measure what is actually visible: some TV browsers report a larger layout size than the screen */
     var de = document.documentElement;
     var w = de.clientWidth || window.innerWidth || 0;
     var h = (de.clientHeight || window.innerHeight || 0) - PREVIEW_BAR;
@@ -614,33 +739,40 @@ window.R2_TV = {
     st.transform = 'scale(' + s + ')';
   }
 
-  /* Logo and background video from Wix (they load on the TV; a blocked load keeps the fallback) */
+  /* Logo from Wix (loads on the TV; a blocked load keeps the text fallback) */
   var logo = new Image();
-  logo.onload = function () {
-    logo.className = 'logo'; logo.alt = 'Round2'; $('brand').innerHTML = ''; $('brand').appendChild(logo);
-    $('markLogo').src = ASSETS.logo; $('markGlow').src = ASSETS.logo;
-  };
+  logo.onload = function () { logo.className = 'logo'; logo.alt = 'Round2'; $('brand').innerHTML = ''; $('brand').appendChild(logo); };
   logo.src = ASSETS.logo;
-  var v = $('bgVideo');
-  v.addEventListener('playing', function () { v.hidden = false; });
-  v.addEventListener('error', function () { v.hidden = true; });
+
+  /* skip bundled scenes that aren't in this build */
+  (function () {
+    for (var rk in SCENES) if (SCENES.hasOwnProperty(rk)) for (var i = 0; i < SCENES[rk].length; i++) (function (sc, rkey) {
+      var probe = new Image();
+      probe.onerror = function () {
+        missing[sc.id] = true;
+        if (rkey === roomKey && shownWall && shownWall.id === sc.id) { shownWall = null; showWall(currentWall()); }
+      };
+      probe.src = sc.thumb;
+    }(SCENES[rk][i], rk));
+  }());
 
   if (Device.kind() === 'preview') {
     var html = '';
     for (var k in ROOMS) if (ROOMS.hasOwnProperty(k)) html += '<button type="button" data-r="' + k + '">' + ROOMS[k].name + '</button> ';
     $('roomBtns').innerHTML = html;
     $('roomBtns').addEventListener('click', function (ev) {
-      var r = ev.target.getAttribute && ev.target.getAttribute('data-r'); if (r) { applyRoom(r); ev.target.blur(); }
+      var r = ev.target.getAttribute && ev.target.getAttribute('data-r');
+      if (r) { closeGrid(); if (mode !== 'menu') closeSettings(); applyRoom(r); ev.target.blur(); }
     });
     $('preview').hidden = false;
     PREVIEW_BAR = $('preview').offsetHeight;
   }
 
   window.addEventListener('resize', function () { if (!$('preview').hidden) PREVIEW_BAR = $('preview').offsetHeight; fit(); });
+  window.addEventListener('load', fit);
   applyRoom(roomKey);
   fit(); tick(); setInterval(tick, 15000);
-  window.addEventListener('load', fit);
-  if (window.visualViewport) window.visualViewport.addEventListener('resize', fit); setTimeout(fit, 400); setTimeout(fit, 1500);
+  setTimeout(fit, 400); setTimeout(fit, 1500);
   if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');
 }());
 </script>
