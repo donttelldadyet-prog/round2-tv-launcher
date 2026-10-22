@@ -51,7 +51,12 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);   // muted background video
         s.setAllowFileAccess(false);
-        s.setTextZoom(100);                // ignore the TV's large-text setting; the menu scales itself
+        s.setTextZoom(100);
+        s.setUserAgentString(s.getUserAgentString() + " Round2Home/1");   // lets the menu know it runs in the app
+        web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        web.setVerticalScrollBarEnabled(false);
+        web.setHorizontalScrollBarEnabled(false);                // ignore the TV's large-text setting; the menu scales itself
         s.setUseWideViewPort(false);       // lay out at the screen's own size; the menu scales itself
         s.setLoadWithOverviewMode(false);
         web.setInitialScale(0);
@@ -180,6 +185,12 @@ public class MainActivity extends Activity {
             } catch (Exception ex) {
                 return "The TV could not switch to this input.";
             }
+        }
+
+        @JavascriptInterface
+        public String installed(String pkg) {
+            try { act.getPackageManager().getPackageInfo(pkg, 0); return "1"; }
+            catch (Exception ex) { return "0"; }
         }
 
         /** The TV's full Settings page. */

@@ -21,6 +21,9 @@
   color-scheme: dark;
 }
 html, body { height: 100%; margin: 0; background: var(--void); color: var(--ink); overflow: hidden; }
+[hidden] { display: none !important; }
+*:focus, *:focus-visible { outline: none; }            /* the TV browser draws its own box otherwise; the menu shows focus itself */
+* { -webkit-tap-highlight-color: transparent; }
 #stage {
   position: fixed; left: 50%; top: 50%; width: 1920px; height: 1080px;
   transform-origin: 50% 50%; overflow: hidden; background: var(--void);
@@ -40,13 +43,21 @@ html, body { height: 100%; margin: 0; background: var(--void); color: var(--ink)
 
 .bracket { position: absolute; top: 150px; bottom: 210px; width: 70px; border: 7px solid var(--room);
   box-shadow: 0 0 24px var(--room), inset 0 0 18px color-mix(in srgb, var(--room) 60%, transparent);
-  border-radius: 4px; animation: hum 4.8s ease-in-out infinite; }
+  border-radius: 4px; animation: hum 4.8s ease-in-out infinite; will-change: opacity; }
 .bracket.l { left: 560px; border-right: 0; }
 .bracket.r { right: 690px; border-left: 0; }
 @keyframes hum { 0%, 100% { opacity: .95 } 50% { opacity: .72 } }
 
-.char { position: absolute; left: 600px; bottom: 0; height: 900px; width: 620px; object-fit: contain; object-position: 50% 100%;
-  filter: drop-shadow(0 0 30px rgba(0,0,0,.6)); transition: opacity .4s; }
+/* centre logo, used with the animated backgrounds */
+.mark { position: absolute; left: 640px; top: 300px; width: 520px; height: 360px; display: flex; align-items: center; justify-content: center; }
+.mark img { width: 460px; animation: breathe 7s ease-in-out infinite; will-change: transform, opacity; }
+.mark .glow { position: absolute; width: 460px; filter: blur(18px) brightness(1.6); opacity: .0; animation: glow 7s ease-in-out infinite; will-change: opacity; }
+@keyframes breathe { 0%, 100% { transform: scale(1); opacity: .92 } 50% { transform: scale(1.035); opacity: 1 } }
+@keyframes glow { 0%, 100% { opacity: .15 } 50% { opacity: .55 } }
+
+/* room character as a profile picture */
+.avatar { display: block; width: 58px; height: 58px; border: 3px solid var(--room); background: #120f1c no-repeat 50% 4% / 260% auto;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%); }
 
 header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; align-items: center; justify-content: space-between; }
 .logo { height: 50px; }
@@ -64,7 +75,7 @@ nav.menu { position: absolute; left: 72px; top: 196px; width: 540px; }
 .items { display: flex; flex-direction: column; gap: 8px; }
 .mi { display: flex; align-items: center; gap: 18px; width: 100%; height: 68px; padding: 0 24px; border: 0; background: transparent;
   color: var(--dim); text-align: left; font: inherit; cursor: pointer;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); transition: background .12s, color .12s; }
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); transition: background .08s, color .08s; }
 .mi svg { flex: none; opacity: 0; }
 .mi .label { flex: 1; font-size: 34px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
 .mi .hint { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; opacity: .45; }
@@ -79,8 +90,8 @@ nav.menu { position: absolute; left: 72px; top: 196px; width: 540px; }
 .roomcard .name { margin: 12px 0 6px; font-size: 44px; font-weight: 700; line-height: 1; letter-spacing: .06em; text-transform: uppercase; color: var(--room); }
 .roomcard .spec { font-size: 17px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #d6d0e3; }
 
-section.peek { position: absolute; right: 64px; top: 180px; width: 600px; padding: 42px; background: var(--panel);
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid rgba(244,241,251,.16); }
+section.peek { position: absolute; right: 64px; top: 180px; width: 600px; padding: 42px; background: rgba(10, 8, 18, .9);
+  border: 1px solid rgba(244,241,251,.16); }
 .peek .tag { font-family: var(--f-pix); font-size: 12px; letter-spacing: .16em; color: var(--room); }
 .peek h1 { margin: 20px 0 16px; font-size: 76px; line-height: .95; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; text-wrap: balance; }
 .peek p { margin: 0; font-size: 24px; line-height: 1.45; color: #d6d0e3; max-width: 30ch; }
@@ -90,17 +101,17 @@ section.peek { position: absolute; right: 64px; top: 180px; width: 600px; paddin
 .peek .go { display: flex; align-items: center; gap: 12px; margin-top: 34px; padding-top: 22px; border-top: 1px solid rgba(244,241,251,.16);
   font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; color: var(--accent); }
 .peek .go .bar { flex: 1; height: 10px; opacity: .5; background: repeating-linear-gradient(90deg, var(--accent) 0 12px, transparent 12px 18px); }
-.swap { animation: swap .32s cubic-bezier(.2,.7,.2,1) both; }
-@keyframes swap { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+.swap { animation: swap .2s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes swap { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
 
 footer { position: absolute; left: 72px; right: 64px; bottom: 36px; display: flex; justify-content: space-between;
   font-family: var(--f-pix); font-size: 12px; letter-spacing: .12em; color: var(--mute); }
 footer .keys { display: flex; gap: 30px; }
 
-#apps { position: absolute; inset: 0; background: rgba(4,3,8,.9); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 120px 140px; overflow: hidden; }
+#apps { position: absolute; inset: 0; background: rgba(4,3,8,.95); padding: 120px 140px; overflow: hidden; }
 #apps .eyebrow { display: flex; justify-content: space-between; margin-bottom: 40px; }
 .gridview { position: absolute; left: 140px; right: 140px; top: 200px; bottom: 90px; overflow: hidden; }
-.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; transition: transform .18s ease-out; }
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; transition: transform .16s cubic-bezier(.2,.8,.2,1); will-change: transform; }
 .more { position: absolute; left: 140px; right: 140px; bottom: 40px; text-align: center; font-family: var(--f-pix); font-size: 12px; letter-spacing: .14em; color: var(--mute); }
 .tile { position: relative; height: 170px; padding: 22px; border: 2px solid rgba(244,241,251,.14); background: rgba(16,13,26,.9);
   color: var(--ink); font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between;
@@ -110,6 +121,17 @@ footer .keys { display: flex; gap: 30px; }
 .tile .sub { position: absolute; right: 22px; top: 24px; font-family: var(--f-pix); font-size: 11px; letter-spacing: .12em; opacity: .7; }
 .tile.on { background: var(--room); color: var(--room-ink); border-color: var(--room); }
 .tile.on .mono { color: var(--room-ink); }
+
+/* zoom into the logo when an app opens */
+#zoom { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+#zoom img, #zoom .wordmark { will-change: transform; }
+#zoom.go { animation: zfade .26s ease-in forwards; }
+#zoom.go > * { animation: zin .26s cubic-bezier(.55,0,.9,.5) forwards; }
+#zoom.back { animation: zfade .22s ease-out reverse forwards; }
+#zoom.back > * { animation: zout .22s cubic-bezier(.1,.6,.3,1) forwards; }
+@keyframes zfade { from { opacity: 0 } 35% { opacity: 1 } to { opacity: 1 } }
+@keyframes zin { from { transform: scale(.7); opacity: 1 } to { transform: scale(16); opacity: 0 } }
+@keyframes zout { from { transform: scale(3); opacity: 0 } to { transform: scale(1); opacity: 1 } }
 
 #toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); padding: 18px 28px; background: var(--ink); color: var(--room-ink);
   font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
@@ -124,7 +146,7 @@ footer .keys { display: flex; gap: 30px; }
 #preview button[aria-pressed="true"] { background: var(--room); color: var(--room-ink); border-color: var(--room); }
 #preview .tip { margin-left: auto; }
 
-@media (prefers-reduced-motion: reduce) { .bracket, .swap { animation: none; } .mi { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .bracket, .swap, .mark img, .mark .glow { animation: none; } .mi, .grid { transition: none; } }
 </style>
 
 <div id="stage" role="application" aria-label="Round2 TV home screen">
@@ -135,12 +157,13 @@ footer .keys { display: flex; gap: 30px; }
   <div class="layer bg-shade"></div>
   <div class="bracket l" aria-hidden="true"></div>
   <div class="bracket r" aria-hidden="true"></div>
-  <img id="char" class="char" alt="" aria-hidden="true" hidden>
+  <div class="mark" id="mark" hidden><img class="glow" id="markGlow" alt="" aria-hidden="true"><img id="markLogo" alt="Round2"></div>
   <div class="layer scan" aria-hidden="true"></div>
 
   <header>
     <div id="brand"><span class="wordmark">ROUND2</span></div>
     <div class="hud">
+      <span class="avatar" id="avatar" aria-hidden="true"></span>
       <span class="badge">P1 <b id="roomBadge">VALE</b> <span id="tierBadge">NETFLIX ROOM</span></span>
       <span class="clock" id="clock">--:--</span>
     </div>
@@ -171,6 +194,7 @@ footer .keys { display: flex; gap: 30px; }
     <div class="more" id="gridMore" hidden>&#9660; MORE BELOW</div>
   </div>
 
+  <div id="zoom" aria-hidden="true"></div>
   <div id="toast" role="status" hidden></div>
 </div>
 
@@ -228,8 +252,17 @@ window.R2_TV = {
     youtube: { name: 'YouTube',     android: 'com.google.android.youtube.tv',       tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                   tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom',   tizen: 'org.tizen.primevideo',    webos: 'amazon' },
-    max:     { name: 'HBO Max',     android: 'com.wbd.stream' }
+    max:     { name: 'HBO Max',     android: 'com.wbd.stream' },
+    airplay: { name: 'AirPlay',     android: 'com.phairplay.googletv' }
   };
+  /* Animated logo backgrounds, per room (files ship inside the app) */
+  var LOOPS = { kai: 'media/zen-kai.mp4' };
+  var BACKGROUNDS = [
+    { bg: 'video', name: 'Room scene',  sub: 'VIDEO' },
+    { bg: 'photo', name: 'Room photo',  sub: 'PHOTO' },
+    { bg: 'loop',  name: 'Logo loop',   sub: 'ANIMATED', needsLoop: true },
+    { bg: 'plain', name: 'Plain',       sub: 'LED GLOW' }
+  ];
   var SAMPLE_MORE = [
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
     { name: 'Apple TV', android: 'com.apple.atve.androidtv.appletv' }, { name: 'Twitch', android: 'tv.twitch.android.app' },
@@ -241,7 +274,7 @@ window.R2_TV = {
   /* ---- Device adapter: one UI, each TV brand's own way of opening apps ---- */
   var Device = {
     kind: function () {
-      if (window.R2Android) return 'android';                      // Round2 launcher app (TCL, Sony)
+      if (window.R2Android || /Round2Home/.test(navigator.userAgent)) return 'android';   // Round2 launcher app (TCL, Sony)
       if (window.tizen && window.tizen.application) return 'tizen'; // Samsung
       if (window.webOS || window.PalmSystem) return 'webos';        // LG
       return 'preview';
@@ -273,6 +306,10 @@ window.R2_TV = {
       } catch (e) { done(String(e && e.message || e)); return; }
       done('preview');
     },
+    installed: function (pkg) {
+      if (Device.kind() !== 'android') return true;
+      try { return window.R2Android.installed(pkg) === '1'; } catch (e) { return true; }
+    },
     inputs: function () {
       if (Device.kind() === 'android') { try { return JSON.parse(window.R2Android.inputs()); } catch (e) {} }
       return [{ id: 'HDMI1', name: 'HDMI 1' }, { id: 'HDMI2', name: 'HDMI 2' }, { id: 'HDMI3', name: 'HDMI 3' }, { id: 'HDMI4', name: 'HDMI 4' }];
@@ -299,20 +336,24 @@ window.R2_TV = {
   var savedRoom = store('r2.room');
   var roomKey = ROOMS[hashRoom] ? hashRoom : ROOMS[savedRoom] ? savedRoom : (ROOMS[cfg.room] ? cfg.room : 'vale');
   var needsRoom = !ROOMS[hashRoom] && !ROOMS[savedRoom] && !ROOMS[cfg.room];
-  var room, items = [], sel = 0, mode = 'menu', gridItems = [], gsel = 0, gridTop = 0;
+  var room, items = [], sel = 0, mode = 'menu', gridKind = '', gridItems = [], gsel = 0, gridTop = 0, itemEls = [];
+  var prefs = { bg: store('r2.bg') || 'video', avatar: store('r2.avatar') !== '0' };
 
   function buildItems() {
     var last = null;
     try { last = JSON.parse(store('r2.last') || 'null'); } catch (e) {}
     items = [
       { key: 'continue', label: 'Continue', hint: last ? 'RESUME' : 'NEW GAME', last: last },
-      { key: 'inputs', label: 'Inputs', hint: 'HDMI' },
-      mk('youtube'), mk('netflix'), mk('prime')
+      { key: 'inputs', label: 'Inputs', hint: 'HDMI' }
     ];
+    if (Device.installed(APPS.airplay.android)) items.push(mk('airplay', 'MIRROR'));
+    items.push(mk('youtube'), mk('netflix'), mk('prime'));
     if (room.t !== 'n') items.push(mk('max'));
     items.push({ key: 'more', label: 'More apps', hint: 'ALL' });
+    items.push({ key: 'options', label: 'Options', hint: 'SETTINGS' });
+    if (sel >= items.length) sel = 0;
   }
-  function mk(k) { var a = APPS[k]; return { key: k, label: a.name, hint: 'STREAM', android: a.android, tizen: a.tizen, webos: a.webos }; }
+  function mk(k, hint) { var a = APPS[k]; return { key: k, label: a.name, hint: hint || 'STREAM', android: a.android, tizen: a.tizen, webos: a.webos }; }
 
   function peekHtml(it) {
     var tag = 'PLAYER 1 · READY', title = it.label, body = '', rows = [];
@@ -328,6 +369,13 @@ window.R2_TV = {
     } else if (it.key === 'more') {
       tag = 'LOADOUT';
       body = 'Disney+, Spotify, Twitch and every other app on this TV.';
+    } else if (it.key === 'options') {
+      tag = 'SETTINGS';
+      body = 'Choose the background, show or hide the room avatar, or open the TV\'s full settings.';
+      rows = [['BACKGROUND', bgName(prefs.bg)], ['AVATAR', prefs.avatar ? 'On' : 'Off']];
+    } else if (it.key === 'airplay') {
+      tag = 'PLAYER 2 · MIRROR';
+      body = 'iPhone or iPad: open Control Centre, tap Screen Mirroring and pick this TV. Android phones: use Cast. Netflix, Disney+ and Apple TV+ won\'t mirror.';
     } else {
       tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
       body = 'Sign in with your own account if it asks. Sign out before your session ends so the next group starts fresh.';
@@ -340,19 +388,37 @@ window.R2_TV = {
       '<div class="go"><span>&#9654; PRESS OK</span><span class="bar"></span><span style="color:var(--mute)">ROUND2.SG</span></div></div>';
   }
 
+  /* Build the menu once; moving only swaps two classes and the side card, so it stays instant */
   function renderMenu() {
     var html = '';
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
-      html += '<button type="button" class="mi' + (i === sel ? ' on' : '') + '" data-i="' + i + '" aria-current="' + (i === sel) + '">' +
+      html += '<button type="button" tabindex="-1" class="mi' + (i === sel ? ' on' : '') + '" data-i="' + i + '">' +
         '<svg width="16" height="18" viewBox="0 0 14 16" aria-hidden="true"><path d="M1 1l12 7-12 7z" fill="currentColor"/></svg>' +
         '<span class="label">' + esc(it.label) + '</span><span class="hint">' + esc(it.hint) + '</span></button>';
     }
     $('items').innerHTML = html;
+    itemEls = $('items').children;
     $('peek').innerHTML = peekHtml(items[sel]);
   }
+  var peekTimer;
+  function select(i) {
+    if (i === sel) return;
+    if (itemEls[sel]) itemEls[sel].className = 'mi';
+    sel = i;
+    if (itemEls[sel]) itemEls[sel].className = 'mi on';
+    /* the card follows a beat later so holding the button stays smooth */
+    clearTimeout(peekTimer);
+    peekTimer = setTimeout(function () { $('peek').innerHTML = peekHtml(items[sel]); }, 40);
+  }
 
-  function renderGrid() {
+  function renderGrid(moveOnly) {
+    var tiles = $('grid').children;
+    if (moveOnly && tiles.length === gridItems.length) {
+      for (var t = 0; t < tiles.length; t++) tiles[t].className = 'tile' + (t === gsel ? ' on' : '');
+      scrollGrid();
+      return;
+    }
     var html = '';
     for (var i = 0; i < gridItems.length; i++) {
       var a = gridItems[i];
@@ -361,6 +427,9 @@ window.R2_TV = {
         (a.sub ? '<span class="sub">' + esc(a.sub) + '</span>' : '') + '</button>';
     }
     $('grid').innerHTML = html;
+    scrollGrid();
+  }
+  function scrollGrid() {
     /* keep the focused row on screen: 4 rows of 194px fit between the title and the footer */
     var cols = 5, rowH = 194, rows = 4, row = Math.floor(gsel / cols), total = Math.ceil(gridItems.length / cols);
     if (row < gridTop) gridTop = row;
@@ -375,17 +444,40 @@ window.R2_TV = {
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
   }
 
+  function zoomOut(then) {
+    var z = $('zoom');
+    z.innerHTML = '';
+    var mark = $('brand').firstChild ? $('brand').firstChild.cloneNode(true) : document.createElement('span');
+    if (mark.tagName === 'IMG') mark.style.height = '90px';
+    z.appendChild(mark);
+    z.className = ''; void z.offsetWidth; z.className = 'go';
+    setTimeout(then, 150);                 /* open the app while the zoom finishes */
+  }
+  function zoomBack() {
+    var z = $('zoom');
+    if (z.className !== 'go') return;
+    z.className = ''; void z.offsetWidth; z.className = 'back';
+    setTimeout(function () { z.className = ''; z.innerHTML = ''; }, 260);
+  }
+
   function launch(it) {
+    if (it.bg) { prefs.bg = it.bg; store('r2.bg', it.bg); applyBackground(); gridItems = optionTiles(); renderGrid(); return; }
+    if (it.toggleAvatar) { prefs.avatar = !prefs.avatar; store('r2.avatar', prefs.avatar ? '1' : '0'); applyAvatar(); gridItems = optionTiles(); renderGrid(); return; }
+    if (it.key === 'options') { openGrid('options'); return; }
     if (it.roomPick) { store('r2.room', it.roomPick); applyRoom(it.roomPick); closeGrid(); toast('This TV is now set to ' + room.name + '.'); return; }
     if (it.key === 'continue') { if (it.last) return launch(it.last); toast('Pick something from the menu to start.'); return; }
     if (it.key === 'more') { openGrid('apps'); return; }
     if (it.key === 'inputs') { openGrid('inputs'); return; }
+    if (Device.kind() === 'preview') { doOpen(it); return; }
+    zoomOut(function () { doOpen(it); });
+  }
+  function doOpen(it) {
     Device.open(it, function (err) {
       if (err === 'preview') { toast('On the TV, this switches to ' + (it.input ? it.port : it.label || it.name) + '.'); }
-      else if (err) { toast(err); return; }
+      else if (err) { zoomBack(); toast(err); return; }
       if (!it.input && !it.settings) {
         store('r2.last', JSON.stringify({ key: it.key || 'app', name: it.label || it.name, android: it.android, tizen: it.tizen, webos: it.webos }));
-        buildItems(); renderMenu();
+        var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu();
       }
     });
   }
@@ -404,9 +496,23 @@ window.R2_TV = {
     for (var k in ROOMS) if (ROOMS.hasOwnProperty(k)) out.push({ roomPick: k, name: ROOMS[k].name, sub: TIERS[ROOMS[k].t].split(' ')[0].toUpperCase() });
     return out;
   }
+  function bgName(k) { for (var i = 0; i < BACKGROUNDS.length; i++) if (BACKGROUNDS[i].bg === k) return BACKGROUNDS[i].name; return k; }
+  function optionTiles() {
+    var out = [];
+    for (var i = 0; i < BACKGROUNDS.length; i++) {
+      var b = BACKGROUNDS[i];
+      if (b.needsLoop && !LOOPS[roomKey]) continue;
+      out.push({ bg: b.bg, name: b.name, mono: '\u25A3', sub: prefs.bg === b.bg ? 'ON' : b.sub });
+    }
+    out.push({ toggleAvatar: true, name: 'Room avatar', mono: '\u263A', sub: prefs.avatar ? 'ON' : 'OFF' });
+    out.push({ name: 'TV Settings', settings: true, mono: '\u2699' });
+    return out;
+  }
   function openGrid(kind) {
-    gridItems = kind === 'inputs' ? inputTiles() : kind === 'rooms' ? roomTiles() : Device.apps();
-    $('gridTitle').textContent = kind === 'rooms' ? 'SET UP THIS TV · WHICH ROOM IS IT IN?' : (kind === 'inputs' ? 'INPUTS' : 'MORE APPS') + ' · [BACK] TO RETURN';
+    gridKind = kind;
+    gridItems = kind === 'inputs' ? inputTiles() : kind === 'rooms' ? roomTiles() : kind === 'options' ? optionTiles() : Device.apps();
+    $('gridTitle').textContent = kind === 'rooms' ? 'SET UP THIS TV · WHICH ROOM IS IT IN?' :
+      ({ inputs: 'INPUTS', options: 'OPTIONS · CHOOSE BACKGROUND' }[kind] || 'MORE APPS') + ' · [BACK] TO RETURN';
     gsel = 0; gridTop = 0; mode = 'grid'; $('apps').hidden = false; renderGrid();
   }
   function closeGrid() { mode = 'menu'; $('apps').hidden = true; }
@@ -414,11 +520,9 @@ window.R2_TV = {
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
   function move(dir) {
     if (mode === 'menu') {
-      if (dir === 'up') sel = (sel + items.length - 1) % items.length;
-      else if (dir === 'down') sel = (sel + 1) % items.length;
-      else if (dir === 'ok') { launch(items[sel]); return; }
-      else return;
-      renderMenu();
+      if (dir === 'up') select((sel + items.length - 1) % items.length);
+      else if (dir === 'down') select((sel + 1) % items.length);
+      else if (dir === 'ok') launch(items[sel]);
     } else {
       var cols = 5, n = gridItems.length;
       if (dir === 'left') gsel = Math.max(0, gsel - 1);
@@ -427,7 +531,7 @@ window.R2_TV = {
       else if (dir === 'down') gsel = Math.min(n - 1, gsel + cols);
       else if (dir === 'ok') { launch(gridItems[gsel]); return; }
       else if (dir === 'back') { closeGrid(); return; }
-      renderGrid();
+      renderGrid(true);
     }
   }
   document.addEventListener('keydown', function (ev) {
@@ -436,15 +540,16 @@ window.R2_TV = {
   });
   window.r2Back = function () { if (mode === 'grid') closeGrid(); };
   window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
-  window.r2Resume = function () { closeGrid(); buildItems(); renderMenu(); };   /* the Android app calls this when Home is pressed */   /* the Android app calls this for the remote's Back button */
+  /* the Android app calls these: Back on the remote, and returning to this screen */
+  window.r2Resume = function () { zoomBack(); if (gridKind !== 'options') closeGrid(); var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu(); };
 
   $('items').addEventListener('click', function (ev) {
     var b = ev.target.closest ? ev.target.closest('.mi') : null; if (!b) return;
-    sel = +b.getAttribute('data-i'); renderMenu(); launch(items[sel]);
+    select(+b.getAttribute('data-i')); launch(items[sel]);
   });
   $('grid').addEventListener('click', function (ev) {
     var b = ev.target.closest ? ev.target.closest('.tile') : null; if (!b) return;
-    gsel = +b.getAttribute('data-g'); renderGrid(); launch(gridItems[gsel]);
+    gsel = +b.getAttribute('data-g'); renderGrid(true); launch(gridItems[gsel]);
   });
   $('apps').addEventListener('click', function (ev) { if (ev.target === $('apps')) closeGrid(); });
 
@@ -463,11 +568,30 @@ window.R2_TV = {
     $('roomName').textContent = room.name;
     $('roomSpec').textContent = room.screen + ' · ' + room.ps;
     $('paxBadge').textContent = room.pax.toUpperCase();
-    showImg($('bgPhoto'), WIX + ASSETS.photo[key]);
-    showImg($('char'), WIX + ASSETS.char[key]);
     sel = 0; buildItems(); renderMenu();
+    applyAvatar(); applyBackground();
     var btns = document.querySelectorAll('#roomBtns button');
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-r') === key);
+  }
+
+  function applyAvatar() {
+    var a = $('avatar');
+    a.hidden = !prefs.avatar;
+    a.style.backgroundImage = 'url("' + WIX + ASSETS.char[roomKey] + '")';
+  }
+  function applyBackground() {
+    var bg = prefs.bg;
+    if (bg === 'loop' && !LOOPS[roomKey]) bg = 'video';
+    var v = $('bgVideo'), ph = $('bgPhoto');
+    v.hidden = true; ph.hidden = true; $('mark').hidden = bg !== 'loop';
+    v.style.opacity = bg === 'loop' ? '1' : '';
+    if (bg === 'video' || bg === 'loop') {
+      var src = bg === 'loop' ? LOOPS[roomKey] : ASSETS.idle;
+      if (v.getAttribute('src') !== src) v.src = src;
+      try { v.play(); } catch (e) {}
+    } else { try { v.pause(); } catch (e) {} }
+    if (bg === 'photo') showImg(ph, WIX + ASSETS.photo[roomKey]);
+    $('stage').setAttribute('data-bg', bg);
   }
 
   function tick() {
@@ -491,11 +615,14 @@ window.R2_TV = {
 
   /* Logo and background video from Wix (they load on the TV; a blocked load keeps the fallback) */
   var logo = new Image();
-  logo.onload = function () { logo.className = 'logo'; logo.alt = 'Round2'; $('brand').innerHTML = ''; $('brand').appendChild(logo); };
+  logo.onload = function () {
+    logo.className = 'logo'; logo.alt = 'Round2'; $('brand').innerHTML = ''; $('brand').appendChild(logo);
+    $('markLogo').src = ASSETS.logo; $('markGlow').src = ASSETS.logo;
+  };
   logo.src = ASSETS.logo;
   var v = $('bgVideo');
-  v.addEventListener('playing', function () { v.hidden = false; $('bgPhoto').style.display = 'none'; });
-  v.src = ASSETS.idle;
+  v.addEventListener('playing', function () { v.hidden = false; });
+  v.addEventListener('error', function () { v.hidden = true; });
 
   if (Device.kind() === 'preview') {
     var html = '';

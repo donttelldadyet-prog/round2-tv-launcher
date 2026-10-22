@@ -269,7 +269,13 @@ function Cmd-Install([string]$repo) {
   if ($repo -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { Die 'Give a GitHub owner/repo, e.g. truefedex/tv-bro' }
   $abi = Q 'getprop ro.product.cpu.abi'
   Log "`$ GET https://api.github.com/repos/$repo/releases/latest"
-  try { $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -UseBasicParsing } catch { Die "No official GitHub release found for $repo" }
+  try { $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -UseBasicParsing }
+  catch {
+    # some projects only publish beta (pre-release) versions; take the newest one
+    try { $rel = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=5" -UseBasicParsing)[0] } catch { $rel = $null }
+    if (-not $rel) { Die "No official GitHub release found for $repo" }
+    Say "Using pre-release $($rel.tag_name) (this project has no stable release yet)"
+  }
   $assets = @($rel.assets | Where-Object { $_.name -like '*.apk' -and $_.browser_download_url -like "https://github.com/$repo/releases/download/*" })
   if ($assets.Count -eq 0) { Die "Release $($rel.tag_name) of $repo has no APK" }
   Say "APKs in $repo $($rel.tag_name) (TV CPU: $abi):"
@@ -484,6 +490,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   cleanup [file]         disable (never uninstall) the approved list (default: cleanup.txt)
   tweaks                 animations 0.5 + Private DNS dns.adguard-dns.com
   install owner/repo     install the latest APK from official GitHub releases (default truefedex/tv-bro)
+  airplay                install PhairPlay (AirPlay receiver) from its GitHub releases
   launcher [owner/repo]  install Round2 Home and make it the home screen (default donttelldadyet-prog/round2-tv-launcher)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
   homeguard              Google TV: make the Home button open Round2 Home (undo turns it off)
@@ -507,6 +514,7 @@ switch ($Command.ToLower()) {
   'cleanup' { Cmd-Cleanup $a1 }
   'tweaks' { Cmd-Tweaks }
   'install' { $null = Cmd-Install $a1 }
+  'airplay' { $null = Cmd-Install 'mazer666/PhairPlay'; Say 'Pick the googletv APK. Then open PhairPlay once and set its device name to this room (e.g. Round2 Kai).' }
   'launcher' { Cmd-Launcher $a1 }
   'launcher-force' { Cmd-LauncherForce }
   'homeguard' { Cmd-HomeGuard }
