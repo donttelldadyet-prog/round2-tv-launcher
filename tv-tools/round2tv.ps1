@@ -311,10 +311,31 @@ function Cmd-Launcher([string]$repo) {
   Key 'KEYCODE_HOME' 3
   Look
   if ($script:Focus -match [regex]::Escape($pkg)) { Say "Done: the Home button now opens $pkg" }
-  else { Say "This TV still forces its own home screen ($orig). Next step: .\round2tv.ps1 launcher-force (reversible with undo)." }
+  else { Say "This TV keeps its own home screen ($orig). Next step: .\round2tv.ps1 homeguard (reversible with undo)." }
+}
+
+function Cmd-HomeGuard {
+  Need-Tv; Need-Backup
+  $svc = 'sg.round2.tvhome/sg.round2.tvhome.HomeGuard'
+  if ((Get-Packages '') -notcontains 'sg.round2.tvhome') { Die 'Install Round2 Home first: .\round2tv.ps1 launcher' }
+  $cur = Q 'settings get secure enabled_accessibility_services'
+  $on = Q 'settings get secure accessibility_enabled'
+  if ($cur -match [regex]::Escape($svc)) { Say 'The Round2 Home button is already on.'; return }
+  if (-not $cur -or $cur -eq 'null') { Add-Undo 'settings delete secure enabled_accessibility_services'; $new = $svc }
+  else { Add-Undo "settings put secure enabled_accessibility_services $cur"; $new = "$($cur):$svc" }
+  if (-not $on -or $on -eq 'null') { Add-Undo 'settings delete secure accessibility_enabled' } else { Add-Undo "settings put secure accessibility_enabled $on" }
+  Sh "settings put secure enabled_accessibility_services $new"
+  Sh 'settings put secure accessibility_enabled 1'
+  Say 'Pressing Home to test'
+  Key 'KEYCODE_HOME' 3
+  Look
+  if ($script:Focus -match 'sg\.round2\.tvhome') { Say 'Done: the Home button now opens Round2 Home.' }
+  else { Say 'Home did not land on Round2 Home yet. Press Home on the remote and tell Claude what shows.' }
 }
 
 function Cmd-LauncherForce {
+  Say 'Not for Google TV: disabling its home screen starts a recovery loop. Use: .\round2tv.ps1 homeguard'
+  if ((Read-Host '  This is NOT Google TV and you want to continue? Type YES') -ne 'YES') { Die 'Cancelled' }
   Need-Tv; Need-Backup
   $orig = if (Test-Path $HomeFile) { (Get-Content $HomeFile -Raw).Trim() } else { '' }
   if (-not $orig) { Die 'Original home screen unknown - run backup before installing the launcher' }
@@ -438,7 +459,8 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   install owner/repo     install the latest APK from official GitHub releases (default truefedex/tv-bro)
   launcher [owner/repo]  install Round2 Home and make it the home screen (default donttelldadyet-prog/round2-tv-launcher)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
-  launcher-force         if the TV ignores it, disable the stock home app (asks first; undo restores)
+  homeguard              Google TV: make the Home button open Round2 Home (undo turns it off)
+  launcher-force         older Android TV only: disable the stock home app (never on Google TV)
   wallpaper file.png     copy a Round2 wallpaper to the TV for the launcher
   youtube "name|link"    open YouTube with key presses and play that video
   status                 show current values and everything recorded for undo
@@ -460,6 +482,7 @@ switch ($Command.ToLower()) {
   'install' { $null = Cmd-Install $a1 }
   'launcher' { Cmd-Launcher $a1 }
   'launcher-force' { Cmd-LauncherForce }
+  'homeguard' { Cmd-HomeGuard }
   'wallpaper' { Cmd-Wallpaper $a1 }
   'room' { Cmd-Room $a1 }
   'youtube' { Cmd-YouTube ($Rest -join ' ') }

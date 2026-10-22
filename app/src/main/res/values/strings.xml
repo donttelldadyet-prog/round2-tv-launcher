@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Round2 Home</string>
+    <string name="guard_description">Opens the Round2 menu when the Home button is pressed. Reads no screen content.</string>
+    <string name="guard_label">Round2 Home button</string>
 </resources>
