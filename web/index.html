@@ -25,8 +25,8 @@ html, body { height: 100%; margin: 0; background: var(--void); color: var(--ink)
 *:focus, *:focus-visible { outline: none; }            /* the TV browser draws its own box otherwise; the menu shows focus itself */
 * { -webkit-tap-highlight-color: transparent; }
 #stage {
-  position: fixed; left: 50%; top: 50%; width: 1920px; height: 1080px;
-  transform-origin: 50% 50%; overflow: hidden; background: var(--void);
+  position: fixed; left: 0; top: 0; width: 1920px; height: 1080px;
+  transform-origin: 0 0; overflow: hidden; background: var(--void);
   font-family: var(--f-ui); -webkit-font-smoothing: antialiased;
 }
 .layer { position: absolute; inset: 0; }
@@ -604,13 +604,14 @@ window.R2_TV = {
   var PREVIEW_BAR = 0;
   function fit() {
     /* measure what is actually visible: some TV browsers report a larger layout size than the screen */
-    var vv = window.visualViewport, de = document.documentElement;
-    var w = vv && vv.width ? vv.width : Math.min(window.innerWidth || 1e9, de.clientWidth || 1e9);
-    var h = (vv && vv.height ? vv.height : Math.min(window.innerHeight || 1e9, de.clientHeight || 1e9)) - PREVIEW_BAR;
-    if (w >= 1e9 || h >= 1e9) { w = 0; h = 0; }
-    if (!w || !h) { setTimeout(fit, 100); return; }
-    var s = Math.min(w / 1920, h / 1080);
-    $('stage').style.transform = 'translate(-50%, calc(-50% - ' + (PREVIEW_BAR / 2) + 'px)) scale(' + s + ')';
+    var de = document.documentElement;
+    var w = de.clientWidth || window.innerWidth || 0;
+    var h = (de.clientHeight || window.innerHeight || 0) - PREVIEW_BAR;
+    if (w <= 0 || h <= 0) { setTimeout(fit, 100); return; }
+    var s = Math.min(w / 1920, h / 1080), st = $('stage').style;
+    st.left = Math.round((w - 1920 * s) / 2) + 'px';
+    st.top = Math.round((h - 1080 * s) / 2) + 'px';
+    st.transform = 'scale(' + s + ')';
   }
 
   /* Logo and background video from Wix (they load on the TV; a blocked load keeps the fallback) */
