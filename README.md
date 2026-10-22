@@ -28,7 +28,7 @@ powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 homeguard
 powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 room vale
 ```
 
-`start` connects and backs up without changing anything. `launcher` installs the latest release of this repo and makes it the home screen; on Google TV (TCL), then run `homeguard` so the remote's Home button opens Round2 Home. Never use `launcher-force` on Google TV: disabling its home screen starts a recovery loop. If Home still opens Google TV after `homeguard`, go to TV Settings > Device Preferences > Accessibility > **Round2 Home button** and switch it off and on once. On first start the app asks which room the TV is in; `room <name>` changes it later.
+`start` connects and backs up without changing anything. `launcher` installs the latest release of this repo and makes it the home screen; on Google TV (TCL), then run `homeguard` so the remote's Home button opens Round2 Home. Never use `launcher-force` on Google TV: disabling its home screen starts a recovery loop. On TCL TVs `homeguard` also grants TCL's auto-start permission (`APP_AUTO_START`), without which TCL blocks the Home-button helper. If Home still opens Google TV after `homeguard`, go to TV Settings > Device Preferences > Accessibility > **Round2 Home button** and switch it off and on once. On first start the app asks which room the TV is in; `room <name>` changes it later.
 
 To put everything back: `.\round2tv.ps1 undo`. When finished with a TV: `.\round2tv.ps1 lockdown` turns network debugging off.
 

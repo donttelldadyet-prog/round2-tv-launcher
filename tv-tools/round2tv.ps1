@@ -321,6 +321,14 @@ function Cmd-HomeGuard {
   Need-Tv; Need-Backup
   $svc = 'sg.round2.tvhome/sg.round2.tvhome.HomeGuard'
   if ((Get-Packages '') -notcontains 'sg.round2.tvhome') { Die 'Install Round2 Home first: .\round2tv.ps1 launcher' }
+  # TCL blocks background helpers unless the app has TCL's auto-start permission
+  $ops = Q 'appops get sg.round2.tvhome APP_AUTO_START'
+  if ($ops -match 'APP_AUTO_START: (\w+)') {
+    if ($Matches[1] -ne 'allow') {
+      Add-Undo "appops set sg.round2.tvhome APP_AUTO_START $($Matches[1])"
+      Sh 'appops set sg.round2.tvhome APP_AUTO_START allow'
+    }
+  }
   $cur = Q 'settings get secure enabled_accessibility_services'
   $on = Q 'settings get secure accessibility_enabled'
   if ($cur -match [regex]::Escape($svc)) {
