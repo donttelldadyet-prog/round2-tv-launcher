@@ -33,17 +33,6 @@
       ],
       "takeover": false,
       "cards": "low"
-    },
-    {
-      "id": "starry2-2026",
-      "name": "starry2",
-      "source": "starry2-2026-mvknoviq.mp4",
-      "rooms": [
-        "kaeden",
-        "scarlett"
-      ],
-      "takeover": false,
-      "cards": "bottom"
     }
   ]
 }
