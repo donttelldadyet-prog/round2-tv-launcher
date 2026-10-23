@@ -1,3 +1,4 @@
 # name  source-url   (OpenArt Veo 3.1 loops, Neon Summit for Kai)
 summit-kai-right.mp4  https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/sample_0_1792713690481_6179892f.mp4
 summit-kai-centre.mp4 https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/sample_0_1792713691825_8b7ed1c8.mp4
+lounge.mp4            https://video.wixstatic.com/video/a46627_2584053005bc4034ace51b97bb5e89aa/file

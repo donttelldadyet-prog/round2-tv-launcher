@@ -134,26 +134,62 @@ footer .keys { display: flex; gap: 30px; }
 .tile.on { background: var(--room); color: var(--room-ink); border-color: var(--room); }
 .tile.on .mono { color: var(--room-ink); }
 
-/* ---------- launch transition: dive into the scene, then the screen closes to a line ---------- */
-#crt { pointer-events: none; }
-/* lightning: a violet-white flash like the strike in the scene loops */
-#flash { pointer-events: none; opacity: 0; background: radial-gradient(70% 90% at var(--fx, 50%) var(--fy, 40%), #fff 0%, #d9c8ff 30%, rgba(160,120,255,.5) 60%, rgba(60,40,140,0) 100%); }
-.leaving #flash { animation: strike .26s linear both; }
+/* ---------- transitions (Options > Transition: Warp / Dive / Off) ---------- */
+#flash, #warp, #veil, #dim, #ship { pointer-events: none; }
+/* lightning: a violet-white flash like the strikes in the scene loops */
+#flash { opacity: 0; background: radial-gradient(70% 90% at var(--fx, 50%) var(--fy, 40%), #fff 0%, #d9c8ff 30%, rgba(160,120,255,.5) 60%, rgba(60,40,140,0) 100%); }
 @keyframes strike { 0% { opacity: 0 } 10% { opacity: .75 } 22% { opacity: .15 } 34% { opacity: .55 } 100% { opacity: 0 } }
-/* coming back: the menu buzzes on like a neon tube */
-.neon-on #ui { animation: neonOn .42s linear both; }
-@keyframes neonOn { 0% { opacity: 0 } 12% { opacity: .9 } 20% { opacity: .2 } 32% { opacity: 1 } 40% { opacity: .5 } 52% { opacity: 1 } 100% { opacity: 1 } }
-#crt .t, #crt .b { position: absolute; left: 0; right: 0; height: 50%; background: #000; transform: scaleY(0); transition: transform .16s cubic-bezier(.7, 0, 1, .6); }
-#crt .t { top: 0; transform-origin: 50% 0; }
-#crt .b { bottom: 0; transform-origin: 50% 100%; }
-#crt .line { position: absolute; left: 0; right: 0; top: 539px; height: 2px; background: #fff;
-  box-shadow: 0 0 18px 4px var(--room), 0 0 60px 12px var(--room); opacity: 0; transform: scaleX(1); transition: opacity .08s linear, transform .14s ease-in; }
-.leaving #world { transform: scale(1.6); }
-.leaving #ui { opacity: 0; transform: scale(1.08); }
-.leaving #crt .t, .leaving #crt .b { transform: scaleY(1); transition-delay: .16s; }
-.leaving #crt .line { opacity: 1; transform: scaleX(0); transition-delay: .26s, .3s; }
-.snap #world, .snap #ui, .snap #crt .t, .snap #crt .b, .snap #crt .line { transition: none !important; }
-.leaving #world { transition-delay: .06s; }
+#dim { opacity: 0; background: #06050a; }
+
+/* Warp: light streams out of the logo as the camera jumps toward it, ending in a teal bloom */
+#warp { opacity: 0; overflow: hidden; }
+#warp .rays { position: absolute; left: var(--fx, 50%); top: var(--fy, 50%); width: 3400px; height: 3400px; margin: -1700px 0 0 -1700px;
+  background: repeating-conic-gradient(from 0deg, rgba(0,0,0,0) 0deg 3.6deg, rgba(200,255,245,.9) 3.6deg 3.85deg, rgba(0,0,0,0) 3.85deg 6.1deg, rgba(140,200,255,.6) 6.1deg 6.25deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 0, transparent 5%, #000 16%, #000 58%, transparent 70%);
+  mask-image: radial-gradient(circle, transparent 0, transparent 5%, #000 16%, #000 58%, transparent 70%);
+  transform: scale(.12); will-change: transform; }
+#veil { opacity: 0; background: radial-gradient(55% 65% at var(--fx, 50%) var(--fy, 50%), #effffc 0%, var(--room) 28%, #06050a 72%); }
+.go-warp #world { transform: scale(1.55); transition: transform .4s cubic-bezier(.6, 0, .9, .5); }
+.go-warp #ui { opacity: 0; transform: scale(1.06); transition: opacity .12s linear, transform .2s ease-in; }
+.go-warp #warp { animation: on .4s linear both; }
+.go-warp #warp .rays { animation: rays .42s cubic-bezier(.45, 0, .9, .4) both; }
+.go-warp #veil { animation: veil .42s ease-in both; }
+@keyframes on { 0% { opacity: 0 } 20% { opacity: 1 } 100% { opacity: 1 } }
+@keyframes rays { from { transform: scale(.12) rotate(0deg) } to { transform: scale(1.5) rotate(10deg) } }
+@keyframes veil { 0% { opacity: 0 } 50% { opacity: 0 } 80% { opacity: .9 } 100% { opacity: 1 } }
+
+/* Dive: a calm push into the logo and a fade */
+.go-dive #world { transform: scale(1.35); transition: transform .34s cubic-bezier(.5, 0, .8, .4); }
+.go-dive #ui { opacity: 0; transition: opacity .16s linear; }
+.go-dive #dim { opacity: 1; transition: opacity .18s linear .14s; }
+
+/* coming back without the Home animation: a quick settle */
+.settle #world { animation: settle .32s var(--ease) both; }
+.settle #ui { animation: fadeUp .22s linear both; }
+@keyframes settle { from { transform: scale(1.08) } to { transform: none } }
+@keyframes fadeUp { from { opacity: 0 } to { opacity: 1 } }
+
+/* Home animation: lightning, a ship skims past the camera, the menu powers on */
+#ship { position: absolute; left: 0; top: 0; width: 1100px; height: 300px; opacity: 0; will-change: transform; }
+.entering #dim { animation: entryDim .5s ease-out both; }
+.entering #world { animation: entryWorld 1.2s cubic-bezier(.2, .8, .2, 1) both; }
+.entering #flash { animation: strike .32s linear .1s both; }
+.entering #ship { animation: flyby .95s cubic-bezier(.35, .05, .55, 1) .2s both; }
+.entering header, .entering footer { animation: rise .4s var(--ease) .5s both; }
+.entering #items .mi { animation: slideIn .34s var(--ease) both; }
+.entering #items .mi:nth-child(1) { animation-delay: .52s } .entering #items .mi:nth-child(2) { animation-delay: .56s }
+.entering #items .mi:nth-child(3) { animation-delay: .6s }  .entering #items .mi:nth-child(4) { animation-delay: .64s }
+.entering #items .mi:nth-child(5) { animation-delay: .68s } .entering #items .mi:nth-child(6) { animation-delay: .72s }
+.entering #items .mi:nth-child(7) { animation-delay: .76s } .entering #items .mi:nth-child(8) { animation-delay: .8s }
+.entering #items .mi:nth-child(9) { animation-delay: .84s } .entering #items .mi:nth-child(10) { animation-delay: .88s }
+.entering .side { animation: rise .4s var(--ease) .74s both; }
+.entering .panel .eyebrow, .entering .panel .divider { animation: rise .34s var(--ease) .46s both; }
+@keyframes entryDim { from { opacity: 1 } to { opacity: 0 } }
+@keyframes entryWorld { from { transform: scale(1.14) } to { transform: none } }
+@keyframes flyby { 0% { opacity: 1; transform: translate(2150px, 560px) scale(.5) rotate(-3deg) } 100% { opacity: 1; transform: translate(-1550px, -140px) scale(1.6) rotate(-9deg) } }
+@keyframes slideIn { from { opacity: 0; transform: translateX(-44px) } to { opacity: 1; transform: none } }
+@keyframes rise { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
+.snap * { transition: none !important; }
 
 #toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); padding: 18px 28px; background: var(--ink); color: var(--room-ink);
   font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
@@ -169,8 +205,8 @@ footer .keys { display: flex; gap: 30px; }
 #preview .tip { margin-left: auto; }
 
 @media (prefers-reduced-motion: reduce) {
-  #world, #ui, .panel, .wallrows, .grid, .mi, #bgA, #bgB, #crt .t, #crt .b, #crt .line { transition: none !important; }
-  .swap, .leaving #flash, .neon-on #ui { animation: none !important; }
+  #world, #ui, .panel, .wallrows, .grid, .mi, #bgA, #bgB { transition: none !important; }
+  .swap, #warp, #warp .rays, #veil, #flash, #ship, .entering *, .settle * { animation: none !important; }
 }
 </style>
 
@@ -227,8 +263,27 @@ footer .keys { display: flex; gap: 30px; }
     </div>
   </div>
 
+  <div id="dim" class="layer" aria-hidden="true"></div>
   <div id="flash" class="layer" aria-hidden="true"></div>
-  <div id="crt" class="layer" aria-hidden="true"><div class="t"></div><div class="b"></div><div class="line"></div></div>
+  <div id="warp" class="layer" aria-hidden="true"><div class="rays"></div></div>
+  <div id="veil" class="layer" aria-hidden="true"></div>
+  <svg id="ship" viewBox="0 0 1100 300" aria-hidden="true">
+    <defs>
+      <linearGradient id="shTrail" x1="0" x2="1"><stop offset="0" stop-color="#e8fffb" stop-opacity=".95"/><stop offset=".18" style="stop-color: var(--room)" stop-opacity=".85"/><stop offset="1" style="stop-color: var(--room)" stop-opacity="0"/></linearGradient>
+      <linearGradient id="shHull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3358"/><stop offset=".45" stop-color="#15111f"/><stop offset="1" stop-color="#06050a"/></linearGradient>
+      <radialGradient id="shEng"><stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#b8fff3"/><stop offset="1" style="stop-color: var(--room)" stop-opacity="0"/></radialGradient>
+    </defs>
+    <rect x="600" y="122" width="500" height="26" fill="url(#shTrail)"/>
+    <rect x="600" y="160" width="430" height="14" fill="url(#shTrail)" opacity=".7"/>
+    <path d="M330 176 L520 252 L612 252 L566 182 Z" fill="#0d0b16" stroke="#b8fff3" stroke-opacity=".35" stroke-width="2"/>
+    <path d="M436 102 L538 46 L594 48 L562 106 Z" fill="#1a1528" stroke="#b8fff3" stroke-opacity=".35" stroke-width="2"/>
+    <path d="M18 150 L300 116 L470 94 L604 102 L648 126 L648 180 L604 192 L420 194 L300 180 Z" fill="url(#shHull)" stroke="#b8fff3" stroke-opacity=".55" stroke-width="2"/>
+    <path d="M150 136 L300 121 L334 133 L172 147 Z" fill="#9ffaea" opacity=".85"/>
+    <path d="M70 154 L590 142" style="stroke: var(--room)" stroke-width="4" opacity=".9"/>
+    <circle cx="648" cy="136" r="30" fill="url(#shEng)"/>
+    <circle cx="648" cy="170" r="20" fill="url(#shEng)"/>
+    <circle cx="560" cy="250" r="5" fill="#ff3b5c"/><circle cx="560" cy="50" r="4" fill="#ffffff"/>
+  </svg>
   <div id="toast" role="status" hidden></div>
 </div>
 
@@ -254,16 +309,6 @@ window.R2_TV = {
   var WIX = 'https://static.wixstatic.com/media/';
   var ASSETS = {
     logo: WIX + 'a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp',
-    lounge: 'https://video.wixstatic.com/video/a46627_2584053005bc4034ace51b97bb5e89aa/file',
-    photos: {
-      vale:        ['8915206851034ccb949dfae7f7840715', 'bb4db4e81e9e4837800381c577783aae', '1377d574756a4ff8aed1d44d8d69cb9b'],
-      kaeden:      ['d8534727eaec41b4a40b6875f1a8773f', '3858ff524cee4e0c92a43f430684ed46', '9dcb3d7422d74a5db06ea317da44a72e'],
-      scarlett:    ['f6a639578bb649ae9ab7171d8b53d42a', '74c8f643ea4146c3b466affe1b458ecb', '71879df9e36141b4bc4682820411c4fa'],
-      bella:       ['8be531aba0154917960845485a1a05b5', '024f6349f943406785419c6b7164e19c', '2e16bd912f2d48d3997d093bbd6f2d04'],
-      kai:         ['cba34d42d720404f9d8eba243e6bff17', 'ba20734453e242b0820f39f703e51f82', '007c615739c94b33967e8cdb9fafc3ea'],
-      atlas:       ['e3bfb91790b044aba0e51090d693e699', '4fc612195b5a444aaddf388daec9eb37', 'f892843cca7d488ba25e5448fe329799'],
-      maximillion: ['51d582707fae40c6b3213abb8df0ac97', 'f41acfb8a4134f5eb4b8b0f76a9a2481', 'ed115c81e4324adb975d2d0bb26118c1']
-    },
     char: {
       vale: 'a46627_a583d7ac9f5e425c8770261a9f4a5dde~mv2.webp', kaeden: 'a46627_047b973fc70140b9935452a5eee426db~mv2.webp',
       scarlett: 'a46627_feafbe9bf95d4bffbea8855d66d0a63c~mv2.webp', bella: 'a46627_a61b016ed61045f28c2dba9b6146e9d4~mv2.webp',
@@ -271,7 +316,6 @@ window.R2_TV = {
       maximillion: 'a46627_fb0c6ed29fdb4c74b8a4ce1a5c99050c~mv2.webp'
     }
   };
-  function photoUrl(id) { return WIX + 'a46627_' + id + '~mv2.webp'; }
 
   /* Backgrounds that ship inside the app (media/), per room. Add new loops here. */
   var SCENES = {
@@ -281,6 +325,9 @@ window.R2_TV = {
       { id: 'summit2', name: 'Neon Summit · Centre', video: 'media/summit-kai-centre.mp4', thumb: 'media/summit-kai-centre.jpg', layout: 'low', focus: '50% 50%' }
     ]
   };
+
+  /* Shared backgrounds for every room (also bundled) */
+  var COMMON = [{ id: 'lounge', name: 'Round2 Lounge', video: 'media/lounge.mp4', thumb: 'media/lounge.jpg' }];
 
   /* Rooms, from the round2.sg homepage */
   var TIERS = { n: 'Netflix room', d: 'Deluxe room', v: 'VIP room' };
@@ -371,6 +418,94 @@ window.R2_TV = {
   function dropCls(c) { var st = $('stage'); st.className = (' ' + st.className + ' ').replace(' ' + c + ' ', ' ').trim(); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
+  /* ================= per-TV preferences (Options) ================= */
+  var FX = [{ id: 'warp', name: 'Warp' }, { id: 'dive', name: 'Dive' }, { id: 'off', name: 'Off' }];
+  var SOUNDS = [
+    { id: 'neon',   name: 'Neon tick' },
+    { id: 'zen',    name: 'Kai bamboo' },
+    { id: 'holo',   name: 'Hologram' },
+    { id: 'glitch', name: 'Glitch' },
+    { id: 'synth',  name: 'Synthwave' },
+    { id: 'off',    name: 'Off' }
+  ];
+  var prefs = {
+    fx: store('r2.fx') || 'warp',
+    entry: store('r2.entry') !== 'off',
+    sound: store('r2.sound') || 'neon'
+  };
+  function nameOf(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i].name; return list[0].name; }
+  function cycle(list, id, dir) {
+    var i = 0; for (var j = 0; j < list.length; j++) if (list[j].id === id) i = j;
+    return list[(i + dir + list.length) % list.length].id;
+  }
+
+  /* ================= menu sounds: synthesised live (no files, no delay) ================= */
+  var Sfx = (function () {
+    var ctx = null, noiseBuf = null;
+    function ac() {
+      if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } }
+      if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+      return ctx;
+    }
+    function noise(c) {
+      if (noiseBuf) return noiseBuf;
+      noiseBuf = c.createBuffer(1, c.sampleRate * 0.2, c.sampleRate);
+      var d = noiseBuf.getChannelData(0); for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      return noiseBuf;
+    }
+    /* one voice: oscillator (or noise) -> filter -> envelope */
+    function voice(o) {
+      var c = ac(); if (!c) return;
+      var t = c.currentTime + (o.at || 0), g = c.createGain(), f = c.createBiquadFilter(), src;
+      f.type = o.filter || 'lowpass'; f.frequency.value = o.cut || 6000; f.Q.value = o.q || 0.7;
+      if (o.wave === 'noise') { src = c.createBufferSource(); src.buffer = noise(c); }
+      else {
+        src = c.createOscillator(); src.type = o.wave || 'sine';
+        src.frequency.setValueAtTime(o.f0, t);
+        if (o.f1) src.frequency.exponentialRampToValueAtTime(o.f1, t + (o.glide || o.dur));
+      }
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(o.vol || 0.12, t + (o.atk || 0.004));
+      g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+      src.connect(f); f.connect(g); g.connect(c.destination);
+      src.start(t); src.stop(t + o.dur + 0.02);
+    }
+    var SETS = {
+      neon: {   /* bright square-wave tick, like a neon sign relay */
+        move:   function () { voice({ wave: 'square', f0: 2100, f1: 1500, dur: 0.035, vol: 0.05, cut: 4200 }); },
+        ok:     function () { voice({ wave: 'square', f0: 900, f1: 1800, dur: 0.09, vol: 0.06, cut: 5000 }); voice({ wave: 'sine', f0: 1800, dur: 0.12, vol: 0.05, at: 0.05 }); },
+        back:   function () { voice({ wave: 'square', f0: 1400, f1: 700, dur: 0.08, vol: 0.05, cut: 3000 }); }
+      },
+      zen: {    /* soft bamboo knock and a temple-bell select, for Kai's calm room */
+        move:   function () { voice({ wave: 'triangle', f0: 620, f1: 480, dur: 0.07, vol: 0.12, cut: 2200 }); voice({ wave: 'noise', dur: 0.02, vol: 0.03, filter: 'bandpass', cut: 2400, q: 6 }); },
+        ok:     function () { voice({ wave: 'sine', f0: 880, dur: 0.6, vol: 0.08, atk: 0.003 }); voice({ wave: 'sine', f0: 1320, dur: 0.4, vol: 0.04 }); voice({ wave: 'sine', f0: 2210, dur: 0.25, vol: 0.02 }); },
+        back:   function () { voice({ wave: 'triangle', f0: 440, f1: 330, dur: 0.1, vol: 0.1, cut: 1600 }); }
+      },
+      holo: {   /* glassy sine glide, like touching a hologram */
+        move:   function () { voice({ wave: 'sine', f0: 700, f1: 1050, dur: 0.06, vol: 0.08 }); voice({ wave: 'sine', f0: 1400, f1: 2100, dur: 0.05, vol: 0.025, at: 0.012 }); },
+        ok:     function () { voice({ wave: 'sine', f0: 520, f1: 1560, dur: 0.18, glide: 0.12, vol: 0.09 }); voice({ wave: 'sine', f0: 1560, dur: 0.22, vol: 0.04, at: 0.1 }); },
+        back:   function () { voice({ wave: 'sine', f0: 1200, f1: 500, dur: 0.12, vol: 0.08 }); }
+      },
+      glitch: { /* crunchy data burst */
+        move:   function () { voice({ wave: 'noise', dur: 0.03, vol: 0.09, filter: 'bandpass', cut: 1800 + Math.random() * 2400, q: 4 }); voice({ wave: 'square', f0: 300 + Math.random() * 300, dur: 0.02, vol: 0.03, cut: 2000 }); },
+        ok:     function () { voice({ wave: 'noise', dur: 0.06, vol: 0.1, filter: 'bandpass', cut: 3000, q: 3 }); voice({ wave: 'sawtooth', f0: 220, f1: 880, dur: 0.12, vol: 0.05, cut: 2600, at: 0.03 }); },
+        back:   function () { voice({ wave: 'noise', dur: 0.05, vol: 0.08, filter: 'bandpass', cut: 900, q: 3 }); }
+      },
+      synth: {  /* warm synthwave pluck */
+        move:   function () { voice({ wave: 'sawtooth', f0: 440, dur: 0.09, vol: 0.05, cut: 1600, q: 4 }); },
+        ok:     function () { voice({ wave: 'sawtooth', f0: 440, dur: 0.2, vol: 0.05, cut: 2200, q: 5 }); voice({ wave: 'sawtooth', f0: 659, dur: 0.2, vol: 0.04, cut: 2200, q: 5, at: 0.06 }); voice({ wave: 'sawtooth', f0: 880, dur: 0.3, vol: 0.04, cut: 2600, q: 5, at: 0.12 }); },
+        back:   function () { voice({ wave: 'sawtooth', f0: 330, f1: 220, dur: 0.14, vol: 0.05, cut: 1400, q: 4 }); }
+      }
+    };
+    return {
+      play: function (kind, set) {
+        var s = SETS[set || prefs.sound]; if (!s) return;
+        try { s[kind](); } catch (e) {}
+      },
+      wake: ac
+    };
+  }());
+
   var cfg = window.R2_TV;
   var hashRoom = (location.hash || '').replace('#', '');
   var savedRoom = store('r2.room');
@@ -457,9 +592,8 @@ window.R2_TV = {
   function wallList() {
     var out = [], sc = SCENES[roomKey] || [], i;
     for (i = 0; i < sc.length; i++) if (!missing[sc[i].id]) out.push(sc[i]);
-    out.push({ id: 'lounge', name: 'Round2 Lounge', video: ASSETS.lounge });
-    var ph = ASSETS.photos[roomKey] || [];
-    for (i = 0; i < ph.length; i++) out.push({ id: 'photo' + (i + 1), name: room.name + ' room · ' + (i + 1), image: photoUrl(ph[i]) });
+    for (i = 0; i < COMMON.length; i++) if (!missing[COMMON[i].id]) out.push(COMMON[i]);
+    if (!out.length) out.push({ id: 'plain', name: 'Plain' });   /* nothing bundled: LED glow only */
     return out;
   }
   function currentWall() {
@@ -469,7 +603,22 @@ window.R2_TV = {
   }
 
   function setRows() {
-    return [{ act: 'walls', label: 'Background', hint: currentWall().name.toUpperCase() }, { act: 'tv', label: 'TV settings', hint: 'SYSTEM' }];
+    return [
+      { act: 'walls', label: 'Background',     hint: currentWall().name.toUpperCase() + ' \u203A' },
+      { act: 'fx',    label: 'Transition',     hint: '\u2039 ' + nameOf(FX, prefs.fx).toUpperCase() + ' \u203A' },
+      { act: 'entry', label: 'Home animation', hint: '\u2039 ' + (prefs.entry ? 'ON' : 'OFF') + ' \u203A' },
+      { act: 'sound', label: 'Menu sounds',    hint: '\u2039 ' + nameOf(SOUNDS, prefs.sound).toUpperCase() + ' \u203A' },
+      { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' }
+    ];
+  }
+  /* left/right (or OK) changes a setting in place and shows or plays what it does */
+  function changeSetting(act, dir) {
+    if (act === 'fx') { prefs.fx = cycle(FX, prefs.fx, dir); store('r2.fx', prefs.fx); if (prefs.fx !== 'off') demoTransition(); }
+    else if (act === 'entry') { prefs.entry = !prefs.entry; store('r2.entry', prefs.entry ? 'on' : 'off'); if (prefs.entry) arrive(true); }
+    else if (act === 'sound') { prefs.sound = cycle(SOUNDS, prefs.sound, dir); store('r2.sound', prefs.sound); Sfx.play('ok'); }
+    else return false;
+    openSettings(setSel);
+    return true;
   }
   function openSettings(focus) {
     mode = 'settings'; setSel = focus || 0;
@@ -491,15 +640,20 @@ window.R2_TV = {
     keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[HOME] BACK TO THIS MENU');
   }
   function settingsKey(k) {
-    var n = $('setList').children.length;
+    var n = $('setList').children.length, act = setRows()[setSel].act;
     if (k === 'up' || k === 'down') {
       $('setList').children[setSel].className = 'mi';
       setSel = (setSel + (k === 'up' ? n - 1 : 1)) % n;
       $('setList').children[setSel].className = 'mi on';
+      Sfx.play('move');
+    } else if (k === 'left' || k === 'right') {
+      if (!changeSetting(act, k === 'left' ? -1 : 1) && k === 'left') { Sfx.play('back'); closeSettings(); }
+      else if (k === 'right' && act === 'walls') { Sfx.play('ok'); openWalls(); }
     } else if (k === 'ok') {
-      if (setRows()[setSel].act === 'walls') openWalls();
-      else launch({ name: 'TV settings', settings: true });
-    } else if (k === 'back' || k === 'left') closeSettings();
+      if (act === 'walls') { Sfx.play('ok'); openWalls(); }
+      else if (act === 'tv') { Sfx.play('ok'); launch({ name: 'TV settings', settings: true }); }
+      else changeSetting(act, 1);
+    } else if (k === 'back') { Sfx.play('back'); closeSettings(); }
   }
 
   function openWalls() {
@@ -536,17 +690,19 @@ window.R2_TV = {
     wallPreviewTimer = setTimeout(function () { showWall(walls[wsel]); }, now ? 0 : 220);
   }
   function wallsKey(k) {
-    if (k === 'up' && wsel > 0) moveWall(wsel - 1);
-    else if (k === 'down' && wsel < walls.length - 1) moveWall(wsel + 1);
+    if (k === 'up' && wsel > 0) { moveWall(wsel - 1); Sfx.play('move'); }
+    else if (k === 'down' && wsel < walls.length - 1) { moveWall(wsel + 1); Sfx.play('move'); }
     else if (k === 'ok') {
       clearTimeout(wallPreviewTimer);
       store('r2.wall.' + roomKey, walls[wsel].id);
       showWall(walls[wsel]);
+      Sfx.play('ok');
       openSettings(0);
       toast('Background: ' + walls[wsel].name);
     } else if (k === 'back' || k === 'left') {
       clearTimeout(wallPreviewTimer);
       showWall(currentWall());
+      Sfx.play('back');
       openSettings(0);
     }
   }
@@ -561,6 +717,7 @@ window.R2_TV = {
     var fp = (w.focus || '50% 40%').split(' ');
     $('stage').style.setProperty('--fx', fp[0]); $('stage').style.setProperty('--fy', fp[1]);
     var back = front === 'bgA' ? 'bgB' : 'bgA', slot = $(back), old = $(front);
+    if (!w.video && !w.image) { $(front).style.opacity = '0'; return; }
     var el;
     if (w.video) {
       el = document.createElement('video');
@@ -646,25 +803,35 @@ window.R2_TV = {
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600);
   }
 
-  /* Dive into the scene, then the picture closes to a glowing line; the app opens underneath */
-  var leaving = false;
+  /* Leaving: the chosen transition plays, the app opens under its last frames */
+  var leaving = false, entryTimer;
+  function clearAnim() {
+    clearTimeout(entryTimer);
+    dropCls('go-warp'); dropCls('go-dive'); dropCls('entering'); dropCls('settle');
+  }
   function dive(then) {
     leaving = true;
-    addCls('leaving');
-    setTimeout(then, 230);
+    clearAnim();
+    if (prefs.fx === 'off') { then(); return; }
+    addCls(prefs.fx === 'dive' ? 'go-dive' : 'go-warp');
+    setTimeout(then, prefs.fx === 'dive' ? 260 : 300);
   }
-  function surface() {
-    if (!leaving) return;
-    leaving = false;
+  /* Returning (Home pressed, or an app closed): the Home animation, or a quick settle */
+  function arrive(force) {
     var st = $('stage');
-    /* start from the closed state with no animation, then let every transition run back */
-    addCls('snap'); addCls('leaving');
-    void st.offsetWidth;
-    dropCls('snap');
-    void st.offsetWidth;
-    dropCls('leaving');
-    addCls('neon-on');
-    setTimeout(function () { dropCls('neon-on'); }, 460);
+    leaving = false;
+    addCls('snap'); clearAnim(); void st.offsetWidth; dropCls('snap');
+    if (prefs.entry || force) {
+      addCls('entering');
+      entryTimer = setTimeout(function () { dropCls('entering'); }, 1700);
+    } else {
+      addCls('settle');
+      entryTimer = setTimeout(function () { dropCls('settle'); }, 400);
+    }
+  }
+  function surface() { if (leaving) arrive(false); }
+  function demoTransition() {
+    dive(function () { setTimeout(function () { arrive(false); }, 250); });
   }
 
   function launch(it) {
@@ -673,13 +840,13 @@ window.R2_TV = {
     if (it.key === 'more') { openGrid('apps'); return; }
     if (it.key === 'inputs') { openGrid('inputs'); return; }
     if (it.key === 'options') { openSettings(0); return; }
-    if (Device.kind() === 'preview') { dive(function () { doOpen(it); setTimeout(surface, 700); }); return; }
+    if (Device.kind() === 'preview') { dive(function () { doOpen(it); setTimeout(function () { arrive(false); }, 500); }); return; }
     dive(function () { doOpen(it); });
   }
   function doOpen(it) {
     Device.open(it, function (err) {
       if (err === 'preview') toast('On the TV, this opens ' + (it.input ? it.port : it.label || it.name) + '.');
-      else if (err) { surface(); toast(err); return; }
+      else if (err) { arrive(false); toast(err); return; }
       if (!it.input && !it.settings) {
         store('r2.last', JSON.stringify({ key: it.key || 'app', name: it.label || it.name, android: it.android, tizen: it.tizen, webos: it.webos }));
         var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu();
@@ -691,11 +858,16 @@ window.R2_TV = {
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 23: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
   function press(k) {
     if (leaving) return;
+    Sfx.wake();
+    if (/entering|settle/.test($('stage').className)) { addCls('snap'); clearAnim(); void $('stage').offsetWidth; dropCls('snap'); }   /* a key press skips the intro */
     if (mode === 'menu') {
-      if (k === 'up') select((sel + items.length - 1) % items.length);
-      else if (k === 'down') select((sel + 1) % items.length);
-      else if (k === 'ok') launch(items[sel]);
-    } else if (mode === 'grid') gridKey(k);
+      if (k === 'up') { select((sel + items.length - 1) % items.length); Sfx.play('move'); }
+      else if (k === 'down') { select((sel + 1) % items.length); Sfx.play('move'); }
+      else if (k === 'ok') { Sfx.play('ok'); launch(items[sel]); }
+    } else if (mode === 'grid') {
+      if (k === 'ok') Sfx.play('ok'); else if (k === 'back') Sfx.play('back'); else Sfx.play('move');
+      gridKey(k);
+    }
     else if (mode === 'settings') settingsKey(k);
     else if (mode === 'walls') wallsKey(k);
   }
@@ -707,7 +879,7 @@ window.R2_TV = {
   window.r2Back = function () { press('back'); };
   window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
   window.r2Resume = function () {
-    surface();
+    arrive(false);
     if (mode === 'grid') closeGrid();
     var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1);
     if (mode === 'menu') renderMenu();
@@ -777,14 +949,16 @@ window.R2_TV = {
 
   /* skip bundled scenes that aren't in this build */
   (function () {
-    for (var rk in SCENES) if (SCENES.hasOwnProperty(rk)) for (var i = 0; i < SCENES[rk].length; i++) (function (sc, rkey) {
+    var all = { _common: COMMON };
+    for (var sk in SCENES) if (SCENES.hasOwnProperty(sk)) all[sk] = SCENES[sk];
+    for (var rk in all) if (all.hasOwnProperty(rk)) for (var i = 0; i < all[rk].length; i++) (function (sc, rkey) {
       var probe = new Image();
       probe.onerror = function () {
         missing[sc.id] = true;
-        if (rkey === roomKey && shownWall && shownWall.id === sc.id) { shownWall = null; showWall(currentWall()); }
+        if (shownWall && shownWall.id === sc.id) { shownWall = null; showWall(currentWall()); }
       };
       probe.src = sc.thumb;
-    }(SCENES[rk][i], rk));
+    }(all[rk][i], rk));
   }());
 
   if (Device.kind() === 'preview') {
@@ -804,6 +978,7 @@ window.R2_TV = {
   applyRoom(roomKey);
   fit(); tick(); setInterval(tick, 15000);
   setTimeout(fit, 400); setTimeout(fit, 1500);
+  arrive(false);                         /* the Home animation also plays when the TV starts */
   if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');
 }());
 </script>
