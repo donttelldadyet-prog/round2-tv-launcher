@@ -34,7 +34,9 @@ for t in src.get("themes", []):
     source = t.get("source", "")
     if not source:
         sys.exit(f"Theme '{tid}' has no source (a video link, or a file in the themes folder)")
-    entry = {k: t[k] for k in ("name", "rooms", "from", "until", "takeover", "layout", "focus") if k in t}
+    entry = {k: t[k] for k in ("name", "rooms", "from", "until", "takeover", "layout", "cards", "focus") if k in t}
+    if entry.get("cards") not in (None, "right", "low", "top", "middle", "bottom"):
+        sys.exit(f"Theme '{tid}': cards must be right, low, top, middle or bottom")
     entry["id"] = tid
     entry["src"] = source if source.startswith("http") else source + ":" + sha(os.path.join("themes", source))
     prev = old.get(tid)

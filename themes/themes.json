@@ -4,12 +4,14 @@
       "id": "halloween-2026",
       "name": "Halloween Night",
       "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/sample_0_1792726921302_67aaa28c.mp4",
-      "rooms": ["all"],
+      "rooms": [
+        "all"
+      ],
       "from": "2026-10-23",
       "until": "2026-11-01",
       "takeover": true,
-      "layout": "low",
-      "focus": "50% 35%"
+      "focus": "50% 35%",
+      "cards": "bottom"
     }
   ]
 }

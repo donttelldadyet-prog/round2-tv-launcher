@@ -2,6 +2,8 @@
 
 Push a background to the TVs for an event (Halloween, Christmas, CNY, a tournament night) without reinstalling anything.
 
+**Easiest: the Theme manager** at https://donttelldadyet-prog.github.io/round2-tv-launcher/ (Windows, Mac, phone; can be installed as an app). It does everything below with buttons. The rest of this page is for editing by hand.
+
 ## Add one
 
 1. Make an 8-second seamless loop (OpenArt: same first and last frame works well). Either copy its download link, or upload the video file into this `themes` folder (GitHub: **Add file > Upload files**, under 25 MB).
@@ -31,7 +33,8 @@ Push a background to the TVs for an event (Halloween, Christmas, CNY, a tourname
 | `rooms` | `["all"]`, or some rooms: `["kai", "bella", "maximillion"]`. |
 | `from` / `until` | Dates it's live (both days included). Leave out for always. |
 | `takeover` | `true`: becomes the room's background while live, and goes back afterwards by itself. `false`: only added to the Background list. |
-| `layout`, `focus` | Optional, like the built-in scenes: `"low"` when the art sits where the description card is; `focus` is where the launch transition zooms (e.g. `"50% 40%"`). |
+| `cards` | Where the TV's description card sits so the logo stays visible: `right`, `low` (bottom right), `top` (top centre), `middle`, `bottom` (bottom centre). |
+| `focus` | Optional: where the launch transition zooms (e.g. `"50% 40%"`). |
 
 3. The **Publish themes** action (Actions tab) encodes the video for TVs and publishes it, in a few minutes.
 

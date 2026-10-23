@@ -1,1 +1,654 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Round2 Themes</title></head><body>Coming soon</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Round2 Themes</title>
+<meta name="description" content="Schedule event backgrounds for the Round2 TVs">
+<meta name="theme-color" content="#06050A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06050A; --panel: #110E1A; --panel2: #191527; --line: rgba(244,241,251,.12); --line2: rgba(244,241,251,.22);
+  --ink: #F4F1FB; --mute: #9C94B3; --accent: #F2C21B; --ok: #4DB848; --warn: #F2A21B; --bad: #E8436A; --focus: #8EC5FF;
+  --f: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 var(--f); }
+body { min-height: 100vh; }
+a { color: var(--focus); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px 80px; }
+header.top { position: sticky; top: 0; z-index: 5; background: rgba(6,5,10,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 16px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; }
+.brand { font-weight: 700; letter-spacing: .22em; font-size: 20px; padding: 2px 10px; border-left: 2px solid var(--ink); border-right: 2px solid var(--ink); }
+.brand small { letter-spacing: .14em; font-weight: 500; color: var(--mute); margin-left: 8px; font-size: 12px; }
+nav.tabs { display: flex; gap: 4px; margin-left: auto; }
+nav.tabs button { background: none; border: 1px solid transparent; padding: 8px 14px; letter-spacing: .12em; font-size: 13px; text-transform: uppercase; color: var(--mute); }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--line2); background: var(--panel); }
+.who { font-size: 13px; color: var(--mute); }
+.who button { background: none; border: 0; color: var(--focus); padding: 0; margin-left: 6px; text-decoration: underline; }
+
+h1 { font-size: 30px; letter-spacing: .06em; text-transform: uppercase; margin: 28px 0 4px; }
+h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); margin: 28px 0 10px; font-weight: 600; }
+.sub { color: var(--mute); margin: 0 0 18px; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line2); background: var(--panel2); padding: 10px 16px; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; font-weight: 600; }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--accent); color: #0b0914; border-color: var(--accent); }
+.btn.danger { color: var(--bad); }
+.btn.ghost { background: none; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.card { background: var(--panel); border: 1px solid var(--line); padding: 18px; }
+.banner { padding: 12px 16px; border: 1px solid var(--line2); background: var(--panel2); margin: 16px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.banner.ok { border-color: rgba(77,184,72,.6); }
+.banner.warn { border-color: rgba(242,162,27,.7); }
+.banner.bad { border-color: rgba(232,67,106,.7); }
+.banner .grow { flex: 1; min-width: 200px; }
+.spin { width: 14px; height: 14px; border: 2px solid var(--line2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* theme list */
+.themes { display: grid; gap: 14px; }
+.theme { display: grid; grid-template-columns: 240px 1fr auto; gap: 18px; align-items: start; }
+.thumb { aspect-ratio: 16/9; width: 100%; background: #1a1626 center/cover no-repeat; position: relative; overflow: hidden; }
+.thumb video, .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mute); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; text-align: center; padding: 8px; }
+.theme h3 { margin: 0 0 6px; font-size: 22px; letter-spacing: .04em; }
+.meta { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.chip { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; padding: 3px 8px; border: 1px solid var(--line2); white-space: nowrap; }
+.chip.live { border-color: var(--ok); color: var(--ok); }
+.chip.soon { border-color: var(--accent); color: var(--accent); }
+.chip.ended { color: var(--mute); }
+.chip.room { border-color: var(--rc); color: var(--rc); }
+.chip.pending { border-color: var(--warn); color: var(--warn); }
+.theme .acts { display: flex; flex-direction: column; gap: 8px; }
+.empty { padding: 36px; text-align: center; color: var(--mute); border: 1px dashed var(--line2); }
+
+/* rooms */
+.rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.room { border-top: 4px solid var(--rc); }
+.room h3 { margin: 0; font-size: 22px; color: var(--rc); letter-spacing: .08em; text-transform: uppercase; }
+.room .tier { font-size: 12px; color: var(--mute); letter-spacing: .12em; text-transform: uppercase; }
+.room ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.room li { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.room li span:last-child { color: var(--mute); font-size: 12px; text-align: right; }
+.room li.on span:first-child::before { content: '\25B6  '; color: var(--ok); }
+.room .btn { margin-top: 12px; width: 100%; }
+
+/* editor */
+dialog { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--line2); background: var(--panel); color: var(--ink); }
+dialog::backdrop { background: rgba(0,0,0,.7); }
+.ed { display: grid; grid-template-columns: 1fr 380px; }
+.ed .form { padding: 22px; display: grid; gap: 16px; }
+.ed .side { padding: 22px; background: var(--panel2); border-left: 1px solid var(--line); }
+.ed h2 { margin: 0; color: var(--ink); font-size: 18px; }
+div.f { display: grid; gap: 8px; }
+div.f > span.f { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+#fLink { display: block; width: 100%; font-size: 15px; }
+label.f { display: grid; gap: 6px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+label.f input[type=text], label.f input[type=url], label.f input[type=date], label.f select, input.tok {
+  width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 15px; }
+.hint { font-size: 13px; color: var(--mute); text-transform: none; letter-spacing: 0; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { padding: 8px 12px; border: 1px solid var(--line2); background: var(--bg); font-size: 13px; letter-spacing: .06em; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: #0b0914; border-color: var(--ink); }
+.roompick { display: flex; flex-wrap: wrap; gap: 6px; }
+.roompick button { padding: 8px 12px; border: 1px solid var(--rc); background: var(--bg); color: var(--rc); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+.roompick button[aria-pressed="true"] { background: var(--rc); color: #0b0914; }
+.switch { display: flex; gap: 12px; align-items: flex-start; text-transform: none; letter-spacing: 0; color: var(--ink); font-size: 15px; cursor: pointer; }
+.switch input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.dates { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ed .foot { display: flex; gap: 10px; justify-content: flex-end; padding: 16px 22px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.ed .foot .msg { margin-right: auto; color: var(--bad); font-size: 14px; align-self: center; }
+details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+
+/* TV preview: where the menu and info card sit over the video */
+.tv { position: relative; aspect-ratio: 16/9; background: #1a1626; overflow: hidden; border: 1px solid var(--line2); }
+.tv video, .tv img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tv .menu { position: absolute; left: 3.75%; top: 26%; width: 28%; display: grid; gap: 4%; }
+.tv .menu i { display: block; height: 5px; background: rgba(244,241,251,.75); }
+.tv .menu i:first-child { background: var(--accent); height: 8px; }
+.tv .peek { position: absolute; background: rgba(17,14,26,.86); border: 1px solid rgba(244,241,251,.3); width: 31%; height: 30%; transition: all .2s; }
+.tv .rc { position: absolute; right: 3.3%; bottom: 9.3%; width: 17%; height: 12%; background: rgba(17,14,26,.86); transition: opacity .2s; }
+.tv .lbl { position: absolute; left: 6px; bottom: 4px; font-size: 10px; letter-spacing: .12em; color: var(--mute); text-transform: uppercase; text-shadow: 0 1px 2px #000; }
+.p-right .peek { right: 3.3%; top: 16.7%; height: 44%; }
+.p-low .peek { right: 3.3%; bottom: 8.5%; }
+.p-top .peek { left: 35.4%; top: 13%; }
+.p-middle .peek { left: 35.4%; top: 35%; }
+.p-bottom .peek { left: 35.4%; bottom: 8.5%; }
+.tv:not(.p-right) .rc { opacity: 0; }
+
+/* sign in */
+.signin { max-width: 680px; margin: 40px auto; }
+.signin ol { padding-left: 20px; display: grid; gap: 10px; }
+.signin code { background: var(--panel2); padding: 1px 6px; }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #0b0914; padding: 10px 18px; font-weight: 600; z-index: 20; max-width: calc(100vw - 32px); }
+[hidden] { display: none !important; }
+
+@media (max-width: 860px) {
+  .theme { grid-template-columns: 1fr; }
+  .theme .acts { flex-direction: row; flex-wrap: wrap; }
+  .ed { grid-template-columns: 1fr; }
+  .ed .side { border-left: 0; border-top: 1px solid var(--line); }
+  nav.tabs { margin-left: 0; width: 100%; }
+}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="brand">ROUND2 <small>TV THEMES</small></div>
+  <nav class="tabs" role="tablist" id="tabs" hidden>
+    <button role="tab" aria-selected="true" data-tab="schedule">Schedule</button>
+    <button role="tab" aria-selected="false" data-tab="rooms">Rooms</button>
+    <button role="tab" aria-selected="false" data-tab="help">Help</button>
+  </nav>
+  <div class="who" id="who" hidden></div>
+</div></header>
+
+<main class="wrap">
+  <!-- sign in -->
+  <section id="signin" class="signin" hidden>
+    <h1>Connect to GitHub</h1>
+    <p class="sub">The themes live in the Round2 GitHub project. This computer needs a key to change them. You only do this once per computer.</p>
+    <div class="card">
+      <ol>
+        <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub › New fine-grained token</a> (signed in as the Round2 account).</li>
+        <li>Token name: <code>Round2 themes – <span id="devName">this computer</span></code>. Expiration: 1 year.</li>
+        <li>Repository access: <b>Only select repositories</b> › <code>round2-tv-launcher</code>.</li>
+        <li>Permissions › Repository permissions › <b>Contents: Read and write</b>. Leave everything else as it is.</li>
+        <li>Press <b>Generate token</b>, copy it, and paste it here.</li>
+      </ol>
+      <div class="row" style="margin-top:14px">
+        <input class="tok" id="tok" type="password" autocomplete="off" placeholder="github_pat_…" aria-label="GitHub token" style="flex:1;min-width:240px">
+        <button class="btn primary" id="tokGo">Connect</button>
+      </div>
+      <p class="hint" id="tokMsg" style="margin:10px 0 0">The key is saved only in this browser on this computer. Anyone with it can change the TV themes, so don't share it in group chats. Delete it any time from the same GitHub page.</p>
+    </div>
+  </section>
+
+  <!-- schedule -->
+  <section id="tab-schedule" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div><h1>Schedule</h1><p class="sub">Event backgrounds the TVs download by themselves. Today is <b id="today"></b>.</p></div>
+      <button class="btn primary" id="addBtn">+ New theme</button>
+    </div>
+    <div id="status"></div>
+    <div class="row" style="margin:0 0 10px">
+      <label class="hint" for="roomFilter">Show</label>
+      <select id="roomFilter" class="btn ghost" style="text-transform:none"></select>
+    </div>
+    <div class="themes" id="list"></div>
+  </section>
+
+  <!-- rooms -->
+  <section id="tab-rooms" hidden>
+    <h1>Rooms</h1>
+    <p class="sub">What each room's TV can show today. ▶ marks what it switches to by itself. Built-in backgrounds come with the app; staff can always pick another one on the TV under Options › Background.</p>
+    <div class="rooms" id="rooms"></div>
+  </section>
+
+  <!-- help -->
+  <section id="tab-help" hidden>
+    <h1>How it works</h1>
+    <div class="card">
+      <ol style="padding-left:20px;display:grid;gap:10px;margin:0">
+        <li><b>New theme</b>: give it a name, add the video (paste a link from OpenArt, or upload a file up to 45 MB), choose rooms and dates.</li>
+        <li><b>Switch automatically</b> makes it the room's background on its own while the dates are live, and puts the normal background back afterwards. Turn it off to only add it to the TV's Background list.</li>
+        <li><b>Info card position</b> moves the description box so the logo in your video stays visible.</li>
+        <li><b>Save &amp; publish</b>. GitHub prepares the video for TVs (about 2–4 minutes). TVs check every few hours and whenever someone goes back to the home screen (at most every 30 minutes), and download videos up to 2 weeks before the start date.</li>
+        <li>To make one TV check right now: on the PC, <code>.\round2tv.ps1 themes</code>.</li>
+      </ol>
+      <h2>Moving a TV to another room</h2>
+      <p style="margin:0">On the TV: <b>Options › This TV's room</b> and pick the room. The character, colours, apps and themes all follow the room.</p>
+      <h2>Install as an app</h2>
+      <p style="margin:0">Windows (Edge or Chrome): the install icon at the right of the address bar. Mac (Safari): <b>File › Add to Dock</b>. Chrome on Mac: ⋮ › Cast, save and share › Install page as app.</p>
+    </div>
+  </section>
+</main>
+
+<!-- editor -->
+<dialog id="ed" aria-labelledby="edTitle">
+  <form method="dialog" class="ed" id="edForm">
+    <div class="form">
+      <h2 id="edTitle">New theme</h2>
+      <label class="f">Name (shown on the TV)
+        <input type="text" id="fName" maxlength="40" placeholder="e.g. Halloween Night" required>
+      </label>
+      <div class="f">
+        <span class="f">Video</span>
+        <div class="seg" role="group" aria-label="Video source">
+          <button type="button" data-src="link" aria-pressed="true">Paste a link</button>
+          <button type="button" data-src="file" aria-pressed="false">Upload a file</button>
+        </div>
+        <input type="url" id="fLink" placeholder="https://cdn.openart.ai/…/video.mp4" aria-label="Video link" style="padding:10px 12px;background:var(--bg);border:1px solid var(--line2)">
+        <div id="fileRow" hidden><input type="file" id="fFile" accept="video/mp4,video/quicktime,video/webm"> <span class="hint" id="fileInfo"></span></div>
+        <span class="hint">An 8-second loop works best. In OpenArt, open the video, then right-click it › Copy video address.</span>
+      </div>
+      <div class="f">
+        <span class="f">Rooms</span>
+        <div class="roompick" id="fRooms"></div>
+      </div>
+      <div class="f">
+        <span class="f">Dates</span>
+        <div class="seg" id="quick">
+          <button type="button" data-q="now7">Now · 7 days</button>
+          <button type="button" data-q="weekend">This weekend</button>
+          <button type="button" data-q="month">Rest of month</button>
+          <button type="button" data-q="always">Always</button>
+        </div>
+        <div class="dates">
+          <label class="f">From<input type="date" id="fFrom"></label>
+          <label class="f">Until (last day)<input type="date" id="fUntil"></label>
+        </div>
+      </div>
+      <label class="switch"><input type="checkbox" id="fTake" checked>
+        <span>Switch rooms to it automatically<br><span class="hint">Off: only adds it to the TV's Background list.</span></span></label>
+      <div class="f">
+        <span class="f">Info card position</span>
+        <div class="seg" id="fCards">
+          <button type="button" data-c="right">Right</button>
+          <button type="button" data-c="low">Bottom right</button>
+          <button type="button" data-c="top">Top centre</button>
+          <button type="button" data-c="middle">Middle</button>
+          <button type="button" data-c="bottom">Bottom centre</button>
+        </div>
+      </div>
+      <details>
+        <summary>Advanced</summary>
+        <label class="f" style="margin-top:10px">Zoom point for the launch transition (x% y%)
+          <input type="text" id="fFocus" placeholder="50% 40%">
+        </label>
+      </details>
+    </div>
+    <div class="side">
+      <span class="f" style="display:block;margin-bottom:8px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)">Preview on the TV</span>
+      <div class="tv p-bottom" id="tv">
+        <div id="tvMedia"></div>
+        <div class="menu"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="peek"></div><div class="rc"></div>
+        <span class="lbl" id="tvLbl"></span>
+      </div>
+      <p class="hint">Pick the card position that keeps your logo clear. The menu on the left always stays where it is.</p>
+      <div id="edWarn" class="hint" style="color:var(--warn)"></div>
+    </div>
+    <div class="foot" style="grid-column:1/-1">
+      <span class="msg" id="edMsg"></span>
+      <button type="button" class="btn danger" id="edDelete" hidden>Remove</button>
+      <button type="button" class="btn ghost" id="edCancel">Cancel</button>
+      <button type="button" class="btn primary" id="edSave">Save &amp; publish</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+  var OWNER = 'donttelldadyet-prog', REPO = 'round2-tv-launcher', PATH = 'themes/themes.json';
+  var API = 'https://api.github.com/repos/' + OWNER + '/' + REPO;
+  var DL = 'https://github.com/' + OWNER + '/' + REPO + '/releases/download/themes/';
+  var ROOMS = {
+    vale: { name: 'Vale', t: 'Netflix room', c: '#E8436A' }, kaeden: { name: 'Kaeden', t: 'Netflix room', c: '#4DB848' },
+    scarlett: { name: 'Scarlett', t: 'Netflix room', c: '#F2C21B' }, bella: { name: 'Bella', t: 'Deluxe room', c: '#7A5BE0' },
+    kai: { name: 'Kai', t: 'Deluxe room', c: '#24B49A' }, atlas: { name: 'Atlas', t: 'Deluxe room', c: '#E9E7EF' },
+    maximillion: { name: 'Maximillion', t: 'VIP room', c: '#E0402F' }
+  };
+  var BUILTIN = { kai: ['Neon Summit', 'Neon Summit · Centre'], _all: ['Round2 Lounge'] };
+  var CARDS = { right: 'Right', low: 'Bottom right', top: 'Top centre', middle: 'Middle', bottom: 'Bottom centre' };
+  var MAX_UPLOAD = 45 * 1024 * 1024;
+
+  var token = '', data = { themes: [] }, fileSha = '', published = {}, editing = -1, pendingFile = null, pollTimer = null;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
+  function toast(m) { var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
+  function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function today() { return ymd(new Date()); }
+  function nice(s) { if (!s) return ''; var d = new Date(s + 'T12:00:00'); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined }); }
+  function b64utf8(s) { return btoa(unescape(encodeURIComponent(s))); }
+  function unb64utf8(s) { return decodeURIComponent(escape(atob(s.replace(/\n/g, '')))); }
+
+  function gh(path, opts) {
+    opts = opts || {};
+    var h = { 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+    if (token) h.Authorization = 'Bearer ' + token;
+    if (opts.body) h['Content-Type'] = 'application/json';
+    return fetch(API + path, { method: opts.method || 'GET', headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: 'no-store' })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {}
+          if (!r.ok) { var e2 = new Error((j && j.message) || ('GitHub said ' + r.status)); e2.status = r.status; throw e2; }
+          return j;
+        });
+      });
+  }
+
+  /* ---------- status of a theme ---------- */
+  function state(t) {
+    var d = today();
+    if (t.until && t.until < d) return 'ended';
+    if (t.from && t.from > d) return 'soon';
+    return 'live';
+  }
+  function roomsOf(t) { var r = t.rooms || ['all']; return r.indexOf('all') >= 0 ? Object.keys(ROOMS) : r; }
+  function slug(name) {
+    var base = String(name || 'theme').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'theme';
+    var y = (($('fFrom') && $('fFrom').value) || today()).slice(0, 4);
+    if (base.indexOf(y) < 0) base += '-' + y;
+    var id = base, n = 2;
+    while (data.themes.some(function (t, i) { return t.id === id && i !== editing; })) id = base + '-' + (n++);
+    return id;
+  }
+
+  /* ---------- render ---------- */
+  function renderAll() { renderList(); renderRooms(); }
+  function renderList() {
+    $('today').textContent = nice(today());
+    var f = $('roomFilter').value || 'all';
+    var list = data.themes.map(function (t, i) { return { t: t, i: i }; }).filter(function (x) {
+      return f === 'all' || roomsOf(x.t).indexOf(f) >= 0;
+    });
+    var order = { live: 0, soon: 1, ended: 2 };
+    list.sort(function (a, b) { return order[state(a.t)] - order[state(b.t)] || String(a.t.from || '').localeCompare(String(b.t.from || '')); });
+    if (!list.length) { $('list').innerHTML = '<div class="empty">No themes' + (f !== 'all' ? ' for ' + esc(ROOMS[f].name) : '') + ' yet. Press <b>+ New theme</b> to add one.</div>'; return; }
+    $('list').innerHTML = list.map(function (x) {
+      var t = x.t, st = state(t), pub = published[t.id];
+      var dates = t.from || t.until ? (t.from ? nice(t.from) : 'Now') + ' – ' + (t.until ? nice(t.until) : 'no end') : 'Always';
+      var rooms = (t.rooms || ['all']).indexOf('all') >= 0 ? '<span class="chip">All rooms</span>' :
+        t.rooms.map(function (r) { return ROOMS[r] ? '<span class="chip room" style="--rc:' + ROOMS[r].c + '">' + esc(ROOMS[r].name) + '</span>' : ''; }).join('');
+      var thumb = pub ? '<img alt="" src="' + DL + encodeURIComponent(t.id) + '.jpg?v=' + encodeURIComponent(pub) + '">' :
+        (/^https:/.test(t.source || '') ? '<video muted playsinline preload="metadata" src="' + esc(t.source) + '#t=2"></video>' : '<span class="ph">Preparing for TVs…</span>');
+      return '<article class="card theme"><div class="thumb">' + thumb + '</div><div>' +
+        '<h3>' + esc(t.name || t.id) + '</h3>' +
+        '<div class="meta"><span class="chip ' + st + '">' + { live: 'Live now', soon: 'Scheduled', ended: 'Ended' }[st] + '</span>' +
+        '<span class="chip">' + esc(dates) + '</span>' + (pub ? '' : '<span class="chip pending">Not on TVs yet</span>') + '</div>' +
+        '<div class="meta">' + rooms + '</div>' +
+        '<div class="hint">' + (t.takeover ? 'Switches rooms to it automatically' : 'Added to the Background list only') + ' · Info card: ' + esc(CARDS[t.cards] || (t.layout === 'low' ? 'Bottom right' : 'Right')) + '</div>' +
+        '</div><div class="acts"><button class="btn" data-edit="' + x.i + '">Edit</button><button class="btn ghost" data-dup="' + x.i + '">Duplicate</button></div></article>';
+    }).join('');
+  }
+  function renderRooms() {
+    var d = today();
+    $('rooms').innerHTML = Object.keys(ROOMS).map(function (k) {
+      var R = ROOMS[k], items = [], auto = null;
+      data.themes.forEach(function (t) {
+        if (roomsOf(t).indexOf(k) < 0 || state(t) === 'ended') return;
+        if (state(t) === 'live' && t.takeover && !auto) auto = t;
+        items.push({ name: t.name || t.id, note: state(t) === 'live' ? (t.until ? 'until ' + nice(t.until) : 'live') : 'from ' + nice(t.from), on: false, t: t });
+      });
+      items.forEach(function (it) { it.on = it.t === auto; });
+      (BUILTIN[k] || []).concat(BUILTIN._all).forEach(function (n, i) { items.push({ name: n, note: 'built in', on: !auto && i === 0 }); });
+      return '<article class="card room" style="--rc:' + R.c + '"><h3>' + esc(R.name) + '</h3><div class="tier">' + esc(R.t) + '</div><ul>' +
+        items.map(function (it) { return '<li class="' + (it.on ? 'on' : '') + '"><span>' + esc(it.name) + '</span><span>' + esc(it.note) + '</span></li>'; }).join('') +
+        '</ul><button class="btn" data-room-new="' + k + '">+ Theme for ' + esc(R.name) + '</button>' +
+        '<button class="btn ghost" data-room-show="' + k + '">See schedule</button></article>';
+    }).join('');
+  }
+
+  /* ---------- load ---------- */
+  function load() {
+    return Promise.all([
+      gh('/contents/' + PATH + '?ref=main').then(function (j) { fileSha = j.sha; data = JSON.parse(unb64utf8(j.content)); if (!data.themes) data.themes = []; }),
+      gh('/releases/tags/themes').then(function (rel) {
+        published = {};
+        (rel.assets || []).forEach(function (a) { var m = /^(.+)\.mp4$/.exec(a.name); if (m) published[m[1]] = a.updated_at; });
+      }).catch(function () { published = {}; })
+    ]).then(renderAll);
+  }
+
+  /* ---------- sign in ---------- */
+  function showApp(on) {
+    $('signin').hidden = on; $('tabs').hidden = !on; $('who').hidden = !on;
+    if (on) tab(ls('r2m.tab') || 'schedule'); else ['schedule', 'rooms', 'help'].forEach(function (n) { $('tab-' + n).hidden = true; });
+  }
+  function connect(t) {
+    token = t.trim();
+    return gh('').then(function (repo) {
+      if (!repo.permissions || !repo.permissions.push) throw new Error('This key can read but not change the project. Give it "Contents: Read and write".');
+      return fetch('https://api.github.com/user', { headers: { Authorization: 'Bearer ' + token } }).then(function (r) { return r.ok ? r.json() : {}; });
+    }).then(function (u) {
+      ls('r2m.token', token);
+      $('who').innerHTML = 'Connected' + (u && u.login ? ' as <b>' + esc(u.login) + '</b>' : '') + ' <button id="signout" type="button">Sign out</button>';
+      showApp(true);
+      return load();
+    });
+  }
+  $('tokGo').onclick = function () {
+    var v = $('tok').value; if (!v.trim()) { $('tok').focus(); return; }
+    $('tokMsg').textContent = 'Checking…';
+    connect(v).catch(function (e) { token = ''; $('tokMsg').textContent = 'That key didn’t work: ' + e.message; });
+  };
+  $('tok').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('tokGo').click(); });
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.id === 'signout') { if (confirm('Remove the GitHub key from this computer?')) { ls('r2m.token', null); location.reload(); } }
+  });
+  $('devName').textContent = /Mac/.test(navigator.platform) ? 'Mac' : /Win/.test(navigator.platform) ? 'Windows PC' : 'this computer';
+
+  /* ---------- tabs ---------- */
+  function tab(n) {
+    ls('r2m.tab', n);
+    Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-tab') === n); });
+    ['schedule', 'rooms', 'help'].forEach(function (k) { $('tab-' + k).hidden = k !== n; });
+  }
+  $('tabs').addEventListener('click', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-tab'); if (n) tab(n); });
+  $('roomFilter').innerHTML = '<option value="all">All rooms</option>' + Object.keys(ROOMS).map(function (k) { return '<option value="' + k + '">' + ROOMS[k].name + '</option>'; }).join('');
+  $('roomFilter').onchange = renderList;
+  $('rooms').addEventListener('click', function (e) {
+    var a = e.target.getAttribute('data-room-new'), b = e.target.getAttribute('data-room-show');
+    if (a) openEditor(-1, { rooms: [a] });
+    if (b) { $('roomFilter').value = b; tab('schedule'); renderList(); }
+  });
+  $('list').addEventListener('click', function (e) {
+    var ed = e.target.getAttribute('data-edit'), dup = e.target.getAttribute('data-dup');
+    if (ed != null) openEditor(+ed);
+    if (dup != null) { var c = JSON.parse(JSON.stringify(data.themes[+dup])); delete c.id; c.name = (c.name || '') + ' (copy)'; openEditor(-1, c); }
+  });
+  $('addBtn').onclick = function () { openEditor(-1); };
+
+  /* ---------- editor ---------- */
+  var ed = { src: 'link', rooms: ['all'], cards: 'bottom' };
+  function setSeg(sel, attr, val) { Array.prototype.forEach.call(document.querySelectorAll(sel + ' button'), function (b) { b.setAttribute('aria-pressed', b.getAttribute(attr) === val); }); }
+  function renderRoomPick() {
+    var all = ed.rooms.indexOf('all') >= 0;
+    $('fRooms').innerHTML = '<button type="button" data-r="all" style="--rc:#F4F1FB" aria-pressed="' + all + '">All rooms</button>' +
+      Object.keys(ROOMS).map(function (k) { return '<button type="button" data-r="' + k + '" style="--rc:' + ROOMS[k].c + '" aria-pressed="' + (all || ed.rooms.indexOf(k) >= 0) + '">' + ROOMS[k].name + '</button>'; }).join('');
+  }
+  $('fRooms').addEventListener('click', function (e) {
+    var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return;
+    if (r === 'all') ed.rooms = ed.rooms.indexOf('all') >= 0 ? [] : ['all'];
+    else {
+      var cur = ed.rooms.indexOf('all') >= 0 ? Object.keys(ROOMS) : ed.rooms.slice();
+      var i = cur.indexOf(r); if (i >= 0) cur.splice(i, 1); else cur.push(r);
+      ed.rooms = cur.length === Object.keys(ROOMS).length ? ['all'] : cur;
+    }
+    renderRoomPick(); checkClash();
+  });
+  document.querySelector('[aria-label="Video source"]').addEventListener('click', function (e) {
+    var s = e.target.getAttribute && e.target.getAttribute('data-src'); if (!s) return;
+    ed.src = s; setSeg('[aria-label="Video source"]', 'data-src', s);
+    $('fLink').hidden = s !== 'link'; $('fileRow').hidden = s !== 'file'; preview();
+  });
+  $('fCards').addEventListener('click', function (e) {
+    var c = e.target.getAttribute && e.target.getAttribute('data-c'); if (!c) return;
+    ed.cards = c; setSeg('#fCards', 'data-c', c); $('tv').className = 'tv p-' + c;
+  });
+  $('quick').addEventListener('click', function (e) {
+    var q = e.target.getAttribute && e.target.getAttribute('data-q'); if (!q) return;
+    var d = new Date(), from = ymd(d), until = '';
+    if (q === 'now7') { var e7 = new Date(d); e7.setDate(d.getDate() + 6); until = ymd(e7); }
+    if (q === 'weekend') { var s = new Date(d); s.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7)); var su = new Date(s); su.setDate(s.getDate() + 1); from = ymd(s); until = ymd(su); if (d.getDay() === 0) { from = ymd(d); until = ymd(d); } }
+    if (q === 'month') { until = ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
+    if (q === 'always') { from = ''; until = ''; }
+    $('fFrom').value = from; $('fUntil').value = until; checkClash();
+  });
+  $('fFrom').onchange = $('fUntil').onchange = checkClash;
+  $('fTake').onchange = checkClash;
+  $('fLink').addEventListener('change', preview);
+  $('fFile').onchange = function () {
+    var f = $('fFile').files[0]; pendingFile = null;
+    if (!f) { $('fileInfo').textContent = ''; return; }
+    if (f.size > MAX_UPLOAD) { $('fileInfo').textContent = 'Too big (' + Math.round(f.size / 1048576) + ' MB). Keep it under 45 MB, or paste a link instead.'; $('fFile').value = ''; return; }
+    pendingFile = f; $('fileInfo').textContent = Math.round(f.size / 1048576 * 10) / 10 + ' MB'; preview();
+  };
+  function preview() {
+    var m = $('tvMedia'), url = '';
+    if (ed.src === 'file' && pendingFile) url = URL.createObjectURL(pendingFile);
+    else if (ed.src === 'link' && /^https:\/\//.test($('fLink').value)) url = $('fLink').value;
+    else if (editing >= 0 && published[data.themes[editing].id]) { m.innerHTML = '<img alt="" src="' + DL + encodeURIComponent(data.themes[editing].id) + '.jpg">'; $('tvLbl').textContent = 'As published'; return; }
+    m.innerHTML = url ? '<video muted autoplay loop playsinline src="' + esc(url) + '"></video>' : '';
+    $('tvLbl').textContent = url ? '' : 'Add a video to preview';
+  }
+  function checkClash() {
+    var from = $('fFrom').value || '0000-00-00', until = $('fUntil').value || '9999-12-31', msgs = [];
+    if ($('fFrom').value && $('fUntil').value && until < from) msgs.push('The end date is before the start date.');
+    if ($('fTake').checked) {
+      var mine = ed.rooms.indexOf('all') >= 0 ? Object.keys(ROOMS) : ed.rooms;
+      data.themes.forEach(function (t, i) {
+        if (i === editing || !t.takeover || state(t) === 'ended') return;
+        var tf = t.from || '0000-00-00', tu = t.until || '9999-12-31';
+        if (tf > until || tu < from) return;
+        var both = roomsOf(t).filter(function (r) { return mine.indexOf(r) >= 0; });
+        if (both.length) msgs.push('Overlaps "' + (t.name || t.id) + '" in ' + both.map(function (r) { return ROOMS[r].name; }).join(', ') + '. On those days the one added first wins.');
+      });
+    }
+    $('edWarn').innerHTML = msgs.map(esc).join('<br>');
+  }
+  function openEditor(i, preset) {
+    editing = i; pendingFile = null; $('fFile').value = ''; $('fileInfo').textContent = ''; $('edMsg').textContent = '';
+    var t = i >= 0 ? data.themes[i] : (preset || {});
+    $('edTitle').textContent = i >= 0 ? 'Edit theme' : 'New theme';
+    $('fName').value = t.name || '';
+    var isFile = t.source && !/^https?:/.test(t.source);
+    ed.src = isFile ? 'file' : 'link'; setSeg('[aria-label="Video source"]', 'data-src', ed.src);
+    $('fLink').hidden = ed.src !== 'link'; $('fileRow').hidden = ed.src !== 'file';
+    $('fLink').value = isFile ? '' : (t.source || '');
+    if (isFile) $('fileInfo').textContent = 'Current: ' + t.source + ' (choose a file only to replace it)';
+    ed.rooms = (t.rooms || ['all']).slice(); renderRoomPick();
+    $('fFrom').value = t.from || (i < 0 && !preset ? today() : (t.from || ''));
+    $('fUntil').value = t.until || '';
+    $('fTake').checked = t.takeover !== false;
+    ed.cards = t.cards || (t.layout === 'low' ? 'low' : (i >= 0 ? 'right' : 'bottom'));
+    setSeg('#fCards', 'data-c', ed.cards); $('tv').className = 'tv p-' + ed.cards;
+    $('fFocus').value = t.focus || '';
+    $('edDelete').hidden = i < 0;
+    preview(); checkClash();
+    $('ed').showModal(); $('fName').focus();
+  }
+  $('edCancel').onclick = function () { $('ed').close(); };
+
+  /* ---------- save & publish ---------- */
+  function readFileB64(f) {
+    return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(String(r.result).split(',')[1]); }; r.onerror = rej; r.readAsDataURL(f); });
+  }
+  function putFile(path, b64, msg, sha) {
+    return gh('/contents/' + path, { method: 'PUT', body: { message: msg, content: b64, branch: 'main', sha: sha || undefined } });
+  }
+  function commitThemes(msg) {
+    var body = JSON.stringify({ themes: data.themes }, null, 2) + '\n';
+    return putFile(PATH, b64utf8(body), msg, fileSha).then(function (r) { fileSha = r.content.sha; return r.commit.sha; });
+  }
+  function busy(on, label) { $('edSave').disabled = on; $('edDelete').disabled = on; $('edSave').textContent = on ? (label || 'Publishing…') : 'Save & publish'; }
+  $('edSave').onclick = function () {
+    var name = $('fName').value.trim(), link = $('fLink').value.trim(), msg = $('edMsg');
+    var old = editing >= 0 ? data.themes[editing] : null;
+    if (!name) { msg.textContent = 'Give it a name.'; $('fName').focus(); return; }
+    if (!ed.rooms.length) { msg.textContent = 'Pick at least one room.'; return; }
+    if (ed.src === 'link' && !/^https:\/\/\S+$/.test(link)) { msg.textContent = 'Paste the video link (it starts with https://).'; $('fLink').focus(); return; }
+    if (ed.src === 'file' && !pendingFile && !(old && old.source && !/^https?:/.test(old.source))) { msg.textContent = 'Choose a video file.'; return; }
+    if ($('fFrom').value && $('fUntil').value && $('fUntil').value < $('fFrom').value) { msg.textContent = 'The end date is before the start date.'; return; }
+    var focus = $('fFocus').value.trim();
+    if (focus && !/^\d{1,3}% \d{1,3}%$/.test(focus)) { msg.textContent = 'Zoom point looks like "50% 40%".'; return; }
+    var t = { id: old ? old.id : slug(name), name: name, source: ed.src === 'link' ? link : (old ? old.source : ''), rooms: ed.rooms.slice() };
+    if ($('fFrom').value) t.from = $('fFrom').value;
+    if ($('fUntil').value) t.until = $('fUntil').value;
+    t.takeover = $('fTake').checked;
+    t.cards = ed.cards;
+    if (focus) t.focus = focus;
+    msg.textContent = '';
+    busy(true, pendingFile ? 'Uploading video…' : 'Publishing…');
+    var step = Promise.resolve();
+    if (ed.src === 'file' && pendingFile) {
+      var ext = (/\.(mp4|mov|webm)$/i.exec(pendingFile.name) || ['', 'mp4'])[1].toLowerCase();
+      var fname = t.id + '-' + Date.now().toString(36) + '.' + ext;
+      step = readFileB64(pendingFile).then(function (b64) { return putFile('themes/' + fname, b64, 'Theme video for ' + name + ' (Theme manager)'); })
+        .then(function () { t.source = fname; });
+    }
+    step.then(function () {
+      return gh('/contents/' + PATH + '?ref=main').then(function (j) {   // pick up changes made from the other computer
+        if (j.sha !== fileSha) {
+          var fresh = JSON.parse(unb64utf8(j.content)).themes || [];
+          var idx = -1; fresh.forEach(function (x, k) { if (old && x.id === old.id) idx = k; });
+          data.themes = fresh; editing = idx; fileSha = j.sha;
+        }
+      });
+    }).then(function () {
+      if (editing >= 0) data.themes[editing] = t; else data.themes.push(t);
+      return commitThemes((old ? 'Update theme: ' : 'New theme: ') + name + ' (Theme manager)');
+    }).then(function (sha) {
+      $('ed').close(); busy(false); renderAll(); watch(sha, name);
+    }).catch(function (e) {
+      busy(false);
+      msg.textContent = e.status === 409 ? 'Someone else just saved. Close this, wait a moment and try again.' : 'Couldn’t publish: ' + e.message;
+      load();
+    });
+  };
+  $('edDelete').onclick = function () {
+    var t = data.themes[editing]; if (!t) return;
+    if (!confirm('Remove "' + (t.name || t.id) + '"? TVs stop showing it and delete the video.')) return;
+    busy(true, 'Removing…');
+    var src = t.source;
+    data.themes.splice(editing, 1);
+    commitThemes('Remove theme: ' + (t.name || t.id) + ' (Theme manager)').then(function (sha) {
+      if (src && !/^https?:/.test(src) && !data.themes.some(function (x) { return x.source === src; })) {   // tidy up an uploaded video
+        gh('/contents/themes/' + encodeURIComponent(src) + '?ref=main').then(function (j) {
+          return gh('/contents/themes/' + encodeURIComponent(src), { method: 'DELETE', body: { message: 'Remove unused theme video ' + src, sha: j.sha, branch: 'main' } });
+        }).catch(function () {});
+      }
+      $('ed').close(); busy(false); renderAll(); watch(sha, t.name || t.id, true);
+    }).catch(function (e) { busy(false); $('edMsg').textContent = 'Couldn’t remove: ' + e.message; load(); });
+  };
+
+  /* ---------- follow GitHub preparing the videos ---------- */
+  function banner(kind, html, spin) { $('status').innerHTML = '<div class="banner ' + kind + '">' + (spin ? '<span class="spin" aria-hidden="true"></span>' : '') + '<div class="grow">' + html + '</div></div>'; }
+  function watch(sha, name, removed) {
+    clearTimeout(pollTimer);
+    var started = Date.now();
+    banner('', '<b>' + esc(name) + '</b> saved. GitHub is preparing it for the TVs (usually 2–4 minutes)…', true);
+    (function poll() {
+      gh('/actions/runs?head_sha=' + sha + '&per_page=10').then(function (j) {
+        var run = (j.workflow_runs || []).filter(function (r) { return r.name === 'Publish themes'; })[0];
+        if (run && run.status === 'completed') {
+          if (run.conclusion === 'success') {
+            banner('ok', removed ? '<b>' + esc(name) + '</b> removed. TVs delete it at their next check.' :
+              '<b>' + esc(name) + '</b> is ready. TVs pick it up within a few hours, or at once when someone goes back to the home screen (at most every 30 minutes). To push it to one TV right now: <code>.\\round2tv.ps1 themes</code> on the PC.');
+            load();
+          } else banner('bad', 'GitHub couldn’t prepare <b>' + esc(name) + '</b>. Usually the video link has expired or isn’t a video. <a href="' + esc(run.html_url) + '" target="_blank" rel="noopener">See details</a>');
+          return;
+        }
+        if (Date.now() - started > 20 * 60 * 1000) { banner('warn', 'Still preparing after 20 minutes. <a href="https://github.com/' + OWNER + '/' + REPO + '/actions" target="_blank" rel="noopener">Check on GitHub</a>'); return; }
+        pollTimer = setTimeout(poll, 8000);
+      }).catch(function () { pollTimer = setTimeout(poll, 15000); });
+    }());
+  }
+
+  /* ---------- start ---------- */
+  var saved = ls('r2m.token');
+  if (saved) connect(saved).catch(function () { token = ''; showApp(false); $('tokMsg').textContent = 'The saved key stopped working (expired or deleted). Make a new one and paste it here.'; });
+  else showApp(false);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+}());
+</script>
+</body>
+</html>
