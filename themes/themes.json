@@ -107,5 +107,15 @@
       "takeover": false,
       "ambience": "rain"
     }
+  ],
+  "sounds": [
+    {
+      "id": "waterall",
+      "name": "waterall",
+      "source": "sound-waterall-mvl6oqdy.mp3",
+      "rooms": [
+        "kai"
+      ]
+    }
   ]
 }
