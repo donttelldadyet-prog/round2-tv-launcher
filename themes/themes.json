@@ -116,6 +116,14 @@
       "rooms": [
         "kai"
       ]
+    },
+    {
+      "id": "lofi",
+      "name": "lofi",
+      "source": "sound-lofi-mvl7324e.mp3",
+      "rooms": [
+        "vale"
+      ]
     }
   ]
 }
