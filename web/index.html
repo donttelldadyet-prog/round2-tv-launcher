@@ -382,7 +382,7 @@ window.R2_TV = {
   /* Apps, with each TV platform's app id */
   var APPS = {
     /* TizenTube Cobalt (ad-free YouTube) when installed, otherwise Google's YouTube */
-    youtube: { name: 'YouTube',     android: ['io.gh.reisxd.tizentube.cobalt', 'com.google.android.youtube.tv'], tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
+    youtube: { name: 'YouTube',     android: ['io.gh.reisxd.tizentube.cobalt', 'com.teamsmart.videomanager.tv', 'com.google.android.youtube.tv'], tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
     max:     { name: 'HBO Max',     android: 'com.wbd.stream' },
@@ -708,7 +708,7 @@ window.R2_TV = {
   function mk(k, hint) {
     var a = APPS[k], pkg = a.android;
     if (pkg && pkg.join) { var pick = pkg[pkg.length - 1]; for (var i = 0; i < pkg.length; i++) if (Device.installed(pkg[i])) { pick = pkg[i]; break; } pkg = pick; }
-    var adFree = pkg === 'io.gh.reisxd.tizentube.cobalt';
+    var adFree = pkg === 'io.gh.reisxd.tizentube.cobalt' || pkg === 'com.teamsmart.videomanager.tv';   /* TizenTube or SmartTube */
     return { key: k, label: a.name, hint: adFree ? 'NO ADS' : (hint || 'STREAM'), adFree: adFree, android: pkg, tizen: a.tizen, webos: a.webos };
   }
 

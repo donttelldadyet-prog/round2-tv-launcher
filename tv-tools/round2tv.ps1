@@ -54,7 +54,7 @@ Set-Tv $script:TV
 # Never disabled by 'cleanup', whatever the list says (the launcher has its own command)
 $Protect = 'launcher|katniss|\.gms|gsf|vending|inputmethod|keyboard|leanbackime|\.ime|tv\.provider|providers|tvinput|livetv|tuner|dtv|tvsettings|\.settings|systemui|setupwizard|packageinstaller|permissioncontroller|webview|youtube|bluetooth|remote|audio|hdmi|cec'
 # Reviewed exceptions: these match a protected word (e.g. Sony's com.sony.dtv.*) but are promotions/extras checked by hand
-$Reviewed = '^(com\.sony\.dtv\.sonyselect)$'
+$Reviewed = '^com\.sony\.dtv\.(sonyselect|sonyselect\.overlay|discovery|indiametarecommendation|touchpad\.tutorial|shopsettings|imanual|smarthelp|customersupport|osat\.album|osat\.music|osat\.video)$'
 # Keyword hints for the draft proposal (Claude reviews the real list)
 $Candidate = 'adservice|adsdk|advert|promo|recommend|feedback|demo|retail|storemode|shopmode|analytics|telemetry|survey|marketing|sonyselect|showcase|discover|(^|[._])ads?([._]|$)'
 function Is-Protected([string]$p) { return ($p -match $Protect) -and ($p -notmatch $Reviewed) }
