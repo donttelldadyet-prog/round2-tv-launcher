@@ -180,6 +180,17 @@ function Cmd-Connect([string]$ip) {
   if ($out -match 'connected to') {
     # ok, continue to authorisation check
   }
+  elseif ($out -match 'failed to authenticate|unauthori') {
+    # The TV answered and is showing its 'Allow USB debugging?' prompt (older Android TVs say this)
+    Say "The TV is asking permission. On the TV: tick 'Always allow from this computer', then press OK on 'Allow'."
+    for ($i = 1; $i -le 30; $i++) {
+      Start-Sleep -Seconds 2
+      if ((Get-TvState) -eq 'device') { break }
+      & $script:Adb disconnect $script:TV 2>$null | Out-Null
+      $o = (& $script:Adb connect $script:TV 2>&1) -join ' '
+      if ($o -match 'connected to' -and (Get-TvState) -eq 'device') { break }
+    }
+  }
   elseif ($out -match '10060|timed out|did not properly respond') {
     Die ("The TV didn't answer at $($script:TV). Check: TV and PC on the SAME Wi-Fi (not a guest network); " +
       "shared or guest Wi-Fi often blocks devices from seeing each other ('client isolation'); the IP in TV Settings > Network still matches.")
