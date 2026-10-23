@@ -125,6 +125,20 @@ footer { position: absolute; left: 72px; right: 64px; bottom: 36px; display: fle
   font-family: var(--f-pix); font-size: 12px; letter-spacing: .12em; color: var(--mute); }
 footer .keys { display: flex; gap: 30px; }
 
+/* ---------- compact card positions (Options > Info cards, or a background's "cards" setting) ---------- */
+.cards-top section.peek, .cards-mid section.peek, .cards-bot section.peek { right: auto; left: 680px; }
+.tile.on .mono { color: inherit !important; }
+.cards-top section.peek { top: 140px; bottom: auto; }
+.cards-mid section.peek { top: 50%; bottom: auto; transform: translateY(-50%); }
+.cards-bot section.peek { top: auto; bottom: 92px; }
+.cards-top .bg-shade { background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 1px, transparent 1px, transparent 3px),
+    linear-gradient(90deg, rgba(6,5,10,.86) 0%, rgba(6,5,10,.38) 24%, rgba(6,5,10,0) 38%),
+    linear-gradient(180deg, rgba(6,5,10,.7) 0%, rgba(6,5,10,0) 40%) !important; }
+.cards-mid .bg-shade { background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 1px, transparent 1px, transparent 3px),
+    linear-gradient(90deg, rgba(6,5,10,.86) 0%, rgba(6,5,10,.38) 24%, rgba(6,5,10,0) 38%) !important; }
+
 /* ---------- "low card" layout for scenes whose logo fills the upper right / centre ---------- */
 .card-low .roomcard { display: none; }
 .card-low section.peek { top: auto; bottom: 92px; width: 560px; padding: 30px 34px; }
@@ -487,7 +501,8 @@ window.R2_TV = {
     entry: store('r2.entry') !== 'off',
     sound: store('r2.sound') || 'neon',
     amb: store('r2.amb') || 'rain',
-    ambVol: store('r2.ambVol') || 'med'
+    ambVol: store('r2.ambVol') || 'med',
+    cards: store('r2.cards') || 'auto'
   };
   function nameOf(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i].name; return list[0].name; }
   function cycle(list, id, dir) {
@@ -589,6 +604,9 @@ window.R2_TV = {
 
   /* ================= ambience: rain on the home screen ================= */
   var AMBS = [{ id: 'rain', name: 'Rain' }, { id: 'storm', name: 'Storm' }, { id: 'off', name: 'Off' }];
+  /* where the description card sits, so a background's logo stays visible ('auto' = what the background asks for) */
+  var CARDS = [{ id: 'auto', name: 'Auto' }, { id: 'right', name: 'Right' }, { id: 'low', name: 'Bottom right' },
+    { id: 'top', name: 'Top centre' }, { id: 'middle', name: 'Middle' }, { id: 'bottom', name: 'Bottom centre' }];
   var VOLS = [{ id: 'low', name: 'Low', g: 0.16 }, { id: 'med', name: 'Medium', g: 0.3 }, { id: 'high', name: 'High', g: 0.5 }];
   var Amb = (function () {
     var rainBuf = null, thunderBuf = null, src = null, gain = null, thunderTimer = null, playing = '', building = false;
@@ -796,7 +814,7 @@ window.R2_TV = {
       if (rooms.indexOf('all') < 0 && rooms.indexOf(roomKey) < 0) continue;
       if ((t.from && t.from > d) || (t.until && t.until < d)) continue;
       out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: 'theme/' + t.id + '.mp4', thumb: 'https://r2.theme/' + t.id + '.jpg',
-        layout: t.layout, focus: t.focus, event: true, takeover: !!t.takeover });
+        layout: t.layout, cards: t.cards, focus: t.focus, event: true, takeover: !!t.takeover });
     }
     return out;
   }
@@ -834,11 +852,13 @@ window.R2_TV = {
   function setRows() {
     return [
       { act: 'walls', label: 'Background',     hint: currentWall().name.toUpperCase() + ' \u203A' },
+      { act: 'cards', label: 'Info cards',     hint: '\u2039 ' + nameOf(CARDS, prefs.cards).toUpperCase() + ' \u203A' },
       { act: 'fx',    label: 'Transition',     hint: '\u2039 ' + nameOf(FX, prefs.fx).toUpperCase() + ' \u203A' },
       { act: 'entry', label: 'Home animation', hint: '\u2039 ' + (prefs.entry ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'sound', label: 'Menu sounds',    hint: '\u2039 ' + nameOf(SOUNDS, prefs.sound).toUpperCase() + ' \u203A' },
       { act: 'amb',   label: 'Ambience',       hint: '\u2039 ' + nameOf(AMBS, prefs.amb).toUpperCase() + ' \u203A' },
       { act: 'ambVol', label: 'Ambience volume', hint: '\u2039 ' + nameOf(VOLS, prefs.ambVol).toUpperCase() + ' \u203A' },
+      { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + ' \u203A' },
       { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' }
     ];
   }
@@ -848,6 +868,7 @@ window.R2_TV = {
     else if (act === 'entry') { prefs.entry = !prefs.entry; store('r2.entry', prefs.entry ? 'on' : 'off'); if (prefs.entry) arrive(true); }
     else if (act === 'sound') { prefs.sound = cycle(SOUNDS, prefs.sound, dir); store('r2.sound', prefs.sound); Sfx.play('ok'); }
     else if (act === 'amb') { prefs.amb = cycle(AMBS, prefs.amb, dir); store('r2.amb', prefs.amb); Amb.apply(); }
+    else if (act === 'cards') { prefs.cards = cycle(CARDS, prefs.cards, dir); store('r2.cards', prefs.cards); applyCards(); Sfx.play('move'); }
     else if (act === 'ambVol') { prefs.ambVol = cycle(VOLS, prefs.ambVol, dir); store('r2.ambVol', prefs.ambVol); Amb.apply(); }
     else return false;
     openSettings(setSel);
@@ -889,9 +910,11 @@ window.R2_TV = {
     } else if (k === 'left' || k === 'right') {
       if (!changeSetting(act, k === 'left' ? -1 : 1) && k === 'left') { Sfx.play('back'); closeSettings(); }
       else if (k === 'right' && act === 'walls') { Sfx.play('ok'); openWalls(); }
+      else if (k === 'right' && act === 'room') { Sfx.play('ok'); openRooms(); }
     } else if (k === 'ok') {
       if (act === 'walls') { Sfx.play('ok'); openWalls(); }
       else if (act === 'tv') { Sfx.play('ok'); launch({ name: 'TV settings', settings: true }); }
+      else if (act === 'room') { Sfx.play('ok'); openRooms(); }
       else changeSetting(act, 1);
     } else if (k === 'back') { Sfx.play('back'); closeSettings(); }
   }
@@ -961,10 +984,17 @@ window.R2_TV = {
 
   /* Two background slots cross-fade, so changing background never flashes black */
   var front = 'bgA', shownWall = null;
+  var CARD_CLS = { top: 'cards-top', middle: 'cards-mid', bottom: 'cards-bot' };
+  function applyCards(w) {
+    w = w || currentWall();
+    var pos = prefs.cards !== 'auto' ? prefs.cards : (w.cards || (w.layout === 'low' ? 'low' : 'right'));
+    if (pos === 'right') dropCls('card-low'); else addCls('card-low');   /* compact card, no room box */
+    for (var k in CARD_CLS) if (CARD_CLS.hasOwnProperty(k)) { if (k === pos) addCls(CARD_CLS[k]); else dropCls(CARD_CLS[k]); }
+  }
   function showWall(w) {
     if (!w || (shownWall && shownWall.id === w.id && shownWall.room === roomKey)) return;
     shownWall = { id: w.id, room: roomKey };
-    if (w.layout === 'low') addCls('card-low'); else dropCls('card-low');
+    applyCards(w);
     $('world').style.transformOrigin = w.focus || '50% 50%';
     var fp = (w.focus || '50% 40%').split(' ');
     $('stage').style.setProperty('--fx', fp[0]); $('stage').style.setProperty('--fy', fp[1]);
@@ -1016,7 +1046,8 @@ window.R2_TV = {
           '<img alt="" src="' + esc(a.art) + '"><span class="nm">' + esc(a.name) + '</span></button>';
         continue;
       }
-      html += '<button type="button" tabindex="-1" class="tile' + (i === gsel ? ' on' : '') + '" data-g="' + i + '"><span class="mono">' +
+      html += '<button type="button" tabindex="-1" class="tile' + (i === gsel ? ' on' : '') + '" data-g="' + i + '"><span class="mono"' +
+        (a.color ? ' style="color:' + esc(a.color) + '"' : '') + '>' +
         esc(a.mono || a.name.charAt(0)) + '</span><span class="nm">' + esc(a.name) + '</span>' +
         (a.sub ? '<span class="sub">' + esc(a.sub) + '</span>' : '') + '</button>';
     }
@@ -1041,15 +1072,30 @@ window.R2_TV = {
   }
   function roomTiles() {
     var out = [];
-    for (var k in ROOMS) if (ROOMS.hasOwnProperty(k)) out.push({ roomPick: k, name: ROOMS[k].name, sub: TIERS[ROOMS[k].t].split(' ')[0].toUpperCase() });
+    for (var k in ROOMS) if (ROOMS.hasOwnProperty(k)) out.push({ roomPick: k, name: ROOMS[k].name, color: ROOMS[k].color,
+      sub: k === roomKey && store('r2.room') ? 'THIS TV NOW' : TIERS[ROOMS[k].t].split(' ')[0].toUpperCase() });
     return out;
   }
-  function openGrid(kind) {
+  /* Moving a TV to another room: Options > This TV's room (no computer needed) */
+  function openRooms() {
+    var row = setSel;
+    openGrid('rooms', function () { openSettings(row); });
+    $('gridTitle').textContent = 'MOVE THIS TV \u00B7 WHICH ROOM IS IT IN NOW? \u00B7 [BACK] TO KEEP ' + room.name.toUpperCase();
+    var keys0 = Object.keys(ROOMS); gsel = Math.max(0, keys0.indexOf(roomKey)); renderGrid(true);
+  }
+  var gridBack = null;
+  function openGrid(kind, back) {
+    gridBack = back || null;
     gridItems = kind === 'inputs' ? inputTiles() : kind === 'rooms' ? roomTiles() : Device.apps();
     $('gridTitle').textContent = kind === 'rooms' ? 'SET UP THIS TV · WHICH ROOM IS IT IN?' : (kind === 'inputs' ? 'INPUTS' : 'MORE APPS') + ' · [BACK] TO RETURN';
     gsel = 0; gridTop = 0; mode = 'grid'; $('apps').hidden = false; renderGrid();
   }
-  function closeGrid() { if (mode === 'grid') mode = 'menu'; $('apps').hidden = true; }
+  function closeGrid() {
+    $('apps').hidden = true;
+    if (mode !== 'grid') return;
+    mode = 'menu';
+    if (gridBack) { var f = gridBack; gridBack = null; f(); }   /* opened from Options: go back there */
+  }
   function gridKey(k) {
     var cols = 5, n = gridItems.length;
     if (k === 'left') gsel = Math.max(0, gsel - 1);
