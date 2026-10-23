@@ -133,5 +133,12 @@
         "vale"
       ]
     }
-  ]
+  ],
+  "roomDefaults": {
+    "kai": {
+      "updated": "2026-10-23T20:04:57.809Z",
+      "amb": "waterall",
+      "ambVol": "1"
+    }
+  }
 }
