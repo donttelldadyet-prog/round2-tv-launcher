@@ -272,7 +272,8 @@ function Cmd-Install([string]$repo) {
   try { $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -UseBasicParsing }
   catch {
     # some projects only publish beta (pre-release) versions; take the newest one
-    try { $rel = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=5" -UseBasicParsing)[0] } catch { $rel = $null }
+    # Windows PowerShell returns the list as one object; Select-Object unrolls it so only the newest release is used
+    try { $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=5" -UseBasicParsing | ForEach-Object { $_ } | Select-Object -First 1 } catch { $rel = $null }
     if (-not $rel) { Die "No official GitHub release found for $repo" }
     Say "Using pre-release $($rel.tag_name) (this project has no stable release yet)"
   }
