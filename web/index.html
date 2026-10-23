@@ -809,8 +809,8 @@ window.R2_TV = {
     clearTimeout(entryTimer);
     dropCls('go-warp'); dropCls('go-dive'); dropCls('entering'); dropCls('settle');
   }
-  function dive(then) {
-    leaving = true;
+  function dive(then, demo) {
+    leaving = !demo;                       /* a preview from Options never locks the remote */
     clearAnim();
     if (prefs.fx === 'off') { then(); return; }
     addCls(prefs.fx === 'dive' ? 'go-dive' : 'go-warp');
@@ -831,7 +831,7 @@ window.R2_TV = {
   }
   function surface() { if (leaving) arrive(false); }
   function demoTransition() {
-    dive(function () { setTimeout(function () { arrive(false); }, 250); });
+    dive(function () { setTimeout(function () { arrive(false); }, 250); }, true);
   }
 
   function launch(it) {
