@@ -136,6 +136,13 @@ footer .keys { display: flex; gap: 30px; }
 
 /* ---------- launch transition: dive into the scene, then the screen closes to a line ---------- */
 #crt { pointer-events: none; }
+/* lightning: a violet-white flash like the strike in the scene loops */
+#flash { pointer-events: none; opacity: 0; background: radial-gradient(70% 90% at var(--fx, 50%) var(--fy, 40%), #fff 0%, #d9c8ff 30%, rgba(160,120,255,.5) 60%, rgba(60,40,140,0) 100%); }
+.leaving #flash { animation: strike .26s linear both; }
+@keyframes strike { 0% { opacity: 0 } 10% { opacity: .75 } 22% { opacity: .15 } 34% { opacity: .55 } 100% { opacity: 0 } }
+/* coming back: the menu buzzes on like a neon tube */
+.neon-on #ui { animation: neonOn .42s linear both; }
+@keyframes neonOn { 0% { opacity: 0 } 12% { opacity: .9 } 20% { opacity: .2 } 32% { opacity: 1 } 40% { opacity: .5 } 52% { opacity: 1 } 100% { opacity: 1 } }
 #crt .t, #crt .b { position: absolute; left: 0; right: 0; height: 50%; background: #000; transform: scaleY(0); transition: transform .16s cubic-bezier(.7, 0, 1, .6); }
 #crt .t { top: 0; transform-origin: 50% 0; }
 #crt .b { bottom: 0; transform-origin: 50% 100%; }
@@ -146,6 +153,7 @@ footer .keys { display: flex; gap: 30px; }
 .leaving #crt .t, .leaving #crt .b { transform: scaleY(1); transition-delay: .16s; }
 .leaving #crt .line { opacity: 1; transform: scaleX(0); transition-delay: .26s, .3s; }
 .snap #world, .snap #ui, .snap #crt .t, .snap #crt .b, .snap #crt .line { transition: none !important; }
+.leaving #world { transition-delay: .06s; }
 
 #toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); padding: 18px 28px; background: var(--ink); color: var(--room-ink);
   font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
@@ -162,7 +170,7 @@ footer .keys { display: flex; gap: 30px; }
 
 @media (prefers-reduced-motion: reduce) {
   #world, #ui, .panel, .wallrows, .grid, .mi, #bgA, #bgB, #crt .t, #crt .b, #crt .line { transition: none !important; }
-  .swap { animation: none; }
+  .swap, .leaving #flash, .neon-on #ui { animation: none !important; }
 }
 </style>
 
@@ -219,6 +227,7 @@ footer .keys { display: flex; gap: 30px; }
     </div>
   </div>
 
+  <div id="flash" class="layer" aria-hidden="true"></div>
   <div id="crt" class="layer" aria-hidden="true"><div class="t"></div><div class="b"></div><div class="line"></div></div>
   <div id="toast" role="status" hidden></div>
 </div>
@@ -549,6 +558,8 @@ window.R2_TV = {
     shownWall = { id: w.id, room: roomKey };
     if (w.layout === 'low') addCls('card-low'); else dropCls('card-low');
     $('world').style.transformOrigin = w.focus || '50% 50%';
+    var fp = (w.focus || '50% 40%').split(' ');
+    $('stage').style.setProperty('--fx', fp[0]); $('stage').style.setProperty('--fy', fp[1]);
     var back = front === 'bgA' ? 'bgB' : 'bgA', slot = $(back), old = $(front);
     var el;
     if (w.video) {
@@ -652,6 +663,8 @@ window.R2_TV = {
     dropCls('snap');
     void st.offsetWidth;
     dropCls('leaving');
+    addCls('neon-on');
+    setTimeout(function () { dropCls('neon-on'); }, 460);
   }
 
   function launch(it) {
