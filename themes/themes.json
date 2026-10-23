@@ -10,8 +10,8 @@
       "from": "2026-10-23",
       "until": "2026-11-01",
       "takeover": true,
-      "focus": "50% 35%",
-      "cards": "bottom"
+      "cards": "low",
+      "focus": "50% 35%"
     }
   ]
 }
