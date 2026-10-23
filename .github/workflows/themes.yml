@@ -26,11 +26,14 @@ jobs:
         timeout-minutes: 6
         run: |
           command -v ffmpeg && exit 0
-          for n in 1 2 3; do
-            timeout 120 bash -c 'sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y --no-install-recommends ffmpeg' && exit 0
+          for n in 1 2; do
+            timeout 90 bash -c 'sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y --no-install-recommends ffmpeg' && exit 0
             echo "apt attempt $n failed, retrying"
           done
-          exit 1
+          echo "apt unavailable: using the static ffmpeg build from GitHub (BtbN/FFmpeg-Builds)"
+          curl -fsSL --retry 3 -o /tmp/ffmpeg.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+          mkdir -p /tmp/ffmpeg && tar -xJf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg --strip-components=1
+          echo /tmp/ffmpeg/bin >> "$GITHUB_PATH"
       - name: Make sure the themes release exists
         run: |
           gh release view themes >/dev/null 2>&1 || gh release create themes --title "Event backgrounds" \
