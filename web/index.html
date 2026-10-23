@@ -374,7 +374,7 @@ window.R2_TV = {
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
     { name: 'Apple TV', android: 'com.apple.atve.androidtv.appletv' }, { name: 'Twitch', android: 'tv.twitch.android.app' },
     { name: 'YouTube Music', android: 'com.google.android.youtube.tvmusic' }, { name: 'iQIYI', android: 'com.iqiyi.i18n.tv' },
-    { name: 'Google Play', android: 'com.android.vending' }, { name: 'TV Settings', settings: true }
+    { name: 'Google Play', android: 'com.android.vending' }, { name: 'TV Settings', settings: true, mono: '\u2699' }
   ];
 
   /* ---- Device adapter: one UI, each TV brand's own way of opening apps ---- */
@@ -425,7 +425,7 @@ window.R2_TV = {
         try {
           var list = JSON.parse(window.R2Android.apps()), out = [];
           for (var i = 0; i < list.length; i++) if (!/settings/i.test(list[i].name)) out.push(list[i]);
-          out.push({ name: 'TV Settings', settings: true });
+          out.push({ name: 'TV Settings', settings: true, mono: '\u2699' });
           return out;
         } catch (e) {}
       }
