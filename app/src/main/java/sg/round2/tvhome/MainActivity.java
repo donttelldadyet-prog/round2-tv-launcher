@@ -7,6 +7,16 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.HashMap;
+import java.util.Map;
 import android.media.tv.TvContract;
 import android.media.tv.TvInputInfo;
 import android.media.tv.TvInputManager;
@@ -70,6 +80,18 @@ public class MainActivity extends Activity {
                 return true;   // the home screen never navigates away
             }
 
+            /* App artwork for the More apps tiles: https://r2.icon/<package> returns that app's TV banner (or icon) */
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+                Uri u = req.getUrl();
+                if (u != null && "r2.icon".equals(u.getHost())) {
+                    byte[] png = artFor(u.getLastPathSegment());
+                    if (png != null) return new WebResourceResponse("image/png", null, new ByteArrayInputStream(png));
+                    return new WebResourceResponse("text/plain", null, new ByteArrayInputStream(new byte[0]));
+                }
+                return null;
+            }
+
             @Override
             public void onPageFinished(WebView view, String url) {
                 pageReady = true;
@@ -97,6 +119,43 @@ public class MainActivity extends Activity {
         // adb shell am start -n sg.round2.tvhome/.MainActivity --es room vale
         String room = intent.getStringExtra("room");
         if (room != null) { pendingRoom = room; applyPendingRoom(); }
+    }
+
+    private final Map<String, byte[]> artCache = new HashMap<>();
+
+    /** The app's TV banner if it has one; true when it does. */
+    Drawable bannerOf(String pkg) {
+        PackageManager pm = getPackageManager();
+        try {
+            Intent i = pm.getLeanbackLaunchIntentForPackage(pkg);
+            if (i != null) {
+                ResolveInfo ri = pm.resolveActivity(i, 0);
+                if (ri != null) { Drawable d = ri.activityInfo.loadBanner(pm); if (d != null) return d; }
+            }
+            return pm.getApplicationBanner(pkg);
+        } catch (Exception e) { return null; }
+    }
+
+    byte[] artFor(String pkg) {
+        if (pkg == null) return null;
+        synchronized (artCache) { if (artCache.containsKey(pkg)) return artCache.get(pkg); }
+        byte[] out = null;
+        try {
+            Drawable d = bannerOf(pkg);
+            if (d == null) d = getPackageManager().getApplicationIcon(pkg);
+            Bitmap bmp;
+            if (d instanceof BitmapDrawable && ((BitmapDrawable) d).getBitmap() != null) bmp = ((BitmapDrawable) d).getBitmap();
+            else {
+                int w = d.getIntrinsicWidth() > 0 ? d.getIntrinsicWidth() : 320, h = d.getIntrinsicHeight() > 0 ? d.getIntrinsicHeight() : 180;
+                bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                Canvas c = new Canvas(bmp); d.setBounds(0, 0, w, h); d.draw(c);
+            }
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            bmp.compress(Bitmap.CompressFormat.PNG, 100, bo);
+            out = bo.toByteArray();
+        } catch (Exception ignored) { }
+        synchronized (artCache) { artCache.put(pkg, out); }
+        return out;
     }
 
     private void applyPendingRoom() {
@@ -260,6 +319,8 @@ public class MainActivity extends Activity {
                     JSONObject o = new JSONObject();
                     o.put("name", name);
                     o.put("android", pkg);
+                    o.put("art", "https://r2.icon/" + pkg);
+                    o.put("banner", act.bannerOf(pkg) != null);
                     rows.add(o);
                 }
                 Collections.sort(rows, new Comparator<JSONObject>() {

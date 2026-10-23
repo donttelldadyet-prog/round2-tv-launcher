@@ -66,13 +66,19 @@ header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; 
 .divider span { width: 150px; height: 1px; background: var(--rule); }
 .divider i { width: 12px; height: 12px; border: 2px solid var(--ink); transform: rotate(45deg); }
 .list { display: flex; flex-direction: column; gap: 8px; }
-.mi { display: flex; align-items: center; gap: 18px; width: 540px; height: 68px; padding: 0 24px; border: 0; background: transparent;
-  color: var(--dim); text-align: left; font: inherit; cursor: pointer;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); transition: background .08s, color .08s; }
+.mi { position: relative; display: flex; align-items: center; gap: 18px; width: 540px; height: 68px; padding: 0 24px; border: 0; background: transparent;
+  color: var(--dim); text-align: left; font: inherit; cursor: pointer; will-change: transform; }
+/* main menu: one highlight bar slides between rows on the graphics chip, so rows never repaint their background */
+.listwrap { position: relative; }
+.hl { position: absolute; left: 0; top: 0; width: 540px; height: 68px; background: var(--room);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); transition: transform .12s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
+.card-low .hl { width: 460px; }
+#setPanel .mi { clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); }
+#setPanel .mi.on { background: var(--room); }
 .mi svg { flex: none; opacity: 0; }
 .mi .label { flex: 1; font-size: 34px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mi .hint { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; opacity: .45; white-space: nowrap; }
-.mi.on { background: var(--room); color: var(--room-ink); }
+.mi.on { color: var(--room-ink); }
 .mi.on svg { opacity: 1; }
 .mi.on .hint { opacity: .9; }
 
@@ -136,6 +142,17 @@ footer .keys { display: flex; gap: 30px; }
 .tile .sub { position: absolute; right: 22px; top: 24px; font-family: var(--f-pix); font-size: 11px; letter-spacing: .12em; opacity: .7; }
 .tile.on { background: var(--room); color: var(--room-ink); border-color: var(--room); }
 .tile.on .mono { color: var(--room-ink); }
+.tile { will-change: transform; }
+/* tiles with the app's own TV banner (or icon) from the TV */
+.tile.art { padding: 0; justify-content: flex-end; overflow: hidden; background: #110e1a; }
+.tile.art img { position: absolute; display: block; }
+.tile.art.ban img { inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tile.art.ico img { left: 50%; top: 38%; width: 84px; height: 84px; margin: -42px 0 0 -42px; object-fit: contain; }
+.tile.art .nm { position: relative; padding: 26px 16px 10px; font-size: 19px; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: linear-gradient(180deg, rgba(6,5,10,0), rgba(6,5,10,.92) 55%); color: var(--ink); }
+.tile.art.ban .nm { opacity: 0; transition: opacity .12s linear; }
+.tile.art.on { background: #110e1a; border: 3px solid var(--room); }
+.tile.art.on .nm { opacity: 1; background: var(--room); color: var(--room-ink); padding: 8px 16px; }
 
 /* ---------- transitions (Options > Transition: Warp / Dive / Off) ---------- */
 #flash, #warp, #veil, #dim, #ship { pointer-events: none; }
@@ -180,6 +197,7 @@ footer .keys { display: flex; gap: 30px; }
 .entering #ship { animation: flyby .95s cubic-bezier(.35, .05, .55, 1) .2s both; }
 .entering header, .entering footer { animation: rise .4s var(--ease) .5s both; }
 .entering #items .mi { animation: slideIn .34s var(--ease) both; }
+.entering .hl { animation: slideIn .34s var(--ease) .5s both; }
 .entering #items .mi:nth-child(1) { animation-delay: .52s } .entering #items .mi:nth-child(2) { animation-delay: .56s }
 .entering #items .mi:nth-child(3) { animation-delay: .6s }  .entering #items .mi:nth-child(4) { animation-delay: .64s }
 .entering #items .mi:nth-child(5) { animation-delay: .68s } .entering #items .mi:nth-child(6) { animation-delay: .72s }
@@ -235,7 +253,7 @@ footer .keys { display: flex; gap: 30px; }
     <nav class="panel" id="menuPanel" aria-label="Main menu">
       <div class="eyebrow">MAIN MENU</div>
       <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
-      <div class="list" id="items"></div>
+      <div class="listwrap"><div class="hl" id="hl"></div><div class="list" id="items"></div></div>
     </nav>
 
     <nav class="panel off" id="setPanel" aria-label="Options">
@@ -579,6 +597,7 @@ window.R2_TV = {
     }
     $('items').innerHTML = html;
     itemEls = $('items').children;
+    $('hl').style.transform = 'translateY(' + (sel * 76) + 'px)';
     $('peek').innerHTML = peekHtml(items[sel]);
   }
   var peekTimer;
@@ -587,6 +606,7 @@ window.R2_TV = {
     if (itemEls[sel]) itemEls[sel].className = 'mi';
     sel = i;
     if (itemEls[sel]) itemEls[sel].className = 'mi on';
+    $('hl').style.transform = 'translateY(' + (sel * 76) + 'px)';
     clearTimeout(peekTimer);
     peekTimer = setTimeout(function () { $('peek').innerHTML = peekHtml(items[sel]); }, 40);
   }
@@ -763,12 +783,20 @@ window.R2_TV = {
   function renderGrid(moveOnly) {
     var tiles = $('grid').children;
     if (moveOnly && tiles.length === gridItems.length) {
-      for (var t = 0; t < tiles.length; t++) tiles[t].className = 'tile' + (t === gsel ? ' on' : '');
+      for (var t = 0; t < tiles.length; t++) {
+        var base = gridItems[t].art ? 'tile art ' + (gridItems[t].banner ? 'ban' : 'ico') : 'tile';
+        tiles[t].className = base + (t === gsel ? ' on' : '');
+      }
       scrollGrid(); return;
     }
     var html = '';
     for (var i = 0; i < gridItems.length; i++) {
       var a = gridItems[i];
+      if (a.art) {
+        html += '<button type="button" tabindex="-1" class="tile art ' + (a.banner ? 'ban' : 'ico') + (i === gsel ? ' on' : '') + '" data-g="' + i + '">' +
+          '<img alt="" src="' + esc(a.art) + '"><span class="nm">' + esc(a.name) + '</span></button>';
+        continue;
+      }
       html += '<button type="button" tabindex="-1" class="tile' + (i === gsel ? ' on' : '') + '" data-g="' + i + '"><span class="mono">' +
         esc(a.mono || a.name.charAt(0)) + '</span><span class="nm">' + esc(a.name) + '</span>' +
         (a.sub ? '<span class="sub">' + esc(a.sub) + '</span>' : '') + '</button>';
