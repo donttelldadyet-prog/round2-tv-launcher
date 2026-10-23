@@ -57,6 +57,7 @@ public class MainActivity extends Activity {
 
     /* Watchdog: if remote presses stop reaching the menu (a stuck web page), reload it by itself */
     private volatile long lastAck = System.currentTimeMillis();
+    private android.widget.TextView splash;
     private volatile int unacked = 0;
     private long firstUnacked = 0, lastReload = 0;
     private String pendingRoom;
@@ -84,7 +85,7 @@ public class MainActivity extends Activity {
         updater = new Updater(this);
         sound = new NativeSound(this);
         CrashLog.install(this);
-        UpdateReceiver.rememberOrRearmGuard(this);
+
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -139,6 +140,10 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 pageReady = true;
                 applyPendingRoom();
+                if (splash != null) splash.postDelayed(new Runnable() { @Override public void run() {   // the menu's boot screen has drawn by now
+                    if (splash != null) { splash.animate().alpha(0f).setDuration(250).start(); splash.postDelayed(new Runnable() {
+                        @Override public void run() { if (splash != null) { splash.setVisibility(View.GONE); } } }, 300); }
+                } }, 250);
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
@@ -155,6 +160,16 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(0xFF06050A);
         root.addView(bg.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        /* shown while the TV's web engine warms up, before the menu's own boot screen can draw */
+        splash = new android.widget.TextView(this);
+        splash.setText("ROUND2\n\nSTARTING UP\u2026");
+        splash.setTextColor(0xFFB9B0CF);
+        splash.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 18);
+        splash.setLetterSpacing(0.3f);
+        splash.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
+        splash.setGravity(android.view.Gravity.CENTER);
+        splash.setBackgroundColor(0xFF06050A);
+        root.addView(splash, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
         registerReceiver(screenOff, new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF));
         pendingRoom = getIntent().getStringExtra("room");
@@ -222,7 +237,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         lastAck = System.currentTimeMillis(); unacked = 0;
-        UpdateReceiver.rememberOrRearmGuard(this);   // the Home-button helper, if Android switched it off
+
         if (bg != null) bg.resume();
         if (web != null) {
             web.onResume();

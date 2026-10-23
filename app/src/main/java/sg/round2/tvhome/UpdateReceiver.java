@@ -46,25 +46,11 @@ public class UpdateReceiver extends BroadcastReceiver {
         }
     }
 
-    /**
-     * Android switches an accessibility helper off when its app crashes (seen on the 2015 Sony).
-     * The helper now runs in its own process, and here the app notes that staff turned it on and,
-     * if it's later found off, switches it back on (needs WRITE_SECURE_SETTINGS from 'homeguard').
+    /*
+     * The Accessibility setting "Round2 Home button" is the master switch: the app never switches the
+     * helper on by itself. (It runs in its own process, so a menu crash can't switch it off.) The only
+     * thing done here is restarting it after an app update, and only if it is already on.
      */
-    static void rememberOrRearmGuard(Context ctx) {
-        try {
-            android.content.SharedPreferences sp = ctx.getSharedPreferences("r2", Context.MODE_PRIVATE);
-            String cur = Settings.Secure.getString(ctx.getContentResolver(), "enabled_accessibility_services");
-            boolean on = cur != null && cur.contains(GUARD);
-            if (on) { if (!sp.getBoolean("guardWanted", false)) sp.edit().putBoolean("guardWanted", true).apply(); return; }
-            if (!sp.getBoolean("guardWanted", false)) return;
-            if (ctx.checkCallingOrSelfPermission("android.permission.WRITE_SECURE_SETTINGS") != PackageManager.PERMISSION_GRANTED) return;
-            String next = cur == null || cur.isEmpty() || "null".equals(cur) ? GUARD : cur + ":" + GUARD;
-            Settings.Secure.putString(ctx.getContentResolver(), "enabled_accessibility_services", next);
-            Settings.Secure.putString(ctx.getContentResolver(), "accessibility_enabled", "1");
-            android.util.Log.w("R2Home", "Home-button helper was off: switched it back on");
-        } catch (Exception ignored) { }
-    }
 
     /** Needs WRITE_SECURE_SETTINGS, which the PC toolkit grants with 'homeguard' (and undo removes). */
     static void rearmHomeGuard(Context ctx) {

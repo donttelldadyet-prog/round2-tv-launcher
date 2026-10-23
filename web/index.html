@@ -29,11 +29,31 @@ html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 *:focus, *:focus-visible { outline: none; }   /* the TV browser draws its own box otherwise; the menu shows focus itself */
 * { -webkit-tap-highlight-color: transparent; }
 
-/* nothing shows until the menu is sized and coloured for this room (no flash on a cold start);
-   if the script ever failed, it shows anyway after 3 s */
-#stage { visibility: hidden; animation: r2show 0s linear 3s forwards; }
-@keyframes r2show { to { visibility: visible; } }
-.r2-ready #stage { visibility: visible; animation: none; }
+/* Boot screen: shown from the very first frame (before the script runs) while the menu loads,
+   so a slow start looks deliberate and staff can see it is loading. The script fills in the
+   real details and fades it out; if the script ever failed it fades by itself after 12 s. */
+#boot { position: fixed; inset: 0; left: 0; top: 0; right: 0; bottom: 0; z-index: 99; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 45%, #15101f 0%, #06050a 70%); color: var(--ink); font-family: var(--f-pix);
+  transition: opacity .6s ease, visibility 0s linear .6s; animation: btGone .6s ease 12s forwards; }
+#boot.done { opacity: 0; visibility: hidden; animation: none; }
+@keyframes btGone { to { opacity: 0; visibility: hidden; } }
+#boot .bt { width: 46vw; min-width: 300px; max-width: 900px; }
+#boot .bt-logo { font-size: 4.2vw; letter-spacing: .08em; color: var(--ink); text-shadow: .25vw .25vw 0 var(--room); white-space: nowrap; }
+#boot .bt-logo b { color: var(--room); font-weight: normal; text-shadow: .25vw .25vw 0 #000; }
+#boot .bt-sub { margin-top: 1.4vw; font-size: .75vw; letter-spacing: .3em; color: var(--mute); }
+#boot .bt-bar { position: relative; margin: 2.4vw 0 1.6vw; height: .7vw; border: .15vw solid var(--rule); padding: .2vw; }
+#boot .bt-bar i { display: block; height: 100%; width: 8%; background: repeating-linear-gradient(90deg, var(--room) 0 1.1vw, transparent 1.1vw 1.4vw);
+  animation: btFill 6s cubic-bezier(.2, .7, .3, 1) forwards; }
+#boot.ready .bt-bar i { width: 100% !important; animation: none; transition: width .35s ease; }
+@keyframes btFill { to { width: 88%; } }
+#boot ol { list-style: none; margin: 0; padding: 0; font-size: .72vw; line-height: 2.1; color: var(--dim); min-height: 13vw; }
+#boot li { white-space: nowrap; overflow: hidden; animation: btLine .25s steps(4) both; }
+#boot li .ok { color: var(--room); }
+#boot li.slow { color: var(--accent); opacity: 0; animation: btLine .25s steps(4) 6s forwards; }
+#boot.ready li.slow { display: none; }
+#boot .cur { display: inline-block; width: .6vw; height: .9vw; vertical-align: -.1vw; background: var(--room); animation: btBlink 1s steps(1) infinite; }
+@keyframes btLine { from { opacity: 0; transform: translateX(-.5vw); } to { opacity: 1; transform: none; } }
+@keyframes btBlink { 50% { opacity: 0; } }
 #stage { position: fixed; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden;
   background: var(--void); font-family: var(--f-ui); -webkit-font-smoothing: antialiased; }
 .layer { position: absolute; inset: 0; }
@@ -325,6 +345,27 @@ footer .keys { display: flex; gap: 30px; }
   .swap, #warp, #warp .rays, #veil, #flash, #ship, #crt b, #blinds i, .entering *, .settle *, .enter-flicker *, .enter-crt * { animation: none !important; }
 }
 </style>
+
+<div id="boot" aria-hidden="true">
+  <div class="bt">
+    <div class="bt-logo">ROUND<b>2</b></div>
+    <div class="bt-sub">GAMING LOUNGE &middot; SINGAPORE</div>
+    <div class="bt-bar"><i></i></div>
+    <ol id="bootLog">
+      <li>&gt; POWER ON ............ <span class="ok">OK</span></li>
+      <li>&gt; LOADING MENU ........ <span class="cur"></span></li>
+      <li class="slow">&gt; TAKING A MOMENT LONGER &middot; HANG TIGHT</li>
+    </ol>
+  </div>
+</div>
+<script>
+/* tint the boot screen with this TV's room colour straight away */
+(function () { try {
+  var c = { vale: '#E8436A', kaeden: '#4DB848', scarlett: '#F2C21B', bella: '#7A5BE0', kai: '#24B49A', atlas: '#E9E7EF', maximillion: '#E0402F' };
+  var r = (location.hash || '').replace('#', '') || window.localStorage.getItem('r2.room');
+  if (c[r]) document.documentElement.style.setProperty('--room', c[r]);
+} catch (e) {} }());
+</script>
 
 <div id="stage" role="application" aria-label="Round2 TV home screen">
   <div id="world" class="layer">
@@ -1525,6 +1566,40 @@ window.R2_TV = {
     setTimeout(then, fxMs(prefs.fx));
   }
   /* Returning (Home pressed, or an app closed): the Home animation, or a quick settle */
+  /* The boot screen (see #boot): real details as they load, then it fades into the menu.
+     It stays at least ~1.6 s from page start so it reads as a deliberate start-up, not a flicker;
+     any key skips it. */
+  var Boot = (function () {
+    var el = $('boot'), log = $('bootLog'), gone = false, t0 = Date.now();
+    function dots(label) { var d = ' '; for (var i = label.length; i < 20; i++) d += '.'; return '&gt; ' + label + d + ' '; }
+    function line(label, value) {
+      if (gone || !log) return;
+      var cur = log.querySelector('.cur'); if (cur) cur.parentNode.innerHTML = cur.parentNode.innerHTML.replace(/<span class="cur"><\/span>/, '<span class="ok">OK</span>');
+      var li = document.createElement('li');
+      li.innerHTML = dots(label) + '<span class="ok">' + String(value).toUpperCase().replace(/</g, '&lt;') + '</span>';
+      log.insertBefore(li, log.querySelector('.slow'));
+    }
+    function hide() {
+      if (gone || !el) return; gone = true;
+      el.className = 'ready';
+      setTimeout(function () { fit(); el.className = 'ready done'; arrive(false); }, 300);
+      setTimeout(function () { if (el.parentNode) el.style.display = 'none'; }, 1200);
+    }
+    return {
+      line: line, hide: hide, isUp: function () { return !gone; },
+      ready: function () {
+        var w = currentWall && currentWall();
+        line('ROOM', room ? room.name : roomKey);
+        line('BACKGROUND', w ? (w.name || w.id) : 'DEFAULT');
+        line('SOUND', nat() ? 'TV SPEAKERS' : 'BROWSER');
+        var v = ''; try { v = window.R2Android && window.R2Android.version ? window.R2Android.version() : ''; } catch (e) {}
+        line('VERSION', v ? 'V' + v : 'PREVIEW');
+        setTimeout(function () { line('READY', 'PRESS OK'); }, 250);
+        setTimeout(hide, Math.max(700, 1600 - (Date.now() - t0)));
+      }
+    };
+  }());
+
   function arrive(force) {
     var st = $('stage');
     leaving = false;
@@ -1567,6 +1642,7 @@ window.R2_TV = {
   function press(k) {
     if (leaving && Date.now() - leavingSince > 2500) unstick();   /* the lock only guards against double presses, never longer */
     if (leaving) return;
+    if (Boot.isUp()) { Boot.hide(); return; }   /* a key during start-up just skips the boot screen */
     if (Sfx.wake() && !ambStarted) { ambStarted = true; Amb.apply(); }   /* in case the TV held audio until the first key */
     if (/entering|settle|enter-/.test($('stage').className)) { addCls('snap'); clearAnim(); void $('stage').offsetWidth; dropCls('snap'); }   /* a key press skips the intro */
     if (mode === 'menu') {
@@ -1730,10 +1806,7 @@ window.R2_TV = {
   applyRoom(roomKey);
   fit(); tick(); setInterval(tick, 15000);
   setTimeout(fit, 400); setTimeout(fit, 1500);
-  arrive(false);                         /* the Home animation also plays when the TV starts */
-  (window.requestAnimationFrame || setTimeout)(function () { (window.requestAnimationFrame || setTimeout)(function () {
-    fit(); document.documentElement.className += ' r2-ready';   /* sized and coloured: show it */
-  }); });
+  Boot.ready();                          /* the boot screen fades and the Home animation plays */
   var ambStarted = false;
   setTimeout(function () { Amb.apply(); ambStarted = true; }, 1800);
   setTimeout(function () { Sfx.prepare(); }, 2600);
