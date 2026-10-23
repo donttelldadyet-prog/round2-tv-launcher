@@ -49,7 +49,7 @@ html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 /* ---------- interface ---------- */
 #ui { transition: transform .26s cubic-bezier(.55, 0, .85, .35), opacity .2s linear; }
 /* animation hints only while a transition runs, so idle frames stay a single flat layer */
-.go-warp #world, .go-dive #world, .entering #world, .settle #world { will-change: transform; }
+
 .go-warp #ui, .go-dive #ui, .go-fade #ui, .go-zoom #ui, .go-slide #ui, .go-glitch #ui, .go-push #ui, .settle #ui { will-change: transform, opacity; }
 .go-crt #crt b, .enter-crt #crt b, .go-blinds #blinds i { will-change: transform; }
 
@@ -206,8 +206,8 @@ footer .keys { display: flex; gap: 30px; }
 #warp .rays { position: absolute; left: var(--fx, 50%); top: var(--fy, 50%); width: 3400px; height: 3400px; margin: -1700px 0 0 -1700px; transform: scale(.12); }
 .go-warp #warp .rays { will-change: transform; }
 #veil { opacity: 0; background: radial-gradient(55% 65% at var(--fx, 50%) var(--fy, 50%), #effffc 0%, var(--room) 28%, #06050a 72%); }
-.go-warp #world { transform: scale(1.55); transition: transform .4s cubic-bezier(.6, 0, .9, .5); }
-.go-warp #ui { opacity: 0; transform: scale(1.06); transition: opacity .12s linear, transform .2s ease-in; }
+/* no zooming of the background anywhere (it made people dizzy): transitions fade and slide only */
+.go-warp #ui { opacity: 0; transition: opacity .12s linear; }
 .go-warp #warp { animation: on .4s linear both; }
 .go-warp #warp .rays { animation: rays .42s cubic-bezier(.45, 0, .9, .4) both; }
 .go-warp #veil { animation: veil .42s ease-in both; }
@@ -216,7 +216,7 @@ footer .keys { display: flex; gap: 30px; }
 @keyframes veil { 0% { opacity: 0 } 50% { opacity: 0 } 80% { opacity: .9 } 100% { opacity: 1 } }
 
 /* Dive: a calm push into the logo and a fade */
-.go-dive #world { transform: scale(1.35); transition: transform .34s cubic-bezier(.5, 0, .8, .4); }
+
 .go-dive #ui { opacity: 0; transition: opacity .16s linear; }
 .go-dive #dim { opacity: 1; transition: opacity .18s linear .14s; }
 
@@ -273,7 +273,7 @@ footer .keys { display: flex; gap: 30px; }
 @keyframes glitchDim { 0% { opacity: 0 } 40% { opacity: .4 } 55% { opacity: 0 } 70% { opacity: .75 } 100% { opacity: 1 } }
 
 /* coming back without the Home animation: a quick settle */
-.settle #world { animation: settle .32s var(--ease) both; }
+
 .settle #ui { animation: fadeUp .22s linear both; }
 @keyframes settle { from { transform: scale(1.08) } to { transform: none } }
 @keyframes fadeUp { from { opacity: 0 } to { opacity: 1 } }
@@ -282,7 +282,7 @@ footer .keys { display: flex; gap: 30px; }
 #ship { position: absolute; left: 0; top: 0; width: 1100px; height: 300px; opacity: 0; }
 .entering #ship { will-change: transform; }
 .entering #dim { animation: entryDim .5s ease-out both; }
-.entering #world { animation: entryWorld 1.2s cubic-bezier(.2, .8, .2, 1) both; }
+
 .entering #flash { animation: strike .32s linear .1s both; }
 .entering #ship { animation: flyby .95s cubic-bezier(.35, .05, .55, 1) .2s both; }
 .entering header, .entering footer { animation: rise .4s var(--ease) .5s both; }
@@ -538,8 +538,8 @@ window.R2_TV = {
 
   /* ================= per-TV preferences (Options) ================= */
   var FX = [
-    { id: 'warp', name: 'Warp', ms: 300 }, { id: 'dive', name: 'Dive', ms: 260 }, { id: 'fade', name: 'Fade', ms: 200 },
-    { id: 'zoom', name: 'Zoom', ms: 220 }, { id: 'slide', name: 'Slide', ms: 220 }, { id: 'push', name: 'Push', ms: 220 },
+    { id: 'fade', name: 'Fade', ms: 200 }, { id: 'slide', name: 'Slide', ms: 220 }, { id: 'push', name: 'Push', ms: 220 },
+    { id: 'warp', name: 'Warp', ms: 300 },
     { id: 'glitch', name: 'Glitch', ms: 260 }, { id: 'crt', name: 'CRT', ms: 300 }, { id: 'blinds', name: 'Blinds', ms: 330 },
     { id: 'flash', name: 'Flash', ms: 240 }, { id: 'off', name: 'Off', ms: 0 }
   ];
@@ -575,7 +575,9 @@ window.R2_TV = {
   function loadPrefs() {
     var vol = readPref('ambVol') || '5';
     vol = { low: '3', med: '5', high: '8' }[vol] || vol;                    /* older builds had Low / Medium / High */
-    return { fx: readPref('fx') || 'warp', entry: readPref('entry') || 'on', sound: readPref('sound') || 'neon',
+    var fx = readPref('fx') || 'fade';
+    if (fx === 'dive' || fx === 'zoom') fx = 'fade';                         /* the zooming transitions were removed */
+    return { fx: fx, entry: readPref('entry') || 'on', sound: readPref('sound') || 'neon',
       amb: readPref('amb') || 'rain', ambVol: vol, cards: readPref('cards') || 'auto' };
   }
   var prefs = loadPrefs();
@@ -1503,11 +1505,9 @@ window.R2_TV = {
     var es = entryStyle();
     if (es !== 'off') {
       var cls = es === 'cinematic' ? ['entering'] : es === 'rise' ? ['entering', 'calm'] : ['enter-' + es];
-      nZoom(1.14, 1, 1200, false);
       for (var ci = 0; ci < cls.length; ci++) addCls(cls[ci]);
       entryTimer = setTimeout(function () { for (var cj = 0; cj < cls.length; cj++) dropCls(cls[cj]); }, fxEntryMs(es));
     } else {
-      nZoom(1.08, 1, 320, false);
       addCls('settle');
       entryTimer = setTimeout(function () { dropCls('settle'); }, 400);
     }
