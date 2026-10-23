@@ -8,6 +8,8 @@
 
     <!-- "Update now" on the TV: installs the newest Round2 Home from GitHub (Android asks staff to confirm) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Only granted by the PC toolkit (homeguard): lets the app switch its Home-button helper back on after an update -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

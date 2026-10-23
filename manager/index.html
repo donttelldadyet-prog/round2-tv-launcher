@@ -231,6 +231,13 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         <p class="hint" id="pinMsg" style="margin:10px 0 0">4 to 8 numbers. Only a scrambled copy is stored, never the PIN itself.</p>
       </div>
       <div class="card">
+        <h2 style="margin-top:0">TV app updates</h2>
+        <p style="margin:0 0 12px">Newest Round2 Home: <b id="appLatest">checking…</b></p>
+        <p class="hint" style="margin:0 0 12px">TVs look for new versions by themselves every few hours. When one is found, <b>UPDATE READY</b> shows under Options › Staff mode, and staff install it with two presses: <b>Options › Staff mode › Update app</b>, then <b>Install</b>. TVs on Android 12 or newer install by themselves while switched off.</p>
+        <div class="row"><button class="btn primary" id="appAsk" type="button">Ask all TVs to check now</button></div>
+        <p class="hint" id="appMsg" style="margin:10px 0 0"></p>
+      </div>
+      <div class="card">
         <h2 style="margin-top:0">Guests and backgrounds</h2>
         <label class="switch"><input type="checkbox" id="guestBg">
           <span>Guests can change the background<br><span class="hint">Their change lasts until the TV is switched off; then the room's own background (or the live event) comes back. Off: changing the background needs the staff PIN.</span></span></label>
@@ -760,6 +767,10 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   /* ---------- settings: staff PIN, guests, TV addresses ---------- */
   function renderSettings() {
     var st = data.staff || {};
+    gh('/releases/latest').then(function (r) {
+      $('appLatest').textContent = (r.tag_name || '').replace(/^v/, 'version ') + ', released ' + new Date(r.published_at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    }).catch(function () { $('appLatest').textContent = 'couldn\u2019t check'; });
+    $('appMsg').textContent = data.app && data.app.updateRequested ? 'Last asked: ' + new Date(data.app.updateRequested).toLocaleString() : '';
     $('pinState').textContent = st.pinHash ? 'A custom ' + (st.pinLength || 4) + '-digit PIN is set.' : 'The TVs use the default PIN, 555913.';
     $('pinReset').hidden = !st.pinHash;
     $('guestBg').checked = st.guestBackground !== false;
@@ -772,7 +783,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   function saveSettings(what, quiet) {
     return gh('/contents/' + PATH + '?ref=main').then(function (j) {     // merge onto the latest copy
       var latest = JSON.parse(unb64utf8(j.content)); fileSha = j.sha;
-      latest.staff = data.staff; latest.tvs = data.tvs; if (!latest.staff) delete latest.staff; if (!latest.tvs) delete latest.tvs;
+      latest.staff = data.staff; latest.tvs = data.tvs; latest.app = data.app;
+      ['staff', 'tvs', 'app'].forEach(function (k) { if (!latest[k]) delete latest[k]; });
       data = latest; if (!data.themes) data.themes = [];
       return commitThemes(what + ' (Theme manager)');
     }).then(function (sha) {
@@ -795,6 +807,11 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (!confirm('Set every TV back to the default PIN, 555913?')) return;
     data.staff = data.staff || {}; delete data.staff.pinHash; delete data.staff.pinLength;
     saveSettings('Staff PIN reset to default');
+  };
+  $('appAsk').onclick = function () {
+    data.app = { updateRequested: new Date().toISOString() };
+    saveSettings('Update request');
+    $('appMsg').textContent = 'Sent. Each TV checks within 30 minutes of someone using its home screen (or at once with .\\round2tv.ps1 themes), and shows UPDATE READY under Options › Staff mode when there\u2019s a newer version.';
   };
   $('guestSave').onclick = function () {
     data.staff = data.staff || {}; data.staff.guestBackground = $('guestBg').checked;

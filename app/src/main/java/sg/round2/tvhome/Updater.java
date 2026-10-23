@@ -28,6 +28,8 @@ final class Updater {
 
     private final Context ctx;
     private volatile boolean busy;
+    /** true while an install was started in the background (TV in standby): never show Android's Install screen then */
+    static volatile boolean quiet;
     private String apkUrl, latest;
 
     Updater(Context ctx) { this.ctx = ctx.getApplicationContext(); }
@@ -72,8 +74,18 @@ final class Updater {
         } }, "r2-update-check").start();
     }
 
-    void install(final Report r) {
+    /** A newer version was found by the last check. */
+    boolean hasUpdate() { return apkUrl != null && latest != null && newer(latest, current()); }
+
+    /** Android 12+ can update the app with no one pressing Install: done while the TV is in standby. */
+    static boolean canInstallQuietly() { return Build.VERSION.SDK_INT >= 31; }
+
+    void install(final Report r) { install(r, false); }
+
+    void install(final Report r, final boolean background) {
         if (busy || apkUrl == null) return;
+        if (background && (!canInstallQuietly() || Build.VERSION.SDK_INT < 26 || !ctx.getPackageManager().canRequestPackageInstalls())) return;
+        quiet = background;
         // Android 8+: Round2 Home needs "Install unknown apps" once (the PC toolkit allows it; or do it here)
         if (Build.VERSION.SDK_INT >= 26 && !ctx.getPackageManager().canRequestPackageInstalls()) {
             try {
@@ -94,6 +106,7 @@ final class Updater {
                 PackageInstaller pi = ctx.getPackageManager().getPackageInstaller();
                 PackageInstaller.SessionParams p = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
                 p.setAppPackageName(ctx.getPackageName());
+                if (background) p.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
                 int id = pi.createSession(p);
                 s = pi.openSession(id);
                 try (InputStream in = c.getInputStream(); OutputStream out = s.openWrite("round2-home.apk", 0, total > 0 ? total : -1)) {

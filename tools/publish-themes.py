@@ -96,6 +96,9 @@ if staff:   # staff PIN (stored only as a SHA-256) and whether guests may change
     if "pinLength" in staff and not (isinstance(staff["pinLength"], int) and 4 <= staff["pinLength"] <= 8):
         sys.exit("staff.pinLength must be 4-8")
     out["staff"] = {k: staff[k] for k in ("pinHash", "pinLength", "guestBackground") if k in staff}
+app = src.get("app") or {}
+if app.get("updateRequested"):   # Theme manager › Settings › Ask TVs to update
+    out["app"] = {"updateRequested": str(app["updateRequested"])[:40]}
 json.dump(out, open(os.path.join(OUT, "themes.json"), "w"), indent=1)
 with open(os.path.join(OUT, "keep.txt"), "w") as f:
     f.write("\n".join(keep))

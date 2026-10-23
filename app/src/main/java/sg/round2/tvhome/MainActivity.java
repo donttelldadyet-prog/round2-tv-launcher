@@ -62,6 +62,9 @@ public class MainActivity extends Activity {
     private final android.content.BroadcastReceiver screenOff = new android.content.BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
             if (web != null) web.evaluateJavascript("window.r2Reset && window.r2Reset()", null);
+            // Android 12+: a downloaded-ready update installs itself while the TV is off
+            if (updater != null && updater.hasUpdate() && Updater.canInstallQuietly())
+                updater.install(new Updater.Report() { @Override public void report(org.json.JSONObject o) { } }, true);
         }
     };
 

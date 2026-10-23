@@ -857,6 +857,9 @@ window.R2_TV = {
     STAFF.pinHash = /^[0-9a-f]{64}$/.test(st.pinHash || '') ? st.pinHash : null;
     STAFF.pinLength = st.pinLength >= 4 && st.pinLength <= 8 ? st.pinLength | 0 : 0;
     STAFF.guestBackground = st.guestBackground !== false;
+    /* Theme manager › Settings › "Ask TVs to update": look for the new version now */
+    var req = root.app && root.app.updateRequested;
+    if (req && req !== store('r2.updReq')) { store('r2.updReq', req); bgUpdateCheck(); }
     var w = currentWall();
     if (mode !== 'walls' && (!shownWall || shownWall.id !== w.id)) showWall(w);   /* a new event starts, or one ended */
   };
@@ -894,7 +897,7 @@ window.R2_TV = {
       { act: 'ambVol', label: 'Ambience volume', hint: '\u2039 ' + nameOf(VOLS, prefs.ambVol).toUpperCase() + ' \u203A' },
       { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + (isStaff() ? '' : ' \u00B7 STAFF') + ' \u203A' },
       { act: 'tv',    label: 'TV settings',    hint: (isStaff() ? 'SYSTEM' : 'STAFF') + ' \u203A' },
-      { act: 'staff', label: isStaff() ? 'Staff mode on' : 'Staff mode', hint: isStaff() ? 'CHANGES ARE SAVED \u00B7 OK TO LOCK' : 'PIN \u203A' }
+      { act: 'staff', label: isStaff() ? 'Staff mode on' : 'Staff mode', hint: isStaff() ? 'CHANGES ARE SAVED \u00B7 OK TO LOCK' : (upd.state === 'available' ? 'UPDATE READY \u00B7 ' : '') + 'PIN \u203A' }
     ].concat(isStaff() ? [
       { act: 'update', label: 'Update app', hint: updHint() },
       { act: 'themesNow', label: 'Check for new themes', hint: 'NOW \u203A' },
@@ -979,8 +982,10 @@ window.R2_TV = {
     if (st === 'latest') return 'UP TO DATE \u00B7 V' + upd.current;
     return 'CHECK \u203A';
   }
+  var updSilent = false;
   window.r2Update = function (o) {
     upd = o || { state: 'idle' };
+    if (updSilent && upd.state !== 'downloading' && upd.state !== 'installing') { updSilent = false; if (mode === 'settings') openSettings(setSel); return; }   /* background check: no message */
     var msg = { latest: 'Round2 Home is up to date (v' + upd.current + ').',
       available: 'Version ' + upd.latest + ' is ready. Press OK on Update app to install it.',
       installing: 'On the next screen, press Install. The menu restarts by itself.',
@@ -990,6 +995,13 @@ window.R2_TV = {
     if (msg) toast(msg);
     if (mode === 'settings') { var keep = setSel; openSettings(keep); }
   };
+  /* the TV looks for a new version by itself: soon after starting, every 6 hours, and when the Theme manager asks */
+  function bgUpdateCheck() {
+    var b = window.R2Android; if (!b || !b.updateCheck || upd.state === 'downloading' || upd.state === 'installing') return;
+    updSilent = true; try { b.updateCheck(); } catch (e) { updSilent = false; }
+  }
+  setTimeout(bgUpdateCheck, 20000);
+  setInterval(bgUpdateCheck, 6 * 60 * 60 * 1000);
   function updateKey() {
     var b = window.R2Android;
     if (!b || !b.updateCheck) { toast('On the TV, this checks GitHub for a newer Round2 Home.'); return; }

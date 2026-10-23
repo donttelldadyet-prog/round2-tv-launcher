@@ -30,13 +30,17 @@ public class UpdateReceiver extends BroadcastReceiver {
             return;
         }
         int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+        if (status == PackageInstaller.STATUS_PENDING_USER_ACTION && Updater.quiet) {
+            Updater.quiet = false;      // started in standby but Android wants a tap: leave it for staff (Update app)
+            return;
+        }
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
             Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
             if (confirm != null) {
                 confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 try { ctx.startActivity(confirm); } catch (Exception ignored) { }
             }
-        } else if (status != PackageInstaller.STATUS_SUCCESS) {
+        } else if (status != PackageInstaller.STATUS_SUCCESS && !Updater.quiet) {
             String why = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
             Toast.makeText(ctx, "Round2 Home update didn't install" + (why != null ? ": " + why : ""), Toast.LENGTH_LONG).show();
         }
