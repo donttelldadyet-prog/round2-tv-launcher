@@ -29,6 +29,19 @@
         "x": 0.5,
         "y": 0.49
       }
+    },
+    {
+      "id": "test-2026",
+      "name": "test",
+      "source": "test-2026-mvkkllyl.mp4",
+      "rooms": [
+        "kaeden"
+      ],
+      "from": "2026-10-24",
+      "until": "2026-11-01",
+      "takeover": false,
+      "cards": "low",
+      "focus": "50% 35%"
     }
   ]
 }
