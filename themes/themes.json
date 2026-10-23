@@ -22,6 +22,21 @@
       ],
       "takeover": false,
       "cards": "low"
+    },
+    {
+      "id": "nebula-1-2026",
+      "name": "Nebula 1",
+      "source": "nebula-1-2026-mvkvfr7j.mp4",
+      "rooms": [
+        "scarlett"
+      ],
+      "takeover": false,
+      "cards": "low",
+      "frame": {
+        "zoom": 0.999,
+        "x": 0.5,
+        "y": 0.5
+      }
     }
   ]
 }
