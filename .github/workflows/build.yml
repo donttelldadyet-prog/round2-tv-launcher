@@ -3,6 +3,7 @@ name: Build Round2 Home
 on:
   push:
     branches: [main]
+    paths-ignore: ['themes/**', 'README.md']   # event backgrounds are published by themes.yml, no app rebuild needed
   workflow_dispatch:
 
 permissions:

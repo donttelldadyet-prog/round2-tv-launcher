@@ -29,7 +29,7 @@ final class NativeBackground implements SurfaceHolder.Callback {
         view.getHolder().addCallback(this);
     }
 
-    /** Play an asset like "media/summit-kai-right.mp4" on a loop. */
+    /** Play an asset like "media/summit-kai-right.mp4", or an absolute file path, on a loop. */
     void play(String assetPath) {
         if (assetPath == null) return;
         if (assetPath.equals(current) && player != null) { if (!paused) safeStart(); return; }
@@ -52,10 +52,16 @@ final class NativeBackground implements SurfaceHolder.Callback {
         release();
         if (current == null) return;
         try {
-            AssetFileDescriptor afd = ctx.getAssets().openFd(current);
             final MediaPlayer mp = new MediaPlayer();
-            mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
-            afd.close();
+            if (current.startsWith("/")) {          // a downloaded event theme in the app's storage
+                java.io.FileInputStream in = new java.io.FileInputStream(current);
+                mp.setDataSource(in.getFD());
+                in.close();
+            } else {                                // bundled in the app (stored uncompressed)
+                AssetFileDescriptor afd = ctx.getAssets().openFd(current);
+                mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                afd.close();
+            }
             mp.setDisplay(view.getHolder());
             mp.setLooping(true);
             mp.setVolume(0f, 0f);

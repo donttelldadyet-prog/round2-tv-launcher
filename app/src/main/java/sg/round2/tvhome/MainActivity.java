@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private NativeBackground bg;
+    private ThemeSync themes;
     private String pendingRoom;
     private boolean pageReady;
     private long stoppedAt;   // when the screen was last hidden (an app, the screensaver, standby)
@@ -62,6 +63,7 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         web.setBackgroundColor(0x00000000);   // transparent: the native background video shows through
         bg = new NativeBackground(this);
+        themes = new ThemeSync(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -87,6 +89,15 @@ public class MainActivity extends Activity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
+                /* Event background thumbnails: https://r2.theme/<id>.jpg from the downloaded themes */
+                if (u != null && "r2.theme".equals(u.getHost())) {
+                    String n = u.getLastPathSegment();
+                    java.io.File f = n == null ? null : new java.io.File(themes.dir, n);
+                    if (f != null && n.matches("[a-z0-9-]+\\.jpg") && f.exists()) {
+                        try { return new WebResourceResponse("image/jpeg", null, new java.io.FileInputStream(f)); } catch (Exception ignored) { }
+                    }
+                    return new WebResourceResponse("text/plain", null, new ByteArrayInputStream(new byte[0]));
+                }
                 if (u != null && "r2.icon".equals(u.getHost())) {
                     byte[] png = artFor(u.getLastPathSegment());
                     if (png != null) return new WebResourceResponse("image/png", null, new ByteArrayInputStream(png));
@@ -130,6 +141,9 @@ public class MainActivity extends Activity {
         // adb shell am start -n sg.round2.tvhome/.MainActivity --es room vale
         String room = intent.getStringExtra("room");
         if (room != null) { pendingRoom = room; applyPendingRoom(); }
+        // Check for new event backgrounds now: adb shell am start -n sg.round2.tvhome/.MainActivity --ez syncThemes true
+        if (intent.getBooleanExtra("syncThemes", false) && web != null)
+            web.evaluateJavascript("window.r2SyncThemes && window.r2SyncThemes(true)", null);
     }
 
     private final Map<String, byte[]> artCache = new HashMap<>();
@@ -237,9 +251,31 @@ public class MainActivity extends Activity {
         /* ---- native background video ---- */
         @JavascriptInterface
         public String bgPlay(final String assetPath) {
-            if (assetPath == null || !assetPath.startsWith("media/")) return "no";
-            act.runOnUiThread(new Runnable() { @Override public void run() { act.bg.play(assetPath); } });
+            if (assetPath == null) return "no";
+            final String path;
+            if (assetPath.startsWith("media/")) path = assetPath;                     // bundled in the app
+            else if (assetPath.matches("theme/[a-z0-9-]+\\.mp4")) {                    // downloaded event theme
+                java.io.File f = new java.io.File(act.themes.dir, assetPath.substring(6));
+                if (!f.exists()) return "no";
+                path = f.getAbsolutePath();
+            } else return "no";
+            act.runOnUiThread(new Runnable() { @Override public void run() { act.bg.play(path); } });
             return "ok";
+        }
+
+        /* ---- event backgrounds pushed from GitHub ---- */
+        @JavascriptInterface
+        public String themes() { return act.themes.cached(); }
+
+        @JavascriptInterface
+        public void themesSync(String room) {
+            act.themes.sync(room, new ThemeSync.Done() {
+                @Override public void done(final String json) {
+                    act.runOnUiThread(new Runnable() { @Override public void run() {
+                        if (act.web != null) act.web.evaluateJavascript("window.r2Themes && window.r2Themes(" + JSONObject.quote(json) + ")", null);
+                    } });
+                }
+            });
         }
 
         @JavascriptInterface

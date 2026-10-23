@@ -441,6 +441,13 @@ function Cmd-Room([string]$name) {
   Say "This TV now shows the $name room."
 }
 
+function Cmd-Themes {
+  Need-Tv
+  Say 'Asking Round2 Home to check GitHub for new event backgrounds now.'
+  Sh 'am start -n sg.round2.tvhome/.MainActivity --ez syncThemes true'
+  Say 'New backgrounds download in the background (about a minute) and show under Options > Background.'
+}
+
 function Cmd-Perf {
   Need-Tv
   $pkg = 'sg.round2.tvhome'
@@ -558,6 +565,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   airplay                install PhairPlay (AirPlay receiver) from its GitHub releases
   tizentube              install TizenTube Cobalt (ad-free YouTube); the YouTube button then opens it
   launcher [owner/repo]  install Round2 Home and make it the home screen (default donttelldadyet-prog/round2-tv-launcher)
+  themes                 make this TV check for new event backgrounds now (see themes/README.md)
   perf                   measure how smoothly the menu draws (dropped and slow frames)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
   homeguard              make the Home button open Round2 Home when the TV keeps its own home (undo turns it off)
@@ -589,6 +597,7 @@ switch ($Command.ToLower()) {
   'wallpaper' { Cmd-Wallpaper $a1 }
   'room' { Cmd-Room $a1 }
   'perf' { Cmd-Perf }
+  'themes' { Cmd-Themes }
   'youtube' { Cmd-YouTube ($Rest -join ' ') }
   'status' { Cmd-Status }
   'undo' { Cmd-Undo }

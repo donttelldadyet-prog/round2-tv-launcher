@@ -1,0 +1,53 @@
+name: Publish themes
+
+# Edit themes/themes.json (or add a video to the themes folder) and commit:
+# this encodes the videos and puts them on the "themes" release, where every TV picks them up.
+on:
+  push:
+    branches: [main]
+    paths: ['themes/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: themes
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install video tools
+        timeout-minutes: 6
+        run: |
+          command -v ffmpeg && exit 0
+          for n in 1 2 3; do
+            timeout 120 bash -c 'sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y --no-install-recommends ffmpeg' && exit 0
+            echo "apt attempt $n failed, retrying"
+          done
+          exit 1
+      - name: Make sure the themes release exists
+        run: |
+          gh release view themes >/dev/null 2>&1 || gh release create themes --title "Event backgrounds" \
+            --notes "Event backgrounds for the Round2 TVs. Managed by the Publish themes action; edit themes/themes.json instead of this release." \
+            --prerelease --latest=false
+          mkdir -p out
+          gh release download themes --pattern themes.json --output out/previous.json || echo '{"themes":[]}' > out/previous.json
+      - name: Encode new or changed themes
+        run: python3 tools/publish-themes.py
+      - name: Upload to the themes release
+        run: |
+          cd out
+          files=$(ls *.mp4 *.jpg 2>/dev/null || true)
+          [ -n "$files" ] && gh release upload themes $files --clobber
+          gh release upload themes themes.json --clobber
+          # remove videos of themes that were deleted from themes.json
+          wanted=$(python3 -c "import json;print(' '.join(x for t in json.load(open('themes.json'))['themes'] for x in (t['id']+'.mp4',t['id']+'.jpg')))")
+          for a in $(gh release view themes --json assets -q '.assets[].name'); do
+            case " $wanted themes.json " in *" $a "*) ;; *) gh release delete-asset themes "$a" -y ;; esac
+          done

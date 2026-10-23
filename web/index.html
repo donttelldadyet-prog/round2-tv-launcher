@@ -79,6 +79,10 @@ header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; 
 .card-low .hl { width: 460px; }
 #setPanel .mi { clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); }
 #setPanel .mi.on { background: var(--room); }
+/* easter egg: a quiet signature under Options; press Up three times on the first row to light it */
+.sig { margin-top: 30px; padding-left: 4px; font: 500 15px/1 var(--f-ui); letter-spacing: .2em; color: #fff; opacity: .22; transition: opacity .3s linear, color .3s linear, text-shadow .3s linear; }
+.sig.lit { opacity: 1; color: var(--room); text-shadow: 0 0 14px var(--room); }
+.picking .sig { display: none; }
 .mi svg { flex: none; opacity: 0; }
 .mi .label { flex: 1; font-size: 34px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mi .hint { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; opacity: .45; white-space: nowrap; }
@@ -278,6 +282,7 @@ footer .keys { display: flex; gap: 30px; }
       <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
       <div class="list" id="setList"></div>
       <div class="wallview" id="wallView" hidden><div class="wallrows" id="wallRows"></div></div>
+      <div class="sig" id="sig">MADE BY @MAKINGBROADWAY</div>
     </nav>
 
     <div class="side">
@@ -778,14 +783,49 @@ window.R2_TV = {
   }
 
   /* ================= Options: Background + TV settings (after CleanFrame) ================= */
+  /* ---- Event backgrounds (Halloween, CNY...) pushed from GitHub: see themes/README.md ----
+     The app downloads them in the background; a "takeover" theme becomes this room's background
+     while its dates are live (unless staff pick another one), then it goes back by itself. */
+  var THEMES = [], lastThemeSync = 0;
+  function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function themeWalls() {
+    var out = [], d = today();
+    for (var i = 0; i < THEMES.length; i++) {
+      var t = THEMES[i], rooms = t.rooms || ['all'];
+      if (!t.ready || !/^[a-z0-9-]+$/.test(t.id || '')) continue;
+      if (rooms.indexOf('all') < 0 && rooms.indexOf(roomKey) < 0) continue;
+      if ((t.from && t.from > d) || (t.until && t.until < d)) continue;
+      out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: 'theme/' + t.id + '.mp4', thumb: 'https://r2.theme/' + t.id + '.jpg',
+        layout: t.layout, focus: t.focus, event: true, takeover: !!t.takeover });
+    }
+    return out;
+  }
+  function takeoverWall() {
+    var ev = themeWalls();
+    for (var i = 0; i < ev.length; i++) if (ev[i].takeover && store('r2.tkoff.' + roomKey + '.' + ev[i].id) !== '1') return ev[i];
+    return null;
+  }
+  window.r2Themes = function (json) {
+    try { THEMES = JSON.parse(json).themes || []; } catch (e) { return; }
+    var w = currentWall();
+    if (mode !== 'walls' && (!shownWall || shownWall.id !== w.id)) showWall(w);   /* a new event starts, or one ended */
+  };
+  window.r2SyncThemes = function (now) {
+    if (!window.R2Android || !window.R2Android.themesSync) return;
+    if (!now && Date.now() - lastThemeSync < 30 * 60 * 1000) return;   /* at most every 30 min on its own */
+    lastThemeSync = Date.now();
+    try { window.R2Android.themesSync(roomKey); } catch (e) {}
+    if (now) toast('Checking for new backgrounds\u2026');
+  };
   function wallList() {
-    var out = [], sc = SCENES[roomKey] || [], i;
+    var out = themeWalls(), sc = SCENES[roomKey] || [], i;
     for (i = 0; i < sc.length; i++) if (!missing[sc[i].id]) out.push(sc[i]);
     for (i = 0; i < COMMON.length; i++) if (!missing[COMMON[i].id]) out.push(COMMON[i]);
     if (!out.length) out.push({ id: 'plain', name: 'Plain' });   /* nothing bundled: LED glow only */
     return out;
   }
   function currentWall() {
+    var tk = takeoverWall(); if (tk) return tk;
     var list = wallList(), id = store('r2.wall.' + roomKey);
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return list[0];
@@ -832,8 +872,15 @@ window.R2_TV = {
     $('peek').innerHTML = peekHtml(items[sel]);
     keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[HOME] BACK TO THIS MENU');
   }
+  var eggCount = 0, eggTimer;
   function settingsKey(k) {
     var n = $('setList').children.length, act = setRows()[setSel].act;
+    if (k === 'up' && setSel === 0) {          /* easter egg */
+      if (++eggCount >= 3) { eggCount = 0; $('sig').className = 'sig lit'; Sfx.play('ok'); clearTimeout(eggTimer); eggTimer = setTimeout(function () { $('sig').className = 'sig'; }, 4000); }
+      else Sfx.play('move');
+      return;
+    }
+    if (k !== 'up') eggCount = 0;
     if (k === 'up' || k === 'down') {
       $('setList').children[setSel].className = 'mi';
       setSel = (setSel + (k === 'up' ? n - 1 : 1)) % n;
@@ -862,7 +909,7 @@ window.R2_TV = {
       var w = walls[j], th = w.thumb || w.image;
       html += '<button type="button" tabindex="-1" class="mi wall' + (j === wsel ? ' on' : '') + '" data-w="' + j + '"><span class="thumb">' +
         (th ? '<img alt="" src="' + esc(th) + '">' : '<video muted playsinline preload="metadata" src="' + esc(w.video) + '#t=2"></video>') +
-        '</span><span class="label">' + esc(w.name) + '</span><span class="picked">' + (w.id === cur ? 'IN USE' : '') + '</span></button>';
+        '</span><span class="label">' + esc(w.name) + '</span><span class="picked">' + (w.id === cur ? 'IN USE' : (w.event ? 'EVENT' : '')) + '</span></button>';
     }
     $('wallRows').innerHTML = html;
     addCls('picking');
@@ -887,7 +934,9 @@ window.R2_TV = {
     else if (k === 'down' && wsel < walls.length - 1) { moveWall(wsel + 1); Sfx.play('move'); }
     else if (k === 'ok') {
       clearTimeout(wallPreviewTimer);
-      store('r2.wall.' + roomKey, walls[wsel].id);
+      var ev = themeWalls();
+      for (var e = 0; e < ev.length; e++) if (ev[e].takeover) store('r2.tkoff.' + roomKey + '.' + ev[e].id, walls[wsel].id === ev[e].id ? '0' : '1');
+      if (!walls[wsel].takeover) store('r2.wall.' + roomKey, walls[wsel].id);
       showWall(walls[wsel]);
       Sfx.play('ok');
       openSettings(0);
@@ -921,7 +970,7 @@ window.R2_TV = {
     $('stage').style.setProperty('--fx', fp[0]); $('stage').style.setProperty('--fy', fp[1]);
     focusPt = [parseFloat(fp[0]) / 100, parseFloat(fp[1]) / 100];
     if (NATIVE) {
-      if (w.video && w.video.indexOf('media/') === 0) { var path = w.video; bridge(function (b) { b.bgPlay(path); b.bgZoom(1, 1, 0, focusPt[0], focusPt[1], false); }); return; }
+      if (w.video && (w.video.indexOf('media/') === 0 || w.video.indexOf('theme/') === 0)) { var path = w.video; bridge(function (b) { b.bgPlay(path); b.bgZoom(1, 1, 0, focusPt[0], focusPt[1], false); }); return; }
       bridge(function (b) { b.bgStop(); });
     }
     var back = front === 'bgA' ? 'bgB' : 'bgA', slot = $(back), old = $(front);
@@ -1104,6 +1153,7 @@ window.R2_TV = {
     var st = $('stage'); st.style.opacity = '0.999'; void st.offsetWidth; st.style.opacity = '';   /* force a full repaint */
   }
   window.r2Resume = function () {
+    setTimeout(function () { window.r2SyncThemes(false); }, 3000);
     clearTimeout(guardTimer); guardTimer = setTimeout(repairScreen, 2200);
     arrive(false);
     Amb.resume();
@@ -1146,6 +1196,7 @@ window.R2_TV = {
     $('avatar').style.backgroundImage = 'url("' + WIX + ASSETS.char[key] + '")';
     sel = 0; buildItems(); renderMenu();
     showWall(currentWall());
+    if (lastThemeSync) window.r2SyncThemes(true);   /* this room may have its own event backgrounds */
     var btns = document.querySelectorAll('#roomBtns button');
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-r') === key);
   }
@@ -1207,7 +1258,11 @@ window.R2_TV = {
   setTimeout(fit, 400); setTimeout(fit, 1500);
   arrive(false);                         /* the Home animation also plays when the TV starts */
   var ambStarted = false;
-  setTimeout(function () { Amb.apply(); ambStarted = true; }, 1800);   /* after the Home animation, so building the rain loop never costs a frame */
+  setTimeout(function () { Amb.apply(); ambStarted = true; }, 1800);
+  /* event backgrounds: show what's already on the TV, then check GitHub for new ones (and every 3 hours) */
+  bridge(function (b) { if (b.themes) window.r2Themes(b.themes()); });
+  setTimeout(function () { window.r2SyncThemes(false); }, 6000);
+  setInterval(function () { window.r2SyncThemes(false); }, 3 * 60 * 60 * 1000);   /* after the Home animation, so building the rain loop never costs a frame */
   if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');
 }());
 </script>
