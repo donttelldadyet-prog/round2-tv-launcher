@@ -93,7 +93,9 @@ staff = src.get("staff") or {}
 if staff:   # staff PIN (stored only as a SHA-256) and whether guests may change the background
     if staff.get("pinHash") and not re.fullmatch(r"[0-9a-f]{64}", staff["pinHash"]):
         sys.exit("staff.pinHash must be a SHA-256 hex string")
-    out["staff"] = {k: staff[k] for k in ("pinHash", "guestBackground") if k in staff}
+    if "pinLength" in staff and not (isinstance(staff["pinLength"], int) and 4 <= staff["pinLength"] <= 8):
+        sys.exit("staff.pinLength must be 4-8")
+    out["staff"] = {k: staff[k] for k in ("pinHash", "pinLength", "guestBackground") if k in staff}
 json.dump(out, open(os.path.join(OUT, "themes.json"), "w"), indent=1)
 with open(os.path.join(OUT, "keep.txt"), "w") as f:
     f.write("\n".join(keep))

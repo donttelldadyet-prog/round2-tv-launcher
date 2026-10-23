@@ -83,7 +83,8 @@ header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; 
 .pinbox { margin-top: 6px; }
 .pinbox[hidden] { display: none; }
 .pinbox .digits { display: flex; gap: 16px; margin: 22px 0 18px; }
-.pinbox .digits span { width: 92px; height: 112px; display: grid; place-items: center; font-size: 60px; font-weight: 700; background: var(--panel); border: 2px solid rgba(244,241,251,.2); }
+.pinbox .digits { gap: 12px !important; }
+.pinbox .digits span { width: 74px; height: 100px; display: grid; place-items: center; font-size: 60px; font-weight: 700; background: var(--panel); border: 2px solid rgba(244,241,251,.2); }
 .pinbox .digits span.cur { border-color: var(--room); box-shadow: 0 0 0 2px var(--room); }
 .pinbox p { margin: 0; font-size: 20px; line-height: 1.45; color: #d6d0e3; max-width: 30ch; }
 .pinbox.bad .digits { animation: shake .36s linear; }
@@ -306,7 +307,7 @@ footer .keys { display: flex; gap: 30px; }
       <div class="list" id="setList"></div>
       <div class="wallview" id="wallView" hidden><div class="wallrows" id="wallRows"></div></div>
       <div class="pinbox" id="pinBox" hidden>
-        <div class="digits" id="pinDigits"><span></span><span></span><span></span><span></span></div>
+        <div class="digits" id="pinDigits"></div>
         <p id="pinMsg">Type the staff PIN with the number buttons, or use &#9650;&#9660; to pick each number and &#9654; for the next.</p>
       </div>
       <div class="sig" id="sig">MADE BY @MAKINGBROADWAY</div>
@@ -524,8 +525,11 @@ window.R2_TV = {
     if (isStaff()) { store(PREF_KEYS[n], v); gstore('g.' + PREF_KEYS[n], null); }
     else gstore('g.' + PREF_KEYS[n], v);
   }
-  /* Staff: unlocked with the PIN (set in the Theme manager › Settings, default 0000), locks again on leaving Options */
-  var STAFF = { pinHash: null, guestBackground: true }, staffUntil = 0;
+  /* Staff: unlocked with the PIN (changed or reset in the Theme manager › Settings), locks again on leaving Options.
+     Only a SHA-256 of the PIN is kept; the default is the shop's standard PIN. */
+  var DEFAULT_PIN = { hash: '67952340e746f893bc281cc9c71c92e1ce67418aa3de35b415ec94a1f50340e8', len: 6 };
+  var STAFF = { pinHash: null, pinLength: 0, guestBackground: true }, staffUntil = 0;
+  function pinLen() { return STAFF.pinHash ? STAFF.pinLength || 4 : DEFAULT_PIN.len; }
   function isStaff() { return Date.now() < staffUntil; }
   function lockStaff() { staffUntil = 0; }
   function nameOf(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i].name; return list[0].name; }
@@ -849,7 +853,10 @@ window.R2_TV = {
   }
   window.r2Themes = function (json) {
     var root; try { root = JSON.parse(json); THEMES = root.themes || []; } catch (e) { return; }
-    if (root.staff) { STAFF.pinHash = /^[0-9a-f]{64}$/.test(root.staff.pinHash || '') ? root.staff.pinHash : null; STAFF.guestBackground = root.staff.guestBackground !== false; }
+    var st = root.staff || {};
+    STAFF.pinHash = /^[0-9a-f]{64}$/.test(st.pinHash || '') ? st.pinHash : null;
+    STAFF.pinLength = st.pinLength >= 4 && st.pinLength <= 8 ? st.pinLength | 0 : 0;
+    STAFF.guestBackground = st.guestBackground !== false;
     var w = currentWall();
     if (mode !== 'walls' && (!shownWall || shownWall.id !== w.id)) showWall(w);   /* a new event starts, or one ended */
   };
@@ -901,8 +908,10 @@ window.R2_TV = {
     keys('[0-9] TYPE', '[&#9650;&#9660;&#9654;] PICK', '[BACK] CANCEL');
   }
   function drawPin() {
-    var sp = $('pinDigits').children;
-    for (var i = 0; i < 4; i++) {
+    var n = pinLen(), box = $('pinDigits');
+    if (box.children.length !== n) { var h = ''; for (var k = 0; k < n; k++) h += '<span></span>'; box.innerHTML = h; }
+    var sp = box.children;
+    for (var i = 0; i < n; i++) {
       sp[i].className = i === pin.length ? 'cur' : '';
       sp[i].textContent = i < pin.length ? '\u25CF' : (i === pin.length && pinDigit >= 0 && pinTouched ? String(pinDigit) : '');
     }
@@ -916,8 +925,8 @@ window.R2_TV = {
     else if ((k === 'right' || k === 'ok') && pinTouched) { pin += String(pinDigit); pinTouched = false; pinDigit = 0; Sfx.play('move'); }
     else if (k === 'left' && pin.length) { pin = pin.slice(0, -1); pinTouched = false; Sfx.play('back'); }
     drawPin();
-    if (pin.length < 4) return;
-    var want = STAFF.pinHash || sha256('round2:0000');
+    if (pin.length < pinLen()) return;
+    var want = STAFF.pinHash || DEFAULT_PIN.hash;
     if (sha256('round2:' + pin) === want) {
       pinFails = 0; staffUntil = Date.now() + 10 * 60 * 1000; Sfx.play('ok');
       $('setList').hidden = false; $('pinBox').hidden = true; dropCls('pinning'); mode = 'settings';

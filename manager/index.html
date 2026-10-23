@@ -140,7 +140,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 .adv input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 15px; margin: 6px 0; }
 .settings { display: grid; gap: 14px; max-width: 680px; }
 .pinrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.pinrow input { width: 140px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 20px; letter-spacing: .4em; }
+.pinrow input { width: 170px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 20px; letter-spacing: .4em; }
 
 /* sign in */
 .signin { max-width: 680px; margin: 40px auto; }
@@ -221,13 +221,14 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     <div class="settings">
       <div class="card">
         <h2 style="margin-top:0">Staff PIN</h2>
-        <p style="margin:0 0 12px">On the TV: <b>Options › Staff mode</b>. The PIN unlocks moving a TV to another room, the TV's own settings, and saving a room's default look. <span id="pinState" class="hint"></span></p>
+        <p style="margin:0 0 12px">On the TV: <b>Options › Staff mode</b>, then the PIN with the number buttons (or ▲▼ and ▶). It unlocks moving a TV to another room, the TV's own settings, and saving a room's default look. <span id="pinState" class="hint"></span></p>
         <div class="pinrow">
-          <input id="pin1" type="password" inputmode="numeric" maxlength="4" placeholder="••••" aria-label="New 4-digit PIN" autocomplete="new-password">
-          <input id="pin2" type="password" inputmode="numeric" maxlength="4" placeholder="••••" aria-label="Type it again" autocomplete="new-password">
-          <button class="btn primary" id="pinSave" type="button">Save PIN</button>
+          <input id="pin1" type="password" inputmode="numeric" maxlength="8" placeholder="New PIN" aria-label="New PIN, 4 to 8 numbers" autocomplete="new-password">
+          <input id="pin2" type="password" inputmode="numeric" maxlength="8" placeholder="Again" aria-label="Type the new PIN again" autocomplete="new-password">
+          <button class="btn primary" id="pinSave" type="button">Change PIN</button>
+          <button class="btn ghost" id="pinReset" type="button">Reset to default</button>
         </div>
-        <p class="hint" id="pinMsg" style="margin:10px 0 0">Four numbers. Only a scrambled copy is stored, never the PIN itself.</p>
+        <p class="hint" id="pinMsg" style="margin:10px 0 0">4 to 8 numbers. Only a scrambled copy is stored, never the PIN itself.</p>
       </div>
       <div class="card">
         <h2 style="margin-top:0">Guests and backgrounds</h2>
@@ -420,7 +421,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       return '<article class="card theme"><div class="thumb">' + thumb + '</div><div>' +
         '<h3>' + esc(t.name || t.id) + '</h3>' +
         '<div class="meta"><span class="chip ' + st + '">' + { live: 'Live now', soon: 'Scheduled', ended: 'Ended' }[st] + '</span>' +
-        '<span class="chip">' + esc(dates) + '</span>' + (pub ? '' : '<span class="chip pending">Not on TVs yet</span>') + '</div>' +
+        '<span class="chip">' + esc(dates) + '</span>' + (pub ? '' : '<span class="chip pending">Not on TVs yet</span>') +
+        (st !== 'ended' && clashes(t, x.i).length ? '<span class="chip pending">Clashes with ' + esc(clashes(t, x.i).map(function (c) { return c.other.name || c.other.id; }).join(', ')) + '</span>' : '') + '</div>' +
         '<div class="meta">' + rooms + '</div>' +
         '<div class="hint">' + (t.takeover ? 'Switches rooms to it automatically' : 'Added to the Background list only') + ' · Info card: ' + esc(CARDS[t.cards] || (t.layout === 'low' ? 'Bottom right' : 'Right')) + (t.frame ? ' · Zoom ' + Math.round(t.frame.zoom * 100) + '%' : '') + '</div>' +
         '</div><div class="acts"><button class="btn" data-edit="' + x.i + '">Edit</button><button class="btn ghost" data-dup="' + x.i + '">Duplicate</button></div></article>';
@@ -607,21 +609,52 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     tv.addEventListener('pointerup', end); tv.addEventListener('pointercancel', end);
     tv.addEventListener('wheel', function (e) { e.preventDefault(); frame.zoom = Math.min(3, Math.max(.25, frame.zoom * (e.deltaY < 0 ? 1.05 : 1 / 1.05))); place(); }, { passive: false });
   }());
-  function checkClash() {
-    var from = $('fFrom').value || '0000-00-00', until = $('fUntil').value || '9999-12-31', msgs = [];
-    if ($('fFrom').value && $('fUntil').value && until < from) msgs.push('The end date is before the start date.');
-    if ($('fTake').checked) {
-      var mine = ed.rooms.indexOf('all') >= 0 ? Object.keys(ROOMS) : ed.rooms;
-      data.themes.forEach(function (t, i) {
-        if (i === editing || !t.takeover || state(t) === 'ended') return;
-        var tf = t.from || '0000-00-00', tu = t.until || '9999-12-31';
-        if (tf > until || tu < from) return;
-        var both = roomsOf(t).filter(function (r) { return mine.indexOf(r) >= 0; });
-        if (both.length) msgs.push('Overlaps "' + (t.name || t.id) + '" in ' + both.map(function (r) { return ROOMS[r].name; }).join(', ') + '. On those days the one added first wins.');
-      });
-    }
-    $('edWarn').innerHTML = msgs.map(esc).join('<br>');
+  function addDays(d, n) { var x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); }
+  /* Two automatic themes can't run in the same room on the same day: find the clashes and offer fixes */
+  function clashes(t, skip) {
+    if (!t.takeover) return [];
+    var from = t.from || '0000-00-00', until = t.until || '9999-12-31', mine = roomsOf(t), out = [];
+    data.themes.forEach(function (o, i) {
+      if (i === skip || o === t || !o.takeover || state(o) === 'ended') return;
+      var of = o.from || '0000-00-00', ou = o.until || '9999-12-31';
+      if (of > until || ou < from) return;
+      var both = roomsOf(o).filter(function (r) { return mine.indexOf(r) >= 0; });
+      if (both.length) out.push({ other: o, rooms: both, from: of > from ? of : from, until: ou < until ? ou : until });
+    });
+    return out;
   }
+  var edClashes = [];
+  function draft() { return { takeover: $('fTake').checked, from: $('fFrom').value, until: $('fUntil').value, rooms: ed.rooms.slice() }; }
+  function checkClash() {
+    var html = [], d = draft();
+    if (d.from && d.until && d.until < d.from) html.push(esc('The end date is before the start date.'));
+    edClashes = clashes(d, editing);
+    edClashes.forEach(function (c, n) {
+      var o = c.other, fixes = [];
+      if (o.until && (!d.until || d.until > o.until)) fixes.push('<button type="button" class="btn" data-fix="after" data-n="' + n + '">Start this on ' + esc(nice(addDays(o.until, 1))) + '</button>');
+      if (o.from && (!d.from || d.from < o.from)) fixes.push('<button type="button" class="btn" data-fix="before" data-n="' + n + '">End this on ' + esc(nice(addDays(o.from, -1))) + '</button>');
+      fixes.push('<button type="button" class="btn" data-fix="list">Only add it to the Background list</button>');
+      if (ed.rooms.indexOf('all') < 0 || c.rooms.length < Object.keys(ROOMS).length) fixes.push('<button type="button" class="btn" data-fix="rooms" data-n="' + n + '">Leave out ' + esc(c.rooms.map(function (r) { return ROOMS[r].name; }).join(', ')) + '</button>');
+      html.push('<b>Clashes with "' + esc(o.name || o.id) + '"</b> in ' + esc(c.rooms.length === Object.keys(ROOMS).length ? 'every room' : c.rooms.map(function (r) { return ROOMS[r].name; }).join(', ')) +
+        ' from ' + esc(nice(c.from === '0000-00-00' ? today() : c.from)) + (c.until === '9999-12-31' ? ' on' : ' to ' + esc(nice(c.until))) +
+        '. Only one theme can switch a room at a time. Pick a fix, or change the dates:<div class="row" style="margin:8px 0 4px">' + fixes.join('') + '</div>');
+    });
+    $('edWarn').innerHTML = html.join('<br>');
+    $('edSave').disabled = edClashes.length > 0;
+  }
+  $('edWarn').addEventListener('click', function (e) {
+    var f = e.target.getAttribute && e.target.getAttribute('data-fix'); if (!f) return;
+    var c = edClashes[+e.target.getAttribute('data-n') || 0];
+    if (f === 'after') $('fFrom').value = addDays(c.other.until, 1);
+    if (f === 'before') $('fUntil').value = addDays(c.other.from, -1);
+    if (f === 'list') $('fTake').checked = false;
+    if (f === 'rooms') {
+      var keep = (ed.rooms.indexOf('all') >= 0 ? Object.keys(ROOMS) : ed.rooms).filter(function (r) { return c.rooms.indexOf(r) < 0; });
+      if (!keep.length) { toast('That would leave no rooms. Try another fix.'); return; }
+      ed.rooms = keep; renderRoomPick();
+    }
+    checkClash();
+  });
   function openEditor(i, preset) {
     editing = i; pendingFile = null; $('fFile').value = ''; $('fileInfo').textContent = ''; $('edMsg').textContent = '';
     var t = i >= 0 ? data.themes[i] : (preset || {});
@@ -667,6 +700,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (ed.src === 'link' && !/^https:\/\/\S+$/.test(link)) { msg.textContent = 'Paste the video link (it starts with https://).'; $('fLink').focus(); return; }
     if (ed.src === 'file' && !pendingFile && !(old && old.source && !/^https?:/.test(old.source))) { msg.textContent = 'Choose a video file.'; return; }
     if ($('fFrom').value && $('fUntil').value && $('fUntil').value < $('fFrom').value) { msg.textContent = 'The end date is before the start date.'; return; }
+    checkClash();
+    if (edClashes.length) { msg.textContent = 'Fix the clash first (see the right).'; return; }
     var focus = $('fFocus').value.trim();
     if (focus && !/^\d{1,3}% \d{1,3}%$/.test(focus)) { msg.textContent = 'Zoom point looks like "50% 40%".'; return; }
     var t = { id: old ? old.id : slug(name), name: name, source: ed.src === 'link' ? link : (old ? old.source : ''), rooms: ed.rooms.slice() };
@@ -695,6 +730,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         }
       });
     }).then(function () {
+      if (clashes(t, editing).length) { var e3 = new Error('Someone just added a theme that clashes with this one. Check the dates and try again.'); throw e3; }
       if (editing >= 0) data.themes[editing] = t; else data.themes.push(t);
       return commitThemes((old ? 'Update theme: ' : 'New theme: ') + name + ' (Theme manager)');
     }).then(function (sha) {
@@ -724,7 +760,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   /* ---------- settings: staff PIN, guests, TV addresses ---------- */
   function renderSettings() {
     var st = data.staff || {};
-    $('pinState').textContent = st.pinHash ? 'A PIN is set.' : 'No PIN set yet: the TVs use 0000 until you set one.';
+    $('pinState').textContent = st.pinHash ? 'A custom ' + (st.pinLength || 4) + '-digit PIN is set.' : 'The TVs use the default PIN, 555913.';
+    $('pinReset').hidden = !st.pinHash;
     $('guestBg').checked = st.guestBackground !== false;
   }
   function sha256hex(text) {
@@ -744,15 +781,20 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     }).catch(function (e) { toast('Couldn\u2019t save: ' + e.message); load(); });
   }
   $('pinSave').onclick = function () {
-    var a = $('pin1').value, b = $('pin2').value;
-    if (!/^\d{4}$/.test(a)) { $('pinMsg').textContent = 'The PIN is four numbers.'; return; }
+    var a = $('pin1').value.trim(), b = $('pin2').value.trim();
+    if (!/^\d{4,8}$/.test(a)) { $('pinMsg').textContent = 'The PIN is 4 to 8 numbers.'; return; }
     if (a !== b) { $('pinMsg').textContent = 'The two PINs don\u2019t match.'; return; }
-    if (a === '0000' || a === '1234') { $('pinMsg').textContent = 'Pick something less easy to guess.'; return; }
+    if (/^(\d)\1+$/.test(a) || '0123456789'.indexOf(a) >= 0 || '9876543210'.indexOf(a) >= 0) { $('pinMsg').textContent = 'Pick something less easy to guess.'; return; }
     sha256hex('round2:' + a).then(function (h) {
-      data.staff = data.staff || {}; data.staff.pinHash = h; $('pin1').value = $('pin2').value = '';
-      $('pinMsg').textContent = 'Four numbers. Only a scrambled copy is stored, never the PIN itself.';
+      data.staff = data.staff || {}; data.staff.pinHash = h; data.staff.pinLength = a.length; $('pin1').value = $('pin2').value = '';
+      $('pinMsg').textContent = '4 to 8 numbers. Only a scrambled copy is stored, never the PIN itself.';
       saveSettings('Staff PIN');
     });
+  };
+  $('pinReset').onclick = function () {
+    if (!confirm('Set every TV back to the default PIN, 555913?')) return;
+    data.staff = data.staff || {}; delete data.staff.pinHash; delete data.staff.pinLength;
+    saveSettings('Staff PIN reset to default');
   };
   $('guestSave').onclick = function () {
     data.staff = data.staff || {}; data.staff.guestBackground = $('guestBg').checked;
