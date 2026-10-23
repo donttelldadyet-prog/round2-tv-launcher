@@ -95,6 +95,11 @@ header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; 
 .picking .sig, .pinning .sig { display: none; }
 .mi svg { flex: none; opacity: 0; }
 .mi .label { flex: 1; font-size: 34px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* names too long for their row scroll sideways while selected, then come back */
+.mq { display: inline-block; white-space: nowrap; }
+.label.scroll, .nm.scroll { text-overflow: clip !important; }
+.scroll > .mq { animation: mq var(--mqd, 4s) linear infinite; will-change: transform; }
+@keyframes mq { 0%, 18% { transform: translateX(0); } 62%, 82% { transform: translateX(var(--mqx)); } 100% { transform: translateX(0); } }
 .mi .hint { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; opacity: .45; white-space: nowrap; }
 .mi.on { color: var(--room-ink); }
 .mi.on svg { opacity: 1; }
@@ -1039,6 +1044,7 @@ window.R2_TV = {
     $('setList').innerHTML = html;
     $('pinBox').hidden = true; dropCls('pinning');
     $('setList').scrollTop = 0; scrollSettings();
+    setTimeout(marquee, 0);
     $('menuPanel').className = 'panel off'; $('setPanel').className = 'panel';
     dropCls('picking');
     keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[BACK] MAIN MENU');
@@ -1362,6 +1368,23 @@ window.R2_TV = {
     else if (/^d\d$/.test(k)) return;
     else if (mode === 'settings') settingsKey(k);
     else if (mode === 'walls') wallsKey(k);
+    marquee();
+  }
+  /* the selected row's name: if it doesn't fit, scroll it so the whole name can be read */
+  function marquee() {
+    var old = document.querySelectorAll('.scroll');
+    for (var i = 0; i < old.length; i++) old[i].className = old[i].className.replace(/\s*\bscroll\b/g, '');
+    var sel = mode === 'grid' ? '#grid .tile.on .nm' : mode === 'walls' ? '#wallRows .mi.on .label' :
+      mode === 'settings' ? '#setList .mi.on .label' : mode === 'menu' ? '#items .mi.on .label' : '';
+    var el = sel && document.querySelector(sel); if (!el) return;
+    var inner = el.firstChild && el.firstChild.className === 'mq' ? el.firstChild : null;
+    if (!inner) { el.innerHTML = '<span class="mq">' + el.innerHTML + '</span>'; inner = el.firstChild; }
+    var over = inner.offsetWidth - el.clientWidth;
+    if (over > 2) {
+      el.style.setProperty('--mqx', -(over + 8) + 'px');
+      el.style.setProperty('--mqd', Math.max(3.5, (over + 8) / 45 + 2.5).toFixed(1) + 's');
+      el.className += ' scroll';
+    }
   }
   document.addEventListener('keydown', function (ev) {
     var k = KEYS[ev.keyCode]; if (!k) return;
