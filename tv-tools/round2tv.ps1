@@ -393,6 +393,22 @@ function Cmd-Room([string]$name) {
   Say "This TV now shows the $name room."
 }
 
+function Cmd-Perf {
+  Need-Tv
+  $pkg = 'sg.round2.tvhome'
+  Say 'Press Home so the Round2 menu is on screen.'
+  Read-Host '  Then press Enter here, and hold Down/Up on the remote for about 10 seconds' | Out-Null
+  & $script:Adb -s $script:TV shell "dumpsys gfxinfo $pkg reset" 2>$null | Out-Null
+  for ($i = 10; $i -gt 0; $i--) { Write-Host -NoNewline "`r  measuring... $i  "; Start-Sleep -Seconds 1 }
+  Write-Host ''
+  $g = Q "dumpsys gfxinfo $pkg"
+  $want = 'Total frames rendered|Janky frames|50th percentile|90th percentile|95th percentile|99th percentile|Slow UI thread|Slow bitmap uploads|Slow issue draw commands|Frame deadline missed'
+  $lines = ($g -split "`n") | Where-Object { $_ -match $want } | Select-Object -First 10
+  Say 'Frame statistics for the Round2 menu (lower is better; 16ms = 60 fps):'
+  $lines | ForEach-Object { Write-Host "   $($_.Trim())" }
+  Log ('perf: ' + ($lines -join ' ; '))
+}
+
 function Cmd-Wallpaper([string]$file) {
   Need-Tv; Need-Backup
   if (-not $file -or -not (Test-Path $file)) { Die 'Usage: .\round2tv.ps1 wallpaper C:\path\round2-wallpaper.png' }
@@ -493,6 +509,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   install owner/repo     install the latest APK from official GitHub releases (default truefedex/tv-bro)
   airplay                install PhairPlay (AirPlay receiver) from its GitHub releases
   launcher [owner/repo]  install Round2 Home and make it the home screen (default donttelldadyet-prog/round2-tv-launcher)
+  perf                   measure how smoothly the menu draws (dropped and slow frames)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
   homeguard              Google TV: make the Home button open Round2 Home (undo turns it off)
   launcher-force         older Android TV only: disable the stock home app (never on Google TV)
@@ -521,6 +538,7 @@ switch ($Command.ToLower()) {
   'homeguard' { Cmd-HomeGuard }
   'wallpaper' { Cmd-Wallpaper $a1 }
   'room' { Cmd-Room $a1 }
+  'perf' { Cmd-Perf }
   'youtube' { Cmd-YouTube ($Rest -join ' ') }
   'status' { Cmd-Status }
   'undo' { Cmd-Undo }

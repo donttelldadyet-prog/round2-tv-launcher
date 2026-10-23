@@ -34,19 +34,23 @@ html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 .layer { position: absolute; inset: 0; }
 
 /* ---------- background world ---------- */
-#world { transition: transform .34s cubic-bezier(.55, 0, .85, .35); will-change: transform; }
+#world { transition: transform .34s cubic-bezier(.55, 0, .85, .35); }
 .bg-glow { background:
     radial-gradient(38% 46% at 50% 52%, color-mix(in srgb, var(--room) 30%, transparent) 0%, transparent 70%),
     linear-gradient(180deg, #0d0a16 0%, #06050a 100%); }
 .bg-media { width: 100%; height: 100%; object-fit: cover; }
 #bgA, #bgB { transition: opacity .25s linear; }
 #bgB { opacity: 0; }
-.bg-shade { background: linear-gradient(90deg, rgba(6,5,10,.88) 0%, rgba(6,5,10,.45) 28%, rgba(6,5,10,0) 48%, rgba(6,5,10,0) 62%, rgba(6,5,10,.55) 100%);
+.bg-shade { background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 1px, transparent 1px, transparent 3px),
+    linear-gradient(90deg, rgba(6,5,10,.88) 0%, rgba(6,5,10,.45) 28%, rgba(6,5,10,0) 48%, rgba(6,5,10,0) 62%, rgba(6,5,10,.55) 100%);
   transition: opacity .25s linear; }
-.scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 1px, transparent 1px, transparent 3px); }
 
 /* ---------- interface ---------- */
-#ui { transition: transform .26s cubic-bezier(.55, 0, .85, .35), opacity .2s linear; will-change: transform, opacity; }
+#ui { transition: transform .26s cubic-bezier(.55, 0, .85, .35), opacity .2s linear; }
+/* animation hints only while a transition runs, so idle frames stay a single flat layer */
+.go-warp #world, .go-dive #world, .entering #world, .settle #world { will-change: transform; }
+.go-warp #ui, .go-dive #ui, .settle #ui { will-change: transform, opacity; }
 
 header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; align-items: center; justify-content: space-between; }
 .logo { height: 50px; }
@@ -110,8 +114,8 @@ section.peek { position: absolute; right: 64px; top: 180px; width: 600px; paddin
 .peek .go { display: flex; align-items: center; gap: 12px; margin-top: 34px; padding-top: 22px; border-top: 1px solid rgba(244,241,251,.16);
   font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; color: var(--accent); }
 .peek .go .bar { flex: 1; height: 10px; opacity: .5; background: repeating-linear-gradient(90deg, var(--accent) 0 12px, transparent 12px 18px); }
-.swap { animation: swap .2s var(--ease) both; }
-@keyframes swap { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+.swap { animation: swap .14s linear both; }
+@keyframes swap { from { opacity: 0 } to { opacity: 1 } }
 
 footer { position: absolute; left: 72px; right: 64px; bottom: 36px; display: flex; justify-content: space-between;
   font-family: var(--f-pix); font-size: 12px; letter-spacing: .12em; color: var(--mute); }
@@ -126,6 +130,7 @@ footer .keys { display: flex; gap: 30px; }
 .card-low .peek .go { margin-top: 18px; padding-top: 14px; }
 .card-low #items .mi { width: 460px; }
 .card-low .bg-shade { background:
+    repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 1px, transparent 1px, transparent 3px),
     linear-gradient(90deg, rgba(6,5,10,.86) 0%, rgba(6,5,10,.38) 24%, rgba(6,5,10,0) 38%),
     linear-gradient(0deg, rgba(6,5,10,.7) 0%, rgba(6,5,10,0) 34%); }
 
@@ -142,7 +147,7 @@ footer .keys { display: flex; gap: 30px; }
 .tile .sub { position: absolute; right: 22px; top: 24px; font-family: var(--f-pix); font-size: 11px; letter-spacing: .12em; opacity: .7; }
 .tile.on { background: var(--room); color: var(--room-ink); border-color: var(--room); }
 .tile.on .mono { color: var(--room-ink); }
-.tile { will-change: transform; }
+
 /* tiles with the app's own TV banner (or icon) from the TV */
 .tile.art { padding: 0; justify-content: flex-end; overflow: hidden; background: #110e1a; }
 .tile.art img { position: absolute; display: block; }
@@ -167,7 +172,8 @@ footer .keys { display: flex; gap: 30px; }
   background: repeating-conic-gradient(from 0deg, rgba(0,0,0,0) 0deg 3.6deg, rgba(200,255,245,.9) 3.6deg 3.85deg, rgba(0,0,0,0) 3.85deg 6.1deg, rgba(140,200,255,.6) 6.1deg 6.25deg);
   -webkit-mask-image: radial-gradient(circle, transparent 0, transparent 5%, #000 16%, #000 58%, transparent 70%);
   mask-image: radial-gradient(circle, transparent 0, transparent 5%, #000 16%, #000 58%, transparent 70%);
-  transform: scale(.12); will-change: transform; }
+  transform: scale(.12); }
+.go-warp #warp .rays { will-change: transform; }
 #veil { opacity: 0; background: radial-gradient(55% 65% at var(--fx, 50%) var(--fy, 50%), #effffc 0%, var(--room) 28%, #06050a 72%); }
 .go-warp #world { transform: scale(1.55); transition: transform .4s cubic-bezier(.6, 0, .9, .5); }
 .go-warp #ui { opacity: 0; transform: scale(1.06); transition: opacity .12s linear, transform .2s ease-in; }
@@ -190,7 +196,8 @@ footer .keys { display: flex; gap: 30px; }
 @keyframes fadeUp { from { opacity: 0 } to { opacity: 1 } }
 
 /* Home animation: lightning, a ship skims past the camera, the menu powers on */
-#ship { position: absolute; left: 0; top: 0; width: 1100px; height: 300px; opacity: 0; will-change: transform; }
+#ship { position: absolute; left: 0; top: 0; width: 1100px; height: 300px; opacity: 0; }
+.entering #ship { will-change: transform; }
 .entering #dim { animation: entryDim .5s ease-out both; }
 .entering #world { animation: entryWorld 1.2s cubic-bezier(.2, .8, .2, 1) both; }
 .entering #flash { animation: strike .32s linear .1s both; }
@@ -237,7 +244,6 @@ footer .keys { display: flex; gap: 30px; }
     <div class="layer" id="bgA"></div>
     <div class="layer" id="bgB"></div>
     <div class="layer bg-shade"></div>
-    <div class="layer scan" aria-hidden="true"></div>
   </div>
 
   <div id="ui" class="layer">
@@ -608,7 +614,7 @@ window.R2_TV = {
     if (itemEls[sel]) itemEls[sel].className = 'mi on';
     $('hl').style.transform = 'translateY(' + (sel * 76) + 'px)';
     clearTimeout(peekTimer);
-    peekTimer = setTimeout(function () { $('peek').innerHTML = peekHtml(items[sel]); }, 40);
+    peekTimer = setTimeout(function () { $('peek').innerHTML = peekHtml(items[sel]); }, 110);   /* after the bar settles */
   }
 
   /* ================= Options: Background + TV settings (after CleanFrame) ================= */

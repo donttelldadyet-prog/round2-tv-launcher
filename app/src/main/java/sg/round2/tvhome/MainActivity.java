@@ -67,7 +67,8 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false);
         s.setTextZoom(100);
         s.setUserAgentString(s.getUserAgentString() + " Round2Home/2");   // lets the menu know it runs in the app
-        web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        // No offscreen layer: the WebView draws straight into the window (one less full-screen copy per frame)
+        web.setLayerType(View.LAYER_TYPE_NONE, null);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.setVerticalScrollBarEnabled(false);
         web.setHorizontalScrollBarEnabled(false);                // ignore the TV's large-text setting; the menu scales itself
