@@ -544,9 +544,32 @@ window.R2_TV = {
   }
 
   /* ================= menu sounds: synthesised live (no files, no delay) ================= */
+  /* In the Android app, sounds are played by Android (NativeSound.java): the menu renders each one once
+     into a short WAV clip and hands it over. Works even where the web page's own audio is silent (Sony). */
+  function nat() { return window.R2Android && window.R2Android.audioNative ? window.R2Android : null; }
+  function b64(bytes) {
+    var out = '', CH = 0x8000;
+    for (var i = 0; i < bytes.length; i += CH) out += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+    return btoa(out);
+  }
+  function pcm16(d) {
+    var b = new Uint8Array(d.length * 2);
+    for (var i = 0; i < d.length; i++) { var v = Math.max(-1, Math.min(1, d[i])) * 32767 | 0; b[2 * i] = v & 255; b[2 * i + 1] = (v >> 8) & 255; }
+    return b;
+  }
+  function wav(d, sr) {
+    var pcm = pcm16(d), h = new DataView(new ArrayBuffer(44)), w = new Uint8Array(44 + pcm.length);
+    function str(o, t) { for (var i = 0; i < t.length; i++) h.setUint8(o + i, t.charCodeAt(i)); }
+    str(0, 'RIFF'); h.setUint32(4, 36 + pcm.length, true); str(8, 'WAVEfmt '); h.setUint32(16, 16, true); h.setUint16(20, 1, true);
+    h.setUint16(22, 1, true); h.setUint32(24, sr, true); h.setUint32(28, sr * 2, true); h.setUint16(32, 2, true); h.setUint16(34, 16, true);
+    str(36, 'data'); h.setUint32(40, pcm.length, true);
+    w.set(new Uint8Array(h.buffer), 0); w.set(pcm, 44);
+    return w;
+  }
   var Sfx = (function () {
-    var ctx = null, noiseBuf = null;
+    var ctx = null, noiseBuf = null, target = null, rendered = {}, rendering = {};
     function ac() {
+      if (target) return target;                /* rendering a clip for Android */
       if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } }
       if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
       return ctx;
@@ -626,12 +649,43 @@ window.R2_TV = {
         back:   function () { voice({ wave: 'sawtooth', f0: 330, f1: 220, dur: 0.14, vol: 0.05, cut: 1400, q: 4 }); }
       }
     };
+    /* render a sound set's three clips offline and give them to Android */
+    function renderSet(set, then) {
+      if (rendered[set] || rendering[set] || !SETS[set]) { if (rendered[set] && then) then(); return; }
+      var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, b = nat();
+      if (!OAC || !b) return;
+      rendering[set] = true;
+      var kinds = ['move', 'ok', 'back'], k = 0;
+      (function next() {
+        if (k >= kinds.length) { rendering[set] = false; rendered[set] = true; if (then) setTimeout(then, 120); return; }
+        var kind = kinds[k++], sr = 44100, oc;
+        try { oc = new OAC(1, sr, sr); } catch (e) { rendering[set] = false; console.log('[R2] offline audio unavailable: ' + e); return; }
+        target = oc; try { SETS[set][kind](); } catch (e) {} target = null;
+        oc.oncomplete = function (ev) {
+          var d = ev.renderedBuffer.getChannelData(0), end = d.length;
+          while (end > 1 && Math.abs(d[end - 1]) < 0.0002) end--;
+          try { b.sfxLoad(set + '.' + kind, b64(wav(d.subarray(0, Math.min(d.length, end + 400)), sr))); } catch (e) {}
+          next();
+        };
+        try { var pr = oc.startRendering(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) { rendering[set] = false; }
+      }());
+    }
     return {
       play: function (kind, set) {
-        var s = SETS[set || prefs.sound]; if (!s) return;
+        set = set || prefs.sound;
+        var s = SETS[set]; if (!s) return;
+        var b = nat();
+        if (b) {
+          if (rendered[set]) { try { b.sfxPlay(set + '.' + kind, 1); } catch (e) {} }
+          else renderSet(set, function () { try { b.sfxPlay(set + '.' + kind, 1); } catch (e) {} });
+          return;
+        }
         try { s[kind](); } catch (e) {}
       },
-      wake: ac
+      prepare: function (set) { if (nat()) renderSet(set || prefs.sound); },
+      /* true when sound can play (Android: always; browser: once the page's audio is running) */
+      wake: function () { return nat() ? true : ac(); },
+      ctx: ac
     };
   }());
 
@@ -667,8 +721,8 @@ window.R2_TV = {
       for (i = 0; i < n; i++) d[i] = d[i] / (peak || 1) * 0.9;
       return d;
     }
-    function buildRain(c, done) {
-      function fill(data) { var b = c.createBuffer(1, data.length, RAIN_SR); b.getChannelData(0).set(data); done(b); }
+    function buildRain(c, done) { rainData(function (data) { var b = c.createBuffer(1, data.length, RAIN_SR); b.getChannelData(0).set(data); done(b); }); }
+    function rainData(fill) {
       try {
         var code = 'var rainSamples=' + rainSamples.toString() + ';onmessage=function(e){var d=rainSamples(e.data);postMessage(d,[d.buffer]);};';
         var url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
@@ -678,20 +732,35 @@ window.R2_TV = {
         wk.postMessage(RAIN_SR);
       } catch (e) { fill(rainSamples(RAIN_SR)); }
     }
-    function renderThunder(c) {
-      var sr = 22050, n = sr * 7, buf = c.createBuffer(1, n, sr), d = buf.getChannelData(0), br = 0, lp = 0;
+    function renderThunder(c) { var d = thunderData(), buf = c.createBuffer(1, d.length, 22050); buf.getChannelData(0).set(d); return buf; }
+    function thunderData() {
+      var sr = 22050, n = sr * 7, d = new Float32Array(n), br = 0, lp = 0;
       for (var i = 0; i < n; i++) {
         var t = i / sr, w = Math.random() * 2 - 1;
         br = (br + 0.03 * w) * 0.997; lp += 0.08 * (br - lp);
         var env = Math.min(1, t / 0.25) * Math.exp(-t / 2.2) * (0.7 + 0.3 * Math.sin(t * 3.1) * Math.sin(t * 1.7));
         d[i] = lp * env * 6;
       }
-      return buf;
+      return d;
+    }
+    var nRain = false, nThunder = false;
+    function natApply(b) {
+      if (!nRain) {
+        if (!building) { building = true; rainData(function (d) { try { b.loopLoad(b64(pcm16(d)), RAIN_SR); } catch (e) {} nRain = true; building = false; Amb.apply(); }); }
+        return;
+      }
+      if (prefs.amb === 'storm' && !nThunder) { nThunder = true; try { b.sfxLoad('thunder', b64(wav(thunderData(), 22050))); } catch (e) {} }
+      playing = prefs.amb;
+      try { b.loopTo(vol() * (prefs.amb === 'storm' ? 1.25 : 1), 1200); } catch (e) {}
+      clearTimeout(thunderTimer);
+      if (prefs.amb === 'storm') thunderTimer = setTimeout(thunder, 4000 + Math.random() * 6000);
     }
     function thunder() {
       clearTimeout(thunderTimer);
       if (playing !== 'storm') return;
-      var c = Sfx.wake();
+      var nb = nat();
+      if (nb) { try { nb.sfxPlay('thunder', Math.min(1, vol() * 1.6 * (0.55 + Math.random() * 0.35))); } catch (e) {} thunderTimer = setTimeout(thunder, 15000 + Math.random() * 20000); return; }
+      var c = Sfx.ctx();
       if (c && thunderBuf && gain) {
         var s2 = c.createBufferSource(), g2 = c.createGain();
         s2.buffer = thunderBuf; g2.gain.value = 0.55 + Math.random() * 0.35;
@@ -701,13 +770,15 @@ window.R2_TV = {
     }
     function stop() {
       clearTimeout(thunderTimer);
+      var nb = nat(); if (nb) { try { nb.loopTo(0, 150); } catch (e) {} playing = ''; return; }
       if (src) { try { src.stop(); } catch (e) {} src = null; }
       playing = '';
     }
     return {
       apply: function () {
         if (prefs.amb === 'off') { stop(); return; }
-        var c = Sfx.wake(); if (!c) return;
+        var nb = nat(); if (nb) { natApply(nb); return; }
+        var c = Sfx.ctx(); if (!c) return;
         if (!rainBuf) {
           if (!building) { building = true; buildRain(c, function (b) { rainBuf = b; building = false; Amb.apply(); }); }
           return;
@@ -729,7 +800,8 @@ window.R2_TV = {
         if (prefs.amb === 'storm') thunderTimer = setTimeout(thunder, 4000 + Math.random() * 6000); else clearTimeout(thunderTimer);
       },
       duck: function () {   /* an app is opening: fade out quickly */
-        var c = Sfx.wake(); if (!c || !gain) return;
+        var nb = nat(); if (nb) { try { nb.loopTo(0, 250); } catch (e) {} return; }
+        var c = Sfx.ctx(); if (!c || !gain) return;
         var now = c.currentTime; gain.gain.cancelScheduledValues(now);
         gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), now); gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
       },
@@ -1387,6 +1459,7 @@ window.R2_TV = {
     }
   }
   document.addEventListener('keydown', function (ev) {
+    try { window.R2Android && window.R2Android.keyAck && window.R2Android.keyAck(); } catch (e) {}   /* the app's watchdog: the menu is answering */
     var k = KEYS[ev.keyCode]; if (!k) return;
     ev.preventDefault(); press(k);
   });
@@ -1518,6 +1591,12 @@ window.R2_TV = {
   arrive(false);                         /* the Home animation also plays when the TV starts */
   var ambStarted = false;
   setTimeout(function () { Amb.apply(); ambStarted = true; }, 1800);
+  setTimeout(function () { Sfx.prepare(); }, 2600);   /* the Android app gets this room's menu sounds ready */
+  setTimeout(function () {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    console.log('[R2] start: ' + navigator.userAgent + ' | sound: ' + (nat() ? 'Android' : 'web page') + ' | AudioContext ' + (AC ? 'yes' : 'no') +
+      ' | OfflineAudioContext ' + (window.OfflineAudioContext ? 'yes' : 'no') + ' | room ' + roomKey);
+  }, 3000);
   /* event backgrounds: show what's already on the TV, then check GitHub for new ones (and every 3 hours) */
   bridge(function (b) { if (b.themes) window.r2Themes(b.themes()); });
   setTimeout(function () { window.r2SyncThemes(false); }, 6000);

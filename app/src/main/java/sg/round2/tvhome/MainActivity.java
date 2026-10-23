@@ -53,6 +53,12 @@ public class MainActivity extends Activity {
     private NativeBackground bg;
     private ThemeSync themes;
     private Updater updater;
+    NativeSound sound;
+
+    /* Watchdog: if remote presses stop reaching the menu (a stuck web page), reload it by itself */
+    private volatile long lastAck = System.currentTimeMillis();
+    private int unacked = 0;
+    private long firstUnacked = 0, lastReload = 0;
     private String pendingRoom;
     private boolean pageReady;
     private long stoppedAt;   // when the screen was last hidden (an app, the screensaver, standby)
@@ -76,6 +82,9 @@ public class MainActivity extends Activity {
         bg = new NativeBackground(this);
         themes = new ThemeSync(this);
         updater = new Updater(this);
+        sound = new NativeSound(this);
+        CrashLog.install(this);
+        UpdateReceiver.rememberOrRearmGuard(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -132,7 +141,13 @@ public class MainActivity extends Activity {
                 applyPendingRoom();
             }
         });
-        web.setWebChromeClient(new WebChromeClient());
+        web.setWebChromeClient(new WebChromeClient() {
+            /* the menu's messages go to the TV's log, so 'round2tv.ps1 diag' can collect them */
+            @Override public boolean onConsoleMessage(android.webkit.ConsoleMessage m) {
+                android.util.Log.i("R2Home", "menu: " + m.message() + " (" + m.sourceId() + ":" + m.lineNumber() + ")");
+                return true;
+            }
+        });
         web.addJavascriptInterface(new Bridge(this), "R2Android");
         web.setFocusable(true);
         web.setFocusableInTouchMode(true);
@@ -206,6 +221,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        lastAck = System.currentTimeMillis(); unacked = 0;
+        UpdateReceiver.rememberOrRearmGuard(this);   // the Home-button helper, if Android switched it off
         if (bg != null) bg.resume();
         if (web != null) {
             web.onResume();
@@ -227,6 +244,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         try { unregisterReceiver(screenOff); } catch (Exception ignored) { }
+        if (sound != null) sound.release();
         super.onDestroy();
     }
 
@@ -247,11 +265,16 @@ public class MainActivity extends Activity {
         if (bg != null) bg.pause();
         if (web != null) web.evaluateJavascript("window.r2Pause && window.r2Pause()", null);   // stop the rain ambience
         if (web != null) web.onPause();   // stops the background video while an app is open
+        if (sound != null) sound.loopTo(0f, 150);
         super.onPause();
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        if (web != null && !web.hasFocus()) web.requestFocus();      // keys always go to the menu
+        int k = e.getKeyCode();
+        if (e.getAction() == KeyEvent.ACTION_DOWN && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN
+                || k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_DPAD_CENTER)) noteKey();
         if (e.getKeyCode() == KeyEvent.KEYCODE_BACK) {
             if (e.getAction() == KeyEvent.ACTION_UP) {
                 web.evaluateJavascript("window.r2Back && window.r2Back()", null);
@@ -259,6 +282,22 @@ public class MainActivity extends Activity {
             return true;   // a home screen never closes on Back
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    /* A key went to the menu; the menu answers keyAck() when it handled it. Four unanswered presses over
+       3 seconds means the page is stuck: reload it (and rebuild the screen if that keeps happening). */
+    private void noteKey() {
+        long now = System.currentTimeMillis();
+        if (now - lastAck < 1500) { unacked = 0; return; }
+        if (unacked == 0) firstUnacked = now;
+        unacked++;
+        if (unacked >= 4 && now - firstUnacked > 3000 && pageReady) {
+            android.util.Log.w("R2Home", "menu not answering keys: reloading");
+            unacked = 0;
+            if (now - lastReload < 120000) { recreate(); return; }
+            lastReload = now; pageReady = false; lastAck = now;
+            web.reload();
+        }
     }
 
     /** Methods the web menu can call as window.R2Android.* */
@@ -294,6 +333,38 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) { }
             return "";
         }
+
+        /* ---- watchdog ---- */
+        @JavascriptInterface
+        public void keyAck() { act.lastAck = System.currentTimeMillis(); }
+
+        /* ---- sounds played by Android (see NativeSound) ---- */
+        @JavascriptInterface
+        public String audioNative() { return "1"; }
+
+        @JavascriptInterface
+        public void sfxLoad(String key, String b64) {
+            if (key == null || b64 == null || !key.matches("[a-z0-9.]{1,40}")) return;
+            try { act.sound.load(key, android.util.Base64.decode(b64, android.util.Base64.DEFAULT)); } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
+        public String sfxHas(String key) { return key != null && act.sound.has(key) ? "1" : "0"; }
+
+        @JavascriptInterface
+        public void sfxPlay(String key, double vol) { if (key != null) act.sound.play(key, (float) vol); }
+
+        @JavascriptInterface
+        public void loopLoad(String b64, int sampleRate) {
+            if (b64 == null || sampleRate < 8000 || sampleRate > 48000) return;
+            try { act.sound.loadLoop(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), sampleRate); } catch (Exception ignored) { }
+        }
+
+        @JavascriptInterface
+        public String loopHas() { return act.sound.hasLoop() ? "1" : "0"; }
+
+        @JavascriptInterface
+        public void loopTo(double vol, int ms) { act.sound.loopTo((float) vol, ms); }
 
         @JavascriptInterface
         public String version() {

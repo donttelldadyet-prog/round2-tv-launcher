@@ -472,6 +472,30 @@ function Cmd-Room([string]$name) {
   Say "This TV now shows the $name room."
 }
 
+function Cmd-Diag {
+  Need-Tv
+  $f = Join-Path $script:TvDir ("diag-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
+  Say 'Collecting what the TV knows about Round2 Home (changes nothing)...'
+  $out = @()
+  $out += "== TV: " + (Q 'getprop ro.product.model') + ', Android ' + (Q 'getprop ro.build.version.release') + ', ' + (Q 'getprop ro.product.cpu.abi')
+  $out += "== Round2 Home: " + ((Q 'dumpsys package sg.round2.tvhome') -split "`n" | Where-Object { $_ -match 'versionName|lastUpdateTime|WRITE_SECURE_SETTINGS|REQUEST_INSTALL' } | ForEach-Object { $_.Trim() }) -join ' | '
+  foreach ($wv in 'com.google.android.webview', 'com.android.webview', 'com.android.chrome') {
+    $v = (Q "dumpsys package $wv") -split "`n" | Where-Object { $_ -match 'versionName' } | Select-Object -First 1
+    if ($v) { $out += "== WebView ($wv): " + $v.Trim() }
+  }
+  $out += "== Home screen app: " + (Get-Home)
+  $out += "== Accessibility enabled: " + (Q 'settings get secure enabled_accessibility_services')
+  $out += "== " + (((Q 'dumpsys accessibility') -split "`n" | Where-Object { $_ -match 'Bound services|Enabled services|Crashed' }) -join ' | ')
+  $out += "== Memory: " + (((Q 'dumpsys meminfo sg.round2.tvhome') -split "`n" | Where-Object { $_ -match 'TOTAL' } | Select-Object -First 1))
+  $out += "== Audio volume (music stream): " + (((Q 'dumpsys audio') -split "`n" | Where-Object { $_ -match 'STREAM_MUSIC' -or $_ -match 'Muted' } | Select-Object -First 4) -join ' | ')
+  $out += '== Log (Round2 Home, crashes, memory kills, accessibility):'
+  $log = & $script:Adb -s $script:TV logcat -d -v time -t 6000 2>$null
+  $out += @($log | Where-Object { $_ -match 'R2Home|sg\.round2|AndroidRuntime|FATAL|lowmemorykiller|lmkd|AccessibilityManager|HomeGuard|chromium.*(CONSOLE|Uncaught)' } | Select-Object -Last 400)
+  $out | Set-Content -Path $f -Encoding UTF8
+  Say "Saved: $f"
+  Say 'Send this file to Claude.'
+}
+
 function Cmd-Themes {
   Need-Tv
   Say 'Asking Round2 Home to check GitHub for new event backgrounds now.'
@@ -597,6 +621,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   phairplay              install PhairPlay instead (the older AirPlay receiver)
   tizentube              install TizenTube Cobalt (ad-free YouTube); the YouTube button then opens it
   launcher [owner/repo]  install Round2 Home and make it the home screen (default donttelldadyet-prog/round2-tv-launcher)
+  diag                   collect logs and settings from this TV into a file to send to Claude (changes nothing)
   themes                 make this TV check for new event backgrounds now (see themes/README.md)
   perf                   measure how smoothly the menu draws (dropped and slow frames)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
@@ -631,6 +656,7 @@ switch ($Command.ToLower()) {
   'room' { Cmd-Room $a1 }
   'perf' { Cmd-Perf }
   'themes' { Cmd-Themes }
+  'diag' { Cmd-Diag }
   'youtube' { Cmd-YouTube ($Rest -join ' ') }
   'status' { Cmd-Status }
   'undo' { Cmd-Undo }
