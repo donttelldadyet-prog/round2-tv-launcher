@@ -29,7 +29,8 @@
       "name": "Nebula 1",
       "source": "nebula-1-2026-mvkvfr7j.mp4",
       "rooms": [
-        "scarlett"
+        "scarlett",
+        "kaeden"
       ],
       "takeover": false,
       "cards": "low",
