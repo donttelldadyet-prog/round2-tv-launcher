@@ -43,11 +43,22 @@
     {
       "id": "purple-nebula-2026",
       "name": "Purple Nebula",
-      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/a43fd22e9bf994fac3258c50f53fc4da-3f650207-4f5c-4db6-8eb1-b537478da931_1792754456349_45899b91.mp4",
+      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/fc9831ecae66571710c0e6f09f49e3ce-d923ff87-d9de-425e-a717-f824c8afca03_1792755422065_bf42fe42.mp4",
       "rooms": [
         "all"
       ],
-      "takeover": false
+      "takeover": false,
+      "loop": "blend"
+    },
+    {
+      "id": "horseshoe-bend-2026",
+      "name": "Horseshoe Bend",
+      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/37a7083b0773812a6a48a28b2eff348d-1d508b82-1de7-4530-9d7b-28ac26ea3597_1792755419064_c3b1bbbd.mp4",
+      "rooms": [
+        "all"
+      ],
+      "takeover": false,
+      "loop": "blend"
     }
   ]
 }
