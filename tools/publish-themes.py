@@ -193,6 +193,22 @@ if staff:   # staff PIN (stored only as a SHA-256) and whether guests may change
     if "pinLength" in staff and not (isinstance(staff["pinLength"], int) and 4 <= staff["pinLength"] <= 8):
         sys.exit("staff.pinLength must be 4-8")
     out["staff"] = {k: staff[k] for k in ("pinHash", "pinLength", "guestBackground") if k in staff}
+# Room defaults (Theme manager › Rooms › Default settings): each TV's normal look and sound
+ROOMS_OK = {"vale", "kaeden", "scarlett", "bella", "kai", "atlas", "maximillion"}
+ALLOWED = {"wall": r"[a-z0-9-]{1,50}", "amb": r"[a-z0-9-]{1,41}", "ambVol": r"([1-9]|10)", "sound": r"[a-z]{2,10}",
+           "fx": r"[a-z]{2,10}", "entry": r"[a-z]{2,12}", "cards": r"[a-z]{2,8}", "updated": r"[0-9TZ:.\-]{10,40}"}
+rd_out = {}
+for room, d in (src.get("roomDefaults") or {}).items():
+    if room not in ROOMS_OK or not isinstance(d, dict):
+        sys.exit(f"roomDefaults: unknown room '{room}'")
+    clean = {}
+    for k, v in d.items():
+        if k in ALLOWED and v is not None and re.fullmatch(ALLOWED[k], str(v)):
+            clean[k] = str(v)
+    if clean:
+        rd_out[room] = clean
+if rd_out:
+    out["roomDefaults"] = rd_out
 app = src.get("app") or {}
 if app.get("updateRequested"):   # Theme manager › Settings › Ask TVs to update
     out["app"] = {"updateRequested": str(app["updateRequested"])[:40]}

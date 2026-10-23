@@ -57,7 +57,7 @@ public class MainActivity extends Activity {
 
     /* Watchdog: if remote presses stop reaching the menu (a stuck web page), reload it by itself */
     private volatile long lastAck = System.currentTimeMillis();
-    private int unacked = 0;
+    private volatile int unacked = 0;
     private long firstUnacked = 0, lastReload = 0;
     private String pendingRoom;
     private boolean pageReady;
@@ -291,7 +291,7 @@ public class MainActivity extends Activity {
        3 seconds means the page is stuck: reload it (and rebuild the screen if that keeps happening). */
     private void noteKey() {
         long now = System.currentTimeMillis();
-        if (now - lastAck < 1500) { unacked = 0; return; }
+        // counts only presses the menu hasn't answered yet (keyAck clears them); slow browsing never adds up
         if (unacked == 0) firstUnacked = now;
         unacked++;
         if (unacked >= 4 && now - firstUnacked > 3000 && pageReady) {
@@ -339,7 +339,7 @@ public class MainActivity extends Activity {
 
         /* ---- watchdog ---- */
         @JavascriptInterface
-        public void keyAck() { act.lastAck = System.currentTimeMillis(); }
+        public void keyAck() { act.lastAck = System.currentTimeMillis(); act.unacked = 0; }
 
         /* ---- sounds played by Android (see NativeSound) ---- */
         @JavascriptInterface

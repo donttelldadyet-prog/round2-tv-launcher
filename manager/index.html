@@ -220,7 +220,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   <section id="tab-rooms" hidden>
     <h1>Rooms</h1>
-    <p class="sub">What each room's TV can show today. ▶ marks what it switches to by itself. Built-in backgrounds come with the app; staff can always pick another one on the TV under Options › Background.</p>
+    <p class="sub"><b>Default settings</b> sets what each room's TV shows every time it's switched on (background, ambience and its volume, sounds, transitions). What each room's TV can show today. ▶ marks what it switches to by itself. Built-in backgrounds come with the app; staff can always pick another one on the TV under Options › Background.</p>
+    <div id="roomStatus"></div>
     <div class="rooms" id="rooms"></div>
   </section>
 
@@ -388,6 +389,20 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   </form>
 </dialog>
 
+<dialog id="rdd" aria-labelledby="rddTitle" style="width:min(620px,calc(100vw - 32px))">
+  <form method="dialog" style="padding:22px;display:grid;gap:14px">
+    <h2 id="rddTitle" style="margin:0;color:var(--ink);font-size:18px">Default settings</h2>
+    <p class="hint" style="margin:0">What this room's TV shows every time it's switched on. Guests can still change things for their session; it all comes back when the TV is switched off. Saving here replaces whatever staff last set on the TV itself.</p>
+    <div id="rddFields" style="display:grid;grid-template-columns:1fr 1fr;gap:12px"></div>
+    <label class="switch"><input type="checkbox" id="rddAll"><span>Use these for every room<br><span class="hint">Background stays per room.</span></span></label>
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+      <span id="rddMsg" class="hint" style="margin-right:auto;color:var(--bad);align-self:center"></span>
+      <button type="button" class="btn ghost" id="rddCancel">Cancel</button>
+      <button type="button" class="btn primary" id="rddSave">Save &amp; publish</button>
+    </div>
+  </form>
+</dialog>
+
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script>
@@ -491,7 +506,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       (BUILTIN[k] || []).concat(BUILTIN._all).forEach(function (n, i) { items.push({ name: n, note: 'built in', on: !auto && i === 0 }); });
       return '<article class="card room" style="--rc:' + R.c + '"><h3>' + esc(R.name) + '</h3><div class="tier">' + esc(R.t) + '</div><ul>' +
         items.map(function (it) { return '<li class="' + (it.on ? 'on' : '') + '"><span>' + esc(it.name) + '</span><span>' + esc(it.note) + '</span></li>'; }).join('') +
-        '</ul><button class="btn" data-room-new="' + k + '">+ Theme for ' + esc(R.name) + '</button>' +
+        '</ul>' + rdSummary(k) + '<button class="btn primary" data-room-defaults="' + k + '">Default settings</button>' +
+        '<button class="btn" data-room-new="' + k + '">+ Theme for ' + esc(R.name) + '</button>' +
         '<button class="btn ghost" data-room-show="' + k + '">See schedule</button>' +
         '<details class="adv"><summary>Advanced</summary>' +
         '<label class="hint" for="ip-' + k + '">TV address on the shop Wi-Fi</label>' +
@@ -555,6 +571,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   $('roomFilter').innerHTML = '<option value="all">All rooms</option>' + Object.keys(ROOMS).map(function (k) { return '<option value="' + k + '">' + ROOMS[k].name + '</option>'; }).join('');
   $('roomFilter').onchange = renderList;
   $('rooms').addEventListener('click', function (e) {
+    var rdk = e.target.getAttribute('data-room-defaults');
+    if (rdk) { openRoomDefaults(rdk); return; }
     var ipk = e.target.getAttribute('data-room-ip');
     if (ipk) {
       var v = $('ip-' + ipk).value.trim();
@@ -816,6 +834,63 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     }).catch(function (e) { busy(false); $('edMsg').textContent = 'Couldn’t remove: ' + e.message; load(); });
   };
 
+  /* ---------- room defaults (what each TV shows when switched on) ---------- */
+  var OPT = {
+    fx: [['fade', 'Fade'], ['slide', 'Slide'], ['push', 'Push'], ['warp', 'Warp'], ['glitch', 'Glitch'], ['crt', 'CRT'], ['blinds', 'Blinds'], ['flash', 'Flash'], ['off', 'Off']],
+    entry: [['rise', 'Rise'], ['flicker', 'Neon flicker'], ['crt', 'CRT power-on'], ['cinematic', 'Lightning + ship'], ['off', 'Off']],
+    sound: [['neon', 'Neon tick'], ['zen', 'Kai bamboo'], ['holo', 'Hologram'], ['glitch', 'Glitch'], ['synth', 'Synthwave'], ['arcade', 'Arcade'], ['chime', 'Soft chime'], ['bubble', 'Bubble'], ['sonar', 'Sonar'], ['click', 'Click'], ['off', 'Off']],
+    ambVol: [['1', '10%'], ['2', '20%'], ['3', '30%'], ['4', '40%'], ['5', '50%'], ['6', '60%'], ['7', '70%'], ['8', '80%'], ['9', '90%'], ['10', '100%']],
+    cards: [['auto', 'Auto (what the background asks for)'], ['right', 'Right'], ['low', 'Bottom right'], ['top', 'Top centre'], ['middle', 'Middle'], ['bottom', 'Bottom centre']]
+  };
+  var BUILTIN_IDS = { kai: [['summit', 'Neon Summit'], ['summit2', 'Neon Summit · Centre']], _all: [['lounge', 'Round2 Lounge']] };
+  function wallOptions(room) {
+    var o = (BUILTIN_IDS[room] || []).concat(BUILTIN_IDS._all);
+    data.themes.forEach(function (t) { if (state(t) !== 'ended' && roomsOf(t).indexOf(room) >= 0) o.push(['theme-' + t.id, (t.name || t.id) + (t.takeover ? ' (event)' : '')]); });
+    return o;
+  }
+  function ambOptions() {
+    return [['rain', 'Rain'], ['storm', 'Storm']].concat((data.sounds || []).map(function (x) { return [x.id, x.name || x.id]; })).concat([['off', 'Off']]);
+  }
+  var RD_FIELDS = [['wall', 'Background'], ['amb', 'Ambience'], ['ambVol', 'Ambience volume'], ['sound', 'Menu sounds'], ['fx', 'Transition'], ['entry', 'Home animation'], ['cards', 'Info cards']];
+  function rdName(k, v, room) {
+    var list = k === 'wall' ? wallOptions(room) : k === 'amb' ? ambOptions() : OPT[k];
+    var f = (list || []).filter(function (x) { return x[0] === v; })[0]; return f ? f[1] : v;
+  }
+  function rdSummary(room) {
+    var d = (data.roomDefaults || {})[room]; if (!d) return '<p class="hint" style="margin:12px 0 0">No default settings yet: the TV uses its own.</p>';
+    return '<p class="hint" style="margin:12px 0 0">' + RD_FIELDS.filter(function (f) { return d[f[0]]; }).map(function (f) { return esc(f[1]) + ': <b>' + esc(rdName(f[0], d[f[0]], room)) + '</b>'; }).join(' · ') + '</p>';
+  }
+  var rdRoom = null;
+  function openRoomDefaults(room) {
+    rdRoom = room; var d = (data.roomDefaults || {})[room] || {};
+    $('rddTitle').textContent = 'Default settings · ' + ROOMS[room].name;
+    $('rddFields').innerHTML = RD_FIELDS.map(function (f) {
+      var list = f[0] === 'wall' ? wallOptions(room) : f[0] === 'amb' ? ambOptions() : OPT[f[0]];
+      return '<label class="f">' + esc(f[1]) + '<select data-rd="' + f[0] + '"><option value="">Leave as the TV has it</option>' +
+        list.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (d[f[0]] === x[0] ? ' selected' : '') + '>' + esc(x[1]) + '</option>'; }).join('') + '</select></label>';
+    }).join('');
+    $('rddAll').checked = false; $('rddMsg').textContent = '';
+    $('rdd').showModal();
+  }
+  $('rddCancel').onclick = function () { $('rdd').close(); };
+  $('rddSave').onclick = function () {
+    var d = { updated: new Date().toISOString() };
+    Array.prototype.forEach.call(document.querySelectorAll('#rddFields select'), function (sel) { if (sel.value) d[sel.getAttribute('data-rd')] = sel.value; });
+    var all = $('rddAll').checked, room = rdRoom;
+    $('rddSave').disabled = true;
+    commitLatest(function (latest) {
+      latest.roomDefaults = latest.roomDefaults || {};
+      (all ? Object.keys(ROOMS) : [room]).forEach(function (r) {
+        var x = JSON.parse(JSON.stringify(d));
+        if (all && r !== room) { var keepWall = (latest.roomDefaults[r] || {}).wall; delete x.wall; if (keepWall) x.wall = keepWall; }
+        latest.roomDefaults[r] = x;
+      });
+    }, 'Room defaults: ' + (all ? 'every room' : ROOMS[room].name) + ' (Theme manager)').then(function (sha) {
+      $('rdd').close(); renderAll(); watch(sha, 'Default settings for ' + (all ? 'every room' : ROOMS[room].name));
+    }).catch(function (e) { $('rddMsg').textContent = 'Couldn\u2019t save: ' + e.message; load(); })
+      .then(function () { $('rddSave').disabled = false; });
+  };
+
   /* ---------- ambience sounds ---------- */
   function soundName(id) {
     if (id === 'rain') return 'Rain'; if (id === 'storm') return 'Storm'; if (id === 'off') return 'Silence';
@@ -990,7 +1065,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   };
 
   /* ---------- follow GitHub preparing the videos ---------- */
-  function banner(kind, html, spin) { $('sndStatus').innerHTML = $('status').innerHTML = '<div class="banner ' + kind + '">' + (spin ? '<span class="spin" aria-hidden="true"></span>' : '') + '<div class="grow">' + html + '</div></div>'; }
+  function banner(kind, html, spin) { $('roomStatus').innerHTML = $('sndStatus').innerHTML = $('status').innerHTML = '<div class="banner ' + kind + '">' + (spin ? '<span class="spin" aria-hidden="true"></span>' : '') + '<div class="grow">' + html + '</div></div>'; }
   function watch(sha, name, removed) {
     clearTimeout(pollTimer);
     var started = Date.now();

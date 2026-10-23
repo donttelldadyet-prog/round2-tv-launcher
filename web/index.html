@@ -29,6 +29,11 @@ html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 *:focus, *:focus-visible { outline: none; }   /* the TV browser draws its own box otherwise; the menu shows focus itself */
 * { -webkit-tap-highlight-color: transparent; }
 
+/* nothing shows until the menu is sized and coloured for this room (no flash on a cold start);
+   if the script ever failed, it shows anyway after 3 s */
+#stage { visibility: hidden; animation: r2show 0s linear 3s forwards; }
+@keyframes r2show { to { visibility: visible; } }
+.r2-ready #stage { visibility: visible; animation: none; }
 #stage { position: fixed; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden;
   background: var(--void); font-family: var(--f-ui); -webkit-font-smoothing: antialiased; }
 .layer { position: absolute; inset: 0; }
@@ -571,7 +576,25 @@ window.R2_TV = {
      - guest: anything a guest changes in Options. Kept only until the TV is switched off (or the app restarts). */
   function gstore(k, v) { try { if (v === undefined) return window.sessionStorage.getItem(k); if (v === null) window.sessionStorage.removeItem(k); else window.sessionStorage.setItem(k, v); } catch (e) {} return null; }
   var PREF_KEYS = { fx: 'r2.fx', entry: 'r2.entry', sound: 'r2.sound', amb: 'r2.amb', ambVol: 'r2.ambVol', cards: 'r2.cards' };
-  function readPref(n) { var g = gstore('g.' + PREF_KEYS[n]); return g !== null ? g : store(PREF_KEYS[n]); }
+  /* Room defaults from the Theme manager (Rooms › Default settings): used when this TV has no saved choice */
+  var ROOM_DEFS = {}, ROOM_DEF = null;
+  function readPref(n) {
+    var g = gstore('g.' + PREF_KEYS[n]); if (g !== null) return g;
+    var h = store(PREF_KEYS[n]); if (h !== null) return h;
+    return ROOM_DEF && ROOM_DEF[n] != null ? String(ROOM_DEF[n]) : null;
+  }
+  function unstore(k) { try { window.localStorage.removeItem(k); } catch (e) {} }
+  /* New defaults saved in the manager replace what staff last set on this TV (the newest change wins) */
+  function useRoomDefaults() {
+    ROOM_DEF = ROOM_DEFS[roomKey] || null;
+    var d = ROOM_DEF;
+    if (d && d.updated && d.updated !== store('r2.rdApplied.' + roomKey)) {
+      for (var n in PREF_KEYS) if (PREF_KEYS.hasOwnProperty(n) && d[n] != null) unstore(PREF_KEYS[n]);
+      if (d.wall) { unstore('r2.wall.' + roomKey); }
+      store('r2.rdApplied.' + roomKey, d.updated);
+    }
+    prefs = loadPrefs();
+  }
   function loadPrefs() {
     var vol = readPref('ambVol') || '5';
     vol = { low: '3', med: '5', high: '8' }[vol] || vol;                    /* older builds had Low / Medium / High */
@@ -1030,6 +1053,10 @@ window.R2_TV = {
   window.r2Themes = function (json) {
     var root; try { root = JSON.parse(json); THEMES = root.themes || []; SOUNDS_UP = root.sounds || []; } catch (e) { return; }
     if (ambStarted) setTimeout(function () { Amb.apply(); }, 0);
+    ROOM_DEFS = root.roomDefaults || {};
+    var before = JSON.stringify(prefs);
+    useRoomDefaults();
+    if (JSON.stringify(prefs) !== before) { applyCards(); if (ambStarted) Amb.apply(); }
     var st = root.staff || {};
     STAFF.pinHash = /^[0-9a-f]{64}$/.test(st.pinHash || '') ? st.pinHash : null;
     STAFF.pinLength = st.pinLength >= 4 && st.pinLength <= 8 ? st.pinLength | 0 : 0;
@@ -1058,7 +1085,7 @@ window.R2_TV = {
     var list = wallList(), i, g = gstore('g.wall.' + roomKey);
     if (g) for (i = 0; i < list.length; i++) if (list[i].id === g) return list[i];   /* a guest's pick, until the TV is switched off */
     var tk = takeoverWall(); if (tk) return tk;
-    var id = store('r2.wall.' + roomKey);
+    var id = store('r2.wall.' + roomKey) || (ROOM_DEF && ROOM_DEF.wall);
     for (i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return list[0];
   }
@@ -1632,6 +1659,7 @@ window.R2_TV = {
   /* ================= room ================= */
   function applyRoom(key) {
     roomKey = key; room = ROOMS[key];
+    useRoomDefaults();
     var r = document.documentElement.style;
     r.setProperty('--room', room.color); r.setProperty('--room-ink', room.ink);
     $('roomBadge').textContent = room.name.toUpperCase();
@@ -1703,6 +1731,9 @@ window.R2_TV = {
   fit(); tick(); setInterval(tick, 15000);
   setTimeout(fit, 400); setTimeout(fit, 1500);
   arrive(false);                         /* the Home animation also plays when the TV starts */
+  (window.requestAnimationFrame || setTimeout)(function () { (window.requestAnimationFrame || setTimeout)(function () {
+    fit(); document.documentElement.className += ' r2-ready';   /* sized and coloured: show it */
+  }); });
   var ambStarted = false;
   setTimeout(function () { Amb.apply(); ambStarted = true; }, 1800);
   setTimeout(function () { Sfx.prepare(); }, 2600);
