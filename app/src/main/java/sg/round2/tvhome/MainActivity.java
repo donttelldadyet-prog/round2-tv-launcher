@@ -257,7 +257,10 @@ public class MainActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus && web != null) { web.requestFocus(); web.invalidate(); }   // redraw after the screensaver or a popup
+        if (hasFocus && web != null) {
+            web.requestFocus(); web.invalidate();                                  // redraw after the screensaver or a popup
+            web.evaluateJavascript("window.r2Focus && window.r2Focus()", null);   // back from an app that never paused us
+        }
     }
 
     @Override

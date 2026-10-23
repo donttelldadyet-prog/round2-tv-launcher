@@ -1478,8 +1478,17 @@ window.R2_TV = {
     for (var i = 0; i < FX.length; i++) dropCls('go-' + FX[i].id);
     dropCls('entering'); dropCls('calm'); dropCls('enter-flicker'); dropCls('enter-crt'); dropCls('settle');
   }
+  var leavingSince = 0;
+  /* Came back without Android saying so (Sony's Netflix runs outside Android): unlock and show the menu again */
+  function unstick() {
+    if (!leaving) return;
+    console.log('[R2] back from an app without a resume: unlocking the menu');
+    arrive(false); Amb.resume();
+  }
+  window.r2Focus = function () { if (leaving && Date.now() - leavingSince > 1500) unstick(); };
   function dive(then, demo) {
     leaving = !demo;                       /* a preview from Options never locks the remote */
+    leavingSince = Date.now();
     clearAnim();
     Amb.duck();
     if (prefs.fx === 'off') { then(); return; }
@@ -1529,6 +1538,7 @@ window.R2_TV = {
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 23: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
   for (var dk = 0; dk < 10; dk++) { KEYS[48 + dk] = 'd' + dk; KEYS[96 + dk] = 'd' + dk; }   /* number buttons, for the staff PIN */
   function press(k) {
+    if (leaving && Date.now() - leavingSince > 2500) unstick();   /* the lock only guards against double presses, never longer */
     if (leaving) return;
     if (Sfx.wake() && !ambStarted) { ambStarted = true; Amb.apply(); }   /* in case the TV held audio until the first key */
     if (/entering|settle|enter-/.test($('stage').className)) { addCls('snap'); clearAnim(); void $('stage').offsetWidth; dropCls('snap'); }   /* a key press skips the intro */
