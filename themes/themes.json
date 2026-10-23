@@ -40,6 +40,16 @@
       "takeover": false,
       "cards": "low",
       "focus": "50% 35%"
+    },
+    {
+      "id": "starry-2026",
+      "name": "starry",
+      "source": "starry-2026-mvknnvn8.mp4",
+      "rooms": [
+        "kaeden"
+      ],
+      "takeover": false,
+      "cards": "low"
     }
   ]
 }
