@@ -586,11 +586,13 @@ window.R2_TV = {
   var AMBS = [{ id: 'rain', name: 'Rain' }, { id: 'storm', name: 'Storm' }, { id: 'off', name: 'Off' }];
   var VOLS = [{ id: 'low', name: 'Low', g: 0.16 }, { id: 'med', name: 'Medium', g: 0.3 }, { id: 'high', name: 'High', g: 0.5 }];
   var Amb = (function () {
-    var rainBuf = null, thunderBuf = null, src = null, gain = null, thunderTimer = null, playing = '';
+    var rainBuf = null, thunderBuf = null, src = null, gain = null, thunderTimer = null, playing = '', building = false;
     function vol() { for (var i = 0; i < VOLS.length; i++) if (VOLS[i].id === prefs.ambVol) return VOLS[i].g; return 0.3; }
-    /* Rendered once: a 6 s seamless rain loop (hiss + body + droplets), then only played back */
-    function renderRain(c) {
-      var sr = 22050, n = sr * 6, buf = c.createBuffer(1, n, sr), d = buf.getChannelData(0), i, lp = 0, br = 0, hp = 0;
+    /* Rendered once on a background thread: a 6 s seamless rain loop (hiss + body + droplets),
+       then only played back, so building it never costs the menu a frame */
+    var RAIN_SR = 22050;
+    function rainSamples(sr) {
+      var n = sr * 6, d = new Float32Array(n), i, lp = 0, br = 0, hp = 0;
       for (i = 0; i < n; i++) {
         var w = Math.random() * 2 - 1;
         lp += 0.55 * (w - lp);                  /* soft hiss */
@@ -598,20 +600,27 @@ window.R2_TV = {
         hp += 0.02 * (lp - hp);
         d[i] = (lp - hp) * 0.32 + br * 0.9;
       }
-      var drops = 6 * 140;                      /* ~140 droplets a second */
-      for (var k = 0; k < drops; k++) {
+      for (var k = 0; k < 6 * 140; k++) {       /* ~140 droplets a second */
         var at = (Math.random() * n) | 0, amp = Math.pow(Math.random(), 3) * 0.55, tau = sr * (0.0008 + Math.random() * 0.003);
         var tone = Math.random() < 0.08 ? (2200 + Math.random() * 3200) / sr * 2 * Math.PI : 0;
-        for (var j = 0; j < tau * 6 && at + j < n; j++) {
-          var e = Math.exp(-j / tau);
-          d[at + j] += amp * e * (tone ? Math.sin(j * tone) : (Math.random() * 2 - 1));
-        }
+        for (var j = 0; j < tau * 6 && at + j < n; j++) d[at + j] += amp * Math.exp(-j / tau) * (tone ? Math.sin(j * tone) : (Math.random() * 2 - 1));
       }
       var xf = (sr * 0.4) | 0;                  /* blend the end into the start so the loop has no seam */
       for (i = 0; i < xf; i++) { var t = i / xf; d[i] = d[i] * t + d[n - xf + i] * (1 - t); }
       var peak = 0; for (i = 0; i < n - xf; i++) peak = Math.max(peak, Math.abs(d[i]));
       for (i = 0; i < n; i++) d[i] = d[i] / (peak || 1) * 0.9;
-      return buf;
+      return d;
+    }
+    function buildRain(c, done) {
+      function fill(data) { var b = c.createBuffer(1, data.length, RAIN_SR); b.getChannelData(0).set(data); done(b); }
+      try {
+        var code = 'var rainSamples=' + rainSamples.toString() + ';onmessage=function(e){var d=rainSamples(e.data);postMessage(d,[d.buffer]);};';
+        var url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+        var wk = new Worker(url);
+        wk.onmessage = function (e) { fill(e.data); wk.terminate(); URL.revokeObjectURL(url); };
+        wk.onerror = function () { wk.terminate(); fill(rainSamples(RAIN_SR)); };
+        wk.postMessage(RAIN_SR);
+      } catch (e) { fill(rainSamples(RAIN_SR)); }
     }
     function renderThunder(c) {
       var sr = 22050, n = sr * 7, buf = c.createBuffer(1, n, sr), d = buf.getChannelData(0), br = 0, lp = 0;
@@ -643,7 +652,10 @@ window.R2_TV = {
       apply: function () {
         if (prefs.amb === 'off') { stop(); return; }
         var c = Sfx.wake(); if (!c) return;
-        if (!rainBuf) rainBuf = renderRain(c);
+        if (!rainBuf) {
+          if (!building) { building = true; buildRain(c, function (b) { rainBuf = b; building = false; Amb.apply(); }); }
+          return;
+        }
         if (!thunderBuf) thunderBuf = renderThunder(c);
         if (!gain) {
           gain = c.createGain(); gain.gain.value = 0.0001;
