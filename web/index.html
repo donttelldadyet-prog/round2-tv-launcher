@@ -23,6 +23,9 @@
 }
 html, body { height: 100%; margin: 0; background: var(--void); color: var(--ink); overflow: hidden; }
 [hidden] { display: none !important; }
+/* inside the app the background video plays natively behind this transparent page */
+html.native, html.native body, html.native #stage { background: transparent; }
+html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 *:focus, *:focus-visible { outline: none; }   /* the TV browser draws its own box otherwise; the menu shows focus itself */
 * { -webkit-tap-highlight-color: transparent; }
 
@@ -707,6 +710,16 @@ window.R2_TV = {
     }
   }
 
+  /* Native video (inside the app) — hardware decoding, no stutter */
+  var NATIVE = /Round2Home\/[2-9]/.test(navigator.userAgent) || !!(window.R2Android && window.R2Android.bgPlay);
+  if (NATIVE) document.documentElement.className += ' native';
+  var focusPt = [0.5, 0.5];
+  function bridge(fn, tries) {   /* the app's bridge can arrive a moment after the page starts */
+    if (window.R2Android && window.R2Android.bgPlay) { try { fn(window.R2Android); } catch (e) {} }
+    else if ((tries || 0) < 20) setTimeout(function () { bridge(fn, (tries || 0) + 1); }, 150);
+  }
+  function nZoom(from, to, ms, easeIn) { if (NATIVE && window.R2Android && window.R2Android.bgZoom) { try { window.R2Android.bgZoom(from, to, ms, focusPt[0], focusPt[1], !!easeIn); } catch (e) {} } }
+
   /* Two background slots cross-fade, so changing background never flashes black */
   var front = 'bgA', shownWall = null;
   function showWall(w) {
@@ -716,6 +729,11 @@ window.R2_TV = {
     $('world').style.transformOrigin = w.focus || '50% 50%';
     var fp = (w.focus || '50% 40%').split(' ');
     $('stage').style.setProperty('--fx', fp[0]); $('stage').style.setProperty('--fy', fp[1]);
+    focusPt = [parseFloat(fp[0]) / 100, parseFloat(fp[1]) / 100];
+    if (NATIVE) {
+      if (w.video && w.video.indexOf('media/') === 0) { var path = w.video; bridge(function (b) { b.bgPlay(path); b.bgZoom(1, 1, 0, focusPt[0], focusPt[1], false); }); return; }
+      bridge(function (b) { b.bgStop(); });
+    }
     var back = front === 'bgA' ? 'bgB' : 'bgA', slot = $(back), old = $(front);
     if (!w.video && !w.image) { $(front).style.opacity = '0'; return; }
     var el;
@@ -814,6 +832,7 @@ window.R2_TV = {
     clearAnim();
     if (prefs.fx === 'off') { then(); return; }
     addCls(prefs.fx === 'dive' ? 'go-dive' : 'go-warp');
+    if (prefs.fx === 'dive') nZoom(-1, 1.35, 340, true); else nZoom(-1, 1.55, 400, true);
     setTimeout(then, prefs.fx === 'dive' ? 260 : 300);
   }
   /* Returning (Home pressed, or an app closed): the Home animation, or a quick settle */
@@ -822,9 +841,11 @@ window.R2_TV = {
     leaving = false;
     addCls('snap'); clearAnim(); void st.offsetWidth; dropCls('snap');
     if (prefs.entry || force) {
+      nZoom(1.14, 1, 1200, false);
       addCls('entering');
       entryTimer = setTimeout(function () { dropCls('entering'); }, 1700);
     } else {
+      nZoom(1.08, 1, 320, false);
       addCls('settle');
       entryTimer = setTimeout(function () { dropCls('settle'); }, 400);
     }

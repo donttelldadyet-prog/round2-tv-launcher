@@ -15,6 +15,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -38,6 +40,7 @@ import java.util.Set;
 public class MainActivity extends Activity {
 
     private WebView web;
+    private NativeBackground bg;
     private String pendingRoom;
     private boolean pageReady;
 
@@ -45,14 +48,15 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         web = new WebView(this);
-        web.setBackgroundColor(0xFF06050A);
+        web.setBackgroundColor(0x00000000);   // transparent: the native background video shows through
+        bg = new NativeBackground(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);   // muted background video
         s.setAllowFileAccess(false);
         s.setTextZoom(100);
-        s.setUserAgentString(s.getUserAgentString() + " Round2Home/1");   // lets the menu know it runs in the app
+        s.setUserAgentString(s.getUserAgentString() + " Round2Home/2");   // lets the menu know it runs in the app
         web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.setVerticalScrollBarEnabled(false);
@@ -76,7 +80,11 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(this), "R2Android");
         web.setFocusable(true);
         web.setFocusableInTouchMode(true);
-        setContentView(web);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(0xFF06050A);
+        root.addView(bg.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
         pendingRoom = getIntent().getStringExtra("room");
         web.loadUrl("file:///android_asset/index.html");
         web.requestFocus(View.FOCUS_DOWN);
@@ -101,6 +109,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (bg != null) bg.resume();
         if (web != null) {
             web.onResume();
             web.requestFocus();
@@ -110,6 +119,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        if (bg != null) bg.pause();
         if (web != null) web.onPause();   // stops the background video while an app is open
         super.onPause();
     }
@@ -127,9 +137,27 @@ public class MainActivity extends Activity {
 
     /** Methods the web menu can call as window.R2Android.* */
     static final class Bridge {
-        private final Activity act;
+        private final MainActivity act;
 
-        Bridge(Activity act) { this.act = act; }
+        Bridge(MainActivity act) { this.act = act; }
+
+        /* ---- native background video ---- */
+        @JavascriptInterface
+        public String bgPlay(final String assetPath) {
+            if (assetPath == null || !assetPath.startsWith("media/")) return "no";
+            act.runOnUiThread(new Runnable() { @Override public void run() { act.bg.play(assetPath); } });
+            return "ok";
+        }
+
+        @JavascriptInterface
+        public void bgStop() {
+            act.runOnUiThread(new Runnable() { @Override public void run() { act.bg.stop(); } });
+        }
+
+        @JavascriptInterface
+        public void bgZoom(final float from, final float to, final int ms, final float px, final float py, final boolean easeIn) {
+            act.runOnUiThread(new Runnable() { @Override public void run() { act.bg.zoom(from, to, ms, px, py, easeIn); } });
+        }
 
         @JavascriptInterface
         public String launch(String pkg) {
