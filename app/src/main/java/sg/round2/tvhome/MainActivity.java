@@ -53,6 +53,8 @@ public class MainActivity extends Activity {
     private NativeBackground bg;
     private String pendingRoom;
     private boolean pageReady;
+    private long stoppedAt;   // when the screen was last hidden (an app, the screensaver, standby)
+    private static final long RELOAD_AFTER_MS = 10 * 60 * 1000L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,6 +93,14 @@ public class MainActivity extends Activity {
                     return new WebResourceResponse("text/plain", null, new ByteArrayInputStream(new byte[0]));
                 }
                 return null;
+            }
+
+            /* If the TV reclaims the menu's renderer (e.g. while the screensaver runs), rebuild the
+               screen instead of showing a half-drawn page */
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail d) {
+                recreate();
+                return true;
             }
 
             @Override
@@ -173,8 +183,30 @@ public class MainActivity extends Activity {
         if (web != null) {
             web.onResume();
             web.requestFocus();
-            web.evaluateJavascript("window.r2Resume && window.r2Resume()", null);
+            long away = stoppedAt > 0 ? System.currentTimeMillis() - stoppedAt : 0;
+            stoppedAt = 0;
+            if (away > RELOAD_AFTER_MS || !pageReady) {
+                // Back after a long time (screensaver, standby, a long film): start the menu fresh
+                pageReady = false;
+                web.reload();
+            } else {
+                web.evaluateJavascript("window.r2Resume && window.r2Resume()", null);
+            }
+            web.invalidate();
+            web.postDelayed(new Runnable() { @Override public void run() { if (web != null) web.invalidate(); } }, 400);
         }
+    }
+
+    @Override
+    protected void onStop() {
+        stoppedAt = System.currentTimeMillis();
+        super.onStop();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && web != null) { web.requestFocus(); web.invalidate(); }   // redraw after the screensaver or a popup
     }
 
     @Override

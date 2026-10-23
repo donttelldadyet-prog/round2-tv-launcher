@@ -1094,8 +1094,17 @@ window.R2_TV = {
   /* the Android app calls these: Back on the remote, a room set from the computer, and returning here */
   window.r2Back = function () { press('back'); };
   window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
-  window.r2Pause = function () { Amb.pause(); };   /* the app calls this when another app opens */
+  window.r2Pause = function () { Amb.pause(); clearAnim(); };   /* the app calls this when another app, the screensaver or standby takes over */
+  var guardTimer;
+  function repairScreen() {
+    /* safety net: whatever interrupted the animation, end with the whole menu showing */
+    if (leaving) return;                     /* a guest already picked an app: don't interrupt that */
+    clearAnim();
+    if (mode === 'menu' && $('items').children.length !== items.length) renderMenu();
+    var st = $('stage'); st.style.opacity = '0.999'; void st.offsetWidth; st.style.opacity = '';   /* force a full repaint */
+  }
   window.r2Resume = function () {
+    clearTimeout(guardTimer); guardTimer = setTimeout(repairScreen, 2200);
     arrive(false);
     Amb.resume();
     if (mode === 'grid') closeGrid();
