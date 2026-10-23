@@ -59,6 +59,16 @@
       ],
       "takeover": false,
       "loop": "blend"
+    },
+    {
+      "id": "black-hole-2026",
+      "name": "Black Hole",
+      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/2ced2261-6fdb-4436-a368-f56c2feff714_seed59674414_1792764457552_60983b4c.mp4",
+      "rooms": [
+        "scarlett"
+      ],
+      "takeover": false,
+      "loop": "blend"
     }
   ]
 }
