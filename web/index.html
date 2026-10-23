@@ -895,7 +895,11 @@ window.R2_TV = {
       { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + (isStaff() ? '' : ' \u00B7 STAFF') + ' \u203A' },
       { act: 'tv',    label: 'TV settings',    hint: (isStaff() ? 'SYSTEM' : 'STAFF') + ' \u203A' },
       { act: 'staff', label: isStaff() ? 'Staff mode on' : 'Staff mode', hint: isStaff() ? 'CHANGES ARE SAVED \u00B7 OK TO LOCK' : 'PIN \u203A' }
-    ].concat(isStaff() ? [{ act: 'about', label: 'About this TV', hint: tvInfo() }] : []);
+    ].concat(isStaff() ? [
+      { act: 'update', label: 'Update app', hint: updHint() },
+      { act: 'themesNow', label: 'Check for new themes', hint: 'NOW \u203A' },
+      { act: 'about', label: 'About this TV', hint: tvInfo() }
+    ] : []);
   }
   var pin = '', pinDigit = 0, pinThen = null, pinFails = 0, pinBlockUntil = 0;
   function askPin(then) {
@@ -964,6 +968,35 @@ window.R2_TV = {
     for (i = 0; i < 8; i++) for (j = 3; j + 1; j--) { var bb = (hash[i] >> (j * 8)) & 255; result += ((bb < 16) ? 0 : '') + bb.toString(16); }
     return result;
   }
+  /* Update now: the app checks GitHub, downloads the new version and opens Android's Install screen */
+  var upd = { state: 'idle' };
+  function updHint() {
+    var st = upd.state;
+    if (st === 'checking') return 'CHECKING\u2026';
+    if (st === 'available') return 'INSTALL V' + upd.latest + ' \u203A';
+    if (st === 'downloading') return 'DOWNLOADING ' + (upd.pct || 0) + '%';
+    if (st === 'installing') return 'PRESS INSTALL';
+    if (st === 'latest') return 'UP TO DATE \u00B7 V' + upd.current;
+    return 'CHECK \u203A';
+  }
+  window.r2Update = function (o) {
+    upd = o || { state: 'idle' };
+    var msg = { latest: 'Round2 Home is up to date (v' + upd.current + ').',
+      available: 'Version ' + upd.latest + ' is ready. Press OK on Update app to install it.',
+      installing: 'On the next screen, press Install. The menu restarts by itself.',
+      permission: 'First allow Round2 Home to install apps on the screen that opened, then come back and press Update app again.',
+      failed: 'The update couldn\u2019t download. Check the Wi-Fi and try again.',
+      offline: 'Couldn\u2019t reach GitHub. Check the Wi-Fi and try again.' }[upd.state];
+    if (msg) toast(msg);
+    if (mode === 'settings') { var keep = setSel; openSettings(keep); }
+  };
+  function updateKey() {
+    var b = window.R2Android;
+    if (!b || !b.updateCheck) { toast('On the TV, this checks GitHub for a newer Round2 Home.'); return; }
+    if (upd.state === 'available') { upd.state = 'downloading'; upd.pct = 0; b.updateInstall(); }
+    else if (upd.state !== 'downloading' && upd.state !== 'checking') { upd = { state: 'checking' }; b.updateCheck(); }
+    openSettings(setSel);
+  }
   function lockedBg() { return !STAFF.guestBackground && !isStaff(); }
   function tvInfo() {
     var ip = '', v = '';
@@ -1031,6 +1064,10 @@ window.R2_TV = {
       Sfx.play('ok'); askPin(function () { if (act === 'walls') openWalls(); else if (act === 'room') openRooms(); else if (act === 'tv') launch({ name: 'TV settings', settings: true }); else openSettings(setSel); });
     } else if (k === 'ok' && act === 'staff') {
       lockStaff(); Sfx.play('back'); openSettings(setSel); toast('Staff mode off. Changes are for this session only.');
+    } else if (k === 'ok' && act === 'update') {
+      Sfx.play('ok'); updateKey();
+    } else if (k === 'ok' && act === 'themesNow') {
+      Sfx.play('ok'); window.r2SyncThemes(true);
     } else if (k === 'ok' && act === 'about') {
       toast(room.name + ' \u00B7 ' + tvInfo());
     } else if (k === 'left' || k === 'right') {

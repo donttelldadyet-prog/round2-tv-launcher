@@ -381,6 +381,12 @@ function Cmd-Launcher([string]$repo) {
   $acts = Q 'cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME'
   $comp = @([regex]::Matches($acts, '[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+') | ForEach-Object { $_.Value } | Where-Object { $_ -like "$pkg/*" }) | Select-Object -First 1
   if (-not $comp) { Die "$pkg doesn't register as a home-screen app" }
+  # 'Update now' on the TV installs new versions itself: allow Round2 Home to install apps (undo sets it back)
+  $ia = Q "appops get $pkg REQUEST_INSTALL_PACKAGES"
+  if ($ia -notmatch 'allow') {
+    Sh "appops set $pkg REQUEST_INSTALL_PACKAGES allow"
+    Add-Undo "appops set $pkg REQUEST_INSTALL_PACKAGES default"
+  }
   Sh "cmd package set-home-activity --user 0 $comp"
   if ($orig) { Add-Undo "cmd package set-home-activity --user 0 $orig" }
   Say 'Pressing Home to test the new home screen'
@@ -402,6 +408,12 @@ function Cmd-HomeGuard {
       Add-Undo "appops set sg.round2.tvhome APP_AUTO_START $($Matches[1])"
       Sh 'appops set sg.round2.tvhome APP_AUTO_START allow'
     }
+  }
+  # lets the app switch its Home-button helper off and on by itself after an 'Update now' (some TVs stop it after updates)
+  $gr = Q 'dumpsys package sg.round2.tvhome'
+  if ($gr -notmatch 'WRITE_SECURE_SETTINGS: granted=true') {
+    Sh 'pm grant sg.round2.tvhome android.permission.WRITE_SECURE_SETTINGS'
+    Add-Undo 'pm revoke sg.round2.tvhome android.permission.WRITE_SECURE_SETTINGS'
   }
   $cur = Q 'settings get secure enabled_accessibility_services'
   $on = Q 'settings get secure accessibility_enabled'

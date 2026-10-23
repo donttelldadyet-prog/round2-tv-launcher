@@ -148,7 +148,7 @@ final class ThemeSync {
         try { return readBytes(c.getInputStream()); } catch (Exception e) { return null; } finally { c.disconnect(); }
     }
 
-    private static HttpURLConnection open(String url) {
+    static HttpURLConnection open(String url) {
         try {
             for (int hop = 0; hop < 6; hop++) {
                 HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();

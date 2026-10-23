@@ -52,6 +52,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private NativeBackground bg;
     private ThemeSync themes;
+    private Updater updater;
     private String pendingRoom;
     private boolean pageReady;
     private long stoppedAt;   // when the screen was last hidden (an app, the screensaver, standby)
@@ -71,6 +72,7 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(0x00000000);   // transparent: the native background video shows through
         bg = new NativeBackground(this);
         themes = new ThemeSync(this);
+        updater = new Updater(this);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -294,6 +296,19 @@ public class MainActivity extends Activity {
         public String version() {
             try { return act.getPackageManager().getPackageInfo(act.getPackageName(), 0).versionName; } catch (Exception e) { return ""; }
         }
+
+        /* ---- Update now (staff): newest Round2 Home from GitHub ---- */
+        private void sendUpdate(final org.json.JSONObject st) {
+            act.runOnUiThread(new Runnable() { @Override public void run() {
+                if (act.web != null) act.web.evaluateJavascript("window.r2Update && window.r2Update(" + st.toString() + ")", null);
+            } });
+        }
+
+        @JavascriptInterface
+        public void updateCheck() { act.updater.check(new Updater.Report() { @Override public void report(org.json.JSONObject o) { sendUpdate(o); } }); }
+
+        @JavascriptInterface
+        public void updateInstall() { act.updater.install(new Updater.Report() { @Override public void report(org.json.JSONObject o) { sendUpdate(o); } }); }
 
         /* ---- event backgrounds pushed from GitHub ---- */
         @JavascriptInterface
