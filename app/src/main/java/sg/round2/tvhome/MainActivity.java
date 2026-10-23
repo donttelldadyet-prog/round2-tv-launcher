@@ -57,6 +57,13 @@ public class MainActivity extends Activity {
     private long stoppedAt;   // when the screen was last hidden (an app, the screensaver, standby)
     private static final long RELOAD_AFTER_MS = 10 * 60 * 1000L;
 
+    /* TV switched off (standby): guests' changes are forgotten, the house settings come back */
+    private final android.content.BroadcastReceiver screenOff = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            if (web != null) web.evaluateJavascript("window.r2Reset && window.r2Reset()", null);
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -129,6 +136,7 @@ public class MainActivity extends Activity {
         root.addView(bg.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
+        registerReceiver(screenOff, new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF));
         pendingRoom = getIntent().getStringExtra("room");
         web.loadUrl("file:///android_asset/index.html");
         web.requestFocus(View.FOCUS_DOWN);
@@ -212,6 +220,12 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onDestroy() {
+        try { unregisterReceiver(screenOff); } catch (Exception ignored) { }
+        super.onDestroy();
+    }
+
+    @Override
     protected void onStop() {
         stoppedAt = System.currentTimeMillis();
         super.onStop();
@@ -261,6 +275,24 @@ public class MainActivity extends Activity {
             } else return "no";
             act.runOnUiThread(new Runnable() { @Override public void run() { act.bg.play(path); } });
             return "ok";
+        }
+
+        /* ---- About this TV (staff): its address on the shop network, for the PC toolkit ---- */
+        @JavascriptInterface
+        public String ip() {
+            try {
+                for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                    if (!ni.isUp() || ni.isLoopback()) continue;
+                    for (java.net.InetAddress a : java.util.Collections.list(ni.getInetAddresses()))
+                        if (a instanceof java.net.Inet4Address && a.isSiteLocalAddress()) return a.getHostAddress();
+                }
+            } catch (Exception ignored) { }
+            return "";
+        }
+
+        @JavascriptInterface
+        public String version() {
+            try { return act.getPackageManager().getPackageInfo(act.getPackageName(), 0).versionName; } catch (Exception e) { return ""; }
         }
 
         /* ---- event backgrounds pushed from GitHub ---- */

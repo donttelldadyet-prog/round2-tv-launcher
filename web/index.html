@@ -79,10 +79,19 @@ header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; 
 .card-low .hl { width: 460px; }
 #setPanel .mi { clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); }
 #setPanel .mi.on { background: var(--room); }
+#setList { max-height: 604px; overflow: hidden; }          /* 8 rows; the list scrolls with the selection */
+.pinbox { margin-top: 6px; }
+.pinbox[hidden] { display: none; }
+.pinbox .digits { display: flex; gap: 16px; margin: 22px 0 18px; }
+.pinbox .digits span { width: 92px; height: 112px; display: grid; place-items: center; font-size: 60px; font-weight: 700; background: var(--panel); border: 2px solid rgba(244,241,251,.2); }
+.pinbox .digits span.cur { border-color: var(--room); box-shadow: 0 0 0 2px var(--room); }
+.pinbox p { margin: 0; font-size: 20px; line-height: 1.45; color: #d6d0e3; max-width: 30ch; }
+.pinbox.bad .digits { animation: shake .36s linear; }
+@keyframes shake { 20%, 60% { transform: translateX(-12px); } 40%, 80% { transform: translateX(12px); } }
 /* easter egg: a quiet signature under Options; press Up three times on the first row to light it */
 .sig { margin-top: 30px; padding-left: 4px; font: 500 15px/1 var(--f-ui); letter-spacing: .2em; color: #fff; opacity: .22; transition: opacity .3s linear, color .3s linear, text-shadow .3s linear; }
 .sig.lit { opacity: 1; color: var(--room); text-shadow: 0 0 14px var(--room); }
-.picking .sig { display: none; }
+.picking .sig, .pinning .sig { display: none; }
 .mi svg { flex: none; opacity: 0; }
 .mi .label { flex: 1; font-size: 34px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mi .hint { font-family: var(--f-pix); font-size: 10px; letter-spacing: .1em; opacity: .45; white-space: nowrap; }
@@ -296,6 +305,10 @@ footer .keys { display: flex; gap: 30px; }
       <div class="divider" aria-hidden="true"><span></span><i></i><span></span></div>
       <div class="list" id="setList"></div>
       <div class="wallview" id="wallView" hidden><div class="wallrows" id="wallRows"></div></div>
+      <div class="pinbox" id="pinBox" hidden>
+        <div class="digits" id="pinDigits"><span></span><span></span><span></span><span></span></div>
+        <p id="pinMsg">Type the staff PIN with the number buttons, or use &#9650;&#9660; to pick each number and &#9654; for the next.</p>
+      </div>
       <div class="sig" id="sig">MADE BY @MAKINGBROADWAY</div>
     </nav>
 
@@ -405,7 +418,7 @@ window.R2_TV = {
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
     max:     { name: 'HBO Max',     android: 'com.wbd.stream' },
-    airplay: { name: 'AirPlay',     android: 'com.phairplay.googletv' }
+    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'] }
   };
   var SAMPLE_MORE = [
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
@@ -496,14 +509,25 @@ window.R2_TV = {
     { id: 'click',  name: 'Click' },
     { id: 'off',    name: 'Off' }
   ];
-  var prefs = {
-    fx: store('r2.fx') || 'warp',
-    entry: store('r2.entry') !== 'off',
-    sound: store('r2.sound') || 'neon',
-    amb: store('r2.amb') || 'rain',
-    ambVol: store('r2.ambVol') || 'med',
-    cards: store('r2.cards') || 'auto'
-  };
+  /* Two layers of settings:
+     - house: saved on the TV (staff, with the PIN). What the TV shows every time it's switched on.
+     - guest: anything a guest changes in Options. Kept only until the TV is switched off (or the app restarts). */
+  function gstore(k, v) { try { if (v === undefined) return window.sessionStorage.getItem(k); if (v === null) window.sessionStorage.removeItem(k); else window.sessionStorage.setItem(k, v); } catch (e) {} return null; }
+  var PREF_KEYS = { fx: 'r2.fx', entry: 'r2.entry', sound: 'r2.sound', amb: 'r2.amb', ambVol: 'r2.ambVol', cards: 'r2.cards' };
+  function readPref(n) { var g = gstore('g.' + PREF_KEYS[n]); return g !== null ? g : store(PREF_KEYS[n]); }
+  function loadPrefs() {
+    return { fx: readPref('fx') || 'warp', entry: readPref('entry') !== 'off', sound: readPref('sound') || 'neon',
+      amb: readPref('amb') || 'rain', ambVol: readPref('ambVol') || 'med', cards: readPref('cards') || 'auto' };
+  }
+  var prefs = loadPrefs();
+  function savePref(n, v) {
+    if (isStaff()) { store(PREF_KEYS[n], v); gstore('g.' + PREF_KEYS[n], null); }
+    else gstore('g.' + PREF_KEYS[n], v);
+  }
+  /* Staff: unlocked with the PIN (set in the Theme manager › Settings, default 0000), locks again on leaving Options */
+  var STAFF = { pinHash: null, guestBackground: true }, staffUntil = 0;
+  function isStaff() { return Date.now() < staffUntil; }
+  function lockStaff() { staffUntil = 0; }
   function nameOf(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i].name; return list[0].name; }
   function cycle(list, id, dir) {
     var i = 0; for (var j = 0; j < list.length; j++) if (list[j].id === id) i = j;
@@ -721,7 +745,7 @@ window.R2_TV = {
   function buildItems() {
     /* no Continue / last-played: the next group must never see the previous group's session */
     items = [{ key: 'inputs', label: 'Inputs', hint: 'HDMI' }];
-    if (Device.installed(APPS.airplay.android)) items.push(mk('airplay', 'MIRROR'));
+    if (APPS.airplay.android.some(function (pk) { return Device.installed(pk); })) items.push(mk('airplay', 'MIRROR'));
     items.push(mk('youtube'), mk('netflix'), mk('prime'));
     if (room.t !== 'n') items.push(mk('max'));
     items.push({ key: 'more', label: 'More apps', hint: 'ALL' });
@@ -750,7 +774,7 @@ window.R2_TV = {
       body = 'Disney+, Spotify, Twitch and every other app on this TV.';
     } else if (it.key === 'options') {
       tag = 'SETTINGS';
-      body = 'Pick this TV\'s background, or open the TV\'s own settings.';
+      body = 'Change the background, sounds and more for your session. Everything goes back to normal when the TV is switched off.';
       rows = [['BACKGROUND', currentWall().name]];
     } else if (it.key === 'netflix' || it.key === 'prime') {
       tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
@@ -824,7 +848,8 @@ window.R2_TV = {
     return null;
   }
   window.r2Themes = function (json) {
-    try { THEMES = JSON.parse(json).themes || []; } catch (e) { return; }
+    var root; try { root = JSON.parse(json); THEMES = root.themes || []; } catch (e) { return; }
+    if (root.staff) { STAFF.pinHash = /^[0-9a-f]{64}$/.test(root.staff.pinHash || '') ? root.staff.pinHash : null; STAFF.guestBackground = root.staff.guestBackground !== false; }
     var w = currentWall();
     if (mode !== 'walls' && (!shownWall || shownWall.id !== w.id)) showWall(w);   /* a new event starts, or one ended */
   };
@@ -843,33 +868,109 @@ window.R2_TV = {
     return out;
   }
   function currentWall() {
+    var list = wallList(), i, g = gstore('g.wall.' + roomKey);
+    if (g) for (i = 0; i < list.length; i++) if (list[i].id === g) return list[i];   /* a guest's pick, until the TV is switched off */
     var tk = takeoverWall(); if (tk) return tk;
-    var list = wallList(), id = store('r2.wall.' + roomKey);
-    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    var id = store('r2.wall.' + roomKey);
+    for (i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
     return list[0];
   }
 
   function setRows() {
     return [
-      { act: 'walls', label: 'Background',     hint: currentWall().name.toUpperCase() + ' \u203A' },
+      { act: 'walls', label: 'Background',     hint: currentWall().name.toUpperCase() + (lockedBg() ? ' \u00B7 STAFF' : '') + ' \u203A' },
       { act: 'cards', label: 'Info cards',     hint: '\u2039 ' + nameOf(CARDS, prefs.cards).toUpperCase() + ' \u203A' },
       { act: 'fx',    label: 'Transition',     hint: '\u2039 ' + nameOf(FX, prefs.fx).toUpperCase() + ' \u203A' },
       { act: 'entry', label: 'Home animation', hint: '\u2039 ' + (prefs.entry ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'sound', label: 'Menu sounds',    hint: '\u2039 ' + nameOf(SOUNDS, prefs.sound).toUpperCase() + ' \u203A' },
       { act: 'amb',   label: 'Ambience',       hint: '\u2039 ' + nameOf(AMBS, prefs.amb).toUpperCase() + ' \u203A' },
       { act: 'ambVol', label: 'Ambience volume', hint: '\u2039 ' + nameOf(VOLS, prefs.ambVol).toUpperCase() + ' \u203A' },
-      { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + ' \u203A' },
-      { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' }
-    ];
+      { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + (isStaff() ? '' : ' \u00B7 STAFF') + ' \u203A' },
+      { act: 'tv',    label: 'TV settings',    hint: (isStaff() ? 'SYSTEM' : 'STAFF') + ' \u203A' },
+      { act: 'staff', label: isStaff() ? 'Staff mode on' : 'Staff mode', hint: isStaff() ? 'CHANGES ARE SAVED \u00B7 OK TO LOCK' : 'PIN \u203A' }
+    ].concat(isStaff() ? [{ act: 'about', label: 'About this TV', hint: tvInfo() }] : []);
   }
+  var pin = '', pinDigit = 0, pinThen = null, pinFails = 0, pinBlockUntil = 0;
+  function askPin(then) {
+    pinThen = then; pin = ''; pinDigit = 0; mode = 'pin';
+    $('setTitle').textContent = 'STAFF PIN'; $('setCount').textContent = '';
+    $('setList').hidden = true; $('pinBox').hidden = false; addCls('pinning');
+    $('pinMsg').textContent = Date.now() < pinBlockUntil ? 'Too many tries. Wait a minute, then try again.' :
+      'Type the staff PIN with the number buttons, or use \u25B2\u25BC to pick each number and \u25B6 for the next.';
+    drawPin();
+    keys('[0-9] TYPE', '[&#9650;&#9660;&#9654;] PICK', '[BACK] CANCEL');
+  }
+  function drawPin() {
+    var sp = $('pinDigits').children;
+    for (var i = 0; i < 4; i++) {
+      sp[i].className = i === pin.length ? 'cur' : '';
+      sp[i].textContent = i < pin.length ? '\u25CF' : (i === pin.length && pinDigit >= 0 && pinTouched ? String(pinDigit) : '');
+    }
+  }
+  var pinTouched = false;
+  function pinKey(k) {
+    if (k === 'back') { Sfx.play('back'); $('setList').hidden = false; openSettings(setSel); return; }
+    if (Date.now() < pinBlockUntil) { Sfx.play('back'); return; }
+    if (/^d\d$/.test(k)) { pin += k.charAt(1); pinTouched = false; pinDigit = 0; Sfx.play('move'); }
+    else if (k === 'up' || k === 'down') { pinDigit = pinTouched ? (pinDigit + (k === 'up' ? 1 : 9)) % 10 : 0; pinTouched = true; Sfx.play('move'); }
+    else if ((k === 'right' || k === 'ok') && pinTouched) { pin += String(pinDigit); pinTouched = false; pinDigit = 0; Sfx.play('move'); }
+    else if (k === 'left' && pin.length) { pin = pin.slice(0, -1); pinTouched = false; Sfx.play('back'); }
+    drawPin();
+    if (pin.length < 4) return;
+    var want = STAFF.pinHash || sha256('round2:0000');
+    if (sha256('round2:' + pin) === want) {
+      pinFails = 0; staffUntil = Date.now() + 10 * 60 * 1000; Sfx.play('ok');
+      $('setList').hidden = false; $('pinBox').hidden = true; dropCls('pinning'); mode = 'settings';
+      toast('Staff mode on. Changes are now saved as ' + room.name + '\u2019s defaults.');
+      var f = pinThen; pinThen = null; f && f();
+    } else {
+      pinFails++; if (pinFails >= 5) { pinFails = 0; pinBlockUntil = Date.now() + 60 * 1000; }
+      Sfx.play('back'); pin = ''; var b = $('pinBox'); b.className = 'pinbox'; void b.offsetWidth; b.className = 'pinbox bad';
+      $('pinMsg').textContent = Date.now() < pinBlockUntil ? 'Too many tries. Wait a minute, then try again.' : 'That PIN isn\u2019t right. Try again.';
+      drawPin();
+    }
+  }
+  /* SHA-256 (hex) for the staff PIN: the TV only ever stores and compares the hash */
+  function sha256(ascii) {
+    function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
+    var mp = Math.pow, maxWord = mp(2, 32), result = '', words = [], bitLen = ascii.length * 8, hash = [], kk = [], pc = 0, comp = {}, i, j;
+    for (var cand = 2; pc < 64; cand++) {
+      if (!comp[cand]) { for (i = 0; i < 313; i += cand) comp[i] = cand; hash[pc] = (mp(cand, .5) * maxWord) | 0; kk[pc++] = (mp(cand, 1 / 3) * maxWord) | 0; }
+    }
+    ascii += '\x80';
+    while (ascii.length % 64 - 56) ascii += '\x00';
+    for (i = 0; i < ascii.length; i++) { j = ascii.charCodeAt(i); if (j >> 8) return ''; words[i >> 2] |= j << ((3 - i) % 4) * 8; }
+    words[words.length] = ((bitLen / maxWord) | 0); words[words.length] = bitLen;
+    for (j = 0; j < words.length;) {
+      var w = words.slice(j, j += 16), old = hash; hash = hash.slice(0, 8);
+      for (i = 0; i < 64; i++) {
+        var w15 = w[i - 15], w2 = w[i - 2], a = hash[0], e = hash[4];
+        var t1 = hash[7] + (rr(e, 6) ^ rr(e, 11) ^ rr(e, 25)) + ((e & hash[5]) ^ ((~e) & hash[6])) + kk[i] +
+          (w[i] = (i < 16) ? w[i] : (w[i - 16] + (rr(w15, 7) ^ rr(w15, 18) ^ (w15 >>> 3)) + w[i - 7] + (rr(w2, 17) ^ rr(w2, 19) ^ (w2 >>> 10))) | 0);
+        var t2 = (rr(a, 2) ^ rr(a, 13) ^ rr(a, 22)) + ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+        hash = [(t1 + t2) | 0].concat(hash); hash[4] = (hash[4] + t1) | 0;
+      }
+      for (i = 0; i < 8; i++) hash[i] = (hash[i] + old[i]) | 0;
+    }
+    for (i = 0; i < 8; i++) for (j = 3; j + 1; j--) { var bb = (hash[i] >> (j * 8)) & 255; result += ((bb < 16) ? 0 : '') + bb.toString(16); }
+    return result;
+  }
+  function lockedBg() { return !STAFF.guestBackground && !isStaff(); }
+  function tvInfo() {
+    var ip = '', v = '';
+    try { ip = window.R2Android && window.R2Android.ip ? window.R2Android.ip() : ''; v = window.R2Android && window.R2Android.version ? window.R2Android.version() : ''; } catch (e) {}
+    return (ip ? 'IP ' + ip : 'NO NETWORK') + (v ? ' \u00B7 V' + v : '');
+  }
+  /* rows that need the staff PIN first */
+  function needsPin(act) { return act === 'room' || act === 'tv' || act === 'staff' || (act === 'walls' && lockedBg()); }
   /* left/right (or OK) changes a setting in place and shows or plays what it does */
   function changeSetting(act, dir) {
-    if (act === 'fx') { prefs.fx = cycle(FX, prefs.fx, dir); store('r2.fx', prefs.fx); if (prefs.fx !== 'off') demoTransition(); }
-    else if (act === 'entry') { prefs.entry = !prefs.entry; store('r2.entry', prefs.entry ? 'on' : 'off'); if (prefs.entry) arrive(true); }
-    else if (act === 'sound') { prefs.sound = cycle(SOUNDS, prefs.sound, dir); store('r2.sound', prefs.sound); Sfx.play('ok'); }
-    else if (act === 'amb') { prefs.amb = cycle(AMBS, prefs.amb, dir); store('r2.amb', prefs.amb); Amb.apply(); }
-    else if (act === 'cards') { prefs.cards = cycle(CARDS, prefs.cards, dir); store('r2.cards', prefs.cards); applyCards(); Sfx.play('move'); }
-    else if (act === 'ambVol') { prefs.ambVol = cycle(VOLS, prefs.ambVol, dir); store('r2.ambVol', prefs.ambVol); Amb.apply(); }
+    if (act === 'fx') { prefs.fx = cycle(FX, prefs.fx, dir); savePref('fx', prefs.fx); if (prefs.fx !== 'off') demoTransition(); }
+    else if (act === 'entry') { prefs.entry = !prefs.entry; savePref('entry', prefs.entry ? 'on' : 'off'); if (prefs.entry) arrive(true); }
+    else if (act === 'sound') { prefs.sound = cycle(SOUNDS, prefs.sound, dir); savePref('sound', prefs.sound); Sfx.play('ok'); }
+    else if (act === 'amb') { prefs.amb = cycle(AMBS, prefs.amb, dir); savePref('amb', prefs.amb); Amb.apply(); }
+    else if (act === 'cards') { prefs.cards = cycle(CARDS, prefs.cards, dir); savePref('cards', prefs.cards); applyCards(); Sfx.play('move'); }
+    else if (act === 'ambVol') { prefs.ambVol = cycle(VOLS, prefs.ambVol, dir); savePref('ambVol', prefs.ambVol); Amb.apply(); }
     else return false;
     openSettings(setSel);
     return true;
@@ -882,11 +983,20 @@ window.R2_TV = {
     for (var i = 0; i < rows.length; i++) html += '<button type="button" tabindex="-1" class="mi' + (i === setSel ? ' on' : '') + '" data-s="' + i + '">' + ARROW +
       '<span class="label">' + esc(rows[i].label) + '</span><span class="hint">' + esc(rows[i].hint) + '</span></button>';
     $('setList').innerHTML = html;
+    $('pinBox').hidden = true; dropCls('pinning');
+    $('setList').scrollTop = 0; scrollSettings();
     $('menuPanel').className = 'panel off'; $('setPanel').className = 'panel';
     dropCls('picking');
     keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[BACK] MAIN MENU');
   }
+  function scrollSettings() {
+    var list = $('setList'), row = list.children[setSel]; if (!row) return;
+    var top = row.offsetTop - list.offsetTop, h = row.offsetHeight;
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (top + h > list.scrollTop + list.clientHeight) list.scrollTop = top + h - list.clientHeight;
+  }
   function closeSettings() {
+    lockStaff();
     mode = 'menu';
     $('setPanel').className = 'panel off'; $('menuPanel').className = 'panel';
     dropCls('picking');
@@ -907,6 +1017,13 @@ window.R2_TV = {
       setSel = (setSel + (k === 'up' ? n - 1 : 1)) % n;
       $('setList').children[setSel].className = 'mi on';
       Sfx.play('move');
+      scrollSettings();
+    } else if ((k === 'ok' || k === 'right') && needsPin(act) && !isStaff()) {
+      Sfx.play('ok'); askPin(function () { if (act === 'walls') openWalls(); else if (act === 'room') openRooms(); else if (act === 'tv') launch({ name: 'TV settings', settings: true }); else openSettings(setSel); });
+    } else if (k === 'ok' && act === 'staff') {
+      lockStaff(); Sfx.play('back'); openSettings(setSel); toast('Staff mode off. Changes are for this session only.');
+    } else if (k === 'ok' && act === 'about') {
+      toast(room.name + ' \u00B7 ' + tvInfo());
     } else if (k === 'left' || k === 'right') {
       if (!changeSetting(act, k === 'left' ? -1 : 1) && k === 'left') { Sfx.play('back'); closeSettings(); }
       else if (k === 'right' && act === 'walls') { Sfx.play('ok'); openWalls(); }
@@ -957,13 +1074,16 @@ window.R2_TV = {
     else if (k === 'down' && wsel < walls.length - 1) { moveWall(wsel + 1); Sfx.play('move'); }
     else if (k === 'ok') {
       clearTimeout(wallPreviewTimer);
-      var ev = themeWalls();
-      for (var e = 0; e < ev.length; e++) if (ev[e].takeover) store('r2.tkoff.' + roomKey + '.' + ev[e].id, walls[wsel].id === ev[e].id ? '0' : '1');
-      if (!walls[wsel].takeover) store('r2.wall.' + roomKey, walls[wsel].id);
+      if (isStaff()) {                       /* staff: this room's default */
+        var ev = themeWalls();
+        for (var e = 0; e < ev.length; e++) if (ev[e].takeover) store('r2.tkoff.' + roomKey + '.' + ev[e].id, walls[wsel].id === ev[e].id ? '0' : '1');
+        if (!walls[wsel].takeover) store('r2.wall.' + roomKey, walls[wsel].id);
+        gstore('g.wall.' + roomKey, null);
+      } else gstore('g.wall.' + roomKey, walls[wsel].id);   /* guest: until the TV is switched off */
       showWall(walls[wsel]);
       Sfx.play('ok');
       openSettings(0);
-      toast('Background: ' + walls[wsel].name);
+      toast((isStaff() ? 'Saved as ' + room.name + '\u2019s background: ' : 'Background: ') + walls[wsel].name);
     } else if (k === 'back' || k === 'left') {
       clearTimeout(wallPreviewTimer);
       showWall(currentWall());
@@ -1167,6 +1287,7 @@ window.R2_TV = {
 
   /* ================= remote ================= */
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 23: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
+  for (var dk = 0; dk < 10; dk++) { KEYS[48 + dk] = 'd' + dk; KEYS[96 + dk] = 'd' + dk; }   /* number buttons, for the staff PIN */
   function press(k) {
     if (leaving) return;
     if (Sfx.wake() && !ambStarted) { ambStarted = true; Amb.apply(); }   /* in case the TV held audio until the first key */
@@ -1179,6 +1300,8 @@ window.R2_TV = {
       if (k === 'ok') Sfx.play('ok'); else if (k === 'back') Sfx.play('back'); else Sfx.play('move');
       gridKey(k);
     }
+    else if (mode === 'pin') pinKey(k);
+    else if (/^d\d$/.test(k)) return;
     else if (mode === 'settings') settingsKey(k);
     else if (mode === 'walls') wallsKey(k);
   }
@@ -1189,7 +1312,16 @@ window.R2_TV = {
   /* the Android app calls these: Back on the remote, a room set from the computer, and returning here */
   window.r2Back = function () { press('back'); };
   window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
-  window.r2Pause = function () { Amb.pause(); clearAnim(); };   /* the app calls this when another app, the screensaver or standby takes over */
+  window.r2Pause = function () { Amb.pause(); clearAnim(); lockStaff(); };
+  /* The TV was switched off (the app calls this on standby): forget every guest change, back to the house settings */
+  window.r2Reset = function () {
+    try { for (var i = window.sessionStorage.length - 1; i >= 0; i--) { var key = window.sessionStorage.key(i); if (key && key.indexOf('g.') === 0) window.sessionStorage.removeItem(key); } } catch (e) {}
+    lockStaff();
+    prefs = loadPrefs();
+    if (mode === 'grid') { gridBack = null; closeGrid(); }
+    if (mode !== 'menu') { $('setList').hidden = false; closeSettings(); }
+    shownWall = null; showWall(currentWall()); applyCards(); Amb.apply();
+  };   /* the app calls this when another app, the screensaver or standby takes over */
   var guardTimer;
   function repairScreen() {
     /* safety net: whatever interrupted the animation, end with the whole menu showing */

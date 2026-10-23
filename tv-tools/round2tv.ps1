@@ -171,8 +171,27 @@ function Cmd-Setup {
   Say ("Installed: " + ((& $script:Adb version) | Select-Object -First 1))
 }
 
+# Room name -> TV address, as saved in the Theme manager (Rooms > Advanced > TV address)
+$RoomNames = @('vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'maximillion')
+function Resolve-Room([string]$name) {
+  $cache = Join-Path $Dir 'tv-addresses.json'
+  try {
+    $j = Invoke-RestMethod -UseBasicParsing -Uri 'https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/main/themes/themes.json'
+    if ($j.tvs) { $j.tvs | ConvertTo-Json | Set-Content -Path $cache -Encoding UTF8 }
+  } catch { Say 'Offline: using the last saved TV addresses' }
+  if (-not (Test-Path $cache)) { return '' }
+  $t = Get-Content $cache -Raw | ConvertFrom-Json
+  return "$($t.$name)".Trim()
+}
+
 function Cmd-Connect([string]$ip) {
   Need-Adb
+  if ($ip -and $RoomNames -contains $ip.ToLower()) {
+    $room = $ip.ToLower()
+    $ip = Resolve-Room $room
+    if (-not $ip) { Die "No TV address saved for $room. Add it in the Theme manager: Rooms > $room > Advanced > TV address (the TV shows it under Options > Staff mode > About this TV)." }
+    Say "$room's TV is at $ip"
+  }
   if ($ip) { Set-Tv $(if ($ip -match ':') { $ip } else { "$($ip):5555" }) }
   & $script:Adb start-server 2>$null | Out-Null
   $out = (Run-Adb -A @('connect', $script:TV) -NoLogcat -NoSerial) -join "`n"
@@ -554,15 +573,16 @@ function Show-Help {
 Round2 TV toolkit - this TV: $($script:TV)   files: $($script:TvDir)
 Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
 
-  start [IP]             setup + connect + backup + draft cleanup list (changes nothing); IP picks the TV
+  start [IP|room]        setup + connect + backup + draft cleanup list (changes nothing); IP picks the TV
   setup                  install adb from Google's official platform-tools if missing
-  connect [IP[:port]]    connect; falls back to Wireless debugging pairing
+  connect [IP|room]      connect to a TV by address, or by room name (kai, kaeden...) using the addresses saved in the Theme manager
   backup                 save package lists, all settings, home app, and create undo.ps1
   propose                draft cleanup list for review (changes nothing)
   cleanup [file]         disable (never uninstall) the approved list (default: cleanup.txt)
   tweaks                 animations 0.5 + Private DNS dns.adguard-dns.com
   install owner/repo     install the latest APK from official GitHub releases (default truefedex/tv-bro)
-  airplay                install PhairPlay (AirPlay receiver) from its GitHub releases
+  airplay                install AirPlay Server (jqssun, open source: iPhone screen mirroring, video and music) from its GitHub releases
+  phairplay              install PhairPlay instead (the older AirPlay receiver)
   tizentube              install TizenTube Cobalt (ad-free YouTube); the YouTube button then opens it
   launcher [owner/repo]  install Round2 Home and make it the home screen (default donttelldadyet-prog/round2-tv-launcher)
   themes                 make this TV check for new event backgrounds now (see themes/README.md)
@@ -590,7 +610,8 @@ switch ($Command.ToLower()) {
   'tweaks' { Cmd-Tweaks }
   'install' { $null = Cmd-Install $a1 }
   'tizentube' { $null = Cmd-Install 'reisxd/TizenTubeCobalt'; Say 'Pick the armeabi-v7a (32-bit ARM) or universal APK. The Round2 YouTube button now opens TizenTube (no ads).' }
-  'airplay' { $null = Cmd-Install 'mazer666/PhairPlay'; Say 'Pick the googletv APK. Then open PhairPlay once and set its device name to this room (e.g. Round2 Kai).' }
+  'airplay' { $null = Cmd-Install 'jqssun/android-airplay-server'; Say 'Pick the armeabi-v7a (or universal) APK. Open AirPlay Server once on the TV, allow what it asks, and set its name to this room (e.g. Round2 Kai). The Round2 AirPlay button opens it.' }
+  'phairplay' { $null = Cmd-Install 'mazer666/PhairPlay'; Say 'Pick the googletv APK. Then open PhairPlay once and set its device name to this room (e.g. Round2 Kai).' }
   'launcher' { Cmd-Launcher $a1 }
   'launcher-force' { Cmd-LauncherForce }
   'homeguard' { Cmd-HomeGuard }
