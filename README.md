@@ -40,6 +40,17 @@ To put everything back: `.\round2tv.ps1 undo`. When finished with a TV: `.\round
 
 To preview the menu on a computer, open `web/index.html` in a browser and use the arrow keys and Enter.
 
+## Backgrounds
+
+Options > Background on the TV lists the room's backgrounds with a live preview: the room's scene loops first, then Round2 Lounge and the room's three photos. The choice is saved per TV.
+
+To add a scene loop (e.g. for another room):
+1. Add a line to `web/media/sources.txt`: a file name and the video's download link (an 8 s seamless loop works best).
+2. Add an entry under `SCENES` in `web/index.html` with that file name. Use `layout: 'low'` when the logo sits where the description card normally is, and set `focus` to the logo's position so the launch transition dives into it.
+3. Commit. The build downloads, compresses and thumbnails the video and puts it in the app.
+
+The Kai loops (Neon Summit) were made in OpenArt: still images with Nano Banana 2.1 from the Round2 logo plus style references, animated with Veo 3.1 using the same first and last frame so they loop.
+
 ## Other TV brands
 
 - **TCL, Sony and other Google TV / Android TV sets:** this app, as above.
