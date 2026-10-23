@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# one build at a time; a newer push cancels an older build that hasn't finished
+concurrency:
+  group: build-main
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest

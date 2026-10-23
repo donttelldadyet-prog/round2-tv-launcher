@@ -1,6 +1,9 @@
 plugins { id 'com.android.application' }
 
 def buildNumber = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
+// versionCode from the build time (10-second steps), so a newer build always installs over an older one
+// even when CI runs finish out of order. Stays well below Android's 2,100,000,000 limit until ~2036.
+def versionStamp = (int) (System.currentTimeMillis() / 10000L)
 
 android {
     namespace 'sg.round2.tvhome'
@@ -9,7 +12,7 @@ android {
         applicationId 'sg.round2.tvhome'
         minSdk 23
         targetSdk 34
-        versionCode buildNumber
+        versionCode versionStamp
         versionName "1.0.${buildNumber}"
     }
     signingConfigs {
