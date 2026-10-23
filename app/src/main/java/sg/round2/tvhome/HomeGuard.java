@@ -22,7 +22,8 @@ public class HomeGuard extends AccessibilityService {
         CharSequence pkg = e.getPackageName();
         if (pkg == null) return;
         String p = pkg.toString();
-        if (!p.equals("com.google.android.apps.tv.launcherx") && !p.equals("com.google.android.tvlauncher")) return;
+        if (!p.equals("com.google.android.apps.tv.launcherx") && !p.equals("com.google.android.tvlauncher")
+                && !p.equals("com.google.android.leanbacklauncher")) return;   // Google TV, Android TV 8-11, older Android TV (e.g. Sony 2015)
         // Only the home screen itself, not other Google TV windows such as the
         // Settings / quick-settings panel opened from the remote.
         CharSequence cls = e.getClassName();

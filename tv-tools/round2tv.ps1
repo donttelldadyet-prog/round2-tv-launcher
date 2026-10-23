@@ -1,6 +1,8 @@
 <#
-  round2tv.ps1 - reversible ADB toolkit for the Round2 shop TV (Windows)
-  TV: "Smart TV Pro", Android TV 11, build RP1A.200622.001, board V8-R51MT05
+  round2tv.ps1 - reversible ADB toolkit for the Round2 shop TVs (Windows)
+  Tested: TCL Google TV (Android 11), Sony KD-65X8500C (Android TV 8.0)
+  Each TV gets its own folder (backups, screenshots, undo.ps1) under round2-tv\tvs\<ip>.
+  'connect <ip>' picks which TV the other commands work on.
 
   Run from the folder holding this file:
     powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command> [args]
@@ -16,20 +18,46 @@ try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::
 
 $Base = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
 $Dir = if ($env:R2_DIR) { $env:R2_DIR } else { Join-Path $Base 'round2-tv' }
-foreach ($d in 'backup', 'shots', 'logs', 'apk') { New-Item -ItemType Directory -Force -Path (Join-Path $Dir $d) | Out-Null }
+foreach ($d in 'logs', 'apk', 'tvs') { New-Item -ItemType Directory -Force -Path (Join-Path $Dir $d) | Out-Null }
 $Log = Join-Path (Join-Path $Dir 'logs') 'monitor.log'
-$Undo = Join-Path $Dir 'undo.ps1'
 $TargetFile = Join-Path $Dir 'tv_target'
-$HomeFile = Join-Path $Dir 'original_home.txt'
 $YT = 'com.google.android.youtube.tv'
 $TouchedKeys = @('window_animation_scale', 'transition_animation_scale', 'animator_duration_scale', 'private_dns_mode', 'private_dns_specifier')
 
 $script:TV = if ($env:TV) { $env:TV } elseif (Test-Path $TargetFile) { (Get-Content $TargetFile -Raw).Trim() } else { '192.168.88.14:5555' }
 
+# One folder per TV, so each TV keeps its own backup and undo list
+function Set-Tv([string]$tv) {
+  $script:TV = $tv
+  $script:TvDir = Join-Path (Join-Path $Dir 'tvs') ($tv -replace '[^A-Za-z0-9.-]', '_')
+  foreach ($d in 'backup', 'shots') { New-Item -ItemType Directory -Force -Path (Join-Path $script:TvDir $d) | Out-Null }
+  $script:Undo = Join-Path $script:TvDir 'undo.ps1'
+  $script:HomeFile = Join-Path $script:TvDir 'original_home.txt'
+}
+# Older toolkit versions kept the first TV's (the TCL's) files at the top level: move them into its own folder once
+if (Test-Path (Join-Path $Dir 'undo.ps1')) {
+  $old = $script:TV
+  $oldDir = Join-Path (Join-Path $Dir 'tvs') ($old -replace '[^A-Za-z0-9.-]', '_')
+  if (-not (Test-Path (Join-Path $oldDir 'undo.ps1'))) {
+    New-Item -ItemType Directory -Force -Path $oldDir | Out-Null
+    foreach ($n in 'undo.ps1', 'original_home.txt', 'backup', 'shots', 'enabled-packages.txt', 'cleanup-draft.txt') {
+      $src = Join-Path $Dir $n
+      if (Test-Path $src) { Move-Item $src (Join-Path $oldDir $n) -Force }
+    }
+    $u = Join-Path $oldDir 'undo.ps1'
+    (Get-Content $u) | ForEach-Object { if ($_ -like '$TV = *') { "`$TV = '$old'" } else { $_ } } | Set-Content $u -Encoding UTF8
+    Write-Host ">> Moved the files for $old into $oldDir" -ForegroundColor Yellow
+  }
+}
+Set-Tv $script:TV
+
 # Never disabled by 'cleanup', whatever the list says (the launcher has its own command)
 $Protect = 'launcher|katniss|\.gms|gsf|vending|inputmethod|keyboard|leanbackime|\.ime|tv\.provider|providers|tvinput|livetv|tuner|dtv|tvsettings|\.settings|systemui|setupwizard|packageinstaller|permissioncontroller|webview|youtube|bluetooth|remote|audio|hdmi|cec'
+# Reviewed exceptions: these match a protected word (e.g. Sony's com.sony.dtv.*) but are promotions/extras checked by hand
+$Reviewed = '^(com\.sony\.dtv\.sonyselect)$'
 # Keyword hints for the draft proposal (Claude reviews the real list)
-$Candidate = 'adservice|adsdk|advert|promo|recommend|feedback|demo|retail|storemode|shopmode|analytics|telemetry|survey|marketing|(^|[._])ads?([._]|$)'
+$Candidate = 'adservice|adsdk|advert|promo|recommend|feedback|demo|retail|storemode|shopmode|analytics|telemetry|survey|marketing|sonyselect|showcase|discover|(^|[._])ads?([._]|$)'
+function Is-Protected([string]$p) { return ($p -match $Protect) -and ($p -notmatch $Reviewed) }
 
 # ---------------- helpers ----------------
 function Ts { Get-Date -Format 'yyyy-MM-dd HH:mm:ss' }
@@ -100,7 +128,7 @@ function Key([string]$k, [double]$wait = 0.8) { Sh "input keyevent $k"; Start-Sl
 # Screen check: screenshot + UI dump, prints the focused window and visible text
 $script:Focus = ''; $script:Texts = ''
 function Look {
-  $n = Join-Path (Join-Path $Dir 'shots') (Get-Date -Format 'yyyyMMdd-HHmmss')
+  $n = Join-Path (Join-Path $script:TvDir 'shots') (Get-Date -Format 'yyyyMMdd-HHmmss')
   & $script:Adb -s $script:TV shell 'rm -f /sdcard/r2ui.xml; screencap -p /sdcard/r2shot.png; uiautomator dump /sdcard/r2ui.xml' 2>$null | Out-Null
   & $script:Adb -s $script:TV pull /sdcard/r2shot.png "$n.png" 2>$null | Out-Null
   & $script:Adb -s $script:TV pull /sdcard/r2ui.xml "$n.xml" 2>$null | Out-Null
@@ -145,7 +173,7 @@ function Cmd-Setup {
 
 function Cmd-Connect([string]$ip) {
   Need-Adb
-  if ($ip) { $script:TV = if ($ip -match ':') { $ip } else { "$($ip):5555" } }
+  if ($ip) { Set-Tv $(if ($ip -match ':') { $ip } else { "$($ip):5555" }) }
   & $script:Adb start-server 2>$null | Out-Null
   $out = (Run-Adb -A @('connect', $script:TV) -NoLogcat -NoSerial) -join "`n"
   Write-Host $out
@@ -157,13 +185,16 @@ function Cmd-Connect([string]$ip) {
       "shared or guest Wi-Fi often blocks devices from seeing each other ('client isolation'); the IP in TV Settings > Network still matches.")
   }
   else {
-    Say 'Plain connect was refused - switching to Wireless debugging pairing.'
+    Say 'Plain connect was refused.'
+    Say "Older TVs (Android 8-10, e.g. the 2015 Sony): on the TV turn on Developer options > USB debugging AND Network debugging, then run connect again."
+    if ((Read-Host "  Does this TV have 'Wireless debugging' (Android 11 or newer)? [y/N]") -notmatch '^[Yy]') { Die 'Turn on network debugging on the TV and run connect again' }
+    Say 'Switching to Wireless debugging pairing.'
     Say "On the TV: Developer options > Wireless debugging > ON > 'Pair device with pairing code'. Leave that screen open."
     $pp = Read-Host '  Pairing IP:port shown on the TV (e.g. 192.168.88.14:41234)'
     $code = Read-Host '  6-digit pairing code shown on the TV'
     $o = (Run-Adb -A @('pair', $pp, $code) -NoLogcat -NoSerial) -join "`n"; Write-Host $o
     if ($o -notmatch 'Successfully paired') { Die 'Pairing failed' }
-    $script:TV = (Read-Host "  IP:port under 'IP address & Port' on the Wireless debugging screen").Trim()
+    Set-Tv ((Read-Host "  IP:port under 'IP address & Port' on the Wireless debugging screen").Trim())
     $o = (Run-Adb -A @('connect', $script:TV) -NoLogcat -NoSerial) -join "`n"; Write-Host $o
     if ($o -notmatch 'connected to') { Die 'Connect after pairing failed' }
   }
@@ -176,12 +207,13 @@ function Cmd-Connect([string]$ip) {
   }
   if ($st -ne 'device') { Die "The TV didn't authorise this computer ($st)" }
   Set-Content -Path $TargetFile -Value $script:TV -Encoding ASCII
+  Say "This TV's backups and undo list: $($script:TvDir)"
   Say ("Connected to $($script:TV) - " + (Q 'getprop ro.product.model') + ', Android ' + (Q 'getprop ro.build.version.release') + ', CPU ' + (Q 'getprop ro.product.cpu.abi'))
 }
 
 function Cmd-Backup {
   Need-Tv
-  $b = Join-Path (Join-Path $Dir 'backup') (Get-Date -Format 'yyyyMMdd-HHmmss')
+  $b = Join-Path (Join-Path $script:TvDir 'backup') (Get-Date -Format 'yyyyMMdd-HHmmss')
   New-Item -ItemType Directory -Force -Path $b | Out-Null
   ShTo 'getprop' (Join-Path $b 'getprop.txt')
   ShTo 'pm list packages -f' (Join-Path $b 'packages-all.txt')
@@ -202,7 +234,7 @@ function Cmd-Backup {
       "# Run: powershell -ExecutionPolicy Bypass -File `"$Undo`""
       "# Steps are recorded below as #STEP lines and replayed newest-first."
       "`$Adb = if (`$env:ADB) { `$env:ADB } else { '$($script:Adb)' }"
-      "`$TV = if (Test-Path '$TargetFile') { (Get-Content '$TargetFile' -Raw).Trim() } else { '$($script:TV)' }"
+      "`$TV = '$($script:TV)'"
       "`$steps = @(Get-Content `$PSCommandPath | Where-Object { `$_ -like '#STEP *' } | ForEach-Object { `$_.Substring(6) })"
       "[array]::Reverse(`$steps)"
       "foreach (`$c in `$steps) { Write-Host `"+ adb shell `$c`" -ForegroundColor Cyan; & `$Adb -s `$TV shell `$c }"
@@ -215,37 +247,37 @@ function Cmd-Backup {
     }
   }
   Copy-Item $Undo (Join-Path $b 'undo.ps1')
-  Get-Packages '-e' | Set-Content -Path (Join-Path $Dir 'enabled-packages.txt') -Encoding UTF8
+  Get-Packages '-e' | Set-Content -Path (Join-Path $script:TvDir 'enabled-packages.txt') -Encoding UTF8
   Say "Backup saved: $b"
   Say "Current home screen app: $homeAct"
-  Say "Package list for review: $(Join-Path $Dir 'enabled-packages.txt')   Undo: $Undo"
+  Say "Package list for review: $(Join-Path $script:TvDir 'enabled-packages.txt')   Undo: $Undo"
 }
 
 function Cmd-Propose {
   Need-Tv
-  $f = Join-Path $Dir 'cleanup-draft.txt'
+  $f = Join-Path $script:TvDir 'cleanup-draft.txt'
   $enabled = Get-Packages '-e'
-  $enabled | Set-Content -Path (Join-Path $Dir 'enabled-packages.txt') -Encoding UTF8
+  $enabled | Set-Content -Path (Join-Path $script:TvDir 'enabled-packages.txt') -Encoding UTF8
   $hits = @($enabled | Where-Object { $_ -match $Candidate })
   $lines = @('# Round2 TV cleanup - DRAFT from keyword matching. Nothing is applied until you run cleanup.',
     '# One package per line. Lines starting with # are ignored. Protected packages are refused anyway.')
-  $lines += @($hits | Where-Object { $_ -notmatch $Protect })
+  $lines += @($hits | Where-Object { -not (Is-Protected $_) })
   $lines += '', '# --- matched a keyword but PROTECTED (never touched) ---'
-  $lines += @($hits | Where-Object { $_ -match $Protect } | ForEach-Object { "# $_" })
+  $lines += @($hits | Where-Object { Is-Protected $_ } | ForEach-Object { "# $_" })
   $lines | Set-Content -Path $f -Encoding UTF8
   $lines | ForEach-Object { Write-Host $_ }
-  Say "Draft: $f - send Claude this and enabled-packages.txt for the reviewed proposal."
+  Say "Draft: $f - send Claude this and enabled-packages.txt (same folder) for the reviewed proposal."
 }
 
 function Cmd-Cleanup([string]$file) {
   Need-Tv; Need-Backup
-  if (-not $file) { $file = Join-Path $Dir 'cleanup.txt' }
+  if (-not $file) { $file = Join-Path $script:TvDir 'cleanup.txt' }
   if (-not (Test-Path $file)) { Die "No approved list at $file" }
   $enabled = Get-Packages '-e'
   foreach ($raw in Get-Content $file) {
     $p = ($raw -replace '#.*$', '').Trim().Split(' ')[0]
     if (-not $p) { continue }
-    if ($p -match $Protect) { Say "SKIP protected: $p"; continue }
+    if (Is-Protected $p) { Say "SKIP protected: $p"; continue }
     if ($enabled -notcontains $p) { Say "SKIP not installed / already disabled: $p"; continue }
     $o = Run-Adb -A @('shell', "pm disable-user --user 0 $p")
     $o | ForEach-Object { Write-Host "   $_" }
@@ -257,8 +289,13 @@ function Cmd-Cleanup([string]$file) {
 function Cmd-Tweaks {
   Need-Tv; Need-Backup
   foreach ($k in 'window_animation_scale', 'transition_animation_scale', 'animator_duration_scale') { Sh "settings put global $k 0.5" }
-  Sh 'settings put global private_dns_mode hostname'
-  Sh 'settings put global private_dns_specifier dns.adguard-dns.com'
+  $sdk = [int]("0" + (Q 'getprop ro.build.version.sdk'))
+  if ($sdk -ge 28) {
+    Sh 'settings put global private_dns_mode hostname'
+    Sh 'settings put global private_dns_specifier dns.adguard-dns.com'
+  } else {
+    Say "Private DNS needs Android 9 or newer; this TV is Android $(Q 'getprop ro.build.version.release'), so DNS is left as it is (ad blocking can be set on the shop router instead)."
+  }
   foreach ($k in $TouchedKeys) { Say ("now $k = " + (Q "settings get global $k")) }
   Say "Check TV Settings > Network still says 'Connected'. If not: .\round2tv.ps1 undo"
 }
@@ -481,7 +518,7 @@ function Cmd-Undo {
   & $Undo
   Say 'Every recorded change has been reversed. Run backup again before making new changes.'
   $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-  Move-Item $Undo (Join-Path (Join-Path $Dir 'backup') "undo-used-$stamp.ps1")
+  Move-Item $Undo (Join-Path (Join-Path $script:TvDir 'backup') "undo-used-$stamp.ps1")
 }
 
 function Cmd-Monitor { Say "Live monitor (Ctrl+C to stop): $Log"; Get-Content -Path $Log -Tail 40 -Wait }
@@ -496,10 +533,10 @@ function Cmd-Lockdown {
 
 function Show-Help {
   @"
-Round2 TV toolkit - files in $Dir   (TV target: $($script:TV))
+Round2 TV toolkit - this TV: $($script:TV)   files: $($script:TvDir)
 Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
 
-  start [IP]             setup + connect + backup + draft cleanup list (changes nothing)
+  start [IP]             setup + connect + backup + draft cleanup list (changes nothing); IP picks the TV
   setup                  install adb from Google's official platform-tools if missing
   connect [IP[:port]]    connect; falls back to Wireless debugging pairing
   backup                 save package lists, all settings, home app, and create undo.ps1
@@ -512,7 +549,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   launcher [owner/repo]  install Round2 Home and make it the home screen (default donttelldadyet-prog/round2-tv-launcher)
   perf                   measure how smoothly the menu draws (dropped and slow frames)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
-  homeguard              Google TV: make the Home button open Round2 Home (undo turns it off)
+  homeguard              make the Home button open Round2 Home when the TV keeps its own home (undo turns it off)
   launcher-force         older Android TV only: disable the stock home app (never on Google TV)
   wallpaper file.png     copy a Round2 wallpaper to the TV for the launcher
   youtube "name|link"    open YouTube with key presses and play that video
