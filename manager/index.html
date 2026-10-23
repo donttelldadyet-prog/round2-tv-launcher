@@ -293,7 +293,9 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         </div>
         <input type="url" id="fLink" placeholder="https://cdn.openart.ai/…/video.mp4" aria-label="Video link" style="padding:10px 12px;background:var(--bg);border:1px solid var(--line2)">
         <div id="fileRow" hidden><input type="file" id="fFile" accept="video/mp4,video/quicktime,video/webm"> <span class="hint" id="fileInfo"></span></div>
-        <span class="hint">An 8-second loop works best. In OpenArt, open the video, then right-click it › Copy video address.</span>
+        <span class="hint">In OpenArt, open the video, then right-click it › Copy video address.</span>
+        <label class="switch" style="margin-top:6px"><input type="checkbox" id="fBlend" checked>
+          <span>Make it loop smoothly<br><span class="hint">Blends the end into the start, so there's no jump when the video repeats. Leave on, unless your video already loops perfectly.</span></span></label>
       </div>
       <div class="f">
         <span class="f">Rooms</span>
@@ -723,6 +725,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     ed.cards = t.cards || (t.layout === 'low' ? 'low' : (i >= 0 ? 'right' : 'bottom'));
     setSeg('#fCards', 'data-c', ed.cards); $('tv').className = 'tv p-' + ed.cards;
     $('fFocus').value = t.focus || '';
+    $('fBlend').checked = i < 0 ? (preset && preset.loop !== undefined ? preset.loop === 'blend' : true) : t.loop === 'blend';
     $('fAmb').innerHTML = '<option value="">The room\u2019s own setting</option><option value="rain">Rain</option><option value="storm">Storm (rain and thunder)</option>' +
       (data.sounds || []).map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.name || x.id) + '</option>'; }).join('') + '<option value="off">Silence</option>';
     $('fAmb').value = t.ambience || '';
@@ -763,6 +766,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if ($('fUntil').value) t.until = $('fUntil').value;
     t.takeover = $('fTake').checked;
     if ($('fAmb').value) t.ambience = $('fAmb').value;
+    if ($('fBlend').checked) t.loop = 'blend';
     t.cards = ed.cards;
     if (focus) t.focus = focus;
     if (Math.abs(frame.zoom - 1) > .001 || Math.abs(frame.x - .5) > .001 || Math.abs(frame.y - .5) > .001)

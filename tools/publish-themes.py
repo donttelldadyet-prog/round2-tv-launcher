@@ -11,6 +11,10 @@ video without making a new one: zoom 1 fills the TV screen (cropping what doesn'
 in, below 1 shrinks it over a blurred copy of itself; x/y (0-1) slide it left-right / up-down.
 Any shape of video works (a phone video in portrait too).
 
+"loop": "blend" makes any clip loop seamlessly: the last 1.5 s are cross-faded into the start, so AI
+videos can be made with free, visible motion instead of "same first and last frame" (which tends to
+come out almost still).
+
 Ambience sounds ("sounds": [{"id", "name", "source", "rooms"}]) are made into seamless loops for TVs:
 loudness-matched to the built-in rain, the end blended into the start so there's no gap or click,
 saved as <id>.ogg (up to 3 minutes). A theme can name one as its "ambience".
@@ -45,6 +49,22 @@ def video_filter(z, x, y):
             f"[b]scale=w='ceil({cover}*iw*{z}/2)*2':h='ceil({cover}*ih*{z}/2)*2'[fg];"
             f"[bg][fg]overlay=x='(W-w)*{x}':y='(H-h)*{y}',format=yuv420p[v]")
 
+def blend_loop(src_path, dest):
+    """cross-fade the clip's last X seconds into its first X: plays end-to-start with no jump"""
+    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", src_path],
+                               check=True, capture_output=True, text=True).stdout.strip() or 0)
+    dur = min(dur, 60.0)
+    if dur < 3:
+        return src_path
+    x = round(min(1.5, dur / 4), 3)
+    f = (f"[0:v]fps=24,settb=1/24,split=2[a][b];"
+         f"[a]trim=start={x}:end={dur},setpts=PTS-STARTPTS[main];"
+         f"[b]trim=start=0:end={x},setpts=PTS-STARTPTS[head];"
+         f"[main][head]xfade=transition=fade:duration={x}:offset={round(dur - 2 * x, 3)},format=yuv420p[v]")
+    subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", src_path, "-filter_complex", f, "-map", "[v]",
+                    "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "12", dest], check=True)
+    return dest
+
 def sha(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -65,6 +85,9 @@ for t in src.get("themes", []):
         sys.exit(f"Theme '{tid}': cards must be right, low, top, middle or bottom")
     entry["id"] = tid
     entry["src"] = source if source.startswith("http") else source + ":" + sha(os.path.join("themes", source))
+    blend = t.get("loop") == "blend"
+    if blend:
+        entry["src"] += "|blend"
     z, x, y = framing(t)
     if (z, x, y) != (1, 0.5, 0.5):
         entry["src"] += f"|zoom={z},x={x},y={y}"
@@ -83,6 +106,8 @@ for t in src.get("themes", []):
         else:
             raw = os.path.join("themes", source)
         mp4, jpg = os.path.join(OUT, tid + ".mp4"), os.path.join(OUT, tid + ".jpg")
+        if blend:
+            raw = blend_loop(raw, os.path.join(OUT, tid + ".blend.mp4"))
         subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", raw, "-filter_complex", video_filter(z, x, y), "-map", "[v]",
                         "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "21", "-profile:v", "main", "-level", "4.0", "-g", "24",
                         "-keyint_min", "24", "-sc_threshold", "0", "-bf", "2", "-pix_fmt", "yuv420p", "-t", "60", "-movflags", "+faststart", mp4], check=True)
