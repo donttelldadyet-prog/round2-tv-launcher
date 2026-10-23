@@ -70,6 +70,24 @@
       "takeover": false,
       "cards": "low",
       "focus": "62% 40%"
+    },
+    {
+      "id": "zen-garden-2026",
+      "name": "Zen Garden",
+      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/38b749d1-5d48-4517-9b5c-d7af671eb9a4_seed282172144_1792765358971_d9b335dc.mp4",
+      "rooms": [
+        "all"
+      ],
+      "takeover": false
+    },
+    {
+      "id": "forest-waterfall-2026",
+      "name": "Forest Waterfall",
+      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/b1d9a27c-c13a-47a8-8814-c6e1939d7c79_seed1788894791_1792765437474_0b1bb461.mp4",
+      "rooms": [
+        "all"
+      ],
+      "takeover": false
     }
   ]
 }
