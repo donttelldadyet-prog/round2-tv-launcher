@@ -22,7 +22,8 @@
         "scarlett"
       ],
       "takeover": false,
-      "cards": "low"
+      "cards": "low",
+      "loop": "blend"
     },
     {
       "id": "nebula-1-2026",
@@ -38,7 +39,8 @@
         "zoom": 0.999,
         "x": 0.5,
         "y": 0.5
-      }
+      },
+      "loop": "blend"
     },
     {
       "id": "purple-nebula-2026",
