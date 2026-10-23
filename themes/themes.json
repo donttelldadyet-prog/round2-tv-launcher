@@ -20,6 +20,8 @@
       "rooms": [
         "kaeden"
       ],
+      "from": "2026-10-23",
+      "until": "2026-10-29",
       "takeover": false,
       "cards": "bottom"
     }
