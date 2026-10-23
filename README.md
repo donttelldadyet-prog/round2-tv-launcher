@@ -2,7 +2,7 @@
 
 The home screen for the TVs in the Round2 rooms at 20 Haji Lane. It uses the same game-menu look as the round2.sg homepage ([donttelldadyet-prog/round2sg-home](https://github.com/donttelldadyet-prog/round2sg-home)) and is driven entirely by the TV remote.
 
-Main menu: **Continue** (last app), **Inputs** (PlayStation and guest HDMI ports), **YouTube**, **Netflix**, **Prime Video**, **HBO Max** (Deluxe and VIP rooms only) and **More apps**.
+Main menu: **Inputs** (PlayStation and guest HDMI ports), **AirPlay** (if PhairPlay is installed), **YouTube** (opens TizenTube, the ad-free YouTube, when installed), **Netflix**, **Prime Video**, **HBO Max** (Deluxe and VIP rooms only), **More apps** and **Options** (background, transition, home animation, menu sounds, rain ambience). There is no "Continue" item on purpose, so a new guest can't reopen the previous guest's app.
 
 ## Where things live
 
@@ -42,7 +42,7 @@ To preview the menu on a computer, open `web/index.html` in a browser and use th
 
 ## Backgrounds
 
-Options > Background on the TV lists the room's backgrounds with a live preview: the room's scene loops first, then Round2 Lounge and the room's three photos. The choice is saved per TV.
+Options > Background on the TV lists the room's backgrounds with a live preview: the room's scene loops first, then Round2 Lounge. The choice is saved per TV.
 
 To add a scene loop (e.g. for another room):
 1. Add a line to `web/media/sources.txt`: a file name and the video's download link (an 8 s seamless loop works best).
@@ -60,7 +60,8 @@ The Kai loops (Neon Summit) were made in OpenArt: still images with Nano Banana 
 ## Notes
 
 - The signing key is in this repo on purpose so builds stay installable over each other. Anyone with the key could build an update, but installing it still needs adb access to the TV, which `lockdown` turns off.
-- Room photos, character art, logo and background video load from the Round2 Wix media library, so the TVs need internet for the full look.
+- Background videos and fonts are bundled in the app, so the menu looks right without internet. Rain and menu sounds are generated on the TV, not downloaded.
+- Useful toolkit commands: `tizentube` (installs TizenTube from its GitHub releases), `airplay` (PhairPlay), `perf` (measures how smooth the menu is), `status`, `monitor`, `undo`.
 
 ## Working on this with Claude
 
