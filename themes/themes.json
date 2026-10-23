@@ -39,6 +39,15 @@
         "x": 0.5,
         "y": 0.5
       }
+    },
+    {
+      "id": "purple-nebula-2026",
+      "name": "Purple Nebula",
+      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/a43fd22e9bf994fac3258c50f53fc4da-3f650207-4f5c-4db6-8eb1-b537478da931_1792754456349_45899b91.mp4",
+      "rooms": [
+        "all"
+      ],
+      "takeover": false
     }
   ]
 }
