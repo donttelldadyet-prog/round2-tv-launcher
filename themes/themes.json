@@ -68,7 +68,9 @@
         "scarlett"
       ],
       "takeover": false,
-      "loop": "blend"
+      "loop": "blend",
+      "cards": "low",
+      "focus": "62% 40%"
     }
   ]
 }
