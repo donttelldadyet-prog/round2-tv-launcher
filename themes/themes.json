@@ -15,10 +15,11 @@
     },
     {
       "id": "starry-2026",
-      "name": "STARRY",
+      "name": "Starry",
       "source": "starry-2026-mvknnvn8.mp4",
       "rooms": [
-        "kaeden"
+        "kaeden",
+        "scarlett"
       ],
       "takeover": false,
       "cards": "low"
