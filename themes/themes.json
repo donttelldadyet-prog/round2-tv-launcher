@@ -14,23 +14,6 @@
       "focus": "50% 35%"
     },
     {
-      "id": "christmas-testing-2026",
-      "name": "christmas testing",
-      "source": "christmas-testing-2026-mvkkiv82.mp4",
-      "rooms": [
-        "kaeden"
-      ],
-      "from": "2026-10-23",
-      "until": "2026-10-29",
-      "takeover": false,
-      "cards": "bottom",
-      "frame": {
-        "zoom": 1,
-        "x": 0.5,
-        "y": 0.49
-      }
-    },
-    {
       "id": "test-2026",
       "name": "test",
       "source": "test-2026-mvkkllyl.mp4",
