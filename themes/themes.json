@@ -18,8 +18,7 @@
       "name": "Starry",
       "source": "starry-2026-mvknnvn8.mp4",
       "rooms": [
-        "kaeden",
-        "scarlett"
+        "all"
       ],
       "takeover": false,
       "cards": "low",
@@ -30,8 +29,7 @@
       "name": "Nebula 1",
       "source": "nebula-1-2026-mvkvfr7j.mp4",
       "rooms": [
-        "scarlett",
-        "kaeden"
+        "all"
       ],
       "takeover": false,
       "cards": "low",
@@ -66,7 +64,7 @@
       "name": "Black Hole",
       "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/b4221708-30d9-42c4-96bc-3dc3a61d5bc2_seed528548160_1792765113890_b94d9514.mp4",
       "rooms": [
-        "scarlett"
+        "all"
       ],
       "takeover": false,
       "cards": "low",
