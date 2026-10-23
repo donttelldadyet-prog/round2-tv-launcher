@@ -45,12 +45,11 @@
     {
       "id": "purple-nebula-2026",
       "name": "Purple Nebula",
-      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/fc9831ecae66571710c0e6f09f49e3ce-d923ff87-d9de-425e-a717-f824c8afca03_1792755422065_bf42fe42.mp4",
+      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/ec65a4b0-3312-494c-9fd2-e7a4cc047af5_seed114633729_1792766129024_fff02be9.mp4",
       "rooms": [
         "all"
       ],
-      "takeover": false,
-      "loop": "blend"
+      "takeover": false
     },
     {
       "id": "horseshoe-bend-2026",
@@ -86,6 +85,15 @@
       "id": "forest-waterfall-2026",
       "name": "Forest Waterfall",
       "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/b1d9a27c-c13a-47a8-8814-c6e1939d7c79_seed1788894791_1792765437474_0b1bb461.mp4",
+      "rooms": [
+        "all"
+      ],
+      "takeover": false
+    },
+    {
+      "id": "mclaren-2026",
+      "name": "McLaren Showcase",
+      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/a6a2340b-5245-4423-b2df-9131a4d65915_seed1081962598_1792766132678_011a7abb.mp4",
       "rooms": [
         "all"
       ],
