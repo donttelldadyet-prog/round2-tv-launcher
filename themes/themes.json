@@ -124,6 +124,14 @@
       "rooms": [
         "vale"
       ]
+    },
+    {
+      "id": "lofi2",
+      "name": "lofi2",
+      "source": "sound-lofi2-mvl74dd3.mp3",
+      "rooms": [
+        "vale"
+      ]
     }
   ]
 }
