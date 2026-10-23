@@ -15,8 +15,8 @@ if [ -f web/media/sources.txt ] && command -v ffmpeg >/dev/null; then
     case "$name" in ''|'#'*) continue ;; esac
     tmp="$(mktemp)"
     curl -fsSL "$url" -o "$tmp"
-    ffmpeg -loglevel error -y -i "$tmp" -an -c:v libx264 -preset slow -crf 21 -pix_fmt yuv420p -vf "scale=1920:-2" -movflags +faststart "web-assets/media/$name"
-    ffmpeg -loglevel error -y -ss 0.5 -i "web-assets/media/$name" -frames:v 1 -vf "scale=320:-2" -q:v 3 "web-assets/media/${name%.mp4}.jpg"
+    ffmpeg -nostdin -loglevel error -y -i "$tmp" -an -c:v libx264 -preset slow -crf 21 -pix_fmt yuv420p -vf "scale=1920:-2" -movflags +faststart "web-assets/media/$name"
+    ffmpeg -nostdin -loglevel error -y -ss 0.5 -i "web-assets/media/$name" -frames:v 1 -vf "scale=320:-2" -q:v 3 "web-assets/media/${name%.mp4}.jpg"
     rm -f "$tmp"
     echo "media: $name $(du -h "web-assets/media/$name" | cut -f1)"
   done < web/media/sources.txt
