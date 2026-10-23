@@ -59,6 +59,12 @@ final class ThemeSync {
                 t.put("ready", id != null && new File(dir, id + ".mp4").exists());
             }
             root.put("themes", ts);
+            JSONArray ss = root.optJSONArray("sounds");
+            for (int i = 0; ss != null && i < ss.length(); i++) {
+                JSONObject t = ss.getJSONObject(i);
+                String id = safeId(t.optString("id"));
+                t.put("ready", id != null && new File(dir, id + ".ogg").exists());
+            }
             return root.toString();
         } catch (Exception e) {
             return "{\"themes\":[]}";
@@ -91,7 +97,7 @@ final class ThemeSync {
         Calendar soon = Calendar.getInstance(); soon.add(Calendar.DATE, EARLY_DAYS);
         String horizon = f.format(soon.getTime());
 
-        Set<String> keep = new HashSet<>();
+        Set<String> keep = new HashSet<>(), wantSound = new HashSet<>();
         keep.add("themes.json");
         for (int i = 0; i < ts.length(); i++) {
             JSONObject t = ts.getJSONObject(i);
@@ -101,8 +107,19 @@ final class ThemeSync {
             if (!until.isEmpty() && until.compareTo(today) < 0) continue;     // ended
             if (!from.isEmpty() && from.compareTo(horizon) > 0) continue;    // too far ahead
             keep.add(id + ".mp4"); keep.add(id + ".jpg");
+            String amb = safeId(t.optString("ambience", ""));
+            if (amb != null) wantSound.add(amb);                           // the theme brings its own ambience
             fetchFile(t.optString("thumb"), new File(dir, id + ".jpg"), null);
             fetchFile(t.optString("video"), new File(dir, id + ".mp4"), t.optString("sha256", null));
+        }
+        /* ambience sounds for this room (or used by one of its themes) */
+        JSONArray ss = root.optJSONArray("sounds");
+        for (int i = 0; ss != null && i < ss.length(); i++) {
+            JSONObject t = ss.getJSONObject(i);
+            String id = safeId(t.optString("id"));
+            if (id == null || !(forRoom(t, room) || wantSound.contains(id))) continue;
+            keep.add(id + ".ogg");
+            fetchFile(t.optString("audio"), new File(dir, id + ".ogg"), t.optString("sha256", null));
         }
         File[] all = dir.listFiles();
         if (all != null) for (File x : all) if (!keep.contains(x.getName())) //noinspection ResultOfMethodCallIgnored

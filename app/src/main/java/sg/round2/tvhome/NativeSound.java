@@ -127,7 +127,57 @@ final class NativeSound {
         if (rain != null) { try { rain.stop(); rain.release(); } catch (Exception ignored) { } rain = null; }
     }
 
+    /* ---- uploaded ambience (an OGG loop from the Theme manager), played with MediaPlayer ---- */
+    private android.media.MediaPlayer file;
+    private String filePath;
+    private float fileVol = 0f, fileTarget = 0f, fileStep = 0f;
+
+    void fileTo(final String path, final float vol, final int ms) {
+        main.post(new Runnable() { @Override public void run() {
+            try {
+                if (path != null && !path.equals(filePath)) {
+                    releaseFile();
+                    if (!new File(path).exists()) return;
+                    file = new android.media.MediaPlayer();
+                    file.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
+                    file.setDataSource(path);
+                    file.setLooping(true);
+                    file.setVolume(0f, 0f);
+                    file.prepare();
+                    filePath = path; fileVol = 0f;
+                }
+                if (file == null) return;
+                fileTarget = Math.max(0f, Math.min(1f, vol));
+                fileStep = (fileTarget - fileVol) / Math.max(1, ms / 40);
+                if (fileTarget > 0 && !file.isPlaying()) file.start();
+                main.removeCallbacks(fileFader);
+                main.post(fileFader);
+            } catch (Exception e) { Log.w(TAG, "ambience file failed " + path, e); releaseFile(); }
+        } });
+    }
+
+    private final Runnable fileFader = new Runnable() {
+        @Override public void run() {
+            if (file == null) return;
+            boolean done = Math.abs(fileTarget - fileVol) <= Math.abs(fileStep) + 0.0001f || fileStep == 0f;
+            fileVol = done ? fileTarget : fileVol + fileStep;
+            try {
+                file.setVolume(fileVol, fileVol);
+                if (done && fileVol <= 0f && file.isPlaying()) file.pause();
+            } catch (Exception ignored) { }
+            if (!done) main.postDelayed(this, 40);
+        }
+    };
+
+    private void releaseFile() {
+        main.removeCallbacks(fileFader);
+        if (file != null) { try { file.release(); } catch (Exception ignored) { } file = null; }
+        filePath = null;
+    }
+
     void release() {
+        main.post(new Runnable() { @Override public void run() { releaseFile(); } });
         stopLoop();
         try { pool.release(); } catch (Exception ignored) { }
     }

@@ -166,6 +166,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   <nav class="tabs" role="tablist" id="tabs" hidden>
     <button role="tab" aria-selected="true" data-tab="schedule">Schedule</button>
     <button role="tab" aria-selected="false" data-tab="rooms">Rooms</button>
+    <button role="tab" aria-selected="false" data-tab="sounds">Sounds</button>
     <button role="tab" aria-selected="false" data-tab="settings">Settings</button>
     <button role="tab" aria-selected="false" data-tab="help">Help</button>
   </nav>
@@ -208,6 +209,15 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   </section>
 
   <!-- rooms -->
+  <section id="tab-sounds" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div><h1>Ambience sounds</h1><p class="sub">Your own background sounds for the home screen, next to the built-in Rain and Storm. On the TV: Options › Ambience. A theme can also bring its own.</p></div>
+      <button class="btn primary" id="addSound">+ New sound</button>
+    </div>
+    <div id="sndStatus"></div>
+    <div class="themes" id="sndList"></div>
+  </section>
+
   <section id="tab-rooms" hidden>
     <h1>Rooms</h1>
     <p class="sub">What each room's TV can show today. ▶ marks what it switches to by itself. Built-in backgrounds come with the app; staff can always pick another one on the TV under Options › Background.</p>
@@ -253,6 +263,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       <ol style="padding-left:20px;display:grid;gap:10px;margin:0">
         <li><b>New theme</b>: give it a name, add the video (paste a link from OpenArt, or upload a file up to 45 MB), choose rooms and dates.</li>
         <li><b>Switch automatically</b> makes it the room's background on its own while the dates are live, and puts the normal background back afterwards. Turn it off to only add it to the TV's Background list.</li>
+        <li><b>Sounds</b>: upload your own ambience (rain on a window, café chatter, spooky wind) in the Sounds tab. It appears on the TVs under Options › Ambience, and a theme can play it while it's live.</li>
         <li><b>Info card position</b> moves the description box so the logo in your video stays visible.</li>
         <li><b>Fit the video</b>: drag the picture in the preview, or use the sliders, to zoom and move it. GitHub renders it that way for the TVs, so small fixes don't need a new video (or OpenArt credits). Any video works, even a portrait phone video: press <b>Show whole video</b>.</li>
         <li><b>Save &amp; publish</b>. GitHub prepares the video for TVs (about 2–4 minutes). TVs check every few hours and whenever someone goes back to the home screen (at most every 30 minutes), and download videos up to 2 weeks before the start date.</li>
@@ -301,6 +312,10 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
           <label class="f">Until (last day)<input type="date" id="fUntil"></label>
         </div>
       </div>
+      <label class="f">Ambience while it's live
+        <select id="fAmb"></select>
+        <span class="hint">Plays on the home screen with this theme (guests can still change it). New sounds: the Sounds tab.</span>
+      </label>
       <label class="switch"><input type="checkbox" id="fTake" checked>
         <span>Switch rooms to it automatically<br><span class="hint">Off: only adds it to the TV's Background list.</span></span></label>
       <div class="f">
@@ -342,6 +357,31 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       <button type="button" class="btn danger" id="edDelete" hidden>Remove</button>
       <button type="button" class="btn ghost" id="edCancel">Cancel</button>
       <button type="button" class="btn primary" id="edSave">Save &amp; publish</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="sed" aria-labelledby="sedTitle" style="width:min(640px,calc(100vw - 32px))">
+  <form method="dialog" style="padding:22px;display:grid;gap:16px">
+    <h2 id="sedTitle" style="margin:0;color:var(--ink);font-size:18px">New sound</h2>
+    <label class="f">Name (shown on the TV)<input type="text" id="sName" maxlength="30" placeholder="e.g. Spooky wind"></label>
+    <div class="f">
+      <span class="f">Sound</span>
+      <div class="seg" id="sSrc" role="group" aria-label="Sound source">
+        <button type="button" data-src="file" aria-pressed="true">Upload a file</button>
+        <button type="button" data-src="link" aria-pressed="false">Paste a link</button>
+      </div>
+      <div id="sFileRow"><input type="file" id="sFile" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"> <span class="hint" id="sFileInfo"></span></div>
+      <input type="url" id="sLink" placeholder="https://…/sound.mp3" aria-label="Sound link" hidden style="padding:10px 12px;background:var(--bg);border:1px solid var(--line2);width:100%">
+      <span class="hint">MP3, WAV, M4A or OGG, up to 20 MB and 3 minutes. GitHub evens out the volume and blends the end into the start so it loops with no gap.</span>
+      <audio id="sPrev" controls preload="none" style="width:100%" hidden></audio>
+    </div>
+    <div class="f"><span class="f">Rooms</span><div class="roompick" id="sRooms"></div></div>
+    <div class="foot" style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+      <span class="msg" id="sMsg" style="margin-right:auto;color:var(--bad);font-size:14px;align-self:center"></span>
+      <button type="button" class="btn danger" id="sDelete" hidden>Remove</button>
+      <button type="button" class="btn ghost" id="sCancel">Cancel</button>
+      <button type="button" class="btn primary" id="sSave">Save &amp; publish</button>
     </div>
   </form>
 </dialog>
@@ -408,7 +448,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   }
 
   /* ---------- render ---------- */
-  function renderAll() { renderList(); renderRooms(); }
+  function renderAll() { renderList(); renderRooms(); renderSounds(); }
   function renderList() {
     $('today').textContent = nice(today());
     var f = $('roomFilter').value || 'all';
@@ -431,7 +471,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         '<span class="chip">' + esc(dates) + '</span>' + (pub ? '' : '<span class="chip pending">Not on TVs yet</span>') +
         (st !== 'ended' && clashes(t, x.i).length ? '<span class="chip pending">Clashes with ' + esc(clashes(t, x.i).map(function (c) { return c.other.name || c.other.id; }).join(', ')) + '</span>' : '') + '</div>' +
         '<div class="meta">' + rooms + '</div>' +
-        '<div class="hint">' + (t.takeover ? 'Switches rooms to it automatically' : 'Added to the Background list only') + ' · Info card: ' + esc(CARDS[t.cards] || (t.layout === 'low' ? 'Bottom right' : 'Right')) + (t.frame ? ' · Zoom ' + Math.round(t.frame.zoom * 100) + '%' : '') + '</div>' +
+        '<div class="hint">' + (t.takeover ? 'Switches rooms to it automatically' : 'Added to the Background list only') +
+        (t.ambience ? ' · Ambience: ' + esc(soundName(t.ambience)) : '') + ' · Info card: ' + esc(CARDS[t.cards] || (t.layout === 'low' ? 'Bottom right' : 'Right')) + (t.frame ? ' · Zoom ' + Math.round(t.frame.zoom * 100) + '%' : '') + '</div>' +
         '</div><div class="acts"><button class="btn" data-edit="' + x.i + '">Edit</button><button class="btn ghost" data-dup="' + x.i + '">Duplicate</button></div></article>';
     }).join('');
   }
@@ -465,7 +506,10 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       gh('/contents/' + PATH + '?ref=main').then(function (j) { fileSha = j.sha; data = JSON.parse(unb64utf8(j.content)); if (!data.themes) data.themes = []; }),
       gh('/releases/tags/themes').then(function (rel) {
         published = {};
-        (rel.assets || []).forEach(function (a) { var m = /^(.+)\.mp4$/.exec(a.name); if (m) published[m[1]] = a.updated_at; });
+        (rel.assets || []).forEach(function (a) {
+          var m = /^(.+)\.mp4$/.exec(a.name); if (m) published[m[1]] = a.updated_at;
+          var o = /^(.+)\.ogg$/.exec(a.name); if (o) published['snd:' + o[1]] = a.updated_at;
+        });
       }).catch(function () { published = {}; })
     ]).then(renderAll);
   }
@@ -473,7 +517,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   /* ---------- sign in ---------- */
   function showApp(on) {
     $('signin').hidden = on; $('tabs').hidden = !on; $('who').hidden = !on;
-    if (on) tab(ls('r2m.tab') || 'schedule'); else ['schedule', 'rooms', 'settings', 'help'].forEach(function (n) { $('tab-' + n).hidden = true; });
+    if (on) tab(ls('r2m.tab') || 'schedule'); else ['schedule', 'rooms', 'sounds', 'settings', 'help'].forEach(function (n) { $('tab-' + n).hidden = true; });
   }
   function connect(t) {
     token = t.trim();
@@ -502,7 +546,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   function tab(n) {
     ls('r2m.tab', n);
     Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-tab') === n); });
-    ['schedule', 'rooms', 'settings', 'help'].forEach(function (k) { $('tab-' + k).hidden = k !== n; });
+    ['schedule', 'rooms', 'sounds', 'settings', 'help'].forEach(function (k) { $('tab-' + k).hidden = k !== n; });
     if (n === 'settings') renderSettings();
   }
   $('tabs').addEventListener('click', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-tab'); if (n) tab(n); });
@@ -679,6 +723,9 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     ed.cards = t.cards || (t.layout === 'low' ? 'low' : (i >= 0 ? 'right' : 'bottom'));
     setSeg('#fCards', 'data-c', ed.cards); $('tv').className = 'tv p-' + ed.cards;
     $('fFocus').value = t.focus || '';
+    $('fAmb').innerHTML = '<option value="">The room\u2019s own setting</option><option value="rain">Rain</option><option value="storm">Storm (rain and thunder)</option>' +
+      (data.sounds || []).map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.name || x.id) + '</option>'; }).join('') + '<option value="off">Silence</option>';
+    $('fAmb').value = t.ambience || '';
     frame = { zoom: (t.frame && t.frame.zoom) || 1, x: t.frame && t.frame.x != null ? t.frame.x : .5, y: t.frame && t.frame.y != null ? t.frame.y : .5 };
     vw = 16; vh = 9;
     $('edDelete').hidden = i < 0;
@@ -715,6 +762,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if ($('fFrom').value) t.from = $('fFrom').value;
     if ($('fUntil').value) t.until = $('fUntil').value;
     t.takeover = $('fTake').checked;
+    if ($('fAmb').value) t.ambience = $('fAmb').value;
     t.cards = ed.cards;
     if (focus) t.focus = focus;
     if (Math.abs(frame.zoom - 1) > .001 || Math.abs(frame.x - .5) > .001 || Math.abs(frame.y - .5) > .001)
@@ -762,6 +810,125 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       }
       $('ed').close(); busy(false); renderAll(); watch(sha, t.name || t.id, true);
     }).catch(function (e) { busy(false); $('edMsg').textContent = 'Couldn’t remove: ' + e.message; load(); });
+  };
+
+  /* ---------- ambience sounds ---------- */
+  function soundName(id) {
+    if (id === 'rain') return 'Rain'; if (id === 'storm') return 'Storm'; if (id === 'off') return 'Silence';
+    var f = (data.sounds || []).filter(function (x) { return x.id === id; })[0]; return f ? f.name || f.id : id;
+  }
+  function renderSounds() {
+    var list = data.sounds || [];
+    if (!list.length) { $('sndList').innerHTML = '<div class="empty">No sounds yet. Press <b>+ New sound</b> to upload one.</div>'; return; }
+    $('sndList').innerHTML = list.map(function (x, i) {
+      var pub = published['snd:' + x.id];
+      var rooms = (x.rooms || ['all']).indexOf('all') >= 0 ? '<span class="chip">All rooms</span>' :
+        x.rooms.map(function (r) { return ROOMS[r] ? '<span class="chip room" style="--rc:' + ROOMS[r].c + '">' + esc(ROOMS[r].name) + '</span>' : ''; }).join('');
+      var used = data.themes.filter(function (t) { return t.ambience === x.id; }).map(function (t) { return t.name || t.id; });
+      return '<article class="card"><h3 style="margin:0 0 6px">' + esc(x.name || x.id) + '</h3><div class="meta">' + rooms +
+        (pub ? '' : '<span class="chip pending">Not on TVs yet</span>') + (used.length ? '<span class="chip">Used by ' + esc(used.join(', ')) + '</span>' : '') + '</div>' +
+        (pub ? '<audio controls preload="none" style="width:100%;margin:8px 0" src="' + DL + encodeURIComponent(x.id) + '.ogg?v=' + encodeURIComponent(pub) + '"></audio>' : '') +
+        '<div class="row"><button class="btn" data-sedit="' + i + '">Edit</button></div></article>';
+    }).join('');
+  }
+  var sed = { i: -1, src: 'file', rooms: ['all'], file: null };
+  function renderSoundRooms() {
+    var all = sed.rooms.indexOf('all') >= 0;
+    $('sRooms').innerHTML = '<button type="button" data-r="all" style="--rc:#F4F1FB" aria-pressed="' + all + '">All rooms</button>' +
+      Object.keys(ROOMS).map(function (k) { return '<button type="button" data-r="' + k + '" style="--rc:' + ROOMS[k].c + '" aria-pressed="' + (all || sed.rooms.indexOf(k) >= 0) + '">' + ROOMS[k].name + '</button>'; }).join('');
+  }
+  $('sRooms').addEventListener('click', function (e) {
+    var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return;
+    if (r === 'all') sed.rooms = sed.rooms.indexOf('all') >= 0 ? [] : ['all'];
+    else {
+      var cur = sed.rooms.indexOf('all') >= 0 ? Object.keys(ROOMS) : sed.rooms.slice(), i = cur.indexOf(r);
+      if (i >= 0) cur.splice(i, 1); else cur.push(r);
+      sed.rooms = cur.length === Object.keys(ROOMS).length ? ['all'] : cur;
+    }
+    renderSoundRooms();
+  });
+  $('sSrc').addEventListener('click', function (e) {
+    var v = e.target.getAttribute && e.target.getAttribute('data-src'); if (!v) return;
+    sed.src = v; setSeg('#sSrc', 'data-src', v); $('sFileRow').hidden = v !== 'file'; $('sLink').hidden = v !== 'link';
+  });
+  $('sFile').onchange = function () {
+    var f = $('sFile').files[0]; sed.file = null; $('sPrev').hidden = true;
+    if (!f) return;
+    if (f.size > 20 * 1048576) { $('sFileInfo').textContent = 'Too big (' + Math.round(f.size / 1048576) + ' MB). Keep it under 20 MB.'; $('sFile').value = ''; return; }
+    sed.file = f; $('sFileInfo').textContent = Math.max(0.1, Math.round(f.size / 1048576 * 10) / 10) + ' MB';
+    $('sPrev').src = URL.createObjectURL(f); $('sPrev').hidden = false;
+  };
+  $('sLink').onchange = function () { if (/^https:\/\//.test($('sLink').value)) { $('sPrev').src = $('sLink').value; $('sPrev').hidden = false; } };
+  function openSound(i) {
+    var x = i >= 0 ? data.sounds[i] : { rooms: ['all'] };
+    sed = { i: i, src: x.source && /^https?:/.test(x.source) ? 'link' : 'file', rooms: (x.rooms || ['all']).slice(), file: null };
+    $('sedTitle').textContent = i >= 0 ? 'Edit sound' : 'New sound';
+    $('sName').value = x.name || ''; $('sLink').value = sed.src === 'link' ? x.source : ''; $('sFile').value = '';
+    $('sFileInfo').textContent = i >= 0 && sed.src === 'file' ? 'Current: ' + x.source + ' (choose a file only to replace it)' : '';
+    setSeg('#sSrc', 'data-src', sed.src); $('sFileRow').hidden = sed.src !== 'file'; $('sLink').hidden = sed.src !== 'link';
+    var pub = i >= 0 && published['snd:' + x.id];
+    $('sPrev').hidden = !pub; if (pub) $('sPrev').src = DL + encodeURIComponent(x.id) + '.ogg';
+    $('sDelete').hidden = i < 0; $('sMsg').textContent = '';
+    renderSoundRooms(); $('sed').showModal(); $('sName').focus();
+  }
+  $('addSound').onclick = function () { openSound(-1); };
+  $('sndList').addEventListener('click', function (e) { var i = e.target.getAttribute('data-sedit'); if (i != null) openSound(+i); });
+  $('sCancel').onclick = function () { $('sed').close(); };
+  function soundSlug(name) {
+    var base = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'sound', id = base, n = 2;
+    if (base === 'rain' || base === 'storm' || base === 'off') id = base = base + '-sound';
+    while ((data.sounds || []).some(function (x, k) { return x.id === id && k !== sed.i; }) || data.themes.some(function (t) { return t.id === id; })) id = base + '-' + (n++);
+    return id;
+  }
+  function commitLatest(change, msg) {    // apply a change to the newest themes.json and commit it
+    return gh('/contents/' + PATH + '?ref=main').then(function (j) {
+      var latest = JSON.parse(unb64utf8(j.content)); fileSha = j.sha;
+      if (!latest.themes) latest.themes = [];
+      change(latest); data = latest;
+      return commitThemes(msg);
+    });
+  }
+  $('sSave').onclick = function () {
+    var name = $('sName').value.trim(), link = $('sLink').value.trim(), msg = $('sMsg');
+    var old = sed.i >= 0 ? data.sounds[sed.i] : null;
+    if (!name) { msg.textContent = 'Give it a name.'; return; }
+    if (!sed.rooms.length) { msg.textContent = 'Pick at least one room.'; return; }
+    if (sed.src === 'link' && !/^https:\/\/\S+$/.test(link)) { msg.textContent = 'Paste the link (it starts with https://).'; return; }
+    if (sed.src === 'file' && !sed.file && !(old && old.source && !/^https?:/.test(old.source))) { msg.textContent = 'Choose a sound file.'; return; }
+    var x = { id: old ? old.id : soundSlug(name), name: name, source: sed.src === 'link' ? link : (old ? old.source : ''), rooms: sed.rooms.slice() };
+    $('sSave').disabled = true; $('sSave').textContent = sed.file ? 'Uploading…' : 'Publishing…';
+    var step = Promise.resolve();
+    if (sed.src === 'file' && sed.file) {
+      var ext = (/\.([a-z0-9]{2,4})$/i.exec(sed.file.name) || ['', 'mp3'])[1].toLowerCase();
+      var fname = 'sound-' + x.id + '-' + Date.now().toString(36) + '.' + ext;
+      step = readFileB64(sed.file).then(function (b) { return putFile('themes/' + fname, b, 'Sound file for ' + name + ' (Theme manager)'); }).then(function () { x.source = fname; });
+    }
+    step.then(function () {
+      return commitLatest(function (latest) {
+        latest.sounds = latest.sounds || [];
+        var k = -1; latest.sounds.forEach(function (y, j) { if (y.id === x.id) k = j; });
+        if (k >= 0) latest.sounds[k] = x; else latest.sounds.push(x);
+      }, (old ? 'Update sound: ' : 'New sound: ') + name + ' (Theme manager)');
+    }).then(function (sha) {
+      $('sed').close(); renderAll(); tab('sounds'); watch(sha, name);
+    }).catch(function (e) { msg.textContent = 'Couldn\u2019t publish: ' + e.message; load(); })
+      .then(function () { $('sSave').disabled = false; $('sSave').textContent = 'Save & publish'; });
+  };
+  $('sDelete').onclick = function () {
+    var x = data.sounds[sed.i]; if (!x) return;
+    var used = data.themes.filter(function (t) { return t.ambience === x.id; });
+    if (used.length && !confirm('"' + x.name + '" is used by ' + used.map(function (t) { return t.name; }).join(', ') + '. Remove it anyway? Those themes go back to the room\u2019s own ambience.')) return;
+    if (!used.length && !confirm('Remove "' + x.name + '"? TVs delete it at their next check.')) return;
+    commitLatest(function (latest) {
+      latest.sounds = (latest.sounds || []).filter(function (y) { return y.id !== x.id; });
+      if (!latest.sounds.length) delete latest.sounds;
+      latest.themes.forEach(function (t) { if (t.ambience === x.id) delete t.ambience; });
+    }, 'Remove sound: ' + x.name + ' (Theme manager)').then(function (sha) {
+      if (x.source && !/^https?:/.test(x.source)) gh('/contents/themes/' + encodeURIComponent(x.source) + '?ref=main').then(function (j) {
+        return gh('/contents/themes/' + encodeURIComponent(x.source), { method: 'DELETE', body: { message: 'Remove unused sound file ' + x.source, sha: j.sha, branch: 'main' } });
+      }).catch(function () {});
+      $('sed').close(); renderAll(); watch(sha, x.name, true);
+    }).catch(function (e) { $('sMsg').textContent = 'Couldn\u2019t remove: ' + e.message; load(); });
   };
 
   /* ---------- settings: staff PIN, guests, TV addresses ---------- */
@@ -819,7 +986,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   };
 
   /* ---------- follow GitHub preparing the videos ---------- */
-  function banner(kind, html, spin) { $('status').innerHTML = '<div class="banner ' + kind + '">' + (spin ? '<span class="spin" aria-hidden="true"></span>' : '') + '<div class="grow">' + html + '</div></div>'; }
+  function banner(kind, html, spin) { $('sndStatus').innerHTML = $('status').innerHTML = '<div class="banner ' + kind + '">' + (spin ? '<span class="spin" aria-hidden="true"></span>' : '') + '<div class="grow">' + html + '</div></div>'; }
   function watch(sha, name, removed) {
     clearTimeout(pollTimer);
     var started = Date.now();

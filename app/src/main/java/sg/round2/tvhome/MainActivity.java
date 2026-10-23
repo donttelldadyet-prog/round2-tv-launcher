@@ -265,7 +265,7 @@ public class MainActivity extends Activity {
         if (bg != null) bg.pause();
         if (web != null) web.evaluateJavascript("window.r2Pause && window.r2Pause()", null);   // stop the rain ambience
         if (web != null) web.onPause();   // stops the background video while an app is open
-        if (sound != null) sound.loopTo(0f, 150);
+        if (sound != null) { sound.loopTo(0f, 150); sound.fileTo(null, 0f, 150); }
         super.onPause();
     }
 
@@ -365,6 +365,14 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void loopTo(double vol, int ms) { act.sound.loopTo((float) vol, ms); }
+
+        /** an uploaded ambience (theme/<id>.ogg, downloaded by ThemeSync); empty id = fade out the current one */
+        @JavascriptInterface
+        public void ambFile(String id, double vol, int ms) {
+            String path = null;
+            if (id != null && id.matches("[a-z0-9][a-z0-9-]{0,40}")) path = new java.io.File(act.themes.dir, id + ".ogg").getAbsolutePath();
+            act.sound.fileTo(path, (float) vol, ms);
+        }
 
         @JavascriptInterface
         public String version() {

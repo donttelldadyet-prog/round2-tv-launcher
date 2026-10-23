@@ -10,8 +10,12 @@ Framing ("frame": {"zoom": 1.2, "x": 0.5, "y": 0.4}) is how the Theme manager le
 video without making a new one: zoom 1 fills the TV screen (cropping what doesn't fit), above 1 zooms
 in, below 1 shrinks it over a blurred copy of itself; x/y (0-1) slide it left-right / up-down.
 Any shape of video works (a phone video in portrait too).
+
+Ambience sounds ("sounds": [{"id", "name", "source", "rooms"}]) are made into seamless loops for TVs:
+loudness-matched to the built-in rain, the end blended into the start so there's no gap or click,
+saved as <id>.ogg (up to 3 minutes). A theme can name one as its "ambience".
 """
-import hashlib, json, os, re, subprocess, sys, urllib.request
+import array, hashlib, json, math, os, re, subprocess, sys, urllib.request
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "donttelldadyet-prog/round2-tv-launcher")
 BASE = f"https://github.com/{REPO}/releases/download/themes/"
@@ -56,7 +60,7 @@ for t in src.get("themes", []):
     source = t.get("source", "")
     if not source:
         sys.exit(f"Theme '{tid}' has no source (a video link, or a file in the themes folder)")
-    entry = {k: t[k] for k in ("name", "rooms", "from", "until", "takeover", "layout", "cards", "focus") if k in t}
+    entry = {k: t[k] for k in ("name", "rooms", "from", "until", "takeover", "layout", "cards", "focus", "ambience") if k in t}
     if entry.get("cards") not in (None, "right", "low", "top", "middle", "bottom"):
         sys.exit(f"Theme '{tid}': cards must be right, low, top, middle or bottom")
     entry["id"] = tid
@@ -88,7 +92,75 @@ for t in src.get("themes", []):
         print(f"{tid}: encoded {entry['bytes'] // 1024} KB")
     pub.append(entry)
 
+# ---------------- ambience sounds ----------------
+def fetch(source, dest):
+    if source.startswith("http"):
+        req = urllib.request.Request(source, headers={"User-Agent": "Round2Home"})
+        with urllib.request.urlopen(req) as r, open(dest, "wb") as f:
+            f.write(r.read())
+        return dest
+    return os.path.join("themes", source)
+
+def make_loop(raw, ogg, sr=44100):
+    """decode -> loudness-match -> blend the last 1.5 s into the start -> OGG"""
+    pcm = subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-i", raw, "-t", "180", "-vn",
+                          "-af", "loudnorm=I=-26:TP=-3:LRA=11", "-ac", "2", "-ar", str(sr), "-f", "f32le", "-"],
+                         check=True, capture_output=True).stdout
+    a = array.array("f"); a.frombytes(pcm)
+    frames = len(a) // 2
+    if frames < sr * 2:
+        sys.exit(f"{raw}: the sound is shorter than 2 seconds")
+    x = min(int(sr * 1.5), frames // 4)
+    out = array.array("f", a[: (frames - x) * 2])
+    for i in range(x):   # equal-power crossfade: the loop's end flows into its start
+        t = i / x
+        gi, go = math.sin(t * math.pi / 2), math.cos(t * math.pi / 2)
+        for ch in (0, 1):
+            out[2 * i + ch] = a[2 * i + ch] * gi + a[2 * (frames - x + i) + ch] * go
+    tmp = ogg + ".raw"
+    with open(tmp, "wb") as f:
+        f.write(out.tobytes())
+    subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-f", "f32le", "-ar", str(sr), "-ac", "2", "-i", tmp,
+                    "-c:a", "libvorbis", "-q:a", "4", ogg], check=True)
+    os.remove(tmp)
+
+try:
+    old_sounds = {t["id"]: t for t in json.load(open(os.path.join(OUT, "previous.json"))).get("sounds", [])}
+except Exception:
+    old_sounds = {}
+sounds = []
+sound_ids = set()
+for snd in src.get("sounds", []):
+    sid = snd.get("id", "")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", sid) or sid in ("rain", "storm", "off"):
+        sys.exit(f"Sound id '{sid}' must be lowercase letters, numbers and dashes (and not rain/storm/off)")
+    source = snd.get("source", "")
+    if not source:
+        sys.exit(f"Sound '{sid}' has no source (an audio link, or a file in the themes folder)")
+    e = {k: snd[k] for k in ("name", "rooms") if k in snd}
+    e["id"] = sid
+    e["src"] = source if source.startswith("http") else source + ":" + sha(os.path.join("themes", source))
+    prev = old_sounds.get(sid)
+    if prev and prev.get("src") == e["src"]:
+        for k in ("audio", "sha256", "bytes"):
+            e[k] = prev[k]
+        keep.append(sid + ".ogg")
+        print(f"sound {sid}: unchanged")
+    else:
+        ogg = os.path.join(OUT, sid + ".ogg")
+        make_loop(fetch(source, os.path.join(OUT, sid + ".src")), ogg)
+        e.update(audio=BASE + sid + ".ogg", sha256=sha(ogg), bytes=os.path.getsize(ogg))
+        print(f"sound {sid}: {e['bytes'] // 1024} KB loop")
+    sound_ids.add(sid)
+    sounds.append(e)
+for t in pub:
+    amb = t.get("ambience")
+    if amb and amb not in ("rain", "storm", "off") and amb not in sound_ids:
+        sys.exit(f"Theme '{t['id']}' uses the ambience '{amb}', which isn't in sounds")
+
 out = {"themes": pub}
+if sounds:
+    out["sounds"] = sounds
 staff = src.get("staff") or {}
 if staff:   # staff PIN (stored only as a SHA-256) and whether guests may change the background
     if staff.get("pinHash") and not re.fullmatch(r"[0-9a-f]{64}", staff["pinHash"]):
