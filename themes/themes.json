@@ -12,6 +12,16 @@
       "takeover": true,
       "cards": "low",
       "focus": "50% 35%"
+    },
+    {
+      "id": "christmas-testing-2026",
+      "name": "christmas testing",
+      "source": "christmas-testing-2026-mvkk2suf.mp4",
+      "rooms": [
+        "kaeden"
+      ],
+      "takeover": false,
+      "cards": "bottom"
     }
   ]
 }
