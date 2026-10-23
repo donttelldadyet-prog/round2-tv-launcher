@@ -50,7 +50,7 @@ html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 #ui { transition: transform .26s cubic-bezier(.55, 0, .85, .35), opacity .2s linear; }
 /* animation hints only while a transition runs, so idle frames stay a single flat layer */
 .go-warp #world, .go-dive #world, .entering #world, .settle #world { will-change: transform; }
-.go-warp #ui, .go-dive #ui, .settle #ui { will-change: transform, opacity; }
+.go-warp #ui, .go-dive #ui, .go-fade #ui, .go-zoom #ui, .go-slide #ui, .go-glitch #ui, .settle #ui { will-change: transform, opacity; }
 
 header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; align-items: center; justify-content: space-between; }
 .logo { height: 50px; }
@@ -188,6 +188,17 @@ footer .keys { display: flex; gap: 30px; }
 .go-dive #world { transform: scale(1.35); transition: transform .34s cubic-bezier(.5, 0, .8, .4); }
 .go-dive #ui { opacity: 0; transition: opacity .16s linear; }
 .go-dive #dim { opacity: 1; transition: opacity .18s linear .14s; }
+
+/* Fade, Zoom, Slide, Glitch: simple, very light */
+.go-fade #ui { opacity: 0; transition: opacity .18s linear; }
+.go-fade #dim, .go-zoom #dim, .go-slide #dim { opacity: 1; transition: opacity .18s linear .06s; }
+.go-zoom #ui { opacity: 0; transform: scale(1.12); transition: opacity .18s linear, transform .22s ease-in; }
+.go-slide #ui { opacity: 0; transform: translateX(-140px); transition: opacity .2s linear, transform .22s cubic-bezier(.6, 0, .9, .4); }
+.go-glitch #ui { animation: glitch .26s steps(1, end) both; }
+.go-glitch #dim { animation: glitchDim .28s steps(1, end) both; }
+@keyframes glitch { 0% { transform: none; opacity: 1 } 15% { transform: translate(-16px, 3px); opacity: .8 } 30% { transform: translate(12px, -2px); opacity: .4 }
+  45% { transform: translate(-6px, 0); opacity: .9 } 60% { transform: translate(20px, 4px); opacity: .2 } 75% { transform: translate(-4px, -3px); opacity: .5 } 100% { transform: none; opacity: 0 } }
+@keyframes glitchDim { 0% { opacity: 0 } 40% { opacity: .4 } 55% { opacity: 0 } 70% { opacity: .75 } 100% { opacity: 1 } }
 
 /* coming back without the Home animation: a quick settle */
 .settle #world { animation: settle .32s var(--ease) both; }
@@ -370,7 +381,8 @@ window.R2_TV = {
 
   /* Apps, with each TV platform's app id */
   var APPS = {
-    youtube: { name: 'YouTube',     android: 'com.google.android.youtube.tv',     tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
+    /* TizenTube Cobalt (ad-free YouTube) when installed, otherwise Google's YouTube */
+    youtube: { name: 'YouTube',     android: ['io.gh.reisxd.tizentube.cobalt', 'com.google.android.youtube.tv'], tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
     max:     { name: 'HBO Max',     android: 'com.wbd.stream' },
@@ -446,19 +458,31 @@ window.R2_TV = {
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   /* ================= per-TV preferences (Options) ================= */
-  var FX = [{ id: 'warp', name: 'Warp' }, { id: 'dive', name: 'Dive' }, { id: 'off', name: 'Off' }];
+  var FX = [
+    { id: 'warp', name: 'Warp', ms: 300 }, { id: 'dive', name: 'Dive', ms: 260 }, { id: 'fade', name: 'Fade', ms: 200 },
+    { id: 'zoom', name: 'Zoom', ms: 220 }, { id: 'slide', name: 'Slide', ms: 220 }, { id: 'glitch', name: 'Glitch', ms: 260 },
+    { id: 'off', name: 'Off', ms: 0 }
+  ];
+  function fxMs(id) { for (var i = 0; i < FX.length; i++) if (FX[i].id === id) return FX[i].ms; return 250; }
   var SOUNDS = [
     { id: 'neon',   name: 'Neon tick' },
     { id: 'zen',    name: 'Kai bamboo' },
     { id: 'holo',   name: 'Hologram' },
     { id: 'glitch', name: 'Glitch' },
     { id: 'synth',  name: 'Synthwave' },
+    { id: 'arcade', name: 'Arcade' },
+    { id: 'chime',  name: 'Soft chime' },
+    { id: 'bubble', name: 'Bubble' },
+    { id: 'sonar',  name: 'Sonar' },
+    { id: 'click',  name: 'Click' },
     { id: 'off',    name: 'Off' }
   ];
   var prefs = {
     fx: store('r2.fx') || 'warp',
     entry: store('r2.entry') !== 'off',
-    sound: store('r2.sound') || 'neon'
+    sound: store('r2.sound') || 'neon',
+    amb: store('r2.amb') || 'rain',
+    ambVol: store('r2.ambVol') || 'med'
   };
   function nameOf(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i].name; return list[0].name; }
   function cycle(list, id, dir) {
@@ -518,6 +542,31 @@ window.R2_TV = {
         ok:     function () { voice({ wave: 'noise', dur: 0.06, vol: 0.1, filter: 'bandpass', cut: 3000, q: 3 }); voice({ wave: 'sawtooth', f0: 220, f1: 880, dur: 0.12, vol: 0.05, cut: 2600, at: 0.03 }); },
         back:   function () { voice({ wave: 'noise', dur: 0.05, vol: 0.08, filter: 'bandpass', cut: 900, q: 3 }); }
       },
+      arcade: { /* 8-bit console blips */
+        move:   function () { voice({ wave: 'square', f0: 880, dur: 0.04, vol: 0.05, cut: 8000 }); },
+        ok:     function () { voice({ wave: 'square', f0: 660, dur: 0.06, vol: 0.05, cut: 8000 }); voice({ wave: 'square', f0: 990, dur: 0.06, vol: 0.05, cut: 8000, at: 0.06 }); voice({ wave: 'square', f0: 1320, dur: 0.1, vol: 0.05, cut: 8000, at: 0.12 }); },
+        back:   function () { voice({ wave: 'square', f0: 660, dur: 0.05, vol: 0.05, cut: 8000 }); voice({ wave: 'square', f0: 440, dur: 0.08, vol: 0.05, cut: 8000, at: 0.05 }); }
+      },
+      chime: {  /* soft glass chime */
+        move:   function () { voice({ wave: 'sine', f0: 1568, dur: 0.18, vol: 0.05 }); voice({ wave: 'sine', f0: 3136, dur: 0.1, vol: 0.012 }); },
+        ok:     function () { voice({ wave: 'sine', f0: 1046, dur: 0.5, vol: 0.06 }); voice({ wave: 'sine', f0: 1568, dur: 0.45, vol: 0.04, at: 0.07 }); voice({ wave: 'sine', f0: 2093, dur: 0.4, vol: 0.03, at: 0.14 }); },
+        back:   function () { voice({ wave: 'sine', f0: 1175, dur: 0.25, vol: 0.05 }); voice({ wave: 'sine', f0: 784, dur: 0.3, vol: 0.04, at: 0.06 }); }
+      },
+      bubble: { /* round water pop */
+        move:   function () { voice({ wave: 'sine', f0: 380, f1: 900, dur: 0.07, glide: 0.05, vol: 0.09 }); },
+        ok:     function () { voice({ wave: 'sine', f0: 300, f1: 1200, dur: 0.12, glide: 0.08, vol: 0.1 }); voice({ wave: 'sine', f0: 600, f1: 1600, dur: 0.1, vol: 0.05, at: 0.07 }); },
+        back:   function () { voice({ wave: 'sine', f0: 900, f1: 300, dur: 0.1, vol: 0.08 }); }
+      },
+      sonar: {  /* deep submarine ping */
+        move:   function () { voice({ wave: 'sine', f0: 520, dur: 0.16, vol: 0.06 }); },
+        ok:     function () { voice({ wave: 'sine', f0: 780, dur: 0.7, vol: 0.07 }); voice({ wave: 'sine', f0: 780, dur: 0.5, vol: 0.025, at: 0.22 }); },
+        back:   function () { voice({ wave: 'sine', f0: 390, dur: 0.25, vol: 0.06 }); }
+      },
+      click: {  /* crisp mechanical click */
+        move:   function () { voice({ wave: 'noise', dur: 0.012, vol: 0.12, filter: 'highpass', cut: 3000 }); },
+        ok:     function () { voice({ wave: 'noise', dur: 0.015, vol: 0.14, filter: 'highpass', cut: 2500 }); voice({ wave: 'noise', dur: 0.015, vol: 0.1, filter: 'highpass', cut: 2500, at: 0.05 }); },
+        back:   function () { voice({ wave: 'noise', dur: 0.02, vol: 0.1, filter: 'bandpass', cut: 1500, q: 2 }); }
+      },
       synth: {  /* warm synthwave pluck */
         move:   function () { voice({ wave: 'sawtooth', f0: 440, dur: 0.09, vol: 0.05, cut: 1600, q: 4 }); },
         ok:     function () { voice({ wave: 'sawtooth', f0: 440, dur: 0.2, vol: 0.05, cut: 2200, q: 5 }); voice({ wave: 'sawtooth', f0: 659, dur: 0.2, vol: 0.04, cut: 2200, q: 5, at: 0.06 }); voice({ wave: 'sawtooth', f0: 880, dur: 0.3, vol: 0.04, cut: 2600, q: 5, at: 0.12 }); },
@@ -533,7 +582,96 @@ window.R2_TV = {
     };
   }());
 
+  /* ================= ambience: rain on the home screen ================= */
+  var AMBS = [{ id: 'rain', name: 'Rain' }, { id: 'storm', name: 'Storm' }, { id: 'off', name: 'Off' }];
+  var VOLS = [{ id: 'low', name: 'Low', g: 0.16 }, { id: 'med', name: 'Medium', g: 0.3 }, { id: 'high', name: 'High', g: 0.5 }];
+  var Amb = (function () {
+    var rainBuf = null, thunderBuf = null, src = null, gain = null, thunderTimer = null, playing = '';
+    function vol() { for (var i = 0; i < VOLS.length; i++) if (VOLS[i].id === prefs.ambVol) return VOLS[i].g; return 0.3; }
+    /* Rendered once: a 6 s seamless rain loop (hiss + body + droplets), then only played back */
+    function renderRain(c) {
+      var sr = 22050, n = sr * 6, buf = c.createBuffer(1, n, sr), d = buf.getChannelData(0), i, lp = 0, br = 0, hp = 0;
+      for (i = 0; i < n; i++) {
+        var w = Math.random() * 2 - 1;
+        lp += 0.55 * (w - lp);                  /* soft hiss */
+        br = (br + 0.02 * w) * 0.995;           /* low body */
+        hp += 0.02 * (lp - hp);
+        d[i] = (lp - hp) * 0.32 + br * 0.9;
+      }
+      var drops = 6 * 140;                      /* ~140 droplets a second */
+      for (var k = 0; k < drops; k++) {
+        var at = (Math.random() * n) | 0, amp = Math.pow(Math.random(), 3) * 0.55, tau = sr * (0.0008 + Math.random() * 0.003);
+        var tone = Math.random() < 0.08 ? (2200 + Math.random() * 3200) / sr * 2 * Math.PI : 0;
+        for (var j = 0; j < tau * 6 && at + j < n; j++) {
+          var e = Math.exp(-j / tau);
+          d[at + j] += amp * e * (tone ? Math.sin(j * tone) : (Math.random() * 2 - 1));
+        }
+      }
+      var xf = (sr * 0.4) | 0;                  /* blend the end into the start so the loop has no seam */
+      for (i = 0; i < xf; i++) { var t = i / xf; d[i] = d[i] * t + d[n - xf + i] * (1 - t); }
+      var peak = 0; for (i = 0; i < n - xf; i++) peak = Math.max(peak, Math.abs(d[i]));
+      for (i = 0; i < n; i++) d[i] = d[i] / (peak || 1) * 0.9;
+      return buf;
+    }
+    function renderThunder(c) {
+      var sr = 22050, n = sr * 7, buf = c.createBuffer(1, n, sr), d = buf.getChannelData(0), br = 0, lp = 0;
+      for (var i = 0; i < n; i++) {
+        var t = i / sr, w = Math.random() * 2 - 1;
+        br = (br + 0.03 * w) * 0.997; lp += 0.08 * (br - lp);
+        var env = Math.min(1, t / 0.25) * Math.exp(-t / 2.2) * (0.7 + 0.3 * Math.sin(t * 3.1) * Math.sin(t * 1.7));
+        d[i] = lp * env * 6;
+      }
+      return buf;
+    }
+    function thunder() {
+      clearTimeout(thunderTimer);
+      if (playing !== 'storm') return;
+      var c = Sfx.wake();
+      if (c && thunderBuf && gain) {
+        var s2 = c.createBufferSource(), g2 = c.createGain();
+        s2.buffer = thunderBuf; g2.gain.value = 0.55 + Math.random() * 0.35;
+        s2.connect(g2); g2.connect(gain); s2.start();
+      }
+      thunderTimer = setTimeout(thunder, 15000 + Math.random() * 20000);
+    }
+    function stop() {
+      clearTimeout(thunderTimer);
+      if (src) { try { src.stop(); } catch (e) {} src = null; }
+      playing = '';
+    }
+    return {
+      apply: function () {
+        if (prefs.amb === 'off') { stop(); return; }
+        var c = Sfx.wake(); if (!c) return;
+        if (!rainBuf) rainBuf = renderRain(c);
+        if (!thunderBuf) thunderBuf = renderThunder(c);
+        if (!gain) {
+          gain = c.createGain(); gain.gain.value = 0.0001;
+          var tone = c.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 7000;
+          gain.connect(tone); tone.connect(c.destination);
+        }
+        if (!src) {
+          src = c.createBufferSource(); src.buffer = rainBuf; src.loop = true;
+          src.connect(gain); src.start();
+        }
+        playing = prefs.amb;
+        var g = vol() * (prefs.amb === 'storm' ? 1.25 : 1), now = c.currentTime;
+        gain.gain.cancelScheduledValues(now); gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), now);
+        gain.gain.exponentialRampToValueAtTime(g, now + 1.2);   /* fades in */
+        if (prefs.amb === 'storm') thunderTimer = setTimeout(thunder, 4000 + Math.random() * 6000); else clearTimeout(thunderTimer);
+      },
+      duck: function () {   /* an app is opening: fade out quickly */
+        var c = Sfx.wake(); if (!c || !gain) return;
+        var now = c.currentTime; gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), now); gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+      },
+      pause: function () { stop(); },
+      resume: function () { this.apply(); }
+    };
+  }());
+
   var cfg = window.R2_TV;
+  try { window.localStorage.removeItem('r2.last'); } catch (e) {}   /* old builds remembered the last app */
   var hashRoom = (location.hash || '').replace('#', '');
   var savedRoom = store('r2.room');
   var roomKey = ROOMS[hashRoom] ? hashRoom : ROOMS[savedRoom] ? savedRoom : (ROOMS[cfg.room] ? cfg.room : 'vale');
@@ -546,12 +684,8 @@ window.R2_TV = {
 
   /* ================= main menu ================= */
   function buildItems() {
-    var last = null;
-    try { last = JSON.parse(store('r2.last') || 'null'); } catch (e) {}
-    items = [
-      { key: 'continue', label: 'Continue', hint: last ? 'RESUME' : 'NEW GAME', last: last },
-      { key: 'inputs', label: 'Inputs', hint: 'HDMI' }
-    ];
+    /* no Continue / last-played: the next group must never see the previous group's session */
+    items = [{ key: 'inputs', label: 'Inputs', hint: 'HDMI' }];
     if (Device.installed(APPS.airplay.android)) items.push(mk('airplay', 'MIRROR'));
     items.push(mk('youtube'), mk('netflix'), mk('prime'));
     if (room.t !== 'n') items.push(mk('max'));
@@ -559,14 +693,16 @@ window.R2_TV = {
     items.push({ key: 'options', label: 'Options', hint: 'SETTINGS' });
     if (sel >= items.length) sel = 0;
   }
-  function mk(k, hint) { var a = APPS[k]; return { key: k, label: a.name, hint: hint || 'STREAM', android: a.android, tizen: a.tizen, webos: a.webos }; }
+  function mk(k, hint) {
+    var a = APPS[k], pkg = a.android;
+    if (pkg && pkg.join) { var pick = pkg[pkg.length - 1]; for (var i = 0; i < pkg.length; i++) if (Device.installed(pkg[i])) { pick = pkg[i]; break; } pkg = pick; }
+    var adFree = pkg === 'io.gh.reisxd.tizentube.cobalt';
+    return { key: k, label: a.name, hint: adFree ? 'NO ADS' : (hint || 'STREAM'), adFree: adFree, android: pkg, tizen: a.tizen, webos: a.webos };
+  }
 
   function peekHtml(it) {
     var tag = 'PLAYER 1 · READY', title = it.label, body = '', rows = [];
-    if (it.key === 'continue') {
-      if (it.last) { title = 'Continue'; body = 'Jump back into ' + esc(it.last.name) + ', right where this TV left off.'; rows = [['LAST', it.last.name]]; }
-      else { title = 'New game'; body = 'Nothing played yet this session. Pick something from the menu to start.'; }
-    } else if (it.key === 'inputs') {
+    if (it.key === 'inputs') {
       tag = 'PLAYER 2 · PLUG IN';
       body = 'Play on the ' + esc(room.ps) + ', or plug in your own console or laptop and pick its HDMI port.';
       for (var p in cfg.inputNames) if (cfg.inputNames.hasOwnProperty(p)) rows.push([p.toUpperCase(), cfg.inputNames[p] === 'PlayStation' ? room.ps : cfg.inputNames[p]]);
@@ -581,6 +717,18 @@ window.R2_TV = {
       tag = 'SETTINGS';
       body = 'Pick this TV\'s background, or open the TV\'s own settings.';
       rows = [['BACKGROUND', currentWall().name]];
+    } else if (it.key === 'netflix' || it.key === 'prime') {
+      tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
+      body = esc(room.name) + '\'s account is already signed in: pick the ' + esc(room.name.toUpperCase()) + ' profile and press play. Rather use your own? Sign in with it, and sign out before you leave.';
+      rows = [['PROFILE', room.name], ['SCREEN', room.screen]];
+    } else if (it.key === 'max') {
+      tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
+      body = 'The Round2 HBO Max account is already signed in. Just pick a show and press play.';
+      rows = [['ACCOUNT', 'Round2 (shared)'], ['SCREEN', room.screen]];
+    } else if (it.key === 'youtube') {
+      tag = it.adFree ? 'STREAM · NO ADS' : 'STREAM';
+      body = (it.adFree ? 'YouTube without ads or sponsor segments. ' : '') + 'Sign in with your own account if you like, and sign out before your session ends.';
+      rows = [['SCREEN', room.screen]];
     } else {
       tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
       body = 'Sign in with your own account if it asks. Sign out before your session ends so the next group starts fresh.';
@@ -637,6 +785,8 @@ window.R2_TV = {
       { act: 'fx',    label: 'Transition',     hint: '\u2039 ' + nameOf(FX, prefs.fx).toUpperCase() + ' \u203A' },
       { act: 'entry', label: 'Home animation', hint: '\u2039 ' + (prefs.entry ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'sound', label: 'Menu sounds',    hint: '\u2039 ' + nameOf(SOUNDS, prefs.sound).toUpperCase() + ' \u203A' },
+      { act: 'amb',   label: 'Ambience',       hint: '\u2039 ' + nameOf(AMBS, prefs.amb).toUpperCase() + ' \u203A' },
+      { act: 'ambVol', label: 'Ambience volume', hint: '\u2039 ' + nameOf(VOLS, prefs.ambVol).toUpperCase() + ' \u203A' },
       { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' }
     ];
   }
@@ -645,6 +795,8 @@ window.R2_TV = {
     if (act === 'fx') { prefs.fx = cycle(FX, prefs.fx, dir); store('r2.fx', prefs.fx); if (prefs.fx !== 'off') demoTransition(); }
     else if (act === 'entry') { prefs.entry = !prefs.entry; store('r2.entry', prefs.entry ? 'on' : 'off'); if (prefs.entry) arrive(true); }
     else if (act === 'sound') { prefs.sound = cycle(SOUNDS, prefs.sound, dir); store('r2.sound', prefs.sound); Sfx.play('ok'); }
+    else if (act === 'amb') { prefs.amb = cycle(AMBS, prefs.amb, dir); store('r2.amb', prefs.amb); Amb.apply(); }
+    else if (act === 'ambVol') { prefs.ambVol = cycle(VOLS, prefs.ambVol, dir); store('r2.ambVol', prefs.ambVol); Amb.apply(); }
     else return false;
     openSettings(setSel);
     return true;
@@ -859,15 +1011,16 @@ window.R2_TV = {
   var leaving = false, entryTimer;
   function clearAnim() {
     clearTimeout(entryTimer);
-    dropCls('go-warp'); dropCls('go-dive'); dropCls('entering'); dropCls('settle');
+    for (var i = 0; i < FX.length; i++) dropCls('go-' + FX[i].id);
+    dropCls('entering'); dropCls('settle');
   }
   function dive(then, demo) {
     leaving = !demo;                       /* a preview from Options never locks the remote */
     clearAnim();
+    Amb.duck();
     if (prefs.fx === 'off') { then(); return; }
-    addCls(prefs.fx === 'dive' ? 'go-dive' : 'go-warp');
-    if (prefs.fx === 'dive') nZoom(-1, 1.35, 340, true); else nZoom(-1, 1.55, 400, true);
-    setTimeout(then, prefs.fx === 'dive' ? 260 : 300);
+    addCls('go-' + prefs.fx);
+    setTimeout(then, fxMs(prefs.fx));
   }
   /* Returning (Home pressed, or an app closed): the Home animation, or a quick settle */
   function arrive(force) {
@@ -891,7 +1044,6 @@ window.R2_TV = {
 
   function launch(it) {
     if (it.roomPick) { store('r2.room', it.roomPick); applyRoom(it.roomPick); closeGrid(); toast('This TV is now set to ' + room.name + '.'); return; }
-    if (it.key === 'continue') { if (it.last) return launch(it.last); toast('Pick something from the menu to start.'); return; }
     if (it.key === 'more') { openGrid('apps'); return; }
     if (it.key === 'inputs') { openGrid('inputs'); return; }
     if (it.key === 'options') { openSettings(0); return; }
@@ -902,10 +1054,7 @@ window.R2_TV = {
     Device.open(it, function (err) {
       if (err === 'preview') toast('On the TV, this opens ' + (it.input ? it.port : it.label || it.name) + '.');
       else if (err) { arrive(false); toast(err); return; }
-      if (!it.input && !it.settings) {
-        store('r2.last', JSON.stringify({ key: it.key || 'app', name: it.label || it.name, android: it.android, tizen: it.tizen, webos: it.webos }));
-        var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu();
-      }
+
     });
   }
 
@@ -913,7 +1062,7 @@ window.R2_TV = {
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 23: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
   function press(k) {
     if (leaving) return;
-    Sfx.wake();
+    if (Sfx.wake() && !ambStarted) { ambStarted = true; Amb.apply(); }   /* in case the TV held audio until the first key */
     if (/entering|settle/.test($('stage').className)) { addCls('snap'); clearAnim(); void $('stage').offsetWidth; dropCls('snap'); }   /* a key press skips the intro */
     if (mode === 'menu') {
       if (k === 'up') { select((sel + items.length - 1) % items.length); Sfx.play('move'); }
@@ -933,8 +1082,10 @@ window.R2_TV = {
   /* the Android app calls these: Back on the remote, a room set from the computer, and returning here */
   window.r2Back = function () { press('back'); };
   window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
+  window.r2Pause = function () { Amb.pause(); };   /* the app calls this when another app opens */
   window.r2Resume = function () {
     arrive(false);
+    Amb.resume();
     if (mode === 'grid') closeGrid();
     var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1);
     if (mode === 'menu') renderMenu();
@@ -1034,6 +1185,8 @@ window.R2_TV = {
   fit(); tick(); setInterval(tick, 15000);
   setTimeout(fit, 400); setTimeout(fit, 1500);
   arrive(false);                         /* the Home animation also plays when the TV starts */
+  var ambStarted = false;
+  setTimeout(function () { Amb.apply(); ambStarted = true; }, 1800);   /* after the Home animation, so building the rain loop never costs a frame */
   if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');
 }());
 </script>

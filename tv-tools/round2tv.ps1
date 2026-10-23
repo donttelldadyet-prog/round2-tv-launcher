@@ -508,6 +508,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   tweaks                 animations 0.5 + Private DNS dns.adguard-dns.com
   install owner/repo     install the latest APK from official GitHub releases (default truefedex/tv-bro)
   airplay                install PhairPlay (AirPlay receiver) from its GitHub releases
+  tizentube              install TizenTube Cobalt (ad-free YouTube); the YouTube button then opens it
   launcher [owner/repo]  install Round2 Home and make it the home screen (default donttelldadyet-prog/round2-tv-launcher)
   perf                   measure how smoothly the menu draws (dropped and slow frames)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
@@ -532,6 +533,7 @@ switch ($Command.ToLower()) {
   'cleanup' { Cmd-Cleanup $a1 }
   'tweaks' { Cmd-Tweaks }
   'install' { $null = Cmd-Install $a1 }
+  'tizentube' { $null = Cmd-Install 'reisxd/TizenTubeCobalt'; Say 'Pick the armeabi-v7a (32-bit ARM) or universal APK. The Round2 YouTube button now opens TizenTube (no ads).' }
   'airplay' { $null = Cmd-Install 'mazer666/PhairPlay'; Say 'Pick the googletv APK. Then open PhairPlay once and set its device name to this room (e.g. Round2 Kai).' }
   'launcher' { Cmd-Launcher $a1 }
   'launcher-force' { Cmd-LauncherForce }

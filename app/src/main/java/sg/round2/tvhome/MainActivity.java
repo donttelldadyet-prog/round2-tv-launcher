@@ -180,6 +180,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         if (bg != null) bg.pause();
+        if (web != null) web.evaluateJavascript("window.r2Pause && window.r2Pause()", null);   // stop the rain ambience
         if (web != null) web.onPause();   // stops the background video while an app is open
         super.onPause();
     }
