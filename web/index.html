@@ -106,6 +106,7 @@ header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; 
 #setPanel .mi { clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); }
 #setPanel .mi.on { background: var(--room); }
 #setList { max-height: 604px; overflow: hidden; }          /* 8 rows; the list scrolls with the selection */
+#setList .mi { flex-shrink: 0; }                          /* rows keep their height (older TV browsers squeezed them) */
 .pinbox { margin-top: 6px; }
 .pinbox[hidden] { display: none; }
 .pinbox .digits { display: flex; gap: 16px; margin: 22px 0 18px; }
@@ -1610,30 +1611,34 @@ window.R2_TV = {
     return list[0];
   }
 
+  /* Options: what guests change on top, staff things in one "Staff tools" page (it scrolls if long) */
+  var inTools = false;
   function setRows() {
-    return [
-      { act: 'walls', label: 'Background',     hint: currentWall().name.toUpperCase() + (lockedBg() ? ' \u00B7 STAFF' : '') + ' \u203A' },
-      { act: 'cards', label: 'Info cards',     hint: '\u2039 ' + nameOf(CARDS, prefs.cards).toUpperCase() + ' \u203A' },
-      { act: 'fx',    label: 'Transition',     hint: '\u2039 ' + nameOf(FX, prefs.fx).toUpperCase() + ' \u203A' },
-      { act: 'entry', label: 'Home animation', hint: '\u2039 ' + nameOf(ENTRIES, entryStyle()).toUpperCase() + ' \u203A' },
-      { act: 'sound', label: 'Menu sounds',    hint: '\u2039 ' + nameOf(SOUNDS, prefs.sound).toUpperCase() + ' \u203A' },
-      { act: 'amb',   label: 'Ambience',       hint: '\u2039 ' + nameOf(ambList(), ambNow()).toUpperCase() + ' \u203A' },
-      { act: 'ambVol', label: 'Ambience volume', hint: '\u2039 ' + nameOf(VOLS, prefs.ambVol).toUpperCase() + ' \u203A' },
-      { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + (isStaff() ? '' : ' \u00B7 STAFF') + ' \u203A' },
-      { act: 'tv',    label: 'TV settings',    hint: (isStaff() ? 'SYSTEM' : 'STAFF') + ' \u203A' },
-      { act: 'staff', label: isStaff() ? 'Staff mode on' : 'Staff mode', hint: isStaff() ? 'CHANGES ARE SAVED \u00B7 OK TO LOCK' : (upd.state === 'available' ? 'UPDATE READY \u00B7 ' : '') + 'PIN \u203A' }
-    ].concat(isStaff() ? [
-      { act: 'update', label: 'Update app', hint: updHint() }
+    if (inTools && isStaff()) return [
+      { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + ' \u203A' },
+      { act: 'update', label: 'Update app', hint: updHint() },
+      { act: 'themesNow', label: 'Check for new themes', hint: 'NOW \u203A' }
     ].concat(LGRoot.state.ok ? [
       { act: 'lgPower', label: 'Open when TV turns on', hint: '\u2039 ' + (LGRoot.state.poweron ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'lgHome', label: 'Home button', hint: '\u2039 ' + (LGRoot.state.home ? 'OPENS ROUND2' : 'LG HOME') + ' \u203A' },
       { act: 'airRx', label: 'AirPlay receiver', hint: 'INSTALL / UPDATE \u203A' },
       { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
-      { act: 'airTest', label: 'Test AirPlay app', hint: 'UXAIR / UXPLAY \u203A' }
+      { act: 'airTest', label: 'Test AirPlay app', hint: 'SHOW LOG \u203A' }
     ] : []).concat([
-      { act: 'themesNow', label: 'Check for new themes', hint: 'NOW \u203A' },
+      { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' },
       { act: 'about', label: 'About this TV', hint: tvInfo() }
-    ]) : []);
+    ]);
+    return [
+      { act: 'walls', label: 'Background',     hint: currentWall().name.toUpperCase() + (lockedBg() ? ' \u00B7 STAFF' : '') + ' \u203A' },
+      { act: 'amb',   label: 'Ambience',       hint: '\u2039 ' + nameOf(ambList(), ambNow()).toUpperCase() + ' \u203A' },
+      { act: 'ambVol', label: 'Ambience volume', hint: '\u2039 ' + nameOf(VOLS, prefs.ambVol).toUpperCase() + ' \u203A' },
+      { act: 'fx',    label: 'Transition',     hint: '\u2039 ' + nameOf(FX, prefs.fx).toUpperCase() + ' \u203A' },
+      { act: 'entry', label: 'Home animation', hint: '\u2039 ' + nameOf(ENTRIES, entryStyle()).toUpperCase() + ' \u203A' },
+      { act: 'sound', label: 'Menu sounds',    hint: '\u2039 ' + nameOf(SOUNDS, prefs.sound).toUpperCase() + ' \u203A' },
+      { act: 'cards', label: 'Info cards',     hint: '\u2039 ' + nameOf(CARDS, prefs.cards).toUpperCase() + ' \u203A' },
+      isStaff() ? { act: 'tools', label: 'Staff tools', hint: (upd.state === 'available' ? 'UPDATE READY \u00B7 ' : '') + 'OPEN \u203A' }
+                : { act: 'staff', label: 'Staff', hint: (upd.state === 'available' ? 'UPDATE READY \u00B7 ' : '') + 'PIN \u203A' }
+    ];
   }
   var pin = '', pinDigit = 0, pinThen = null, pinFails = 0, pinBlockUntil = 0;
   function askPin(then) {
@@ -1773,7 +1778,8 @@ window.R2_TV = {
   }
   function openSettings(focus) {
     mode = 'settings'; setSel = focus || 0;
-    $('setTitle').textContent = 'OPTIONS'; $('setCount').textContent = '';
+    if (inTools && !isStaff()) inTools = false;
+    $('setTitle').textContent = inTools ? 'STAFF TOOLS' : 'OPTIONS'; $('setCount').textContent = '';
     $('wallView').hidden = true; $('setList').hidden = false;
     var rows = setRows(), html = '';
     for (var i = 0; i < rows.length; i++) html += '<button type="button" tabindex="-1" class="mi' + (i === setSel ? ' on' : '') + '" data-s="' + i + '">' + ARROW +
@@ -1816,9 +1822,9 @@ window.R2_TV = {
       Sfx.play('move');
       scrollSettings();
     } else if ((k === 'ok' || k === 'right') && needsPin(act) && !isStaff()) {
-      Sfx.play('ok'); askPin(function () { if (act === 'walls') openWalls(); else if (act === 'room') openRooms(); else if (act === 'tv') launch({ name: 'TV settings', settings: true }); else openSettings(setSel); });
-    } else if (k === 'ok' && act === 'staff') {
-      lockStaff(); Sfx.play('back'); openSettings(setSel); toast('Staff mode off. Changes are for this session only.');
+      Sfx.play('ok'); askPin(function () { if (act === 'walls') openWalls(); else if (act === 'room') openRooms(); else if (act === 'tv') launch({ name: 'TV settings', settings: true }); else if (act === 'staff') { inTools = true; openSettings(0); } else openSettings(setSel); });
+    } else if ((k === 'ok' || k === 'right') && act === 'tools') {
+      Sfx.play('ok'); inTools = true; openSettings(0);
     } else if (k === 'ok' && act === 'update') {
       Sfx.play('ok'); updateKey();
     } else if (k === 'ok' && act === 'themesNow') {
@@ -1856,6 +1862,7 @@ window.R2_TV = {
       else if (act === 'tv') { Sfx.play('ok'); launch({ name: 'TV settings', settings: true }); }
       else if (act === 'room') { Sfx.play('ok'); openRooms(); }
       else changeSetting(act, 1);
+    } else if (k === 'back' && inTools) { Sfx.play('back'); inTools = false; openSettings(setRows().length - 1);
     } else if (k === 'back') { Sfx.play('back'); closeSettings(); }
   }
 

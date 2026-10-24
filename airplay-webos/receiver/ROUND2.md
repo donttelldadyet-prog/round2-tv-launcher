@@ -65,3 +65,10 @@ the commit named in the package's `build-info.txt`.
   smoothness, sound timing, More settings) and More settings (video format, info overlay, version,
   credits, licence). History, detailed diagnostics and the donation screen were removed. Lists
   scroll, layout scales with screen height. Left/right on Home changes sound timing.
+
+## 0.2.1
+
+- 0.2.0's clock mapping made mirroring ~10 s late on Bella and connections kept dropping.
+  Back to 0.1.3's live timestamps (fast); kept only the fix for overlapping sound: sound buffers
+  are laid back to back from the live time. The two AirPlay Server session/volume patches are
+  removed again while that is retested; the pairing bounds check stays.

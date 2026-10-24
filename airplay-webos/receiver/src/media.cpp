@@ -140,18 +140,18 @@ FeedResult Media::feed(const void *data, size_t size, int64_t pts_ns, bool video
         return FeedResult::Error;
     }
     int64_t before=monotonic_ns();
+    // 0.2.1: back to 0.1.3's live stamps (fast: ~1 s less delay than mapping the sender's clock,
+    // which in 0.2.0 drifted up to ~10 s). Only change: sound buffers are laid back to back from
+    // the live time, so bursts of sound packets no longer overlap (the TV dropped those).
     const double local_ms=(before-g_load_ns)/1e6;
-    double out=g_timeline.map(pts_ns/1e6,local_ms);
-    // Audio delay setting: a positive value plays sound later, a negative one plays the picture later.
-    const int offset=av_offset_ms.load();
+    (void)pts_ns;
+    double out=local_ms;
+    const int offset=av_offset_ms.load();   // Sound timing: + plays sound later, - plays the picture later
     if(video) { if(offset<0) out+=-offset; }
     else {
         if(offset>0) out+=offset;
         const double dur=double(size/4)*1000.0/g_timeline.rate;   // S16LE stereo
-        if(g_timeline.audio_next>=0 && std::abs(out-g_timeline.audio_next)<120) {
-            // back to back while that is still ahead of the clock; otherwise leave a tiny gap rather than overlap
-            out = g_timeline.audio_next>=local_ms+5 ? g_timeline.audio_next : std::max(out,g_timeline.audio_next);
-        }
+        if(g_timeline.audio_next>out && g_timeline.audio_next-out<400) out=g_timeline.audio_next;   // back to back, never overlapping
         g_timeline.audio_next=out+dur;
     }
     long long pts_ms=(long long)(out+0.5);
