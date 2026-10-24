@@ -151,7 +151,7 @@
     },
     {
       "id": "bella-reading",
-      "name": "BELLA READING",
+      "name": "READING",
       "source": "sound-bella-reading-mvmbrdie.mp3",
       "rooms": [
         "bella"
