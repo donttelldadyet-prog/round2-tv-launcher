@@ -1,0 +1,42 @@
+name: AirPlay lab (LG webOS 5+)
+
+# Builds the picture test for LG TVs without libAcbAPI (webOS 5+, e.g. Bella's 2020 NanoCell)
+# and puts it on the "airplay-lab" release. Round2 Home > Options > Staff mode > AirPlay lab
+# installs it through Homebrew Channel, runs it and shows the result.
+on:
+  push:
+    branches: [main]
+    paths: ['airplay-webos/**', '.github/workflows/airplay-lab.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: airplay-lab
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+      - name: Cache the webOS toolchain
+        uses: actions/cache@v4
+        with:
+          path: airplay-webos/.work/arm-webos-linux-gnueabi_sdk-buildroot
+          key: webos-ndk-2026.08-webos
+      - name: Build
+        run: sh airplay-webos/build-lab.sh
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view airplay-lab >/dev/null 2>&1 || gh release create airplay-lab --title "AirPlay lab" \
+            --notes "Test builds for AirPlay on LG webOS 5+ TVs. Installed from Round2 Home > Options > Staff mode > AirPlay lab." \
+            --prerelease --latest=false
+          gh release upload airplay-lab airplay-webos/dist/*.ipk --clobber

@@ -714,6 +714,79 @@ window.R2_TV = {
     };
     return { check: check, setFlag: setFlag, state: st, updater: updater, exec: exec };
   }());
+  /* ---- AirPlay lab (rooted LG, webOS 5+): installs a test app from the airplay-lab release through
+     Homebrew Channel, runs it for 20 s from a root shell, then reopens Round2 Home with the result ---- */
+  var AirLab = (function () {
+    var APP = 'sg.round2.lab.ndl', DIR = '/media/developer/apps/usr/palm/applications/' + APP, LOG = '/tmp/r2lab.log',
+        LOGS = LOG + ' /var/palm/jail/' + APP + LOG;   /* a jailed app's /tmp is its jail's */
+    var busy = false;
+    function say(m, ms) { toast(m, ms || 4000); }
+    function fail(m) { busy = false; say('AirPlay lab: ' + m, 20000); }
+    function release(done) {
+      var x = new XMLHttpRequest();
+      x.open('GET', 'https://api.github.com/repos/donttelldadyet-prog/round2-tv-launcher/releases/tags/airplay-lab');
+      x.timeout = 20000;
+      x.onload = function () {
+        try {
+          var a = null;
+          (JSON.parse(x.responseText).assets || []).forEach(function (as) { if (/^sg\.round2\.lab\.ndl_.*\.ipk$/.test(as.name)) a = as; });
+          if (!a || !/^sha256:[0-9a-f]{64}$/.test(a.digest || '')) throw 0;
+          done({ url: a.browser_download_url, hash: a.digest.slice(7), v: (/_([0-9.]+)_arm\.ipk$/.exec(a.name) || [])[1] || '' });
+        } catch (e) { done(null); }
+      };
+      x.onerror = x.ontimeout = function () { done(null); };
+      x.send();
+    }
+    function installed(cb) { LGRoot.exec('cat ' + DIR + '/appinfo.json 2>/dev/null', function (out) { var m = /"version"\s*:\s*"([^"]+)"/.exec(out || ''); cb(m ? m[1] : ''); }); }
+    function waitInstalled(v, n, cb) {
+      installed(function (have) {
+        if (have && (!v || have === v)) { cb(true); return; }
+        if (n <= 0) { cb(false); return; }
+        setTimeout(function () { waitInstalled(v, n - 1, cb); }, 3000);
+      });
+    }
+    function launchTest() {
+      say('Starting the picture test. Watch the screen for about 15 seconds: you should see ROUND2 PICTURE TEST moving, and hear a beep.', 6000);
+      var am = 'luna://com.webos.service.applicationManager/';
+      var script = 'rm -f ' + LOGS + '; sleep 3; ' +
+        'luna-send -n 1 ' + am + 'launch \'{"id":"' + APP + '","params":{"log":"' + LOG + '"}}\'; sleep 22; ' +
+        'luna-send -n 1 ' + am + 'closeByAppId \'{"id":"' + APP + '"}\'; sleep 2; ' +
+        'luna-send -n 1 ' + am + 'launch \'{"id":"sg.round2.tvhome","params":{"r2":"lab"}}\'';
+      LGRoot.exec('(command -v setsid >/dev/null 2>&1 && setsid sh -c \'' + script.replace(/'/g, "'\\''") + '\' || sh -c \'' + script.replace(/'/g, "'\\''") + '\') </dev/null >/dev/null 2>&1 &', function () { busy = false; });
+    }
+    function run() {
+      if (busy) return;
+      if (!LGRoot.state.ok) { say('AirPlay lab needs a rooted LG TV with Homebrew Channel.', 6000); return; }
+      busy = true; say('AirPlay lab: checking for the test app…');
+      release(function (rel) {
+        if (!rel) { fail('couldn’t find the test app on GitHub. Check the internet and try again.'); return; }
+        installed(function (have) {
+          if (have && have === rel.v) { launchTest(); return; }
+          say('AirPlay lab: downloading the test app (about 11 MB)…', 60000);
+          var done = false;
+          WebOS.call('luna://org.webosbrew.hbchannel.service/install', { ipkUrl: rel.url, ipkHash: rel.hash, id: APP, subscribe: true }, function (r) {
+            if (done) return;
+            if (r.returnValue === false || r.errorText) { done = true; fail('Homebrew Channel couldn’t install it: ' + (r.errorText || 'no reason given')); return; }
+            if (r.progress !== undefined && r.progress < 99) say('AirPlay lab: downloading… ' + Math.round(r.progress) + '%', 60000);
+          }, true);
+          waitInstalled(rel.v, 40, function (ok) {
+            if (done) return; done = true;
+            if (ok) launchTest(); else fail('the test app didn’t finish installing.');
+          });
+        });
+      });
+    }
+    function result() {
+      LGRoot.exec('L=""; for f in ' + LOGS + '; do [ -s "$f" ] && L="$f"; done; ' +
+        'if [ -n "$L" ]; then grep -v "fed .* frames" "$L" | tail -n 9; else echo "No result: the test app didn’t start or couldn’t write its log."; ' +
+        'ls ' + DIR + ' 2>&1 | head -n 3; fi', function (out) {
+        var txt = String(out || 'no answer').replace(/\s+$/, '');
+        var ok = /RESULT OK/.test(txt);
+        toast((ok ? 'AirPlay lab: the TV accepted the picture. Did you SEE the test picture and HEAR the beep?\n' : 'AirPlay lab: problem. Send Claude a photo of this.\n') + txt.slice(-900), 180000);
+      });
+    }
+    return { run: run, result: result };
+  }());
   var SAMPLE_MORE = [
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
     { name: 'Apple TV', android: 'com.apple.atve.androidtv.appletv' }, { name: 'Twitch', android: 'tv.twitch.android.app' },
@@ -1503,6 +1576,7 @@ window.R2_TV = {
     ].concat(LGRoot.state.ok ? [
       { act: 'lgPower', label: 'Open when TV turns on', hint: '\u2039 ' + (LGRoot.state.poweron ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'lgHome', label: 'Home button', hint: '\u2039 ' + (LGRoot.state.home ? 'OPENS ROUND2' : 'LG HOME') + ' \u203A' },
+      { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
       { act: 'airTest', label: 'Test AirPlay app', hint: 'UXAIR / UXPLAY \u203A' }
     ] : []).concat([
       { act: 'themesNow', label: 'Check for new themes', hint: 'NOW \u203A' },
@@ -1697,6 +1771,8 @@ window.R2_TV = {
       Sfx.play('ok'); updateKey();
     } else if (k === 'ok' && act === 'themesNow') {
       Sfx.play('ok'); window.r2SyncThemes(true);
+    } else if (k === 'ok' && act === 'airLab') {
+      Sfx.play('ok'); AirLab.run();
     } else if (k === 'ok' && act === 'airTest') {
       /* rooted LG: start the AirPlay app's program for a few seconds and show why it closes (photo it for Claude) */
       Sfx.play('ok'); toast('Testing the AirPlay app\u2026 about 10 seconds', 12000);
@@ -2138,6 +2214,7 @@ window.R2_TV = {
       try { if (!p.r2 && window.PalmSystem && window.PalmSystem.launchParams) p = JSON.parse(window.PalmSystem.launchParams) || {}; } catch (e) {}
       if (p.r2 === 'poweron' || p.r2 === 'boot') { lgHiddenAt = 0; window.r2Reset(); }   /* the TV was switched on: back to the house settings */
       window.r2Home();
+      if (p.r2 === 'lab') setTimeout(AirLab.result, 800);   /* back from the AirPlay lab test */
     });
   }
 
@@ -2236,6 +2313,8 @@ window.R2_TV = {
   fit(); tick(); setInterval(tick, 15000);
   setTimeout(fit, 400); setTimeout(fit, 1500);
   Boot.ready();                          /* the boot screen fades and the Home animation plays */
+  /* LG: opened fresh by the AirPlay lab (Round2 Home wasn't running) */
+  try { if (Device.kind() === 'webos' && window.PalmSystem && /"r2"\s*:\s*"lab"/.test(window.PalmSystem.launchParams || '')) setTimeout(function () { LGRoot.check(function () { AirLab.result(); }); }, 2500); } catch (e) {}
   var ambStarted = false;
   setTimeout(function () { Amb.apply(); ambStarted = true; }, 1800);
   setTimeout(function () { Sfx.prepare(); }, 2600);
