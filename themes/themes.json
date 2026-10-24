@@ -86,9 +86,10 @@
       "name": "McLaren Showcase",
       "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/a6a2340b-5245-4423-b2df-9131a4d65915_seed1081962598_1792766132678_011a7abb.mp4",
       "rooms": [
-        "all"
+        "maximillion"
       ],
-      "takeover": false
+      "takeover": false,
+      "cards": "right"
     },
     {
       "id": "rainy-study-2026",
