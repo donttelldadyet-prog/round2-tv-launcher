@@ -53,7 +53,8 @@ int main() {
     umask(0077);start_log("uxair.log");
     Shell shell;if(!shell.open())return 1;
     shell.screen("Starting AirPlay receiver","");
-    const std::string state_dir=app_directory()+"/state";
+    const std::string state_dir=writable_directory()+"/state";
+    fprintf(stderr,"[round2] app folder %s, state and log in %s\n",app_directory().c_str(),writable_directory().c_str());
     std::string build_commit="Unknown",build_version="Unknown";
     {
         std::ifstream build_info((app_directory()+"/build-info.txt").c_str());
@@ -92,7 +93,7 @@ int main() {
             } else receiver.stop();
         }
         if(!receiver_started) {
-            shell.screen("Could not start. See uxair.log","");
+            shell.screen("Could not start: "+receiver.status(),"Log: "+writable_directory()+"/uxair.log");
             while(shell.pump())SDL_Delay(50);
             return 1;
         }

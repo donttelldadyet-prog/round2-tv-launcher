@@ -65,5 +65,6 @@ private:
 };
 int64_t now_ns();
 std::string app_directory();
+std::string writable_directory();   // Round2: where state and logs can be written
 void start_log(const char *name);
 void rotate_log();

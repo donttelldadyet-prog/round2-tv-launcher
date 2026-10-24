@@ -122,6 +122,7 @@ static bool valid_key(const char *p) {
     return strspn(p,"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")==44;
 }
 bool Receiver::start(const std::string& dir, const Settings& settings) {
+    auto fail_reason=[this](const std::string& why){fprintf(stderr,"[receiver] start failed: %s\n",why.c_str());show(why);};
     const AdvertisedCapabilities capabilities=advertised_capabilities(settings);
     active_profile=settings;validate_settings(active_profile);
     const MirrorLimits limits=mirror_limits(active_profile);
@@ -137,16 +138,16 @@ bool Receiver::start(const std::string& dir, const Settings& settings) {
     FILE *m=fopen((directory+"/device.id").c_str(),"rb");
     bool existing=m && fread(mac,1,6,m)==6;if(m) fclose(m);
     if(!existing) {
-        if(RAND_bytes(mac,6)!=1) return false;
+        if(RAND_bytes(mac,6)!=1) {fail_reason("no random numbers");return false;}
         mac[0]=(mac[0]&0xfe)|2;
         m=fopen((directory+"/device.id").c_str(),"wb");
-        if(!m) return false;
-        bool saved=fwrite(mac,1,6,m)==6;fclose(m);if(!saved) return false;
+        if(!m) {fail_reason("cannot write "+directory+"/device.id");return false;}
+        bool saved=fwrite(mac,1,6,m)==6;fclose(m);if(!saved) {fail_reason("cannot save device.id");return false;}
     }
     char device_id[18];snprintf(device_id,sizeof(device_id),"%02X:%02X:%02X:%02X:%02X:%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
     int err=0;
     dnssd=dnssd_init(UXAIR_DISPLAY_NAME,strlen(UXAIR_DISPLAY_NAME),reinterpret_cast<char *>(mac),6,1,&err);
-    if(!dnssd || err) { show("AirPlay discovery failed");return false; }
+    if(!dnssd || err) { fail_reason("AirPlay discovery failed (dnssd error "+std::to_string(err)+")");return false; }
     dnssd_set_airplay_features(dnssd,0,int(capabilities.direct_video));dnssd_set_airplay_features(dnssd,4,int(capabilities.hls));
     dnssd_set_airplay_features(dnssd,42,int(capabilities.hevc));dnssd_set_airplay_features(dnssd,27,int(capabilities.legacy_pairing));
     raop_callbacks_t cb={};cb.cls=this;
@@ -230,15 +231,15 @@ bool Receiver::start(const std::string& dir, const Settings& settings) {
                 result_name,int(dismissed),(now_ns()-began)/1e6);
     };
     ntp_global_init();
-    raop=raop_init(&cb);if(!raop) return false;
+    raop=raop_init(&cb);if(!raop) {fail_reason("AirPlay server init failed");return false;}
     // UxPlay's INFO log includes the pairing PIN verbatim; keep it out of app logs.
     raop_set_log_callback(raop,log_message,this);raop_set_log_level(raop,LOGGER_ERR);
-    if(raop_init2(raop,0,device_id,(directory+"/server.key").c_str()))return false;
+    if(raop_init2(raop,0,device_id,(directory+"/server.key").c_str())) {fail_reason("AirPlay key setup failed ("+directory+"/server.key)");return false;}
     if(raop_set_plist(raop,"width",capabilities.width) ||
        raop_set_plist(raop,"height",capabilities.height) ||
        raop_set_plist(raop,"refreshRate",capabilities.max_fps) ||
        raop_set_plist(raop,"maxFPS",capabilities.max_fps) ||
-       raop_set_plist(raop,"pin",0)) return false;
+       raop_set_plist(raop,"pin",0)) {fail_reason("AirPlay settings rejected");return false;}
     fprintf(stderr,"[receiver] selected-codec-mode=%s advertised-codecs=%s advertised-bit42=%d mirror-limit=%dx%d advertised_max_fps=%d sender-selects-actual-codec-and-rate=1 max-video-packet=%zu queue=%zu\n",
             capabilities.hevc?"HEVC-capable":"H264-only",
             capabilities.hevc?"H264+HEVC":"H264",int(capabilities.hevc),
@@ -247,9 +248,9 @@ bool Receiver::start(const std::string& dir, const Settings& settings) {
     raop_set_dnssd(raop,dnssd);
     unsigned short udp[3]={0,0,0},tcp[2]={0,0},port=0;
     raop_set_udp_ports(raop,udp);raop_set_tcp_ports(raop,tcp);
-    if(raop_start_httpd(raop,&port)<0)return false;
+    if(raop_start_httpd(raop,&port)<0) {fail_reason("AirPlay server could not open its network port");return false;}
     raop_set_port(raop,port);
-    if(dnssd_register_raop(dnssd,port)||dnssd_register_airplay(dnssd,port))return false;
+    if(dnssd_register_raop(dnssd,port)||dnssd_register_airplay(dnssd,port)) {fail_reason("AirPlay could not announce itself on the network (mDNS)");return false;}
     fprintf(stderr,"[receiver] UxAir ready port=%u, paired=%zu\n",port,keys.size());
     return true;
 }

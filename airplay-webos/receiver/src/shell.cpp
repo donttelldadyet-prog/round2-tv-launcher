@@ -41,8 +41,29 @@ std::string app_directory() {
     if (n <= 0) return ".";
     p[n] = 0; std::string s(p); return s.substr(0, s.rfind('/'));
 }
+// Round2/webOS 5: a Homebrew-installed native app may not be allowed to write into its own
+// install folder. Use the first folder that accepts a test file: the app folder (persistent),
+// then $HOME, then /tmp (pairing is then forgotten on restart).
+static bool writable(const std::string& dir) {
+    mkdir(dir.c_str(),0700);
+    std::string probe=dir+"/.write-test";
+    FILE *f=fopen(probe.c_str(),"w");
+    if(!f) return false;
+    bool ok=fputs("1",f)>=0; fclose(f); unlink(probe.c_str());
+    return ok;
+}
+std::string writable_directory() {
+    static std::string chosen;
+    if(!chosen.empty()) return chosen;
+    std::string candidates[3]={app_directory(),"",std::string("/tmp/")+UXAIR_APP_ID};
+    const char *home=getenv("HOME");
+    if(home && *home) candidates[1]=std::string(home)+"/"+UXAIR_APP_ID;
+    for(const std::string& c:candidates) if(!c.empty() && writable(c)) {chosen=c;return chosen;}
+    chosen="/tmp";
+    return chosen;
+}
 void start_log(const char *name) {
-    std::string p = app_directory() + "/" + name;
+    std::string p = writable_directory() + "/" + name;
     log_path=p;
     rename(p.c_str(), (p+".previous").c_str());
     freopen(p.c_str(), "w", stderr);

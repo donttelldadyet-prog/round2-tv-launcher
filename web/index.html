@@ -777,6 +777,7 @@ window.R2_TV = {
         busy = false;
         say('AirPlay receiver ' + v + (fresh ? ' installed' : ' is up to date') + '. Opening it: on an iPhone pick Screen Mirroring \u203a Round2 TV.', 8000);
         WebOS.call('luna://com.webos.applicationManager/rescan', {}, function () {});
+        LGRoot.exec('D=/media/developer/apps/usr/palm/applications/sg.round2.airplay; mkdir -p $D/state && chmod 777 $D $D/state');
         setTimeout(function () { WebOS.launch('sg.round2.airplay', function () {}); }, 2500);
         if (fresh) setTimeout(function () { location.reload(); }, 8000);   /* so the menu shows the new AirPlay item */
       });
@@ -1819,7 +1820,10 @@ window.R2_TV = {
       Sfx.play('ok'); toast('Testing the AirPlay app\u2026 about 10 seconds', 12000);
       var cmd = 'if timeout -t 1 true 2>/dev/null; then TO="timeout -t 8"; else TO="timeout 8"; fi; ' +
         'D=/media/developer/apps/usr/palm/applications; found=0; ' +
-        'for a in sg.round2.airplay com.github.depius.uxair com.github.danlflh.uxplaywebos; do [ -d "$D/$a" ] || continue; found=1; cd "$D/$a"; ' +
+        /* the Round2 receiver: its last log from a normal launch (it may write outside its own folder) */
+        'for f in $(find $D/sg.round2.airplay /tmp/sg.round2.airplay /var/palm/jail /home /media/developer/temp -maxdepth 5 -name uxair.log 2>/dev/null | head -n 2); do ' +
+        'echo "== $f"; grep -v "^\\[ndl\\] event" "$f" | tail -n 8; found=1; done; ' +
+        'for a in com.github.depius.uxair com.github.danlflh.uxplaywebos; do [ -d "$D/$a" ] || continue; found=1; cd "$D/$a"; ' +
         'B=$(sed -n \'s/.*"main" *: *"\\([^"]*\\)".*/\\1/p\' appinfo.json); echo "== $a ($B)"; ' +
         '( $TO ./"$B" 2>&1; echo "[exit $?]" ) | grep -v "^ *$" | tail -n 10; ' +
         'for f in *.log state/*.log; do [ -f "$f" ] && { echo "-- $f"; tail -n 5 "$f"; }; done; done; ' +
