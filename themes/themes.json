@@ -29,16 +29,16 @@
       "name": "Nebula 1",
       "source": "nebula-1-2026-mvkvfr7j.mp4",
       "rooms": [
-        "all"
+        "scarlett"
       ],
       "takeover": false,
+      "loop": "blend",
       "cards": "low",
       "frame": {
         "zoom": 0.999,
         "x": 0.5,
         "y": 0.5
-      },
-      "loop": "blend"
+      }
     },
     {
       "id": "purple-nebula-2026",
