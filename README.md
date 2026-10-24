@@ -100,6 +100,8 @@ With Homebrew Channel on the TV, Round2 Home installs and updates from the TV re
 
 Don't install LG's Developer Mode app on a rooted TV.
 
+**Home button:** opens Round2 Home's main menu from anywhere, including from inside Round2 Home. Press **Home 3 times quickly** to get LG's own home screen (for staff, or if the menu freezes).
+
 **Switches:** Options > Staff mode (PIN) > **Open when TV turns on** and **Home button** (OPENS ROUND2 / LG HOME). **Update app** in the same list installs the newest version from GitHub through Homebrew Channel; the menu closes and reopens by itself. Homebrew Channel also shows updates.
 
 **To undo:** switch both off in Options, or delete `/var/lib/webosbrew/init.d/round2` over SSH and restart the TV. The helper's log is `/var/lib/webosbrew/round2/log.txt`.

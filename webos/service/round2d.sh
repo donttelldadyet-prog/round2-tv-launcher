@@ -4,8 +4,8 @@
 # Started at boot by /var/lib/webosbrew/init.d/round2 (which Round2 Home writes through
 # Homebrew Channel's root service), and by Round2 Home itself after an install or update.
 #   - TV switched on (from standby, or a full start): opens Round2 Home
-#   - Home button pressed in another app: opens Round2 Home
-#     (Home pressed while Round2 Home is showing lets LG's own home screen through, for staff)
+#   - Home button pressed anywhere, including inside Round2 Home: opens Round2 Home's main menu
+#     (Home pressed 3 times quickly lets LG's own home screen through, for staff or a frozen menu)
 #   - after Round2 Home updates itself: opens it again
 # Switches (Round2 Home > Options > staff): /var/lib/webosbrew/round2/poweron.off, home.off
 # Undo everything: delete /var/lib/webosbrew/init.d/round2 and restart the TV.
@@ -38,7 +38,7 @@ stop() {
 # --- what each event does ---
 watch_apps() {
   while :; do
-    prev=""
+    prev=""; hits=0; hlast=""
     luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo '{"subscribe":true}' 2>/dev/null | while read -r line; do
       id=$(echo "$line" | field appId)
       [ -z "$id" ] && continue
@@ -47,7 +47,18 @@ watch_apps() {
       fi
       case "$id" in
         com.webos.app.home|com.webos.app.launcher)
-          if on home && [ "$prev" != "$APP" ]; then launch home; id=$APP; fi ;;
+          if on home; then
+            if [ "$prev" = "$APP" ]; then
+              # Home pressed inside Round2 Home: back to its main menu. 3 quick presses = LG's home (staff, or a frozen menu)
+              now=$(date +%s)
+              if [ -n "$hlast" ] && [ $((now - hlast)) -le 3 ]; then hits=$((hits + 1)); else hits=1; fi
+              hlast=$now
+              if [ "$hits" -ge 3 ]; then log "Home x3: LG home"; hits=0; hlast=""; prev=$id; continue; fi
+            else
+              hits=0; hlast=""
+            fi
+            launch home; id=$APP
+          fi ;;
       esac
       prev=$id
     done
