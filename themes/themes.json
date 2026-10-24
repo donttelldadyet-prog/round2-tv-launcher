@@ -172,6 +172,14 @@
       "rooms": [
         "bella"
       ]
+    },
+    {
+      "id": "lofi-chill",
+      "name": "LOFI CHILL",
+      "source": "sound-lofi-chill-mvmd92tg.mp3",
+      "rooms": [
+        "vale"
+      ]
     }
   ],
   "roomDefaults": {
