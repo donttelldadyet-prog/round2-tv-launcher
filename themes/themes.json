@@ -196,6 +196,14 @@
       "rooms": [
         "scarlett"
       ]
+    },
+    {
+      "id": "vintage-lofi",
+      "name": "VINTAGE LOFI",
+      "source": "sound-vintage-lofi-mvml7ddr.mp3",
+      "rooms": [
+        "atlas"
+      ]
     }
   ],
   "roomDefaults": {
