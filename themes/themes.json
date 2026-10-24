@@ -76,9 +76,10 @@
       "name": "Forest Waterfall",
       "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/b1d9a27c-c13a-47a8-8814-c6e1939d7c79_seed1788894791_1792765437474_0b1bb461.mp4",
       "rooms": [
-        "all"
+        "kai"
       ],
-      "takeover": false
+      "takeover": false,
+      "cards": "right"
     },
     {
       "id": "mclaren-2026",
