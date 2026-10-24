@@ -149,7 +149,7 @@
     },
     {
       "id": "car-showcase",
-      "name": "CAR SHOWCASE",
+      "name": "[MAX] CAR SHOWCASE",
       "source": "sound-car-showcase-mvmbilpu.mp3",
       "rooms": [
         "all"
