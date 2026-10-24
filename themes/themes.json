@@ -18,11 +18,11 @@
       "name": "Starry",
       "source": "starry-2026-mvknnvn8.mp4",
       "rooms": [
-        "all"
+        "scarlett"
       ],
       "takeover": false,
-      "cards": "low",
-      "loop": "blend"
+      "loop": "blend",
+      "cards": "low"
     },
     {
       "id": "nebula-1-2026",
