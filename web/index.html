@@ -1079,9 +1079,51 @@ window.R2_TV = {
       if (curAmb === 'storm') thunderTimer = setTimeout(thunder, 4000 + Math.random() * 6000);
     }
     /* an uploaded ambience (Theme manager › Sounds): Android plays the downloaded loop; a browser streams it */
+    /* LG: an <audio> element takes the TV's video player away from the background video, which goes black.
+       So on LG the downloaded loop is decoded and played with Web Audio instead, which doesn't touch the video. */
+    var lgCur = '', lgSrc = null, lgGain = null, lgVol = 0, lgCache = { id: '', buf: null };
+    function lgRamp(c, to, ms) {
+      var now = c.currentTime, g = lgGain.gain;
+      g.cancelScheduledValues(now); g.setValueAtTime(Math.max(g.value, 0.0001), now);
+      g.exponentialRampToValueAtTime(Math.max(Math.min(1, to), 0.0001), now + Math.max(ms, 50) / 1000);
+    }
+    function lgLoad(sndObj, done) {
+      if (lgCache.id === sndObj.id && lgCache.buf) { done(lgCache.buf); return; }
+      var c = Sfx.ctx(), x = new XMLHttpRequest();
+      x.open('GET', sndObj.audio); x.responseType = 'arraybuffer';
+      x.onload = function () {
+        if (!x.response || !x.response.byteLength) { done(null); return; }
+        try {
+          var pr = c.decodeAudioData(x.response, function (b) { lgCache = { id: sndObj.id, buf: b }; done(b); }, function () { done(null); });
+          if (pr && pr.catch) pr.catch(function () {});
+        } catch (e) { done(null); }
+      };
+      x.onerror = function () { done(null); };
+      x.send();
+    }
+    function lgFile(sndObj, v, ms) {
+      var c = Sfx.ctx(); if (!c) return;
+      if (!lgGain) { lgGain = c.createGain(); lgGain.gain.value = 0.0001; lgGain.connect(c.destination); }
+      lgVol = v;
+      if (!sndObj) {
+        lgCur = ''; lgRamp(c, 0, ms);
+        var s = lgSrc; lgSrc = null; if (s) setTimeout(function () { try { s.stop(); } catch (e) {} }, ms + 60);
+        return;
+      }
+      if (lgCur === sndObj.id) { if (lgSrc) lgRamp(c, v, ms); return; }   /* same sound: volume only (or still loading) */
+      if (lgSrc) { try { lgSrc.stop(); } catch (e) {} lgSrc = null; }
+      lgCur = sndObj.id;
+      lgLoad(sndObj, function (buf) {
+        if (!buf || lgCur !== sndObj.id || lgSrc) return;
+        var s2 = c.createBufferSource(); s2.buffer = buf; s2.loop = true; s2.connect(lgGain);
+        lgGain.gain.cancelScheduledValues(c.currentTime); lgGain.gain.setValueAtTime(0.0001, c.currentTime);
+        s2.start(); lgSrc = s2; lgRamp(c, lgVol, ms);
+      });
+    }
     function fileTo(sndObj, v, ms) {
       var nb = nat();
       if (nb) { try { nb.ambFile(sndObj ? sndObj.id : '', v, ms); } catch (e) {} return; }
+      if (Device.kind() === 'webos') { lgFile(sndObj, v, ms); return; }
       if (!sndObj) { if (fileEl) { try { fileEl.pause(); } catch (e) {} } return; }
       if (!fileEl || fileEl.getAttribute('data-id') !== sndObj.id) {
         if (fileEl) { try { fileEl.pause(); } catch (e) {} }
@@ -1678,7 +1720,20 @@ window.R2_TV = {
       front = back;
       setTimeout(function () { if (front !== old.id) { var m = old.firstChild; if (m && m.pause) m.pause(); old.innerHTML = ''; } }, 300);
     }
-    if (w.video) { el.addEventListener('loadeddata', swap); el.src = w.video; try { el.play(); } catch (e) {} setTimeout(swap, 900); }
+    if (w.video) {
+      el.addEventListener('loadeddata', swap); el.src = w.video; try { el.play(); } catch (e) {} setTimeout(swap, 900);
+      if (Device.kind() === 'webos') {   /* LG can take the video player away (another app, a sound): get the picture back */
+        var reloadedAt = 0;
+        var revive = function () {
+          if (document.hidden || !el.parentNode || $(front) !== el.parentNode) return;
+          if ((el.error || (el.readyState === 0 && el.networkState === 3)) && Date.now() - reloadedAt > 5000) {
+            reloadedAt = Date.now(); el.src = w.video; try { el.load(); } catch (e) {}
+          }
+          try { var pr = el.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+        };
+        ['pause', 'emptied', 'error', 'stalled', 'suspend'].forEach(function (ev) { el.addEventListener(ev, function () { setTimeout(revive, 400); }); });
+      }
+    }
     else { el.onload = swap; el.src = w.image; }
     slot.innerHTML = ''; slot.appendChild(el);
   }
