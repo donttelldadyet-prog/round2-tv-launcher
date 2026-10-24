@@ -146,6 +146,14 @@
       "rooms": [
         "all"
       ]
+    },
+    {
+      "id": "racing",
+      "name": "RACING",
+      "source": "sound-racing-mvmb1amk.mp3",
+      "rooms": [
+        "all"
+      ]
     }
   ],
   "roomDefaults": {
