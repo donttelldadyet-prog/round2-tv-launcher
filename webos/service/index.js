@@ -175,6 +175,29 @@ service.register('sync', function (message) {
   });
 });
 
+/* The menu can't read files in the service's own folder (file:// outside the app is blocked), so it asks here,
+   a piece at a time: { name: "<id>.wav", offset } -> { data: base64, total } */
+var READ_CHUNK = 384 * 1024;
+service.register('read', function (message) {
+  var p = message.payload || {}, name = String(p.name || ''), offset = Math.max(0, p.offset | 0);
+  if (!STORE || !/^[a-z0-9][a-z0-9-]{0,40}\.(wav|ogg)$/.test(name)) { message.respond({ returnValue: false, errorText: 'not a sound file' }); return; }
+  var file = path.join(STORE.dir, name);
+  fs.stat(file, function (err, st) {
+    if (err) { message.respond({ returnValue: false, errorText: 'not on this TV' }); return; }
+    var len = Math.max(0, Math.min(READ_CHUNK, st.size - offset));
+    if (!len) { message.respond({ returnValue: true, data: '', total: st.size }); return; }
+    fs.open(file, 'r', function (e1, fd) {
+      if (e1) { message.respond({ returnValue: false, errorText: 'cannot open' }); return; }
+      var buf = Buffer.alloc ? Buffer.alloc(len) : new Buffer(len);
+      fs.read(fd, buf, 0, len, offset, function (e2, n) {
+        fs.close(fd, function () {});
+        if (e2) { message.respond({ returnValue: false, errorText: 'cannot read' }); return; }
+        message.respond({ returnValue: true, data: buf.slice(0, n).toString('base64'), total: st.size });
+      });
+    });
+  });
+});
+
 service.register('cached', function (message) {
   message.respond({ returnValue: true, json: cached() || '{"themes":[]}', stored: !!STORE });
 });

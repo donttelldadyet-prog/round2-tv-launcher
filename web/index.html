@@ -1089,7 +1089,25 @@ window.R2_TV = {
     }
     var lgWhy = [];   /* what happened, shown to staff (Options › Staff mode) so a silent sound can be reported */
     function lgNote(m) { lgWhy.push(m); try { console.log('[R2] sound: ' + m); } catch (e) {} }
+    /* a file in the LG service's own folder: the menu may not read it directly, so the service sends it in pieces */
+    function lgRead(name, done) {
+      var out = null, got = 0, t0 = Date.now();
+      (function next() {
+        WebOS.call('luna://sg.round2.tvhome.service/read', { name: name, offset: got }, function (r) {
+          if (r.returnValue === false || typeof r.data !== 'string') { lgNote('service could not send ' + name + ' (' + (r.errorText || 'no reply') + ')'); done(null); return; }
+          if (!out) { if (!(r.total > 44)) { lgNote(name + ' is empty'); done(null); return; } out = new Uint8Array(r.total); }
+          var bin = atob(r.data), n = bin.length;
+          for (var i = 0; i < n; i++) out[got + i] = bin.charCodeAt(i);
+          got += n;
+          if (got >= out.length) { done(out.buffer); return; }
+          if (!n || Date.now() - t0 > 60000) { lgNote('gave up reading ' + name); done(null); return; }
+          next();
+        });
+      }());
+    }
     function lgGet(url, done) {
+      var m = /\/sg\.round2\.tvhome\.service\/themes\/([a-z0-9-]+\.(?:wav|ogg))$/.exec(String(url));
+      if (m && /^file:/.test(url)) { lgRead(m[1], done); return; }
       var x = new XMLHttpRequest(), fin = false, t;
       function end(ab, why) { if (fin) return; fin = true; clearTimeout(t); if (!ab) lgNote(why); done(ab); }
       try { x.open('GET', url); x.responseType = 'arraybuffer'; } catch (e) { end(null, 'cannot open ' + url); return; }
