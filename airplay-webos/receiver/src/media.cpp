@@ -148,23 +148,14 @@ FeedResult Media::feed(const void *data, size_t size, int64_t pts_ns, bool video
     double out=local_ms;
     const int offset=av_offset_ms.load();   // Sound timing: + plays sound later, - plays the picture later
     if(video) { if(offset<0) out+=-offset; }
-    else if(sound_live.load()) { if(offset>0) out+=offset; }   // 0.1.3 behaviour, for comparison
+    else if(sound_live.load()) { if(offset>0) out+=offset; }   // Live (default): stamped on arrival, as 0.1.3
     else {
+        // Balanced (test): like Live, but a piece that overlaps the previous one by at most 30 ms is
+        // moved to just after it. No waiting and no skipping (0.2.0-0.2.3's Smooth made the phone stop).
         if(offset>0) out+=offset;
         const double dur=double(size/4)*1000.0/g_timeline.rate;   // S16LE stereo
-        if(g_timeline.audio_next>out) {
-            if(g_timeline.audio_next-out>250) {   // sound has run far ahead of the picture: skip this piece
-                static unsigned skipped=0; if(++skipped%50==1) fprintf(stderr,"[media] sound %.0f ms ahead, skipping (%u)\n",g_timeline.audio_next-out,skipped);
-                ++feed_audio_accepted; return FeedResult::Accepted;
-            }
-            out=g_timeline.audio_next;            // back to back, never overlapping
-        }
-        // never block on a full sound buffer (that froze the picture in 0.2.1-0.2.2): try again shortly
-        const int space=r2_ndl_audio_space();
-        if(space>=0 && space<int(size)) { ++feed_audio_retries; return FeedResult::Retry; }
+        if(g_timeline.audio_next>out && g_timeline.audio_next-out<=30) out=g_timeline.audio_next;
         g_timeline.audio_next=out+dur;
-        static int64_t last_note=0; static double max_ahead=0; max_ahead=std::max(max_ahead,out-local_ms);
-        if(before-last_note>5000000000LL) { fprintf(stderr,"[media] sound up to %.0f ms ahead of the picture (last 5 s)\n",max_ahead); max_ahead=0; last_note=before; }
     }
     long long pts_ms=(long long)(out+0.5);
     int rc=video ? r2_ndl_video(data,unsigned(size),pts_ms) : r2_ndl_audio(data,unsigned(size),pts_ms);

@@ -22,7 +22,7 @@ public:
     std::atomic<bool> ready{false}, playing{false}, ended{false}, failed{false};
     std::atomic<unsigned> frames{0};
     std::atomic<int> av_offset_ms{0};
-    std::atomic<bool> sound_live{false};   // Round2 test switch: true = 0.1.3's arrival-time sound stamps   // Round2: >0 plays audio later, <0 plays video later
+    std::atomic<bool> sound_live{true};    // Round2: true = Live (default), false = Balanced (test)   // Round2: >0 plays audio later, <0 plays video later
     std::atomic<int64_t> last_frame_event_ns{0};
     std::atomic<int> video_info_width{0}, video_info_height{0};
     std::atomic<int> acb_window_width{0}, acb_window_height{0};

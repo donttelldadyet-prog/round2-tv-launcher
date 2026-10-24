@@ -85,3 +85,10 @@ the commit named in the package's `build-info.txt`.
 - More settings › Sound handling: a test switch between Smooth (sound back to back) and Live
   (0.1.3's arrival-time stamps). The log notes every 5 s how far sound runs ahead of the picture.
 - A session with no data from the phone for 8 s (was 20 s) ends, so the receiver screen returns sooner.
+
+## 0.2.5
+
+- On Bella, Smooth sound made the phone stop sending after ~10 s; Live (0.1.3's arrival-time
+  stamps) was stable. Live is now the default. The switch's other option is Balanced (test):
+  Live, plus a piece that overlaps the previous one by at most 30 ms moves to just after it; no
+  waiting, no skipping.

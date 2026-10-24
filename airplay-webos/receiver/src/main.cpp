@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
             runtime_app_id&&*runtime_app_id?"APPID":"compiled-fallback",app_id,UXAIR_APP_ID,
             int(std::string(app_id)==UXAIR_APP_ID));
     Media media;AudioDecoder decoder;
-    { std::ifstream f((state_dir+"/sound-live").c_str()); std::string v; std::getline(f,v); media.sound_live=v=="1"; }HevcStream hevc;HevcStartupGate hevc_startup;
+    { std::ifstream f((state_dir+"/sound-live").c_str()); std::string v; std::getline(f,v); media.sound_live=v!="0"; }HevcStream hevc;HevcStartupGate hevc_startup;
     UiNavigation nav;
     UiPage& page=nav.page;
     int& focus=nav.focus;
@@ -283,7 +283,7 @@ int main(int argc, char *argv[]) {
         if(which==UiPage::System) {
             rows.push_back(UiRow("Video format",settings.codec==MirrorCodec::ExperimentalHevc?"H.265 (HEVC)":"H.264","H.264 suits most phones. H.265 allows 4K but is experimental here.",idle));
             rows.push_back(UiRow("Info overlay",diagnostics_mode_name(settings.diagnostics),"Shows connection numbers on top of the picture, for troubleshooting."));
-            rows.push_back(UiRow("Sound handling",media.sound_live.load()?"Live (0.1.3)":"Smooth","Test switch. If the picture freezes, try Live and tell Claude which one works.",true));
+            rows.push_back(UiRow("Sound handling",media.sound_live.load()?"Live":"Balanced (test)","Live is the stable default. Balanced tries to stop missed beeps; switch back if anything misbehaves.",true));
             rows.push_back(UiRow("Version",build_version,"Round2 AirPlay for LG webOS 5+",false));
             rows.push_back(UiRow("Made with","UxAir · UxPlay","UxAir by Matej Skuhala (@depius), UxPlay by FDH2, uxplay-webOS by @danlflh; timing ideas from AirPlay Server by jqssun",false));
             rows.push_back(UiRow("Licence","GPL-3.0","Free and open source. Licences are in the app's licenses folder.",false));
@@ -511,7 +511,7 @@ int main(int argc, char *argv[]) {
                     else if(page==UiPage::System && focus==2) {
                         media.sound_live=!media.sound_live.load();
                         FILE *f=fopen((state_dir+"/sound-live").c_str(),"w"); if(f){fputs(media.sound_live.load()?"1":"0",f);fclose(f);}
-                        fprintf(stderr,"[round2] sound handling %s\n",media.sound_live.load()?"live":"smooth");
+                        fprintf(stderr,"[round2] sound handling %s\n",media.sound_live.load()?"live":"balanced");
                     }
                 }
             }
