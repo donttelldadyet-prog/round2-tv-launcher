@@ -204,6 +204,14 @@
       "rooms": [
         "atlas"
       ]
+    },
+    {
+      "id": "lofi-sleep",
+      "name": "LOFI SLEEP",
+      "source": "sound-lofi-sleep-mvmlblj1.mp3",
+      "rooms": [
+        "atlas"
+      ]
     }
   ],
   "roomDefaults": {
