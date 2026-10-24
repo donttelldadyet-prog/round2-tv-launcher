@@ -729,7 +729,9 @@ window.R2_TV = {
       x.onload = function () {
         try {
           var a = null;
-          (JSON.parse(x.responseText).assets || []).forEach(function (as) { if (/^sg\.round2\.lab\.ndl_.*\.ipk$/.test(as.name)) a = as; });
+          (JSON.parse(x.responseText).assets || []).forEach(function (as) {   /* the newest version */
+            if (/^sg\.round2\.lab\.ndl_.*\.ipk$/.test(as.name) && (!a || as.created_at > a.created_at)) a = as;
+          });
           if (!a || !/^sha256:[0-9a-f]{64}$/.test(a.digest || '')) throw 0;
           done({ url: a.browser_download_url, hash: a.digest.slice(7), v: (/_([0-9.]+)_arm\.ipk$/.exec(a.name) || [])[1] || '' });
         } catch (e) { done(null); }
@@ -746,10 +748,10 @@ window.R2_TV = {
       });
     }
     function launchTest() {
-      say('Starting the picture test. Watch the screen for about 15 seconds: you should see ROUND2 PICTURE TEST moving, and hear a beep.', 6000);
+      say('Starting the picture test. Watch for about 30 seconds. It tries 4 ways, numbered by white squares in the top corner. Note which numbers show ROUND2 PICTURE TEST.', 6000);
       var am = 'luna://com.webos.service.applicationManager/';
       var script = 'rm -f ' + LOGS + '; sleep 3; ' +
-        'luna-send -n 1 ' + am + 'launch \'{"id":"' + APP + '","params":{"log":"' + LOG + '"}}\'; sleep 22; ' +
+        'luna-send -n 1 ' + am + 'launch \'{"id":"' + APP + '","params":{"log":"' + LOG + '"}}\'; sleep 34; ' +
         'luna-send -n 1 ' + am + 'closeByAppId \'{"id":"' + APP + '"}\'; sleep 2; ' +
         'luna-send -n 1 ' + am + 'launch \'{"id":"sg.round2.tvhome","params":{"r2":"lab"}}\'';
       LGRoot.exec('(command -v setsid >/dev/null 2>&1 && setsid sh -c \'' + script.replace(/'/g, "'\\''") + '\' || sh -c \'' + script.replace(/'/g, "'\\''") + '\') </dev/null >/dev/null 2>&1 &', function () { busy = false; });
@@ -778,11 +780,11 @@ window.R2_TV = {
     }
     function result() {
       LGRoot.exec('L=""; for f in ' + LOGS + '; do [ -s "$f" ] && L="$f"; done; ' +
-        'if [ -n "$L" ]; then grep -v "fed .* frames" "$L" | tail -n 9; else echo "No result: the test app didn’t start or couldn’t write its log."; ' +
+        'if [ -n "$L" ]; then grep -E "^.(lab|ndl)." "$L" | grep -v "event 0x" | tail -n 9; else echo "No result: the test app didn’t start or couldn’t write its log."; ' +
         'ls ' + DIR + ' 2>&1 | head -n 3; fi', function (out) {
         var txt = String(out || 'no answer').replace(/\s+$/, '');
         var ok = /RESULT OK/.test(txt);
-        toast((ok ? 'AirPlay lab: the TV accepted the picture. Did you SEE the test picture and HEAR the beep?\n' : 'AirPlay lab: problem. Send Claude a photo of this.\n') + txt.slice(-900), 180000);
+        toast((ok ? 'AirPlay lab: tell Claude which numbered tries showed the picture.\n' : 'AirPlay lab: problem. Send Claude a photo of this.\n') + txt.slice(-900), 180000);
       });
     }
     return { run: run, result: result };

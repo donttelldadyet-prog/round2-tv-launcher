@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
     SDL_Renderer *ren = win ? SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED) : NULL;
     if (!ren) { fprintf(stderr, "[lab] RESULT FAIL window: %s\n", SDL_GetError()); return 1; }
     if (SDL_webOSCursorVisibility) SDL_webOSCursorVisibility(SDL_FALSE);
-    SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_NONE);
+    SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_NONE);   /* writes alpha 0 straight through */
     SDL_SetRenderDrawColor(ren, 0, 0, 0, 0);        /* transparent: the video plane shows through */
     SDL_RenderClear(ren);
     SDL_RenderPresent(ren);
@@ -148,53 +148,73 @@ int main(int argc, char *argv[]) {
         info.audio.pcm.channelMode = NDL_DIRECTMEDIA_AUDIO_PCM_MODE_STEREO;
         info.audio.pcm.sampleRate = NDL_DIRECTMEDIA_AUDIO_PCM_SAMPLE_RATE_48KHZ;
     }
-    if (NDL_DirectMediaLoad(&info, on_media_event) != 0) {
-        fprintf(stderr, "[lab] RESULT FAIL NDL_DirectMediaLoad: %s\n", NDL_DirectMediaGetError());
-        NDL_DirectMediaQuit();
-        return 1;
-    }
-    NDL_DirectVideoSetArea(0, 0, pw, ph);
-    fprintf(stderr, "[lab] loaded, feeding\n");
 
-    long frames = 0, refused = 0, achunks = 0;
-    size_t vpos = next_start(video, vlen, 0), apos = 0;
-    int64_t t0 = 0, last_report = 0;
+    /* Four tries, one after another, ~6 s each. The number of white squares in the top-left corner
+     * says which try is playing, so the person watching can say which one showed the picture:
+     *   1  timestamps in milliseconds, screen area left alone
+     *   2  milliseconds, area set to 0,0,1920,1080
+     *   3  microseconds, area 0,0,1920,1080
+     *   4  milliseconds, area set to the panel size */
     int quit = 0;
-    while (!quit && vpos < vlen) {
-        SDL_Event ev;
-        while (SDL_PollEvent(&ev)) {
-            if (ev.type == SDL_QUIT) quit = 1;
-            if (ev.type == SDL_KEYDOWN) {
-                int sc = (int) ev.key.keysym.scancode;
-                if (sc == SDL_WEBOS_SCANCODE_BACK || sc == SDL_WEBOS_SCANCODE_EXIT || sc == SDL_SCANCODE_ESCAPE) quit = 1;
-            }
-        }
-        size_t end = next_access_unit(video, vlen, vpos);
-        long long pts = (long long) frames * 1000000 / FPS;
-        if (t0) {   /* real-time pacing once the decoder has taken the first frame */
-            int64_t due = t0 + pts, wait = due - now_us();
-            if (wait > 1000) usleep((useconds_t) (wait > 50000 ? 50000 : wait));
-            if (now_us() < due) continue;
-        }
-        if (NDL_DirectVideoPlay(video + vpos, (unsigned) (end - vpos), pts) != 0) {
-            if (++refused % 50 == 1) fprintf(stderr, "[lab] video buffer full (%ld)\n", refused);
-            usleep(10000);
-            if (refused > 3000) { fprintf(stderr, "[lab] RESULT FAIL decoder never accepted frames: %s\n", NDL_DirectMediaGetError()); break; }
+    for (int phase = 1; phase <= 4 && !quit; phase++) {
+        int pts_ms = phase != 3;
+        memset((void *) g_events, 0, sizeof(g_events));
+        if (NDL_DirectMediaLoad(&info, on_media_event) != 0) {
+            fprintf(stderr, "[lab] try %d RESULT FAIL NDL_DirectMediaLoad: %s\n", phase, NDL_DirectMediaGetError());
             continue;
         }
-        if (!t0) { t0 = now_us(); fprintf(stderr, "[lab] first frame accepted\n"); }
-        if (audio && apos + AUDIO_CHUNK <= alen) {
-            if (NDL_DirectAudioPlay(audio + apos, AUDIO_CHUNK, pts) == 0) { apos += AUDIO_CHUNK; achunks++; }
+        if (phase == 2 || phase == 3) NDL_DirectVideoSetArea(0, 0, 1920, 1080);
+        if (phase == 4) NDL_DirectVideoSetArea(0, 0, pw, ph);
+        fprintf(stderr, "[lab] try %d: pts in %s, area %s\n", phase, pts_ms ? "ms" : "us",
+                phase == 1 ? "default" : phase == 4 ? "panel" : "1920x1080");
+
+        long frames = 0, refused = 0, achunks = 0;
+        size_t vpos = next_start(video, vlen, 0), apos = 0;
+        int64_t t0 = 0, last_draw = 0;
+        while (!quit && vpos < vlen && frames < FPS * 6) {
+            SDL_Event ev;
+            while (SDL_PollEvent(&ev)) {
+                if (ev.type == SDL_QUIT) quit = 1;
+                if (ev.type == SDL_KEYDOWN) {
+                    int sc = (int) ev.key.keysym.scancode;
+                    if (sc == SDL_WEBOS_SCANCODE_BACK || sc == SDL_WEBOS_SCANCODE_EXIT || sc == SDL_SCANCODE_ESCAPE) quit = 1;
+                }
+            }
+            if (now_us() - last_draw > 100000) {   /* keep the window see-through, with the try number */
+                last_draw = now_us();
+                SDL_SetRenderDrawColor(ren, 0, 0, 0, 0);
+                SDL_RenderClear(ren);
+                SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
+                for (int i = 0; i < phase; i++) { SDL_Rect r = { 60 + i * 110, 60, 80, 80 }; SDL_RenderFillRect(ren, &r); }
+                SDL_RenderPresent(ren);
+            }
+            size_t end = next_access_unit(video, vlen, vpos);
+            long long t_us = (long long) frames * 1000000 / FPS;
+            long long pts = pts_ms ? t_us / 1000 : t_us;
+            if (t0) {
+                int64_t due = t0 + t_us, wait = due - now_us();
+                if (wait > 1000) usleep((useconds_t) (wait > 20000 ? 20000 : wait));
+                if (now_us() < due) continue;
+            }
+            if (NDL_DirectVideoPlay(video + vpos, (unsigned) (end - vpos), pts) != 0) {
+                if (++refused % 50 == 1) fprintf(stderr, "[lab] try %d video refused (%ld): %s\n", phase, refused, NDL_DirectMediaGetError());
+                usleep(10000);
+                if (refused > 1500) break;
+                continue;
+            }
+            if (!t0) t0 = now_us();
+            if (audio && apos + AUDIO_CHUNK <= alen && NDL_DirectAudioPlay(audio + apos, AUDIO_CHUNK, pts) == 0) { apos += AUDIO_CHUNK; achunks++; }
+            frames++;
+            vpos = end;
         }
-        frames++;
-        vpos = end;
-        if (now_us() - last_report > 2000000) { last_report = now_us(); fprintf(stderr, "[lab] fed %ld frames, %ld audio chunks\n", frames, achunks); }
+        int rbl = -1; NDL_DirectVideoGetRenderBufferLength(&rbl);
+        fprintf(stderr, "[lab] try %d RESULT %s: %ld frames, %ld audio, refused %ld, render buffer %d, loaded %s, playing %s\n",
+                phase, frames > FPS * 3 ? "OK" : "FAIL", frames, achunks, refused, rbl,
+                g_events[0x16] ? "yes" : "no", g_events[0x1a] ? "yes" : "no");
+        usleep(500000);
+        NDL_DirectMediaUnload();
+        usleep(500000);
     }
-    usleep(1500000);   /* let the last frames show */
-    int playing = g_events[0x1a] > 0, loaded = g_events[0x16] > 0;
-    fprintf(stderr, "[lab] RESULT %s video %ld frames, audio %ld chunks, load-completed %s, playing %s\n",
-            frames > FPS * 2 ? "OK" : "FAIL", frames, achunks, loaded ? "yes" : "no", playing ? "yes" : "no");
-    NDL_DirectMediaUnload();
     NDL_DirectMediaQuit();
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);

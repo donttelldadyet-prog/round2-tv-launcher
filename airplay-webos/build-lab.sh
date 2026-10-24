@@ -8,7 +8,7 @@
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
 OUT="$HERE/dist"; WORK="$HERE/.work"
-VERSION=0.1.0
+VERSION=0.1.1
 APP=sg.round2.lab.ndl
 TC_URL=https://github.com/openlgtv/buildroot-nc4/releases/download/2026.08-webos/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz
 TC_SHA=2230a6351e5cce6fcb9d4fdcb4697335f223995401ef969c81744aaeb14c5344

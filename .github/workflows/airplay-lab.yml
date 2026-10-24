@@ -40,3 +40,7 @@ jobs:
             --notes "Test builds for AirPlay on LG webOS 5+ TVs. Installed from Round2 Home > Options > Staff mode > AirPlay lab." \
             --prerelease --latest=false
           gh release upload airplay-lab airplay-webos/dist/*.ipk --clobber
+          keep=$(cd airplay-webos/dist && ls *.ipk)
+          for a in $(gh release view airplay-lab --json assets -q '.assets[].name'); do
+            case " $keep " in *" $a "*) ;; *) gh release delete-asset airplay-lab "$a" -y ;; esac
+          done
