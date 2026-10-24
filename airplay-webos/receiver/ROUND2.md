@@ -29,3 +29,12 @@ LG 75NANO80PTA (webOS 5, firmware 03.53.45) UxAir stops at start-up with
 
 Build: `airplay-webos/build-receiver.sh`. The source for every published package is this folder at
 the commit named in the package's `build-info.txt`.
+
+## 0.1.1 – 0.1.2
+
+- `src/shell.cpp`, `src/main.cpp`, `src/receiver.cpp`: state and log go to the first writable folder
+  (app folder, `$HOME`, `/tmp`); each start-up failure is named on screen and in the log.
+- Low latency: video is handed to the TV as soon as it arrives (no schedule wait), and every
+  buffer is stamped with the time since Load (ms), as moonlight-tv's NDL backend does. On Bella
+  0.1.1 showed about a second of delay with the sender's own timestamps. Audio still follows
+  its timestamps; the receiver's Audio delay setting adjusts lip-sync.

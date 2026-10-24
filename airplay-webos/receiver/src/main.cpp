@@ -792,7 +792,9 @@ int main() {
         if(pts<0){have_pending=false;continue;}
         // Large clock discontinuities require a fresh AirPlay session, not an unbounded queue.
         if(pts>now-start+5000000000LL) {fprintf(stderr,"[session] timestamp discontinuity\n");finish(true);receiver.show("Device clock changed. Connect again.");continue;}
-        if(now<start+pts) {
+        // Round2: video goes to the TV as soon as it arrives (low latency, like UxPlay's -vsync no);
+        // audio still follows its timestamps.
+        if(now<start+pts && !pending.video) {
             if(session_codec==MirrorCodec::ExperimentalHevc && video_count==0 && !hevc_schedule_wait_logged) {
                 fprintf(stderr,"[codec-start] feed-wait reason=pts-schedule remaining_ms=%.0f\n",(start+pts-now)/1e6);
                 hevc_schedule_wait_logged=true;

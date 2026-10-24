@@ -511,7 +511,7 @@ window.R2_TV = {
     vale:        { name: 'Vale',        t: 'n', color: '#E8436A', ink: '#0b0914', pax: '1–3 pax', screen: '65" TV', ps: 'PS4' },
     kaeden:      { name: 'Kaeden',      t: 'n', color: '#4DB848', ink: '#0b0914', pax: '1–3 pax', screen: '65" TV', ps: 'PS4' },
     scarlett:    { name: 'Scarlett',    t: 'n', color: '#F2C21B', ink: '#0b0914', pax: '1–3 pax', screen: '65" TV', ps: 'PS4' },
-    bella:       { name: 'Bella',       t: 'd', color: '#7A5BE0', ink: '#ffffff', pax: '1–4 pax', screen: '75" TV', ps: 'PS4 Pro' },
+    bella:       { name: 'Bella',       t: 'd', color: '#7A5BE0', ink: '#ffffff', pax: '1–4 pax', screen: '75" TV', ps: 'PS4 Pro', psPort: 'HDMI 2' },
     kai:         { name: 'Kai',         t: 'd', color: '#24B49A', ink: '#0b0914', pax: '1–4 pax', screen: '75" TV', ps: 'PS4 Pro' },
     atlas:       { name: 'Atlas',       t: 'd', color: '#E9E7EF', ink: '#0b0914', pax: '1–5 pax', screen: '75" TV', ps: 'PS4 Pro' },
     maximillion: { name: 'Maximillion', t: 'v', color: '#E0402F', ink: '#ffffff', pax: '1–6 pax', screen: '85" TV', ps: 'PS4 Pro' }
@@ -1440,7 +1440,8 @@ window.R2_TV = {
     if (it.key === 'inputs') {
       tag = 'PLAYER 2 · PLUG IN';
       body = 'Play on the ' + esc(room.ps) + ', or plug in your own console or laptop and pick its HDMI port.';
-      for (var p in cfg.inputNames) if (cfg.inputNames.hasOwnProperty(p)) rows.push([p.toUpperCase(), cfg.inputNames[p] === 'PlayStation' ? room.ps : cfg.inputNames[p]]);
+      var pn = portNames();
+      for (var p in pn) if (pn.hasOwnProperty(p)) rows.push([p.toUpperCase(), pn[p] === 'PlayStation' ? room.ps : pn[p]]);
       rows.push(['OTHER PORTS', 'Guest device']);
     } else if (it.key === 'share') {
       tag = 'PLAYER 2 · MIRROR';
@@ -2009,10 +2010,17 @@ window.R2_TV = {
     $('grid').style.transform = 'translateY(' + (-gridTop * rowH) + 'px)';
     $('gridMore').hidden = gridTop + rows >= total;
   }
+  /* port names for this room: the console sits on HDMI 1 unless the room says otherwise (psPort) */
+  function portNames() {
+    var n = {}, p;
+    for (p in cfg.inputNames) if (cfg.inputNames.hasOwnProperty(p) && !(room.psPort && cfg.inputNames[p] === 'PlayStation')) n[p] = cfg.inputNames[p];
+    if (room.psPort) n[room.psPort] = 'PlayStation';
+    return n;
+  }
   function inputTiles() {
     var list = Device.inputs(), out = [];
     for (var i = 0; i < list.length; i++) {
-      var port = list[i].name, named = cfg.inputNames[port];
+      var port = list[i].name, named = portNames()[port];
       out.push({ input: list[i].id, inputApp: list[i].app, port: port, mono: port.replace(/[^0-9]/g, '') || port.charAt(0),
         name: named ? (named === 'PlayStation' ? room.ps : named) : 'Guest device', sub: port });
     }

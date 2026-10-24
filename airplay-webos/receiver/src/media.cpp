@@ -20,6 +20,7 @@ struct Media::Impl { std::mutex mutex; };
 
 static Media *g_media = nullptr;          // NDL's callback carries no user pointer
 static bool g_ndl_initialized = false;
+static int64_t g_load_ns = 0;            // timestamps count from Load, like moonlight-tv's NDL backend
 static int64_t monotonic_ns() { timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return int64_t(t.tv_sec)*1000000000LL+t.tv_nsec; }
 
 static void resource_released(const char *type) {
@@ -86,6 +87,7 @@ bool Media::open(const char *app_id, int width, int height, bool audio, int rate
         return false;
     }
     loaded_=true;
+    g_load_ns=monotonic_ns();
     ready=true;   // NDL accepts buffers straight after Load; LOADCOMPLETED follows
     fprintf(stderr,"[media-init] NDL Load end ms=%.2f\n",(monotonic_ns()-phase)/1e6);
     if(audio) {   // prime the audio path, as moonlight-tv's NDL backend does
@@ -103,7 +105,11 @@ FeedResult Media::feed(const void *data, size_t size, int64_t pts_ns, bool video
         return FeedResult::Error;
     }
     int64_t before=monotonic_ns();
-    long long pts_ms=pts_ns>0?pts_ns/1000000:0;
+    // Low latency (Round2 0.1.2): stamp each buffer with the time it is handed over, in ms since
+    // Load, instead of the sender's media time. The TV then shows frames as they come rather than
+    // holding a buffer to line them up; that was about a second of delay on Bella.
+    (void)pts_ns;
+    long long pts_ms=(before-g_load_ns)/1000000;
     int rc=video ? r2_ndl_video(data,unsigned(size),pts_ms) : r2_ndl_audio(data,unsigned(size),pts_ms);
     int64_t after=monotonic_ns();
     uint64_t elapsed=after>before?uint64_t(after-before):0;
