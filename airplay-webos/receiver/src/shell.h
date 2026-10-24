@@ -65,6 +65,8 @@ private:
 };
 int64_t now_ns();
 std::string app_directory();
-std::string writable_directory();   // Round2: where state and logs can be written
+std::string writable_directory();
+const std::string& airplay_name();            // Round2: the name iPhones see (per room)
+void set_airplay_name(const std::string& name);   // Round2: where state and logs can be written
 void start_log(const char *name);
 void rotate_log();

@@ -110,6 +110,10 @@ FeedResult Media::feed(const void *data, size_t size, int64_t pts_ns, bool video
     // holding a buffer to line them up; that was about a second of delay on Bella.
     (void)pts_ns;
     long long pts_ms=(before-g_load_ns)/1000000;
+    // Audio delay setting: a positive value stamps audio later, a negative one stamps video later.
+    const int offset=av_offset_ms.load();
+    if(video && offset<0) pts_ms+=-offset;
+    if(!video && offset>0) pts_ms+=offset;
     int rc=video ? r2_ndl_video(data,unsigned(size),pts_ms) : r2_ndl_audio(data,unsigned(size),pts_ms);
     int64_t after=monotonic_ns();
     uint64_t elapsed=after>before?uint64_t(after-before):0;

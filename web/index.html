@@ -551,8 +551,8 @@ window.R2_TV = {
       b.call(uri, JSON.stringify(params || {}));
       return b;
     }
-    function launch(id, done) {
-      call('luna://com.webos.applicationManager/launch', { id: id }, function (r) {
+    function launch(id, done, params) {
+      call('luna://com.webos.applicationManager/launch', params ? { id: id, params: params } : { id: id }, function (r) {
         done(r.returnValue === false ? (r.errorText || 'The TV could not open this.') : null);
       });
     }
@@ -775,10 +775,10 @@ window.R2_TV = {
       busy = true; say('AirPlay receiver: checking for the newest version\u2026');
       install('sg.round2.airplay', 'AirPlay receiver', function (v, fresh) {
         busy = false;
-        say('AirPlay receiver ' + v + (fresh ? ' installed' : ' is up to date') + '. Opening it: on an iPhone pick Screen Mirroring \u203a Round2 TV.', 8000);
+        say('AirPlay receiver ' + v + (fresh ? ' installed' : ' is up to date') + '. Opening it: on an iPhone pick Screen Mirroring \u203a ' + airplayName() + '.', 8000);
         WebOS.call('luna://com.webos.applicationManager/rescan', {}, function () {});
         LGRoot.exec('D=/media/developer/apps/usr/palm/applications/sg.round2.airplay; mkdir -p $D/state && chmod 777 $D $D/state');
-        setTimeout(function () { WebOS.launch('sg.round2.airplay', function () {}); }, 2500);
+        setTimeout(function () { WebOS.launch('sg.round2.airplay', function () {}, { name: airplayName() }); }, 2500);
         if (fresh) setTimeout(function () { location.reload(); }, 8000);   /* so the menu shows the new AirPlay item */
       });
     }
@@ -861,7 +861,7 @@ window.R2_TV = {
           if (item.input) { WebOS.launch(item.inputApp || 'com.webos.app.' + String(item.input).toLowerCase(), done); return; }
           if (item.info) { done(item.info); return; }
           var id = WebOS.pick(item.webos) || (item.webos && item.webos.join ? item.webos[0] : item.webos);
-          if (id) { WebOS.launch(id, done); return; }
+          if (id) { WebOS.launch(id, done, id === 'sg.round2.airplay' ? { name: airplayName() } : null); return; }
           done((item.label || item.name) + ' isn\'t installed on this TV.');
           return;
         }
@@ -1428,7 +1428,7 @@ window.R2_TV = {
     /* older LG TVs without AirPlay (rooted): UxAir is an app, so it is opened and the guest picks UxAir on their iPhone */
     if (k === 'airplay' && Device.kind() === 'webos') {
       var rx = WebOS.pick(a.webos);
-      var RX = { 'sg.round2.airplay': 'Round2 TV', 'com.github.depius.uxair': 'UxAir', 'com.github.danlflh.uxplaywebos': 'UxPlay webOS' };
+      var RX = { 'sg.round2.airplay': airplayName(), 'com.github.depius.uxair': 'UxAir', 'com.github.danlflh.uxplaywebos': 'UxPlay webOS' };
       if (RX[rx]) { it.webos = rx; it.uxair = RX[rx]; }
       else it.info = 'On your iPhone: Control Centre \u203a Screen Mirroring \u203a this TV.';
     }
@@ -1549,8 +1549,17 @@ window.R2_TV = {
     for (var i = 0; i < ev.length; i++) if (ev[i].takeover && store('r2.tkoff.' + roomKey + '.' + ev[i].id) !== '1') return ev[i];
     return null;
   }
+  /* start-up waits (behind the boot screen) until this room's saved settings and themes are in,
+     so the menu doesn't show the default background and rain first and then switch */
+  var themesIn = false, themesWaiting = [];
+  function themesArrived() { if (themesIn) return; themesIn = true; var w = themesWaiting; themesWaiting = []; for (var i = 0; i < w.length; i++) w[i](); }
+  function whenThemes(fn, maxMs) {
+    if (themesIn) { fn(); return; }
+    var done = false, once = function () { if (!done) { done = true; fn(); } };
+    themesWaiting.push(once); setTimeout(once, maxMs);
+  }
   window.r2Themes = function (json) {
-    var root; try { root = JSON.parse(json); THEMES = root.themes || []; SOUNDS_UP = root.sounds || []; } catch (e) { return; }
+    var root; try { root = JSON.parse(json); THEMES = root.themes || []; SOUNDS_UP = root.sounds || []; } catch (e) { themesArrived(); return; }
     if (ambStarted) setTimeout(function () { Amb.apply(); }, 0);
     ROOM_DEFS = root.roomDefaults || {};
     var before = JSON.stringify(prefs);
@@ -1565,6 +1574,7 @@ window.R2_TV = {
     if (req && req !== store('r2.updReq')) { store('r2.updReq', req); bgUpdateCheck(); }
     var w = currentWall();
     if (mode !== 'walls' && (!shownWall || shownWall.id !== w.id)) showWall(w);   /* a new event starts, or one ended */
+    themesArrived();
   };
   window.r2SyncThemes = function (now) {
     if (Device.kind() === 'webos') {   /* LG: the app's own background service downloads them (round2-tv-launcher/webos/service) */
@@ -2010,6 +2020,8 @@ window.R2_TV = {
     $('grid').style.transform = 'translateY(' + (-gridTop * rowH) + 'px)';
     $('gridMore').hidden = gridTop + rows >= total;
   }
+  /* the name iPhones see for the Round2 AirPlay receiver: "Bella's AirPlay" */
+  function airplayName() { return (room && room.name ? room.name : 'Round2') + "'s AirPlay"; }
   /* port names for this room: the console sits on HDMI 1 unless the room says otherwise (psPort) */
   function portNames() {
     var n = {}, p;
@@ -2365,11 +2377,14 @@ window.R2_TV = {
   applyRoom(roomKey);
   fit(); tick(); setInterval(tick, 15000);
   setTimeout(fit, 400); setTimeout(fit, 1500);
-  Boot.ready();                          /* the boot screen fades and the Home animation plays */
+  /* LG: the themes already on the TV, straight from the background service (Android's come through the bridge below) */
+  if (Device.kind() === 'webos') WebOS.call('luna://sg.round2.tvhome.service/cached', {}, function (r) { if (r && r.json) window.r2Themes(r.json); else themesArrived(); });
+  if (Device.kind() === 'preview') themesArrived();
+  whenThemes(function () { Boot.ready(); }, 3500);   /* the boot screen fades and the Home animation plays */
   /* LG: opened fresh by the AirPlay lab (Round2 Home wasn't running) */
   try { if (Device.kind() === 'webos' && window.PalmSystem && /"r2"\s*:\s*"lab"/.test(window.PalmSystem.launchParams || '')) setTimeout(function () { LGRoot.check(function () { AirLab.result(); }); }, 2500); } catch (e) {}
   var ambStarted = false;
-  setTimeout(function () { Amb.apply(); ambStarted = true; }, 1800);
+  whenThemes(function () { setTimeout(function () { if (!ambStarted) { Amb.apply(); ambStarted = true; } }, 1000); }, 3500);
   setTimeout(function () { Sfx.prepare(); }, 2600);
   (function drawRays() {   /* the Warp transition's light rays, drawn once */
     var cv = $('rays'), g = cv && cv.getContext && cv.getContext('2d'); if (!g) return;
@@ -2391,7 +2406,7 @@ window.R2_TV = {
       ' | OfflineAudioContext ' + (window.OfflineAudioContext ? 'yes' : 'no') + ' | room ' + roomKey);
   }, 3000);
   /* event backgrounds: show what's already on the TV, then check GitHub for new ones (and every 3 hours) */
-  bridge(function (b) { if (b.themes) window.r2Themes(b.themes()); });
+  bridge(function (b) { if (b.themes) window.r2Themes(b.themes()); else themesArrived(); });
   setTimeout(function () { window.r2SyncThemes(false); }, 6000);
   setInterval(function () { window.r2SyncThemes(false); }, 3 * 60 * 60 * 1000);   /* after the Home animation, so building the rain loop never costs a frame */
   if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');

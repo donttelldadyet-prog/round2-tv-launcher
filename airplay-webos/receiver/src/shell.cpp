@@ -52,6 +52,9 @@ static bool writable(const std::string& dir) {
     bool ok=fputs("1",f)>=0; fclose(f); unlink(probe.c_str());
     return ok;
 }
+static std::string g_airplay_name=UXAIR_DISPLAY_NAME;
+const std::string& airplay_name() { return g_airplay_name; }
+void set_airplay_name(const std::string& name) { if(!name.empty()) g_airplay_name=name; }
 std::string writable_directory() {
     static std::string chosen;
     if(!chosen.empty()) return chosen;
@@ -469,11 +472,11 @@ void Shell::draw_pairing_modal(const std::string& pin,int w,int h) {
 void Shell::screen(const std::string& status,const std::string& pin,int delay) {
     SDL_SetRenderDrawColor(renderer,uxair_background.r,uxair_background.g,uxair_background.b,255);SDL_RenderClear(renderer);
     int w,h;SDL_GetRendererOutputSize(renderer,&w,&h);
-    text(UXAIR_DISPLAY_NAME,h/6,large_,uxair_accent);
+    text(airplay_name(),h/6,large_,uxair_accent);
     text(status,h/2-60,font_,uxair_text);
     if(!pin.empty()) text(pin,h/2+10,large_,uxair_text);
-    else text(std::string("Open Screen Mirroring and select ")+UXAIR_DISPLAY_NAME,h/2+20,font_,{178,194,207,255});
-    char sync[160];snprintf(sync,sizeof(sync),"◀ ▶  Audio delay: %+d ms  ·  Adjust before connecting",delay);
+    else text(std::string("Open Screen Mirroring and select ")+airplay_name(),h/2+20,font_,{178,194,207,255});
+    char sync[160];snprintf(sync,sizeof(sync),"Audio delay %+d ms  ·  ◀ sound earlier  ·  sound later ▶",delay);
     text(sync,h-135,font_,{145,167,185,255});
     text("Same Wi-Fi network  ·  Quality in Settings  ·  Back to exit",h-80,font_,{145,167,185,255});
     SDL_RenderPresent(renderer);

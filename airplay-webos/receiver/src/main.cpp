@@ -1,3 +1,4 @@
+#include <cstring>
 #include "audio.h"
 #include "h264.h"
 #include "hevc_stream.h"
@@ -49,12 +50,25 @@ static std::string utc_text(uint64_t epoch) {
     char text[48];strftime(text,sizeof(text),"%Y-%m-%d %H:%M UTC",&value);return text;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     umask(0077);start_log("uxair.log");
     Shell shell;if(!shell.open())return 1;
     shell.screen("Starting AirPlay receiver","");
     const std::string state_dir=writable_directory()+"/state";
     fprintf(stderr,"[round2] app folder %s, state and log in %s\n",app_directory().c_str(),writable_directory().c_str());
+    {   // Round2: AirPlay name from the launch parameters {"name": "Bella's AirPlay"}, remembered
+        // for launches without one (the LG app tile); otherwise "Round2 TV"
+        std::string name;
+        const char *params=argc>1?argv[1]:nullptr;
+        const char *k=params?strstr(params,"\"name\""):nullptr;
+        if(k && (k=strchr(k+6,'"'))) { for(++k;*k && *k!='"' && name.size()<48;++k) if(*k!='\\') name+=*k; }
+        mkdir(state_dir.c_str(),0700);
+        const std::string name_file=state_dir+"/airplay-name";
+        if(!name.empty()) { FILE *f=fopen(name_file.c_str(),"w"); if(f){fputs(name.c_str(),f);fclose(f);} }
+        else { std::ifstream in(name_file.c_str()); std::getline(in,name); }
+        set_airplay_name(name);
+        fprintf(stderr,"[round2] AirPlay name: %s\n",airplay_name().c_str());
+    }
     std::string build_commit="Unknown",build_version="Unknown";
     {
         std::ifstream build_info((app_directory()+"/build-info.txt").c_str());
@@ -122,6 +136,7 @@ int main() {
     std::string last_rendered_pin;
     std::vector<std::string> last_overlay_lines;
     bool pairing_overlay_dirty=false;
+    int64_t delay_overlay_until=0;   // Round2: audio delay note shown while mirroring
     uint64_t session_started_utc=0, ingress_at_start=0, drops_at_start=0,video_drops_at_start=0,hardware_decoder_errors=0;
     int observed_width=0,observed_height=0;
     MirrorCodec session_codec=MirrorCodec::H264;
@@ -471,6 +486,17 @@ int main() {
             else nav.move_choice(delta,int(dialog_for().choices.size()));
             last_ui=0;
         }
+        if(!ui_visible && (action==Action::Left||action==Action::Right)) {
+            // Round2: ◀ plays sound earlier, ▶ later, also while mirroring
+            receiver.adjust_audio_delay(action==Action::Right?25:-25);
+            last_ui=0;
+            if(opened) {
+                last_overlay_lines={"Audio delay "+std::string(receiver.audio_delay_ms.load()>0?"+":"")+std::to_string(receiver.audio_delay_ms.load())+" ms","◀ sound earlier  ·  sound later ▶"};
+                shell.overlay(last_overlay_lines);
+                delay_overlay_until=now+2500000000LL;
+            }
+            action=Action::None;
+        }
         if(ui_visible && (action==Action::Left||action==Action::Right) && nav.dialog==UiDialogKind::None) {
             nav.move_category(action==Action::Right?1:-1);last_ui=0;
         }
@@ -529,7 +555,7 @@ int main() {
             // Round2/webOS 5: the video plane only shows while the app window keeps being cleared
             // to transparent; one clear at the start of mirroring left the screen black on webOS 5.
             static int64_t last_clear=0;
-            if(!ui_visible && settings.diagnostics==DiagnosticsMode::Off && pairing_pin.empty() && now-last_clear>250000000LL) {
+            if(!ui_visible && settings.diagnostics==DiagnosticsMode::Off && pairing_pin.empty() && now>delay_overlay_until && now-last_clear>250000000LL) {
                 shell.transparent(); last_clear=now;
             }
             int64_t tick_begin=now_ns();
@@ -792,9 +818,9 @@ int main() {
         if(pts<0){have_pending=false;continue;}
         // Large clock discontinuities require a fresh AirPlay session, not an unbounded queue.
         if(pts>now-start+5000000000LL) {fprintf(stderr,"[session] timestamp discontinuity\n");finish(true);receiver.show("Device clock changed. Connect again.");continue;}
-        // Round2: video goes to the TV as soon as it arrives (low latency, like UxPlay's -vsync no);
-        // audio still follows its timestamps.
-        if(now<start+pts && !pending.video) {
+        // Round2: audio and video go to the TV as soon as they arrive (low latency, like UxPlay's
+        // -vsync no). Lip-sync comes from the Audio delay setting, applied in media.cpp.
+        if(false && now<start+pts) {
             if(session_codec==MirrorCodec::ExperimentalHevc && video_count==0 && !hevc_schedule_wait_logged) {
                 fprintf(stderr,"[codec-start] feed-wait reason=pts-schedule remaining_ms=%.0f\n",(start+pts-now)/1e6);
                 hevc_schedule_wait_logged=true;
@@ -947,6 +973,7 @@ int main() {
             pending.timestamp=origin+audio_end;pts=audio_end;
         }
         int64_t feed_begin=now_ns();
+        media.av_offset_ms=receiver.audio_delay_ms.load();
         auto result=media.feed(pending.data.data(),pending.data.size(),pts,pending.video);
         int64_t feed_end=now_ns();
         (pending.video?video_feed_time:audio_feed_time).record(uint64_t(std::max<int64_t>(0,feed_end-feed_begin)));

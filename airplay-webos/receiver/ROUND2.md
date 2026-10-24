@@ -38,3 +38,12 @@ the commit named in the package's `build-info.txt`.
   buffer is stamped with the time since Load (ms), as moonlight-tv's NDL backend does. On Bella
   0.1.1 showed about a second of delay with the sender's own timestamps. Audio still follows
   its timestamps; the receiver's Audio delay setting adjusts lip-sync.
+
+## 0.1.3
+
+- Audio is also handed to the TV as it arrives; lip-sync is set by the Audio delay (−1000…+1000 ms),
+  applied as a timestamp offset in the TV's player (`media.cpp av_offset_ms`): positive plays sound
+  later, negative plays the picture later. ◀ ▶ change it in 25 ms steps on the waiting screen and
+  during mirroring (a short note shows the value).
+- The AirPlay name comes from the launch parameter `{"name": "..."}` (Round2 Home sends
+  "<Room>'s AirPlay") and is remembered in `state/airplay-name`.

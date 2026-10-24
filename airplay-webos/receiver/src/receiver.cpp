@@ -66,7 +66,7 @@ void Receiver::enqueue(bool video,unsigned codec,uint64_t time,const uint8_t *da
     if(!video) {
         last_audio_arrival=arrival;
         last_audio_codec=codec;
-        int64_t offset=int64_t(audio_delay_ms.load())*1000000;
+        int64_t offset=0;   // Round2: the audio delay is applied by the TV's player instead (media.cpp av_offset_ms)
         if(offset<0 && time<uint64_t(-offset))return;
         time=offset>=0?time+uint64_t(offset):time-uint64_t(-offset);
     }
@@ -146,7 +146,8 @@ bool Receiver::start(const std::string& dir, const Settings& settings) {
     }
     char device_id[18];snprintf(device_id,sizeof(device_id),"%02X:%02X:%02X:%02X:%02X:%02X",mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
     int err=0;
-    dnssd=dnssd_init(UXAIR_DISPLAY_NAME,strlen(UXAIR_DISPLAY_NAME),reinterpret_cast<char *>(mac),6,1,&err);
+    const std::string name=airplay_name();
+    dnssd=dnssd_init(name.c_str(),int(name.size()),reinterpret_cast<char *>(mac),6,1,&err);
     if(!dnssd || err) { fail_reason("AirPlay discovery failed (dnssd error "+std::to_string(err)+")");return false; }
     dnssd_set_airplay_features(dnssd,0,int(capabilities.direct_video));dnssd_set_airplay_features(dnssd,4,int(capabilities.hls));
     dnssd_set_airplay_features(dnssd,42,int(capabilities.hevc));dnssd_set_airplay_features(dnssd,27,int(capabilities.legacy_pairing));
