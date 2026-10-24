@@ -158,14 +158,6 @@
       ]
     },
     {
-      "id": "dark-academia",
-      "name": "DARK ACADEMIA",
-      "source": "sound-dark-academia-mvmd7r6o.mp3",
-      "rooms": [
-        "bella"
-      ]
-    },
-    {
       "id": "lofi-chill",
       "name": "LOFI CHILL",
       "source": "sound-lofi-chill-mvmd92tg.mp3",
