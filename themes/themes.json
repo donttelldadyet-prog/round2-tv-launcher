@@ -50,16 +50,6 @@
       "takeover": false
     },
     {
-      "id": "horseshoe-bend-2026",
-      "name": "Horseshoe Bend",
-      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/37a7083b0773812a6a48a28b2eff348d-1d508b82-1de7-4530-9d7b-28ac26ea3597_1792755419064_c3b1bbbd.mp4",
-      "rooms": [
-        "all"
-      ],
-      "takeover": false,
-      "loop": "blend"
-    },
-    {
       "id": "black-hole-2026",
       "name": "Black Hole",
       "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/b4221708-30d9-42c4-96bc-3dc3a61d5bc2_seed528548160_1792765113890_b94d9514.mp4",
