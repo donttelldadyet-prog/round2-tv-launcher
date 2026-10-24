@@ -130,6 +130,14 @@
       "rooms": [
         "all"
       ]
+    },
+    {
+      "id": "calm-atlas",
+      "name": "CALM ATLAS",
+      "source": "sound-calm-atlas-mvmaed1h.mp3",
+      "rooms": [
+        "all"
+      ]
     }
   ],
   "roomDefaults": {
