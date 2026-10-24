@@ -188,6 +188,14 @@
       "rooms": [
         "scarlett"
       ]
+    },
+    {
+      "id": "cosmic-serenity",
+      "name": "COSMIC SERENITY",
+      "source": "sound-cosmic-serenity-mvmdmonv.mp3",
+      "rooms": [
+        "scarlett"
+      ]
     }
   ],
   "roomDefaults": {
