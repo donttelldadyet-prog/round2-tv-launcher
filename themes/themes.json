@@ -156,14 +156,6 @@
       ]
     },
     {
-      "id": "max",
-      "name": "MAX",
-      "source": "sound-max-mvmbbbnd.mp3",
-      "rooms": [
-        "all"
-      ]
-    },
-    {
       "id": "car-showcase",
       "name": "CAR SHOWCASE",
       "source": "sound-car-showcase-mvmbilpu.mp3",
