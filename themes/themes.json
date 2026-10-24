@@ -162,6 +162,14 @@
       "rooms": [
         "all"
       ]
+    },
+    {
+      "id": "phonk-race",
+      "name": "PHONK RACE",
+      "source": "sound-phonk-race-mvmctyh3.mp3",
+      "rooms": [
+        "maximillion"
+      ]
     }
   ],
   "roomDefaults": {
