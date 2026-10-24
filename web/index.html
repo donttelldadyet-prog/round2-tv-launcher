@@ -1712,6 +1712,15 @@ window.R2_TV = {
     var v = $(front).firstChild; if (v && v.play) { try { v.play(); } catch (e) {} }
   };
 
+  /* the remote's Home button while the menu is open: close whatever is open, back to the main menu */
+  window.r2Home = function () {
+    if (Boot.isUp()) { Boot.hide(); return; }
+    if (mode === 'grid') { gridBack = null; closeGrid(); }
+    if (mode !== 'menu') { $('setList').hidden = false; closeSettings(); }
+    if (leaving) unstick();
+    lockStaff();
+  };
+
   /* pointer support for the browser preview */
   $('items').addEventListener('click', function (ev) {
     var b = ev.target.closest ? ev.target.closest('.mi') : null; if (!b) return;

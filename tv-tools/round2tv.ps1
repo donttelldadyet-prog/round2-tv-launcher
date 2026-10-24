@@ -604,6 +604,21 @@ function Cmd-Lockdown {
   Run-Adb -A @('disconnect', $script:TV) -NoLogcat -NoSerial | ForEach-Object { Write-Host "   $_" }
 }
 
+function Cmd-Rescue {
+  # The way out if the menu is stuck: works even when the remote can't get past Round2 Home
+  Need-Tv
+  $svc = 'sg.round2.tvhome/sg.round2.tvhome.HomeGuard'
+  Say 'Closing Round2 Home and switching its Home button helper off'
+  Sh 'am force-stop sg.round2.tvhome'
+  $cur = Q 'settings get secure enabled_accessibility_services'
+  if ($cur -match [regex]::Escape($svc)) {
+    $others = (($cur -split ':') | Where-Object { $_ -and $_ -ne $svc }) -join ':'
+    if ($others) { Sh "settings put secure enabled_accessibility_services $others" } else { Sh 'settings delete secure enabled_accessibility_services' }
+  }
+  Key 'KEYCODE_HOME' 3
+  Say 'The TV is on its own Android home screen now. When fixed, turn the Round2 Home button back on: .\round2tv.ps1 homeguard'
+}
+
 function Show-Help {
   @"
 Round2 TV toolkit - this TV: $($script:TV)   files: $($script:TvDir)
@@ -626,6 +641,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   perf                   measure how smoothly the menu draws (dropped and slow frames)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
   homeguard              make the Home button open Round2 Home when the TV keeps its own home (undo turns it off)
+  rescue                 menu stuck? close Round2 Home, switch its Home button off, show the Android home screen
   launcher-force         older Android TV only: disable the stock home app (never on Google TV)
   wallpaper file.png     copy a Round2 wallpaper to the TV for the launcher
   youtube "name|link"    open YouTube with key presses and play that video
@@ -652,6 +668,7 @@ switch ($Command.ToLower()) {
   'launcher' { Cmd-Launcher $a1 }
   'launcher-force' { Cmd-LauncherForce }
   'homeguard' { Cmd-HomeGuard }
+  'rescue' { Cmd-Rescue }
   'wallpaper' { Cmd-Wallpaper $a1 }
   'room' { Cmd-Room $a1 }
   'perf' { Cmd-Perf }

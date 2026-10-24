@@ -185,6 +185,9 @@ public class MainActivity extends Activity {
         String room = intent.getStringExtra("room");
         if (room != null) { pendingRoom = room; applyPendingRoom(); }
         // Check for new event backgrounds now: adb shell am start -n sg.round2.tvhome/.MainActivity --ez syncThemes true
+        // The remote's Home button (via the Home button helper) while the menu is already open: back to the main menu
+        if (intent.getBooleanExtra("home", false) && web != null && pageReady)
+            web.evaluateJavascript("window.r2Home && window.r2Home()", null);
         if (intent.getBooleanExtra("syncThemes", false) && web != null)
             web.evaluateJavascript("window.r2SyncThemes && window.r2SyncThemes(true)", null);
     }
