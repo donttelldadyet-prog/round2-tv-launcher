@@ -10,7 +10,12 @@
 # Switches (Round2 Home > Options > staff): /var/lib/webosbrew/round2/poweron.off, home.off
 # Undo everything: delete /var/lib/webosbrew/init.d/round2 and restart the TV.
 #
-# Usage: round2d.sh boot | start | ensure | stop
+# Home button (needs LG Input Hook from Homebrew Channel): Round2 Home sets button 773 (Home) to run
+#   sh /var/lib/webosbrew/round2/round2d.sh key
+# so the TV never sees Home at all: no flash of LG's home bar. 3 quick presses still open LG's home.
+# Without LG Input Hook, the helper below catches LG's home bar after it opens instead.
+#
+# Usage: round2d.sh boot | start | ensure | stop | key
 APP=sg.round2.tvhome
 CFG=/var/lib/webosbrew/round2
 SELF="$0"
@@ -21,6 +26,11 @@ on() { [ ! -f "$CFG/$1.off" ]; }
 launch() {
   log "open Round2 Home ($1)"
   luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$APP\",\"params\":{\"r2\":\"$1\"}}" >/dev/null 2>&1
+}
+lg_home() {
+  log "open LG home ($1)"
+  touch "$CFG/lghome"                       # tells watch_apps this one was on purpose
+  luna-send -n 1 luna://com.webos.service.applicationManager/launch '{"id":"com.webos.app.home"}' >/dev/null 2>&1
 }
 field() { sed -n "s/.*\"$1\" *: *\"\\([^\"]*\\)\".*/\\1/p"; }
 sum() { md5sum "$SELF" 2>/dev/null | cut -d' ' -f1; }
@@ -47,6 +57,7 @@ watch_apps() {
       fi
       case "$id" in
         com.webos.app.home|com.webos.app.launcher)
+          if [ -f "$CFG/lghome" ]; then rm -f "$CFG/lghome"; prev=$id; continue; fi   # opened on purpose (Home x3)
           if on home; then
             if [ "$prev" = "$APP" ]; then
               # Home pressed inside Round2 Home: back to its main menu. 3 quick presses = LG's home (staff, or a frozen menu)
@@ -93,14 +104,25 @@ first_open() {
 }
 
 case "$1" in
+  key)                                      # the Home button, from LG Input Hook. Must stay quick.
+    on home || { lg_home "home switch off"; exit 0; }
+    t=$(cut -d' ' -f1 /proc/uptime | tr -d .)          # hundredths of a second since the TV started
+    set -- $(cat "$CFG/homekey" 2>/dev/null) ; last=${1:-0} ; hits=${2:-0}
+    if [ "$last" -gt 0 ] && [ $((t - last)) -ge 0 ] && [ $((t - last)) -le 150 ]; then hits=$((hits + 1)); else hits=1; fi
+    if [ "$hits" -ge 3 ]; then echo "0 0" > "$CFG/homekey"; lg_home "Home x3"; exit 0; fi
+    echo "$t $hits" > "$CFG/homekey"
+    launch home
+    exit 0 ;;
   stop) stop; log "stopped"; exit 0 ;;
   ensure)                                   # Round2 Home calls this on every start: keep one up-to-date copy running
+    cmp -s "$SELF" "$CFG/round2d.sh" 2>/dev/null || cp "$SELF" "$CFG/round2d.sh"
     if running && [ "$(cat "$CFG/sum" 2>/dev/null)" = "$(sum)" ]; then exit 0; fi ;;
   boot|start|"") ;;
 esac
 
 stop
 sum > "$CFG/sum"
+[ "$SELF" = "$CFG/round2d.sh" ] || cp "$SELF" "$CFG/round2d.sh"   # a fixed path for the Home button setting
 log "helper started ($1)"
 watch_apps </dev/null >/dev/null 2>&1 &
 A=$!

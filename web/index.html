@@ -645,7 +645,22 @@ window.R2_TV = {
     function startHelper(cb) {
       exec(hook() + ' && (command -v setsid >/dev/null 2>&1 && setsid sh "' + svc + '/round2d.sh" ensure || sh "' + svc + '/round2d.sh" ensure) </dev/null >/dev/null 2>&1; ls ' + CFG, function (out) {
         if (out !== null) { st.poweron = !/poweron\.off/.test(out); st.home = !/home\.off/.test(out); }
+        if (out !== null) homeKey();
         if (cb) cb(out !== null);
+      });
+    }
+    /* LG Input Hook (Homebrew Channel) installed: Home button (773) runs our helper instead of reaching the TV,
+       so LG's home bar never flashes up. The helper decides: Round2 Home, or LG's home after 3 quick presses. */
+    var KB = '/home/root/.config/lginputhook/keybinds.json', HOMEKEY = '773',
+        KEYCMD = 'sh ' + CFG + '/round2d.sh key || luna-send -n 1 luna://com.webos.service.applicationManager/launch \'{"id":"com.webos.app.home"}\'';
+    function homeKey() {
+      exec('cat ' + KB, function (out) {
+        if (out === null) return;                                   /* LG Input Hook isn't installed */
+        var j; try { j = JSON.parse(out || '{}'); } catch (e) { return; }
+        if (!j || typeof j !== 'object') return;
+        if (j[HOMEKEY] && j[HOMEKEY].action === 'exec' && j[HOMEKEY].command === KEYCMD) return;
+        j[HOMEKEY] = { action: 'exec', command: KEYCMD };
+        exec('cat > ' + KB + ".r2 <<'R2EOF'\n" + JSON.stringify(j, null, 2) + '\nR2EOF\nmv ' + KB + '.r2 ' + KB);
       });
     }
     function check(then) {

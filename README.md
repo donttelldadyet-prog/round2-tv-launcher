@@ -102,6 +102,8 @@ Don't install LG's Developer Mode app on a rooted TV.
 
 **Home button:** opens Round2 Home's main menu from anywhere, including from inside Round2 Home. Press **Home 3 times quickly** to get LG's own home screen (for staff, or if the menu freezes).
 
+For this to be reliable, also install **LG Input Hook** from Homebrew Channel and open it once. Round2 Home then sets button `773` (Home) in it to run `sh /var/lib/webosbrew/round2/round2d.sh key`, so the TV never receives Home and LG's home bar can't take over. Without LG Input Hook, the helper only catches LG's home bar after it has opened, which isn't always reliable. If Round2 Home is removed, that setting falls back to opening LG's home. To undo, delete the `773` entry in LG Input Hook.
+
 **Switches:** Options > Staff mode (PIN) > **Open when TV turns on** and **Home button** (OPENS ROUND2 / LG HOME). **Update app** in the same list installs the newest version from GitHub through Homebrew Channel; the menu closes and reopens by itself. Homebrew Channel also shows updates.
 
 **To undo:** switch both off in Options, or delete `/var/lib/webosbrew/init.d/round2` over SSH and restart the TV. The helper's log is `/var/lib/webosbrew/round2/log.txt`.
