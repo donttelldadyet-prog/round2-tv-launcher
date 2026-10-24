@@ -101,7 +101,7 @@
   "sounds": [
     {
       "id": "waterall",
-      "name": "waterall",
+      "name": "WATERFALL",
       "source": "sound-waterall-mvl6oqdy.mp3",
       "rooms": [
         "kai"
