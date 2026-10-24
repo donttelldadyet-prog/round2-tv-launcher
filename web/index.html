@@ -523,7 +523,9 @@ window.R2_TV = {
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
     max:     { name: 'HBO Max',     android: 'com.wbd.stream',                                                         webos: ['com.wbd.stream', 'com.hbo.hbomax', 'max', 'hbomax'] },
-    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay', 'com.github.depius.uxair'] }
+    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay', 'com.github.depius.uxair'] },
+    /* LG without AirPlay: LG's Screen Share (Miracast) for Android phones and Windows laptops */
+    share:   { name: 'Screen Share',                                                                                   webos: ['com.webos.app.miracast', 'com.webos.app.screenshare'] }
   };
   /* LG: the apps shown under More apps when the TV won't hand over its own list (only the installed ones appear) */
   var WEBOS_MORE = [
@@ -1298,6 +1300,7 @@ window.R2_TV = {
     items = [{ key: 'inputs', label: 'Inputs', hint: 'HDMI' }];
     var lg = Device.kind() === 'webos';
     if (lg ? WebOS.pick(APPS.airplay.webos) : APPS.airplay.android.some(function (pk) { return Device.installed(pk); })) items.push(mk('airplay', 'MIRROR'));
+    else if (lg && WebOS.pick(APPS.share.webos)) items.push(mk('share', 'MIRROR'));
     items.push(mk('youtube'), mk('netflix'), mk('prime'));
     if (room.t !== 'n' && (!lg || WebOS.pick(APPS.max.webos))) items.push(mk('max'));
     items.push({ key: 'more', label: 'More apps', hint: 'ALL' });
@@ -1325,6 +1328,9 @@ window.R2_TV = {
       body = 'Play on the ' + esc(room.ps) + ', or plug in your own console or laptop and pick its HDMI port.';
       for (var p in cfg.inputNames) if (cfg.inputNames.hasOwnProperty(p)) rows.push([p.toUpperCase(), cfg.inputNames[p] === 'PlayStation' ? room.ps : cfg.inputNames[p]]);
       rows.push(['OTHER PORTS', 'Guest device']);
+    } else if (it.key === 'share') {
+      tag = 'PLAYER 2 · MIRROR';
+      body = 'Android phones: Quick Settings \u203a Smart View or Screen Cast \u203a this TV. Windows laptops: press Windows + K and pick this TV. iPhones can\'t mirror to this TV.';
     } else if (it.key === 'airplay') {
       tag = 'PLAYER 2 · MIRROR';
       body = it.uxair ? 'Press OK to open the AirPlay receiver. Then on your iPhone or iPad: Control Centre \u203a Screen Mirroring \u203a UxAir, and type the code shown on the TV. Netflix, Disney+ and Apple TV+ won\'t mirror.'
