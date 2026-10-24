@@ -31,6 +31,18 @@ extras = [{
         'ipkUrl': f'{UX}/releases/download/v1.1.0/com.github.depius.uxair_1.1.0_arm.ipk',
         'ipkHash': {'sha256': '669e8883d04ad2f6ed6711a543fdc1ef6be322c666f1259a61c785886084bda2'},
     },
+}, {
+    'id': 'com.github.danlflh.uxplaywebos', 'title': 'UxPlay webOS (AirPlay)',
+    'iconUri': 'https://raw.githubusercontent.com/danlflh/uxplay-webos/v0.1.0/packaging/icon.png',
+    'shortDescription': 'AirPlay screen mirroring for older LG TVs (UxPlay webOS by danlflh, open source; the earlier version of UxAir).',
+    'manifest': {
+        'id': 'com.github.danlflh.uxplaywebos', 'title': 'UxPlay webOS', 'version': '0.1.0', 'type': 'native',
+        'appDescription': 'AirPlay screen mirroring for older LG TVs (UxPlay webOS by danlflh, open source).',
+        'iconUri': 'https://raw.githubusercontent.com/danlflh/uxplay-webos/v0.1.0/packaging/icon.png',
+        'sourceUrl': 'https://github.com/danlflh/uxplay-webos', 'rootRequired': True,
+        'ipkUrl': 'https://github.com/danlflh/uxplay-webos/releases/download/v0.1.0/com.github.danlflh.uxplaywebos_0.1.0_arm.ipk',
+        'ipkHash': {'sha256': 'f2a2a96f962680f79ea19ede8860614ad72b0781c65f23d47a198ed16c91f04f'},
+    },
 }]
 print(json.dumps({'packages': [{
     'id': 'sg.round2.tvhome', 'title': 'Round2 Home', 'iconUri': ICON,

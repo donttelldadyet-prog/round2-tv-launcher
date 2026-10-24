@@ -523,7 +523,7 @@ window.R2_TV = {
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
     max:     { name: 'HBO Max',     android: 'com.wbd.stream',                                                         webos: ['com.wbd.stream', 'com.hbo.hbomax', 'max', 'hbomax'] },
-    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay', 'com.github.depius.uxair'] },
+    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay', 'com.github.depius.uxair', 'com.github.danlflh.uxplaywebos'] },
     /* LG without AirPlay: LG's Screen Share (Miracast) for Android phones and Windows laptops */
     share:   { name: 'Screen Share',                                                                                   webos: ['com.webos.app.miracast', 'com.webos.app.screenshare'] }
   };
@@ -1315,7 +1315,8 @@ window.R2_TV = {
     /* LG has AirPlay built in: there is nothing to open, the guest just picks this TV on their iPhone */
     /* older LG TVs without AirPlay (rooted): UxAir is an app, so it is opened and the guest picks UxAir on their iPhone */
     if (k === 'airplay' && Device.kind() === 'webos') {
-      if (WebOS.pick(a.webos) === 'com.github.depius.uxair') { it.webos = 'com.github.depius.uxair'; it.uxair = true; }
+      var rx = WebOS.pick(a.webos);
+      if (rx === 'com.github.depius.uxair' || rx === 'com.github.danlflh.uxplaywebos') { it.webos = rx; it.uxair = rx === 'com.github.depius.uxair' ? 'UxAir' : 'UxPlay webOS'; }
       else it.info = 'On your iPhone: Control Centre \u203a Screen Mirroring \u203a this TV.';
     }
     return it;
@@ -1333,7 +1334,7 @@ window.R2_TV = {
       body = 'Android phones: Quick Settings \u203a Smart View or Screen Cast \u203a this TV. Windows laptops: press Windows + K and pick this TV. iPhones can\'t mirror to this TV.';
     } else if (it.key === 'airplay') {
       tag = 'PLAYER 2 · MIRROR';
-      body = it.uxair ? 'Press OK to open the AirPlay receiver. Then on your iPhone or iPad: Control Centre \u203a Screen Mirroring \u203a UxAir, and type the code shown on the TV. Netflix, Disney+ and Apple TV+ won\'t mirror.'
+      body = it.uxair ? 'Press OK to open the AirPlay receiver. Then on your iPhone or iPad: Control Centre \u203a Screen Mirroring \u203a ' + it.uxair + ', and type the code shown on the TV. Netflix, Disney+ and Apple TV+ won\'t mirror.'
         : 'iPhone or iPad: open Control Centre, tap Screen Mirroring and pick this TV. Android phones: use Cast. Netflix, Disney+ and Apple TV+ won\'t mirror.';
     } else if (it.key === 'more') {
       tag = 'LOADOUT';
