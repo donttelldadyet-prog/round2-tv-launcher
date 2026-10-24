@@ -164,6 +164,14 @@
       "rooms": [
         "maximillion"
       ]
+    },
+    {
+      "id": "dark-academia",
+      "name": "DARK ACADEMIA",
+      "source": "sound-dark-academia-mvmd7r6o.mp3",
+      "rooms": [
+        "bella"
+      ]
     }
   ],
   "roomDefaults": {
