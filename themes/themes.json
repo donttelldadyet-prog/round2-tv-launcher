@@ -220,6 +220,14 @@
       "rooms": [
         "bella"
       ]
+    },
+    {
+      "id": "mystery",
+      "name": "MYSTERY",
+      "source": "sound-mystery-mvmr9jik.mp3",
+      "rooms": [
+        "bella"
+      ]
     }
   ],
   "roomDefaults": {
