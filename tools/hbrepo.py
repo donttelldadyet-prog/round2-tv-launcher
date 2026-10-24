@@ -19,7 +19,20 @@ manifest = {
     'appDescription': desc, 'iconUri': ICON, 'sourceUrl': REPO, 'rootRequired': False,
     'ipkUrl': f'{REPO}/releases/download/v{version}/round2-home.ipk', 'ipkHash': {'sha256': sha},
 }
+# Other apps the rooted Round2 TVs use, pinned to a checked release (update the version and SHA-256 by hand)
+UX = 'https://github.com/depius/uxair-webos'
+UX_ICON = 'https://raw.githubusercontent.com/depius/uxair-webos/v1.1.0/packaging/icon.png'
+UX_DESC = 'AirPlay screen mirroring for older LG TVs without built-in AirPlay (UxAir by depius, open source).'
+extras = [{
+    'id': 'com.github.depius.uxair', 'title': 'UxAir (AirPlay)', 'iconUri': UX_ICON, 'shortDescription': UX_DESC,
+    'manifest': {
+        'id': 'com.github.depius.uxair', 'title': 'UxAir', 'version': '1.1.0', 'type': 'native',
+        'appDescription': UX_DESC, 'iconUri': UX_ICON, 'sourceUrl': UX, 'rootRequired': True,
+        'ipkUrl': f'{UX}/releases/download/v1.1.0/com.github.depius.uxair_1.1.0_arm.ipk',
+        'ipkHash': {'sha256': '669e8883d04ad2f6ed6711a543fdc1ef6be322c666f1259a61c785886084bda2'},
+    },
+}]
 print(json.dumps({'packages': [{
     'id': 'sg.round2.tvhome', 'title': 'Round2 Home', 'iconUri': ICON,
     'shortDescription': desc, 'manifest': manifest,
-}]}, indent=2))
+}] + extras}, indent=2))
