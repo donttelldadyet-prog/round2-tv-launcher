@@ -327,7 +327,7 @@ footer .keys { display: flex; gap: 30px; }
 @keyframes rise { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
 .snap * { transition: none !important; }
 
-#toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); padding: 18px 28px; background: var(--ink); color: var(--room-ink);
+#toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); padding: 18px 28px; background: var(--ink); color: #0b0914;
   font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
 
 /* Older TV browsers (LG webOS before 2022) have no gap in flex rows: the same spacing with margins */
@@ -1094,7 +1094,7 @@ window.R2_TV = {
     var adFree = pkg === 'io.gh.reisxd.tizentube.cobalt' || pkg === 'com.teamsmart.videomanager.tv';   /* TizenTube or SmartTube */
     var it = { key: k, label: a.name, hint: adFree ? 'NO ADS' : (hint || 'STREAM'), adFree: adFree, android: pkg, tizen: a.tizen, webos: a.webos };
     /* LG has AirPlay built in: there is nothing to open, the guest just picks this TV on their iPhone */
-    if (k === 'airplay' && Device.kind() === 'webos') it.info = 'Ready: on your iPhone or iPad, open Control Centre \u203a Screen Mirroring and pick this TV.';
+    if (k === 'airplay' && Device.kind() === 'webos') it.info = 'On your iPhone: Control Centre \u203a Screen Mirroring \u203a this TV.';
     return it;
   }
 
