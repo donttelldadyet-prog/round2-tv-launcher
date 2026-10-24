@@ -180,6 +180,14 @@
       "rooms": [
         "vale"
       ]
+    },
+    {
+      "id": "cosmic",
+      "name": "COSMIC",
+      "source": "sound-cosmic-mvmdj7v3.mp3",
+      "rooms": [
+        "scarlett"
+      ]
     }
   ],
   "roomDefaults": {
