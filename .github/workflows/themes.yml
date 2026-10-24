@@ -46,11 +46,11 @@ jobs:
       - name: Upload to the themes release
         run: |
           cd out
-          files=$(ls *.mp4 *.jpg *.ogg 2>/dev/null || true)
+          files=$(ls *.mp4 *.jpg *.ogg *.wav 2>/dev/null || true)
           [ -n "$files" ] && gh release upload themes $files --clobber
           gh release upload themes themes.json --clobber
           # remove videos of themes that were deleted from themes.json
-          wanted=$(python3 -c "import json;j=json.load(open('themes.json'));print(' '.join([x for t in j['themes'] for x in (t['id']+'.mp4',t['id']+'.jpg')]+[x['id']+'.ogg' for x in j.get('sounds',[])]))")
+          wanted=$(python3 -c "import json;j=json.load(open('themes.json'));print(' '.join([x for t in j['themes'] for x in (t['id']+'.mp4',t['id']+'.jpg')]+[x['id']+e for x in j.get('sounds',[]) for e in ('.ogg','.wav')]))")
           for a in $(gh release view themes --json assets -q '.assets[].name'); do
             case " $wanted themes.json " in *" $a "*) ;; *) gh release delete-asset themes "$a" -y ;; esac
           done

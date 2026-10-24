@@ -1087,49 +1087,89 @@ window.R2_TV = {
       g.cancelScheduledValues(now); g.setValueAtTime(Math.max(g.value, 0.0001), now);
       g.exponentialRampToValueAtTime(Math.max(Math.min(1, to), 0.0001), now + Math.max(ms, 50) / 1000);
     }
+    function lgGet(url, done) {
+      var x = new XMLHttpRequest();
+      try { x.open('GET', url); x.responseType = 'arraybuffer'; } catch (e) { done(null); return; }
+      x.onload = function () { done(x.response && x.response.byteLength > 44 ? x.response : null); };
+      x.onerror = function () { done(null); };
+      try { x.send(); } catch (e) { done(null); }
+    }
+    function wavBuffer(c, ab) {   /* 16-bit PCM WAV -> AudioBuffer by hand: needs no decoder on the TV */
+      var d = new DataView(ab), p = 12, fmt = null;
+      if (d.getUint32(0, false) !== 0x52494646 || d.getUint32(8, false) !== 0x57415645) return null;   /* RIFF / WAVE */
+      while (p + 8 <= d.byteLength) {
+        var id = d.getUint32(p, false), sz = d.getUint32(p + 4, true), b = p + 8;
+        if (id === 0x666d7420) fmt = { ch: d.getUint16(b + 2, true), sr: d.getUint32(b + 4, true), bits: d.getUint16(b + 14, true) };
+        else if (id === 0x64617461 && fmt && fmt.bits === 16) {
+          var n = Math.floor(Math.min(sz, d.byteLength - b) / (2 * fmt.ch)), buf = c.createBuffer(fmt.ch, n, fmt.sr);
+          for (var ch = 0; ch < fmt.ch; ch++) {
+            var o = buf.getChannelData(ch);
+            for (var i = 0, q = b + ch * 2, st = 2 * fmt.ch; i < n; i++, q += st) o[i] = d.getInt16(q, true) / 32768;
+          }
+          return buf;
+        }
+        p = b + sz + (sz & 1);
+      }
+      return null;
+    }
+    /* LG: the WAV copy (unpacked here), else the TV's own decoder; null = play it the old way */
     function lgLoad(sndObj, done) {
       if (lgCache.id === sndObj.id && lgCache.buf) { done(lgCache.buf); return; }
-      var c = Sfx.ctx(), x = new XMLHttpRequest();
-      x.open('GET', sndObj.audio); x.responseType = 'arraybuffer';
-      x.onload = function () {
-        if (!x.response || !x.response.byteLength) { done(null); return; }
-        try {
-          var pr = c.decodeAudioData(x.response, function (b) { lgCache = { id: sndObj.id, buf: b }; done(b); }, function () { done(null); });
-          if (pr && pr.catch) pr.catch(function () {});
-        } catch (e) { done(null); }
-      };
-      x.onerror = function () { done(null); };
-      x.send();
+      var c = Sfx.ctx();
+      function keep(b) { if (b) lgCache = { id: sndObj.id, buf: b }; done(b); }
+      function viaDecoder() {
+        if (!sndObj.audio) { keep(null); return; }
+        lgGet(sndObj.audio, function (ab) {
+          if (!ab) { keep(null); return; }
+          var settled = false, fin = function (b) { if (!settled) { settled = true; keep(b || null); } };
+          try {
+            var pr = c.decodeAudioData(ab, fin, function () { fin(null); });
+            if (pr && pr.then) pr.then(fin, function () { fin(null); });
+          } catch (e) { fin(null); }
+          setTimeout(function () { fin(null); }, 15000);
+        });
+      }
+      if (!sndObj.pcm) { viaDecoder(); return; }
+      lgGet(sndObj.pcm, function (ab) {
+        var b = null; try { b = ab && wavBuffer(c, ab); } catch (e) { b = null; }
+        if (b) keep(b); else viaDecoder();
+      });
     }
     function lgFile(sndObj, v, ms) {
       var c = Sfx.ctx(); if (!c) return;
       if (!lgGain) { lgGain = c.createGain(); lgGain.gain.value = 0.0001; lgGain.connect(c.destination); }
       lgVol = v;
       if (!sndObj) {
+        elTo(null, 0);
         lgCur = ''; lgRamp(c, 0, ms);
         var s = lgSrc; lgSrc = null; if (s) setTimeout(function () { try { s.stop(); } catch (e) {} }, ms + 60);
         return;
       }
-      if (lgCur === sndObj.id) { if (lgSrc) lgRamp(c, v, ms); return; }   /* same sound: volume only (or still loading) */
+      if (lgCur === sndObj.id) { if (lgSrc) lgRamp(c, v, ms); else if (fileEl && !fileEl.paused) fileEl.volume = Math.min(1, v); return; }   /* same sound: volume only (or still loading) */
       if (lgSrc) { try { lgSrc.stop(); } catch (e) {} lgSrc = null; }
+      elTo(null, 0);
       lgCur = sndObj.id;
       lgLoad(sndObj, function (buf) {
-        if (!buf || lgCur !== sndObj.id || lgSrc) return;
+        if (lgCur !== sndObj.id || lgSrc) return;
+        if (!buf) { console.log('[R2] LG sound ' + sndObj.id + ': no WAV or decoder, using the media player'); elTo(sndObj, lgVol); return; }
         var s2 = c.createBufferSource(); s2.buffer = buf; s2.loop = true; s2.connect(lgGain);
         lgGain.gain.cancelScheduledValues(c.currentTime); lgGain.gain.setValueAtTime(0.0001, c.currentTime);
         s2.start(); lgSrc = s2; lgRamp(c, lgVol, ms);
       });
     }
-    function fileTo(sndObj, v, ms) {
-      var nb = nat();
-      if (nb) { try { nb.ambFile(sndObj ? sndObj.id : '', v, ms); } catch (e) {} return; }
-      if (Device.kind() === 'webos') { lgFile(sndObj, v, ms); return; }
+    function elTo(sndObj, v) {   /* the browser's media player */
       if (!sndObj) { if (fileEl) { try { fileEl.pause(); } catch (e) {} } return; }
       if (!fileEl || fileEl.getAttribute('data-id') !== sndObj.id) {
         if (fileEl) { try { fileEl.pause(); } catch (e) {} }
         fileEl = new Audio(sndObj.audio); fileEl.loop = true; fileEl.setAttribute('data-id', sndObj.id);
       }
       fileEl.volume = Math.min(1, v); try { var pr = fileEl.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+    }
+    function fileTo(sndObj, v, ms) {
+      var nb = nat();
+      if (nb) { try { nb.ambFile(sndObj ? sndObj.id : '', v, ms); } catch (e) {} return; }
+      if (Device.kind() === 'webos') { lgFile(sndObj, v, ms); return; }
+      elTo(sndObj, v);
     }
     function thunder() {
       clearTimeout(thunderTimer);

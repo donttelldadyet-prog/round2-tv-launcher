@@ -112,6 +112,7 @@ function describe(root) {
   for (i = 0; i < ss.length; i++) {
     t = ss[i]; id = safeId(t.id); if (!id) continue;
     if (STORE && fs.existsSync(path.join(STORE.dir, id + '.ogg'))) t.audio = STORE.url(id + '.ogg');
+    if (STORE && fs.existsSync(path.join(STORE.dir, id + '.wav'))) t.pcm = STORE.url(id + '.wav'); else delete t.pcm;
     t.ready = !!t.audio;
   }
   return JSON.stringify(root);
@@ -148,8 +149,9 @@ function sync(room, cb) {
     (root.sounds || []).forEach(function (t) {
       var id = safeId(t.id);
       if (!id || !(forRoom(t, room) || wantSound[id])) return;
-      keep[id + '.ogg'] = 1;
+      keep[id + '.ogg'] = keep[id + '.wav'] = 1;
       jobs.push([t.audio, id + '.ogg', t.sha256]);
+      if (t.pcm) jobs.push([t.pcm, id + '.wav', t.pcmSha256]);
     });
     (function next() {                                              /* one at a time: TVs have little memory */
       var j = jobs.shift();

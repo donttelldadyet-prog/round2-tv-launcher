@@ -166,16 +166,21 @@ for snd in src.get("sounds", []):
     e["id"] = sid
     e["src"] = source if source.startswith("http") else source + ":" + sha(os.path.join("themes", source))
     prev = old_sounds.get(sid)
-    if prev and prev.get("src") == e["src"]:
-        for k in ("audio", "sha256", "bytes"):
+    if prev and prev.get("src") == e["src"] and prev.get("pcm"):
+        for k in ("audio", "sha256", "bytes", "pcm", "pcmSha256", "pcmBytes"):
             e[k] = prev[k]
-        keep.append(sid + ".ogg")
+        keep.extend([sid + ".ogg", sid + ".wav"])
         print(f"sound {sid}: unchanged")
     else:
         ogg = os.path.join(OUT, sid + ".ogg")
         make_loop(fetch(source, os.path.join(OUT, sid + ".src")), ogg)
         e.update(audio=BASE + sid + ".ogg", sha256=sha(ogg), bytes=os.path.getsize(ogg))
-        print(f"sound {sid}: {e['bytes'] // 1024} KB loop")
+        # LG TVs: plain 16-bit WAV the menu unpacks itself (playing the OGG there takes the video player away)
+        wav = os.path.join(OUT, sid + ".wav")
+        subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", ogg, "-ac", "2", "-ar", "22050",
+                        "-c:a", "pcm_s16le", "-map_metadata", "-1", "-fflags", "+bitexact", "-flags:a", "+bitexact", wav], check=True)
+        e.update(pcm=BASE + sid + ".wav", pcmSha256=sha(wav), pcmBytes=os.path.getsize(wav))
+        print(f"sound {sid}: {e['bytes'] // 1024} KB loop, {e['pcmBytes'] // 1024} KB WAV for LG")
     sound_ids.add(sid)
     sounds.append(e)
 for t in pub:
