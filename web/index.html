@@ -1700,13 +1700,14 @@ window.R2_TV = {
     } else if (k === 'ok' && act === 'airTest') {
       /* rooted LG: start the AirPlay app's program for a few seconds and show why it closes (photo it for Claude) */
       Sfx.play('ok'); toast('Testing the AirPlay app\u2026 about 10 seconds', 12000);
-      var cmd = 'D=/media/developer/apps/usr/palm/applications; found=0; ' +
+      var cmd = 'if timeout -t 1 true 2>/dev/null; then TO="timeout -t 8"; else TO="timeout 8"; fi; ' +
+        'D=/media/developer/apps/usr/palm/applications; found=0; ' +
         'for a in com.github.depius.uxair com.github.danlflh.uxplaywebos; do [ -d "$D/$a" ] || continue; found=1; cd "$D/$a"; ' +
         'B=$(sed -n \'s/.*"main" *: *"\\([^"]*\\)".*/\\1/p\' appinfo.json); echo "== $a ($B)"; ' +
-        '( timeout 8 ./"$B" 2>&1 || echo "[exit $?]" ) | grep -v "^ *$" | tail -n 10; ' +
+        '( $TO ./"$B" 2>&1; echo "[exit $?]" ) | grep -v "^ *$" | tail -n 10; ' +
         'for f in *.log state/*.log; do [ -f "$f" ] && { echo "-- $f"; tail -n 5 "$f"; }; done; done; ' +
         '[ $found = 1 ] || echo "No UxAir or UxPlay webOS installed"; ' +
-        'echo "-- $(grep -h -m1 -i "webos\\|version" /etc/starfish-release /etc/os-release 2>/dev/null | head -n 1) $(uname -r) $(ldd --version 2>&1 | head -n 1 | grep -o "[0-9.]*$")"';
+        'echo "-- $(grep -h -m1 -i "webos\\|version" /etc/starfish-release /etc/os-release 2>/dev/null | head -n 1) $(uname -r) $(ls /lib/libc-*.so 2>/dev/null | head -n 1)"';
       LGRoot.exec(cmd + ' 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
         toast(String(txt).replace(/\s+$/, '').slice(-900), 120000);
