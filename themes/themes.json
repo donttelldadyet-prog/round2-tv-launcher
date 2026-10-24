@@ -177,6 +177,15 @@
       "updated": "2026-10-23T20:05:21.812Z",
       "amb": "waterall",
       "ambVol": "1"
+    },
+    "maximillion": {
+      "updated": "2026-10-24T12:12:04.354Z",
+      "wall": "theme-mclaren-2026",
+      "amb": "phonk-race",
+      "ambVol": "3",
+      "sound": "sonar",
+      "fx": "fade",
+      "cards": "auto"
     }
   },
   "tvs": {
