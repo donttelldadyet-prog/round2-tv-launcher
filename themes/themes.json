@@ -212,6 +212,13 @@
       "sound": "sonar",
       "fx": "fade",
       "cards": "auto"
+    },
+    "vale": {
+      "updated": "2026-10-24T15:32:09.081Z",
+      "amb": "lofi2",
+      "ambVol": "2",
+      "sound": "bubble",
+      "fx": "fade"
     }
   },
   "tvs": {
