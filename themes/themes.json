@@ -196,6 +196,14 @@
       "rooms": [
         "scarlett"
       ]
+    },
+    {
+      "id": "lofi-beats",
+      "name": "LOFI BEATS",
+      "source": "sound-lofi-beats-mvmdnoj0.mp3",
+      "rooms": [
+        "vale"
+      ]
     }
   ],
   "roomDefaults": {
