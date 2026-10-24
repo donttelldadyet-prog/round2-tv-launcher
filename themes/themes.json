@@ -220,6 +220,14 @@
       "rooms": [
         "all"
       ]
+    },
+    {
+      "id": "mystery-box",
+      "name": "MYSTERY BOX",
+      "source": "sound-mystery-box-mvmr0fb4.mp3",
+      "rooms": [
+        "bella"
+      ]
     }
   ],
   "roomDefaults": {
