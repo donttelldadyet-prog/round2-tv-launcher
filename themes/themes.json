@@ -243,6 +243,11 @@
       "ambVol": "2",
       "sound": "bubble",
       "fx": "fade"
+    },
+    "bella": {
+      "updated": "2026-10-24T18:57:36.005Z",
+      "amb": "mystery-box",
+      "ambVol": "10"
     }
   },
   "tvs": {
