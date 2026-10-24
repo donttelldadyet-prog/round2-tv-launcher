@@ -3,7 +3,7 @@ name: Build Round2 Home
 on:
   push:
     branches: [main]
-    paths-ignore: ['themes/**', 'manager/**', 'README.md']   # event backgrounds are published by themes.yml, no app rebuild needed
+    paths-ignore: ['themes/**', 'manager/**', 'README.md']   # webos/ changes do rebuild   # event backgrounds are published by themes.yml, no app rebuild needed
   workflow_dispatch:
 
 permissions:
@@ -44,11 +44,23 @@ jobs:
         run: gradle --no-daemon :app:assembleRelease
       - name: Name the APK
         run: cp app/build/outputs/apk/release/app-release.apk round2-home.apk
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Package the LG (webOS) version
+        run: |
+          npm install -g @webos-tools/cli
+          ARES_PACKAGE=ares-package bash tools/build-webos.sh 1.0.${{ github.run_number }}
       - name: Publish a GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Round2 Home 1.0.${{ github.run_number }}
-          body: Built from ${{ github.sha }}. Install with round2tv.ps1 launcher donttelldadyet-prog/round2-tv-launcher
-          files: round2-home.apk
+          body: |
+            Built from ${{ github.sha }}.
+            TCL / Sony (Android): install with round2tv.ps1 launcher donttelldadyet-prog/round2-tv-launcher
+            LG (webOS): install round2-home.ipk with webOS Dev Manager (see the README)
+          files: |
+            round2-home.apk
+            round2-home.ipk
           make_latest: true

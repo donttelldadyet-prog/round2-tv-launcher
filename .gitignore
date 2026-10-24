@@ -5,3 +5,5 @@ web-assets/
 local.properties
 *.iml
 .idea/
+build-webos/
+round2-home.ipk

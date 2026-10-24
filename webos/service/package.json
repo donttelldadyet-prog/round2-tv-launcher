@@ -1,0 +1,6 @@
+{
+  "name": "sg.round2.tvhome.service",
+  "version": "1.0.0",
+  "description": "Round2 Home: downloads event backgrounds for the menu",
+  "main": "index.js"
+}

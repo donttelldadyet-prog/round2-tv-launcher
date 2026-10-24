@@ -10,7 +10,8 @@ Main menu: **Inputs** (PlayStation and guest HDMI ports), **AirPlay** (if PhairP
 | --- | --- |
 | `web/index.html` | The menu screen itself. Edit this to change the look, menu items or text. The settings block near the top of the script sets HDMI port names. |
 | `app/` | The small Android app that shows the menu full-screen and opens apps and HDMI inputs for it. |
-| `.github/workflows/build.yml` | Builds the app on every push to `main` and publishes it as a GitHub release (`round2-home.apk`). |
+| `.github/workflows/build.yml` | Builds the app on every push to `main` and publishes it as a GitHub release (`round2-home.apk` for Android TVs, `round2-home.ipk` for LG). |
+| `webos/` | The LG version's extras: its app info and icons, and a small background service that downloads event backgrounds. `tools/build-webos.sh` packages it. |
 | `tv-tools/round2tv.ps1` | Windows toolkit that connects to a TV with adb, backs it up, cleans it up, installs the app and undoes everything. |
 | `tv-tools/cleanup.txt` | The approved list of ad and bloat apps to disable on the TCL TVs. |
 | `signing/round2-tv.jks` | The app's signing key, so each new build installs over the previous one. |
@@ -55,7 +56,27 @@ The Kai loops (Neon Summit) were made in OpenArt: still images with Nano Banana 
 
 - **TCL, Sony and other Google TV / Android TV sets:** this app, as above.
 - **Samsung (Tizen):** the menu already has Samsung app IDs, but it must be packaged as a signed Tizen web app. See [CleanFrame](https://github.com/nthnclrk/CleanFrame), which this project uses as its reference for remote navigation and device handling.
-- **LG (webOS):** needs packaging as a webOS app installed through LG's Developer Mode app. Not done yet.
+- **LG (webOS):** `round2-home.ipk`, built from the same menu with every release. See [LG TVs](#lg-tvs-webos) below.
+
+## LG TVs (webOS)
+
+Scarlett, Vale and Bella have LG TVs. They run the same menu as the other rooms, packaged as an LG app. LG doesn't let an app replace its home screen, so Round2 Home is an app you open (see "Getting guests to it" below).
+
+**One-time setup per TV** (about 20 minutes):
+
+1. On a computer, create a free account at [webostv.developer.lge.com](https://webostv.developer.lge.com) (Sign in > Create account). **Each LG TV needs its own account**: signing a second TV into the same account switches Developer Mode off on the first one (and removes Round2 Home from it). If LG accepts it, Gmail's `+` trick gives you separate addresses, e.g. `you+scarlett@gmail.com`.
+2. On the TV, open **LG Content Store**, search **Developer Mode**, install it and open it. Sign in with that account, switch **Dev Mode Status** on (the TV restarts), open the app again and switch **Key Server** on. Leave this screen up: it shows the TV's IP address and a passphrase.
+3. On the Windows PC, install **webOS Dev Manager** from [its releases page](https://github.com/webosbrew/dev-manager-desktop/releases) (the `.msi` file). Open it, choose **Add device**, and type the TV's IP address and the passphrase.
+4. Download `round2-home.ipk` from this repo's [latest release](https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/latest). In Dev Manager, open **Apps**, click **Install**, and pick the file.
+5. On the TV, open **Round2 Home** from the apps row and pick the room.
+
+**Keep Developer Mode alive.** LG switches Developer Mode off when its timer runs out (1000 hours, about six weeks), and that removes Round2 Home from the TV. Dev Manager shows the time left on its Info page and has an **Extend** button (the Developer Mode app on the TV has one too). Extend it when you update the TVs, or at least once a month. If it does run out, repeat steps 2 to 5.
+
+**Updating:** after a change to the menu, download the new `round2-home.ipk` and install it again from Dev Manager (step 4). Settings and the room choice are kept.
+
+**Getting guests to it:** on LG's Home screen, move Round2 Home to the front of the apps row (press and hold OK on it, then **Move**). After opening Netflix or an HDMI input from Round2 Home, the remote's **Back** button returns to it. The **Home** button always opens LG's own home bar.
+
+**What's different on LG:** HDMI ports open LG's own input apps; More apps lists the apps the TV allows Round2 Home to see; AirPlay is built into most LG TVs from 2018 on, so the AirPlay item only explains how to mirror. Event backgrounds download in the background like on the other TVs.
 
 ## Notes
 

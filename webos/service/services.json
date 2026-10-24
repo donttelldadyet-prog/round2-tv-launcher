@@ -1,0 +1,7 @@
+{
+  "id": "sg.round2.tvhome.service",
+  "description": "Round2 Home: downloads event backgrounds for the menu",
+  "services": [
+    { "name": "sg.round2.tvhome.service", "description": "Round2 Home theme downloads" }
+  ]
+}

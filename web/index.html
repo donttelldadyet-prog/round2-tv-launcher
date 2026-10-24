@@ -56,7 +56,7 @@ html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 @keyframes btBlink { 50% { opacity: 0; } }
 #stage { position: fixed; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden;
   background: var(--void); font-family: var(--f-ui); -webkit-font-smoothing: antialiased; }
-.layer { position: absolute; inset: 0; }
+.layer { position: absolute; inset: 0; left: 0; top: 0; right: 0; bottom: 0; }
 
 /* ---------- background world ---------- */
 #world { transition: transform .34s cubic-bezier(.55, 0, .85, .35); }
@@ -153,7 +153,7 @@ section.peek { position: absolute; right: 64px; top: 180px; width: 600px; paddin
 .peek .tag { font-family: var(--f-pix); font-size: 12px; letter-spacing: .16em; color: var(--room); }
 .peek h1 { margin: 20px 0 16px; font-size: 76px; line-height: .95; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; text-wrap: balance; }
 .peek p { margin: 0; font-size: 24px; line-height: 1.45; color: #d6d0e3; max-width: 30ch; }
-.peek dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 22px; margin: 28px 0 0; font-size: 20px; }
+.peek dl { display: grid; grid-template-columns: auto 1fr; grid-gap: 10px 22px; gap: 10px 22px; margin: 28px 0 0; font-size: 20px; }
 .peek dt { font-family: var(--f-pix); font-size: 11px; letter-spacing: .14em; color: var(--mute); align-self: center; }
 .peek dd { margin: 0; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
 .peek .go { display: flex; align-items: center; gap: 12px; margin-top: 34px; padding-top: 22px; border-top: 1px solid rgba(244,241,251,.16);
@@ -194,9 +194,9 @@ footer .keys { display: flex; gap: 30px; }
     linear-gradient(0deg, rgba(6,5,10,.7) 0%, rgba(6,5,10,0) 34%); }
 
 /* ---------- app / input grid ---------- */
-#apps { position: absolute; inset: 0; background: rgba(4,3,8,.95); padding: 120px 140px; overflow: hidden; }
+#apps { position: absolute; inset: 0; left: 0; top: 0; right: 0; bottom: 0; background: rgba(4,3,8,.95); padding: 120px 140px; overflow: hidden; }
 .gridview { position: absolute; left: 140px; right: 140px; top: 200px; bottom: 90px; overflow: hidden; }
-.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 24px; transition: transform .16s var(--ease); will-change: transform; }
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); grid-gap: 24px; gap: 24px; transition: transform .16s var(--ease); will-change: transform; }
 .more { position: absolute; left: 140px; right: 140px; bottom: 40px; text-align: center; font-family: var(--f-pix); font-size: 12px; letter-spacing: .14em; color: var(--mute); }
 .tile { position: relative; height: 170px; padding: 22px; border: 2px solid rgba(244,241,251,.14); background: rgba(16,13,26,.9);
   color: var(--ink); font: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between;
@@ -210,7 +210,7 @@ footer .keys { display: flex; gap: 30px; }
 /* tiles with the app's own TV banner (or icon) from the TV */
 .tile.art { padding: 0; justify-content: flex-end; overflow: hidden; background: #110e1a; }
 .tile.art img { position: absolute; display: block; }
-.tile.art.ban img { inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.tile.art.ban img { inset: 0; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
 .tile.art.ico img { left: 50%; top: 38%; width: 84px; height: 84px; margin: -42px 0 0 -42px; object-fit: contain; }
 .tile.art .nm { position: relative; padding: 26px 16px 10px; font-size: 19px; letter-spacing: .05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   background: linear-gradient(180deg, rgba(6,5,10,0), rgba(6,5,10,.92) 55%); color: var(--ink); }
@@ -330,6 +330,12 @@ footer .keys { display: flex; gap: 30px; }
 #toast { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%); padding: 18px 28px; background: var(--ink); color: var(--room-ink);
   font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
 
+/* Older TV browsers (LG webOS before 2022) have no gap in flex rows: the same spacing with margins */
+.nogap .hud > * + * { margin-left: 26px; }
+.nogap .badge > * + *, .nogap .divider > * + *, .nogap .peek .go > * + *, .nogap .pinbox .digits > * + * { margin-left: 12px; }
+.nogap .list > * + *, .nogap .wallrows > * + * { margin-top: 8px; }
+.nogap .mi > * + * { margin-left: 18px; }
+.nogap footer .keys > * + * { margin-left: 30px; }
 #preview { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
   padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -359,6 +365,12 @@ footer .keys { display: flex; gap: 30px; }
   </div>
 </div>
 <script>
+/* older TV browsers: no gap in flex rows (see .nogap) */
+(function () { try {
+  var f = document.createElement('div'); f.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden';
+  f.appendChild(document.createElement('div')); f.appendChild(document.createElement('div'));
+  document.documentElement.appendChild(f); if (f.scrollHeight !== 1) document.documentElement.className += ' nogap'; f.parentNode.removeChild(f);
+} catch (e) {} }());
 /* tint the boot screen with this TV's room colour straight away */
 (function () { try {
   var c = { vale: '#E8436A', kaeden: '#4DB848', scarlett: '#F2C21B', bella: '#7A5BE0', kai: '#24B49A', atlas: '#E9E7EF', maximillion: '#E0402F' };
@@ -510,9 +522,104 @@ window.R2_TV = {
     youtube: { name: 'YouTube',     android: ['io.gh.reisxd.tizentube.cobalt', 'com.teamsmart.videomanager.tv', 'com.google.android.youtube.tv'], tizen: '9Ur5IzDKqV.TizenYouTube', webos: 'youtube.leanback.v4' },
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
-    max:     { name: 'HBO Max',     android: 'com.wbd.stream' },
-    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'] }
+    max:     { name: 'HBO Max',     android: 'com.wbd.stream',                                                         webos: ['com.wbd.stream', 'com.hbo.hbomax', 'max', 'hbomax'] },
+    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay'] }
   };
+  /* LG: the apps shown under More apps when the TV won't hand over its own list (only the installed ones appear) */
+  var WEBOS_MORE = [
+    { name: 'Netflix', webos: 'netflix' }, { name: 'YouTube', webos: 'youtube.leanback.v4' }, { name: 'Prime Video', webos: 'amazon' },
+    { name: 'Disney+', webos: 'com.disney.disneyplus-prod' }, { name: 'HBO Max', webos: 'com.wbd.stream' }, { name: 'Apple TV', webos: 'com.apple.appletv' },
+    { name: 'Spotify', webos: 'spotify-beehive' }, { name: 'Twitch', webos: 'twitch' }, { name: 'iQIYI', webos: 'com.iqiyi.app' },
+    { name: 'Viu', webos: 'viu' }, { name: 'LG Channels', webos: 'com.webos.app.lgchannels' }, { name: 'Web Browser', webos: 'com.webos.app.browser' }
+  ];
+
+  /* ---- LG webOS: Luna service calls, made straight through the TV's PalmServiceBridge ---- */
+  var WebOS = (function () {
+    var live = [], ok = {}, ports = null, points = null;
+    function call(uri, params, cb, keep) {
+      if (!window.PalmServiceBridge) { if (cb) cb({ returnValue: false, errorText: 'not an LG TV' }); return null; }
+      var b = new window.PalmServiceBridge();
+      live.push(b);                                               /* held on to, or the browser may drop the reply */
+      b.onservicecallback = function (msg) {
+        var r; try { r = JSON.parse(msg); } catch (e) { r = { returnValue: false, errorText: String(msg) }; }
+        if (!keep) { var i = live.indexOf(b); if (i >= 0) live.splice(i, 1); }
+        if (cb) cb(r);
+      };
+      b.call(uri, JSON.stringify(params || {}));
+      return b;
+    }
+    function launch(id, done) {
+      call('luna://com.webos.applicationManager/launch', { id: id }, function (r) {
+        done(r.returnValue === false ? (r.errorText || 'The TV could not open this.') : null);
+      });
+    }
+    /* which apps are on this TV: asked once at start-up, so menus can show only what's there */
+    function check(ids, then) {
+      var left = ids.length; if (!left) { then(); return; }
+      ids.forEach(function (id) {
+        if (ok.hasOwnProperty(id)) { if (--left === 0) then(); return; }
+        call('luna://com.webos.applicationManager/getAppLoadStatus', { appId: id }, function (r) {
+          ok[id] = r.returnValue !== false && r.exist !== false;
+          if (--left === 0) then();
+        });
+      });
+    }
+    function has(id) { return ok[id] === true || (ok[id] === undefined && points && points.some(function (p) { return p.id === id; })); }
+    function pick(ids) {
+      if (!ids) return '';
+      if (!ids.join) return ids;
+      for (var i = 0; i < ids.length; i++) if (has(ids[i])) return ids[i];
+      return '';
+    }
+    function start(then) {
+      var want = WEBOS_MORE.map(function (a) { return a.webos; }), n = 3;
+      function one() { if (--n === 0 && then) then(); }
+      for (var k in APPS) if (APPS.hasOwnProperty(k) && APPS[k].webos) want = want.concat(APPS[k].webos);
+      for (var h = 1; h <= 4; h++) want.push('com.webos.app.hdmi' + h);
+      check(want, one);
+      /* the TV's own app list (allowed on some LG models only; otherwise WEBOS_MORE is used) */
+      call('luna://com.webos.applicationManager/listLaunchPoints', {}, function (r) {
+        if (r.returnValue !== false && r.launchPoints && r.launchPoints.length) points = r.launchPoints;
+        one();
+      });
+      /* the HDMI ports with their LG names, where the TV allows it */
+      call('luna://com.webos.service.eim/getAllInputStatus', {}, function (r) {
+        var d = r.devices || r.inputSourceList || [];
+        if (r.returnValue !== false && d.length) {
+          ports = [];
+          d.forEach(function (x) {
+            var id = String(x.id || x.inputSourceId || ''), app = x.appId || '';
+            var m = /hdmi[_\s]?(\d)/i.exec(id + ' ' + app); if (!m) return;
+            ports.push({ id: 'HDMI' + m[1], name: 'HDMI ' + m[1], app: app || 'com.webos.app.hdmi' + m[1] });
+          });
+          if (!ports.length) ports = null;
+        }
+        one();
+      });
+    }
+    function inputs() {
+      if (ports) return ports;
+      var out = [];
+      for (var h = 1; h <= 4; h++) if (ok['com.webos.app.hdmi' + h] !== false) out.push({ id: 'HDMI' + h, name: 'HDMI ' + h, app: 'com.webos.app.hdmi' + h });
+      return out;
+    }
+    function apps() {
+      var out = [], seen = {}, skip = /^(com\.webos\.app\.(hdmi|livetv|home|inputcommon|discovery|tvhotkey|notificationcenter)|sg\.round2\.)/;
+      if (points) {
+        points.forEach(function (p) {
+          var name = String(p.title || '').trim();
+          if (!name || skip.test(p.id || '') || /settings/i.test(name) || seen[name.toLowerCase()]) return;
+          seen[name.toLowerCase()] = 1;
+          out.push({ name: name, webos: p.id, art: p.largeIcon || p.icon || '' });
+        });
+      } else {
+        WEBOS_MORE.forEach(function (a) { if (ok[a.webos] !== false) out.push(a); });
+      }
+      out.push({ name: 'TV Settings', settings: true, mono: '⚙' });
+      return out;
+    }
+    return { call: call, launch: launch, start: start, pick: pick, has: has, inputs: inputs, apps: apps };
+  }());
   var SAMPLE_MORE = [
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
     { name: 'Apple TV', android: 'com.apple.atve.androidtv.appletv' }, { name: 'Twitch', android: 'tv.twitch.android.app' },
@@ -525,7 +632,7 @@ window.R2_TV = {
     kind: function () {
       if (window.R2Android || /Round2Home/.test(navigator.userAgent)) return 'android';   // Round2 launcher app (TCL, Sony)
       if (window.tizen && window.tizen.application) return 'tizen';                        // Samsung
-      if (window.webOS || window.PalmSystem) return 'webos';                               // LG
+      if (window.PalmServiceBridge || window.PalmSystem || window.webOS) return 'webos';   // LG (Round2 Home for webOS)
       return 'preview';
     },
     open: function (item, done) {
@@ -545,22 +652,26 @@ window.R2_TV = {
           window.tizen.application.launch(item.tizen, function () { done(null); }, function (e) { done(e && e.message); });
           return;
         }
-        if (k === 'webos' && item.webos && window.webOS && window.webOS.service) {
-          window.webOS.service.request('luna://com.webos.applicationManager', {
-            method: 'launch', parameters: { id: item.webos },
-            onSuccess: function () { done(null); }, onFailure: function (e) { done(e && e.errorText); }
-          });
+        if (k === 'webos') {
+          if (item.settings) { WebOS.launch('com.palm.app.settings', done); return; }
+          if (item.input) { WebOS.launch(item.inputApp || 'com.webos.app.' + String(item.input).toLowerCase(), done); return; }
+          if (item.info) { done(item.info); return; }
+          var id = WebOS.pick(item.webos) || (item.webos && item.webos.join ? item.webos[0] : item.webos);
+          if (id) { WebOS.launch(id, done); return; }
+          done((item.label || item.name) + ' isn\'t installed on this TV.');
           return;
         }
       } catch (e) { done(String(e && e.message || e)); return; }
       done('preview');
     },
     installed: function (pkg) {
+      if (Device.kind() === 'webos') return WebOS.has(pkg);
       if (Device.kind() !== 'android') return true;
       try { return window.R2Android.installed(pkg) === '1'; } catch (e) { return true; }
     },
     inputs: function () {
       if (Device.kind() === 'android') { try { return JSON.parse(window.R2Android.inputs()); } catch (e) {} }
+      if (Device.kind() === 'webos') return WebOS.inputs();
       return [{ id: 'HDMI1', name: 'HDMI 1' }, { id: 'HDMI2', name: 'HDMI 2' }, { id: 'HDMI3', name: 'HDMI 3' }, { id: 'HDMI4', name: 'HDMI 4' }];
     },
     apps: function () {
@@ -572,6 +683,7 @@ window.R2_TV = {
           return out;
         } catch (e) {}
       }
+      if (Device.kind() === 'webos') return WebOS.apps();
       return SAMPLE_MORE;
     }
   };
@@ -968,9 +1080,10 @@ window.R2_TV = {
   function buildItems() {
     /* no Continue / last-played: the next group must never see the previous group's session */
     items = [{ key: 'inputs', label: 'Inputs', hint: 'HDMI' }];
-    if (APPS.airplay.android.some(function (pk) { return Device.installed(pk); })) items.push(mk('airplay', 'MIRROR'));
+    var lg = Device.kind() === 'webos';
+    if (lg ? WebOS.pick(APPS.airplay.webos) : APPS.airplay.android.some(function (pk) { return Device.installed(pk); })) items.push(mk('airplay', 'MIRROR'));
     items.push(mk('youtube'), mk('netflix'), mk('prime'));
-    if (room.t !== 'n') items.push(mk('max'));
+    if (room.t !== 'n' && (!lg || WebOS.pick(APPS.max.webos))) items.push(mk('max'));
     items.push({ key: 'more', label: 'More apps', hint: 'ALL' });
     items.push({ key: 'options', label: 'Options', hint: 'SETTINGS' });
     if (sel >= items.length) sel = 0;
@@ -979,7 +1092,10 @@ window.R2_TV = {
     var a = APPS[k], pkg = a.android;
     if (pkg && pkg.join) { var pick = pkg[pkg.length - 1]; for (var i = 0; i < pkg.length; i++) if (Device.installed(pkg[i])) { pick = pkg[i]; break; } pkg = pick; }
     var adFree = pkg === 'io.gh.reisxd.tizentube.cobalt' || pkg === 'com.teamsmart.videomanager.tv';   /* TizenTube or SmartTube */
-    return { key: k, label: a.name, hint: adFree ? 'NO ADS' : (hint || 'STREAM'), adFree: adFree, android: pkg, tizen: a.tizen, webos: a.webos };
+    var it = { key: k, label: a.name, hint: adFree ? 'NO ADS' : (hint || 'STREAM'), adFree: adFree, android: pkg, tizen: a.tizen, webos: a.webos };
+    /* LG has AirPlay built in: there is nothing to open, the guest just picks this TV on their iPhone */
+    if (k === 'airplay' && Device.kind() === 'webos') it.info = 'Ready: on your iPhone or iPad, open Control Centre \u203a Screen Mirroring and pick this TV.';
+    return it;
   }
 
   function peekHtml(it) {
@@ -1081,7 +1197,7 @@ window.R2_TV = {
       if (!t.ready || !/^[a-z0-9-]+$/.test(t.id || '')) continue;
       if (rooms.indexOf('all') < 0 && rooms.indexOf(roomKey) < 0) continue;
       if ((t.from && t.from > d) || (t.until && t.until < d)) continue;
-      out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: 'theme/' + t.id + '.mp4', thumb: 'https://r2.theme/' + t.id + '.jpg',
+      out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: t.localVideo || 'theme/' + t.id + '.mp4', thumb: t.localThumb || 'https://r2.theme/' + t.id + '.jpg',
         layout: t.layout, cards: t.cards, focus: t.focus, ambience: t.ambience, event: true, takeover: !!t.takeover });
     }
     return out;
@@ -1109,6 +1225,16 @@ window.R2_TV = {
     if (mode !== 'walls' && (!shownWall || shownWall.id !== w.id)) showWall(w);   /* a new event starts, or one ended */
   };
   window.r2SyncThemes = function (now) {
+    if (Device.kind() === 'webos') {   /* LG: the app's own background service downloads them (round2-tv-launcher/webos/service) */
+      if (!now && Date.now() - lastThemeSync < 30 * 60 * 1000) return;
+      lastThemeSync = Date.now();
+      var sub = WebOS.call('luna://sg.round2.tvhome.service/sync', { room: roomKey, subscribe: true }, function (r) {
+        if (r.json) window.r2Themes(r.json);
+        if (r.done || r.returnValue === false) { try { sub && sub.cancel && sub.cancel(); } catch (e) {} }
+      }, true);
+      if (now) toast('Checking for new backgrounds\u2026');
+      return;
+    }
     if (!window.R2Android || !window.R2Android.themesSync) return;
     if (!now && Date.now() - lastThemeSync < 30 * 60 * 1000) return;   /* at most every 30 min on its own */
     lastThemeSync = Date.now();
@@ -1303,7 +1429,7 @@ window.R2_TV = {
     $('setPanel').className = 'panel off'; $('menuPanel').className = 'panel';
     dropCls('picking');
     $('peek').innerHTML = peekHtml(items[sel]);
-    keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', '[HOME] BACK TO THIS MENU');
+    keys('[OK] SELECT', '[&#9650;&#9660;] MOVE', HOME_HINT);
   }
   var eggCount = 0, eggTimer;
   function settingsKey(k) {
@@ -1453,6 +1579,9 @@ window.R2_TV = {
     slot.innerHTML = ''; slot.appendChild(el);
   }
 
+  /* LG: Home opens LG's own home bar; Back from an app returns here */
+  var HOME_HINT = Device.kind() === 'webos' ? '[BACK] IN AN APP RETURNS HERE' : '[HOME] BACK TO THIS MENU';
+  if (HOME_HINT !== '[HOME] BACK TO THIS MENU') $('keys').lastChild.textContent = HOME_HINT;
   function keys(a, b, c) { $('keys').innerHTML = '<span>' + a + '</span><span>' + b + '</span><span>' + c + '</span>'; }
 
   /* ================= app / input grids ================= */
@@ -1492,7 +1621,7 @@ window.R2_TV = {
     var list = Device.inputs(), out = [];
     for (var i = 0; i < list.length; i++) {
       var port = list[i].name, named = cfg.inputNames[port];
-      out.push({ input: list[i].id, port: port, mono: port.replace(/[^0-9]/g, '') || port.charAt(0),
+      out.push({ input: list[i].id, inputApp: list[i].app, port: port, mono: port.replace(/[^0-9]/g, '') || port.charAt(0),
         name: named ? (named === 'PlayStation' ? room.ps : named) : 'Guest device', sub: port });
     }
     return out;
@@ -1592,7 +1721,7 @@ window.R2_TV = {
         line('ROOM', room ? room.name : roomKey);
         line('BACKGROUND', w ? (w.name || w.id) : 'DEFAULT');
         line('SOUND', nat() ? 'TV SPEAKERS' : 'BROWSER');
-        var v = ''; try { v = window.R2Android && window.R2Android.version ? window.R2Android.version() : ''; } catch (e) {}
+        var v = ''; try { v = window.R2Android && window.R2Android.version ? window.R2Android.version() : (window.R2_VERSION || ''); } catch (e) {}
         line('VERSION', v ? 'V' + v : 'PREVIEW');
         setTimeout(function () { line('READY', 'PRESS OK'); }, 250);
         setTimeout(hide, Math.max(700, 1600 - (Date.now() - t0)));
@@ -1625,6 +1754,7 @@ window.R2_TV = {
     if (it.key === 'more') { openGrid('apps'); return; }
     if (it.key === 'inputs') { openGrid('inputs'); return; }
     if (it.key === 'options') { openSettings(0); return; }
+    if (it.info && Device.kind() === 'webos') { toast(it.info); return; }
     if (Device.kind() === 'preview') { dive(function () { doOpen(it); setTimeout(function () { arrive(false); }, 500); }); return; }
     dive(function () { doOpen(it); });
   }
@@ -1720,6 +1850,20 @@ window.R2_TV = {
     if (leaving) unstick();
     lockStaff();
   };
+
+  /* LG: there is no launcher to replace, so the menu follows webOS's app life cycle instead.
+     Hidden = another app or LG's Home took over; shown again = the guest came back (Back, or Round2 Home picked again). */
+  if (Device.kind() === 'webos') {
+    var lgHiddenAt = 0;
+    document.addEventListener('visibilitychange', function () {
+      var v = $(front) && $(front).firstChild;
+      if (document.hidden) { lgHiddenAt = Date.now(); window.r2Pause(); if (v && v.pause) { try { v.pause(); } catch (e) {} } return; }
+      /* off for hours (the TV was switched off with Quick Start+, or the room changed groups): back to the house settings */
+      if (lgHiddenAt && Date.now() - lgHiddenAt > 4 * 60 * 60 * 1000) window.r2Reset();
+      window.r2Resume();
+    });
+    document.addEventListener('webOSRelaunch', function () { window.r2Home(); });   /* opened again from LG's Home while already running */
+  }
 
   /* pointer support for the browser preview */
   $('items').addEventListener('click', function (ev) {
@@ -1843,5 +1987,9 @@ window.R2_TV = {
   setTimeout(function () { window.r2SyncThemes(false); }, 6000);
   setInterval(function () { window.r2SyncThemes(false); }, 3 * 60 * 60 * 1000);   /* after the Home animation, so building the rain loop never costs a frame */
   if (needsRoom && Device.kind() !== 'preview') openGrid('rooms');
+  /* LG: find out which apps and HDMI ports this TV has, then show only those */
+  if (Device.kind() === 'webos') WebOS.start(function () {
+    if (mode === 'menu') { var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu(); }
+  });
 }());
 </script>
