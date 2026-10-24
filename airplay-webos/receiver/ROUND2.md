@@ -72,3 +72,10 @@ the commit named in the package's `build-info.txt`.
   Back to 0.1.3's live timestamps (fast); kept only the fix for overlapping sound: sound buffers
   are laid back to back from the live time. The two AirPlay Server session/volume patches are
   removed again while that is retested; the pairing bounds check stays.
+
+## 0.2.3
+
+- Picture froze after connecting (0.2.1-0.2.2) and the receiver screen didn't come back: sound
+  laid back to back could run up to 400 ms ahead of the picture and fill the TV's sound buffer.
+  Now a sound piece more than 250 ms ahead is skipped, and when the sound buffer is full the
+  receiver tries again a moment later instead of waiting inside the TV's call.

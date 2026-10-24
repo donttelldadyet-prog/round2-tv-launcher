@@ -28,3 +28,4 @@ int r2_ndl_load(int width, int height, int hevc, int with_audio, int sample_rate
 int r2_ndl_video(const void *data, unsigned size, long long pts_ms) { return NDL_DirectVideoPlay((void *) data, size, pts_ms); }
 int r2_ndl_audio(const void *data, unsigned size, long long pts_ms) { return NDL_DirectAudioPlay((void *) data, size, pts_ms); }
 int r2_ndl_unload(void) { return NDL_DirectMediaUnload(); }
+int r2_ndl_audio_space(void) { int avail = -1; if (NDL_DirectAudioGetAvailableBufferSize(&avail) != 0) return -1; return avail; }

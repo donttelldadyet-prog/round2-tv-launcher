@@ -151,7 +151,16 @@ FeedResult Media::feed(const void *data, size_t size, int64_t pts_ns, bool video
     else {
         if(offset>0) out+=offset;
         const double dur=double(size/4)*1000.0/g_timeline.rate;   // S16LE stereo
-        if(g_timeline.audio_next>out && g_timeline.audio_next-out<400) out=g_timeline.audio_next;   // back to back, never overlapping
+        if(g_timeline.audio_next>out) {
+            if(g_timeline.audio_next-out>250) {   // sound has run far ahead of the picture: skip this piece
+                static unsigned skipped=0; if(++skipped%50==1) fprintf(stderr,"[media] sound %.0f ms ahead, skipping (%u)\n",g_timeline.audio_next-out,skipped);
+                ++feed_audio_accepted; return FeedResult::Accepted;
+            }
+            out=g_timeline.audio_next;            // back to back, never overlapping
+        }
+        // never block on a full sound buffer (that froze the picture in 0.2.1-0.2.2): try again shortly
+        const int space=r2_ndl_audio_space();
+        if(space>=0 && space<int(size)) { ++feed_audio_retries; return FeedResult::Retry; }
         g_timeline.audio_next=out+dur;
     }
     long long pts_ms=(long long)(out+0.5);

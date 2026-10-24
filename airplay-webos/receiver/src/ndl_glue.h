@@ -11,6 +11,7 @@ int r2_ndl_load(int width, int height, int hevc, int with_audio, int sample_rate
 int r2_ndl_video(const void *data, unsigned size, long long pts_ms);
 int r2_ndl_audio(const void *data, unsigned size, long long pts_ms);
 int r2_ndl_unload(void);
+int r2_ndl_audio_space(void);   /* free bytes in the TV's sound buffer, -1 if unknown */
 #ifdef __cplusplus
 }
 #endif

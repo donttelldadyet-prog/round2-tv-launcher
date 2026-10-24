@@ -1,6 +1,6 @@
 {
   "id": "sg.round2.airplay",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "vendor": "Round2 (UxAir by depius)",
   "appDescription": "AirPlay receiver for LG webOS 5+ (based on UxAir)",
   "type": "native",
