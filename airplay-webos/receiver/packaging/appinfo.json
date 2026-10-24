@@ -1,0 +1,13 @@
+{
+  "id": "sg.round2.airplay",
+  "version": "0.1.0",
+  "vendor": "Round2 (UxAir by depius)",
+  "appDescription": "AirPlay receiver for LG webOS 5+ (based on UxAir)",
+  "type": "native",
+  "main": "uxair",
+  "title": "Round2 AirPlay",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#1D2D47",
+  "requiredMemory": 96
+}

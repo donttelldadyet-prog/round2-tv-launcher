@@ -1,0 +1,35 @@
+{
+  "toolchain": {
+    "version": "2026.08-webos",
+    "url": "https://github.com/openlgtv/buildroot-nc4/releases/download/2026.08-webos/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz",
+    "archive": "toolchain-x86_64.tar.gz",
+    "directory": "arm-webos-linux-gnueabi_sdk-buildroot",
+    "sha256": "2230a6351e5cce6fcb9d4fdcb4697335f223995401ef969c81744aaeb14c5344"
+  },
+  "uxplay": {
+    "repository": "https://github.com/FDH2/UxPlay",
+    "commit": "9f3c2bbc658645533fa1057e76c29ec8c947fa0f",
+    "version": "1.74"
+  },
+  "openssl": {
+    "version": "3.5.8",
+    "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz",
+    "archive": "openssl-3.5.8.tar.gz",
+    "directory": "openssl-3.5.8",
+    "sha256": "a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2"
+  },
+  "libplist": {
+    "version": "2.7.0",
+    "url": "https://github.com/libimobiledevice/libplist/releases/download/2.7.0/libplist-2.7.0.tar.bz2",
+    "archive": "libplist-2.7.0.tar.bz2",
+    "directory": "libplist-2.7.0",
+    "sha256": "7ac42301e896b1ebe3c654634780c82baa7cb70df8554e683ff89f7c2643eb8b"
+  },
+  "ffmpeg": {
+    "version": "8.1.2",
+    "url": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz",
+    "archive": "ffmpeg-8.1.2.tar.xz",
+    "directory": "ffmpeg-8.1.2",
+    "sha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
+  }
+}

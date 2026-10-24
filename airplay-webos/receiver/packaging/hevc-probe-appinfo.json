@@ -1,0 +1,10 @@
+{
+  "id": "com.github.depius.uxair.hevcprobe",
+  "version": "0.1.3",
+  "vendor": "UxAir",
+  "type": "native",
+  "main": "hevc-probe",
+  "title": "UxAir HEVC Hardware Probe",
+  "icon": "icon.png",
+  "requiredMemory": 64
+}

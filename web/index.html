@@ -524,7 +524,7 @@ window.R2_TV = {
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
     max:     { name: 'HBO Max',     android: 'com.wbd.stream',                                                         webos: ['com.wbd.stream', 'com.hbo.hbomax', 'max', 'hbomax'] },
-    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay', 'com.github.depius.uxair', 'com.github.danlflh.uxplaywebos'] },
+    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay', 'sg.round2.airplay', 'com.github.depius.uxair', 'com.github.danlflh.uxplaywebos'] },
     /* LG without AirPlay: LG's Screen Share (Miracast) for Android phones and Windows laptops */
     share:   { name: 'Screen Share',                                                                                   webos: ['com.webos.app.miracast', 'com.webos.app.screenshare'] }
   };
@@ -722,7 +722,9 @@ window.R2_TV = {
     var busy = false;
     function say(m, ms) { toast(m, ms || 4000); }
     function fail(m) { busy = false; say('AirPlay lab: ' + m, 20000); }
-    function release(done) {
+    var APPDIR = '/media/developer/apps/usr/palm/applications/';
+    function release(done, app) {
+      app = app || APP;
       var x = new XMLHttpRequest();
       x.open('GET', 'https://api.github.com/repos/donttelldadyet-prog/round2-tv-launcher/releases/tags/airplay-lab');
       x.timeout = 20000;
@@ -730,7 +732,7 @@ window.R2_TV = {
         try {
           var a = null;
           (JSON.parse(x.responseText).assets || []).forEach(function (as) {   /* the newest version */
-            if (/^sg\.round2\.lab\.ndl_.*\.ipk$/.test(as.name) && (!a || as.created_at > a.created_at)) a = as;
+            if (as.name.indexOf(app + '_') === 0 && /\.ipk$/.test(as.name) && (!a || as.created_at > a.created_at)) a = as;
           });
           if (!a || !/^sha256:[0-9a-f]{64}$/.test(a.digest || '')) throw 0;
           done({ url: a.browser_download_url, hash: a.digest.slice(7), v: (/_([0-9.]+)_arm\.ipk$/.exec(a.name) || [])[1] || '' });
@@ -739,12 +741,44 @@ window.R2_TV = {
       x.onerror = x.ontimeout = function () { done(null); };
       x.send();
     }
-    function installed(cb) { LGRoot.exec('cat ' + DIR + '/appinfo.json 2>/dev/null', function (out) { var m = /"version"\s*:\s*"([^"]+)"/.exec(out || ''); cb(m ? m[1] : ''); }); }
-    function waitInstalled(v, n, cb) {
+    function installed(cb, app) { LGRoot.exec('cat ' + APPDIR + (app || APP) + '/appinfo.json 2>/dev/null', function (out) { var m = /"version"\s*:\s*"([^"]+)"/.exec(out || ''); cb(m ? m[1] : ''); }); }
+    function waitInstalled(v, n, cb, app) {
       installed(function (have) {
         if (have && (!v || have === v)) { cb(true); return; }
         if (n <= 0) { cb(false); return; }
-        setTimeout(function () { waitInstalled(v, n - 1, cb); }, 3000);
+        setTimeout(function () { waitInstalled(v, n - 1, cb, app); }, 3000);
+      }, app);
+    }
+    /* install (or update) an app from the airplay-lab release through Homebrew Channel */
+    function install(app, label, then) {
+      release(function (rel) {
+        if (!rel) { fail('couldn\u2019t find ' + label + ' on GitHub. Check the internet and try again.'); return; }
+        installed(function (have) {
+          if (have && have === rel.v) { then(rel.v, false); return; }
+          say(label + ': downloading\u2026', 90000);
+          var done = false;
+          WebOS.call('luna://org.webosbrew.hbchannel.service/install', { ipkUrl: rel.url, ipkHash: rel.hash, id: app, subscribe: true }, function (r) {
+            if (done) return;
+            if (r.returnValue === false || r.errorText) { done = true; fail('Homebrew Channel couldn\u2019t install ' + label + ': ' + (r.errorText || 'no reason given')); return; }
+            if (r.progress !== undefined && r.progress < 99) say(label + ': downloading\u2026 ' + Math.round(r.progress) + '%', 90000);
+          }, true);
+          waitInstalled(rel.v, 60, function (ok) {
+            if (done) return; done = true;
+            if (ok) then(rel.v, true); else fail(label + ' didn\u2019t finish installing.');
+          }, app);
+        }, app);
+      }, app);
+    }
+    function receiver() {
+      if (busy) return;
+      if (!LGRoot.state.ok) { say('This needs a rooted LG TV with Homebrew Channel.', 6000); return; }
+      busy = true; say('AirPlay receiver: checking for the newest version\u2026');
+      install('sg.round2.airplay', 'AirPlay receiver', function (v, fresh) {
+        busy = false;
+        say('AirPlay receiver ' + v + (fresh ? ' installed' : ' is up to date') + '. Opening it: on an iPhone pick Screen Mirroring \u203a Round2 TV.', 8000);
+        WebOS.call('luna://com.webos.applicationManager/rescan', {}, function () {});
+        setTimeout(function () { WebOS.launch('sg.round2.airplay', function () {}); }, 2500);
+        if (fresh) setTimeout(function () { location.reload(); }, 8000);   /* so the menu shows the new AirPlay item */
       });
     }
     function launchTest() {
@@ -787,7 +821,7 @@ window.R2_TV = {
         toast((ok ? 'AirPlay lab: tell Claude which numbered tries showed the picture.\n' : 'AirPlay lab: problem. Send Claude a photo of this.\n') + txt.slice(-900), 180000);
       });
     }
-    return { run: run, result: result };
+    return { run: run, result: result, receiver: receiver };
   }());
   var SAMPLE_MORE = [
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
@@ -1376,7 +1410,8 @@ window.R2_TV = {
     items = [{ key: 'inputs', label: 'Inputs', hint: 'HDMI' }];
     var lg = Device.kind() === 'webos';
     if (lg ? WebOS.pick(APPS.airplay.webos) : APPS.airplay.android.some(function (pk) { return Device.installed(pk); })) items.push(mk('airplay', 'MIRROR'));
-    else if (lg && WebOS.pick(APPS.share.webos)) items.push(mk('share', 'MIRROR'));
+    /* LG Screen Share (Android, Windows) as well, unless the TV's own AirPlay already covers mirroring */
+    if (lg && WebOS.pick(APPS.share.webos) && !/^(com\.webos\.app\.airplay|airplay)$/.test(WebOS.pick(APPS.airplay.webos) || '')) items.push(mk('share', 'CAST'));
     items.push(mk('youtube'), mk('netflix'), mk('prime'));
     if (room.t !== 'n' && (!lg || WebOS.pick(APPS.max.webos))) items.push(mk('max'));
     items.push({ key: 'more', label: 'More apps', hint: 'ALL' });
@@ -1392,7 +1427,8 @@ window.R2_TV = {
     /* older LG TVs without AirPlay (rooted): UxAir is an app, so it is opened and the guest picks UxAir on their iPhone */
     if (k === 'airplay' && Device.kind() === 'webos') {
       var rx = WebOS.pick(a.webos);
-      if (rx === 'com.github.depius.uxair' || rx === 'com.github.danlflh.uxplaywebos') { it.webos = rx; it.uxair = rx === 'com.github.depius.uxair' ? 'UxAir' : 'UxPlay webOS'; }
+      var RX = { 'sg.round2.airplay': 'Round2 TV', 'com.github.depius.uxair': 'UxAir', 'com.github.danlflh.uxplaywebos': 'UxPlay webOS' };
+      if (RX[rx]) { it.webos = rx; it.uxair = RX[rx]; }
       else it.info = 'On your iPhone: Control Centre \u203a Screen Mirroring \u203a this TV.';
     }
     return it;
@@ -1578,6 +1614,7 @@ window.R2_TV = {
     ].concat(LGRoot.state.ok ? [
       { act: 'lgPower', label: 'Open when TV turns on', hint: '\u2039 ' + (LGRoot.state.poweron ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'lgHome', label: 'Home button', hint: '\u2039 ' + (LGRoot.state.home ? 'OPENS ROUND2' : 'LG HOME') + ' \u203A' },
+      { act: 'airRx', label: 'AirPlay receiver', hint: 'INSTALL / UPDATE \u203A' },
       { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
       { act: 'airTest', label: 'Test AirPlay app', hint: 'UXAIR / UXPLAY \u203A' }
     ] : []).concat([
@@ -1773,6 +1810,8 @@ window.R2_TV = {
       Sfx.play('ok'); updateKey();
     } else if (k === 'ok' && act === 'themesNow') {
       Sfx.play('ok'); window.r2SyncThemes(true);
+    } else if (k === 'ok' && act === 'airRx') {
+      Sfx.play('ok'); AirLab.receiver();
     } else if (k === 'ok' && act === 'airLab') {
       Sfx.play('ok'); AirLab.run();
     } else if (k === 'ok' && act === 'airTest') {
@@ -1780,11 +1819,11 @@ window.R2_TV = {
       Sfx.play('ok'); toast('Testing the AirPlay app\u2026 about 10 seconds', 12000);
       var cmd = 'if timeout -t 1 true 2>/dev/null; then TO="timeout -t 8"; else TO="timeout 8"; fi; ' +
         'D=/media/developer/apps/usr/palm/applications; found=0; ' +
-        'for a in com.github.depius.uxair com.github.danlflh.uxplaywebos; do [ -d "$D/$a" ] || continue; found=1; cd "$D/$a"; ' +
+        'for a in sg.round2.airplay com.github.depius.uxair com.github.danlflh.uxplaywebos; do [ -d "$D/$a" ] || continue; found=1; cd "$D/$a"; ' +
         'B=$(sed -n \'s/.*"main" *: *"\\([^"]*\\)".*/\\1/p\' appinfo.json); echo "== $a ($B)"; ' +
         '( $TO ./"$B" 2>&1; echo "[exit $?]" ) | grep -v "^ *$" | tail -n 10; ' +
         'for f in *.log state/*.log; do [ -f "$f" ] && { echo "-- $f"; tail -n 5 "$f"; }; done; done; ' +
-        '[ $found = 1 ] || echo "No UxAir or UxPlay webOS installed"; ' +
+        '[ $found = 1 ] || echo "No AirPlay app installed"; ' +
         'echo "-- $(grep -h -m1 -i "webos\\|version" /etc/starfish-release /etc/os-release 2>/dev/null | head -n 1) $(uname -r) $(ls /lib/libc-*.so 2>/dev/null | head -n 1)"';
       LGRoot.exec(cmd + ' 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';

@@ -24,14 +24,23 @@ jobs:
       - name: Tools
         run: |
           sudo apt-get update -o Acquire::Retries=3
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core ninja-build autoconf automake libtool pkg-config
       - name: Cache the webOS toolchain
         uses: actions/cache@v4
         with:
           path: airplay-webos/.work/arm-webos-linux-gnueabi_sdk-buildroot
           key: webos-ndk-2026.08-webos
-      - name: Build
+      - name: Build the picture test
         run: sh airplay-webos/build-lab.sh
+      - name: Cache the receiver's pinned sources and built libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            airplay-webos/receiver/.cache/*.tar.*
+            airplay-webos/receiver/.cache/deps
+          key: receiver-deps-${{ hashFiles('airplay-webos/receiver/dependencies.lock.json', 'airplay-webos/receiver/tools/build-deps.sh') }}
+      - name: Build the AirPlay receiver
+        run: sh airplay-webos/build-receiver.sh "$PWD/airplay-webos/.work/arm-webos-linux-gnueabi_sdk-buildroot"
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -39,8 +48,8 @@ jobs:
           gh release view airplay-lab >/dev/null 2>&1 || gh release create airplay-lab --title "AirPlay lab" \
             --notes "Test builds for AirPlay on LG webOS 5+ TVs. Installed from Round2 Home > Options > Staff mode > AirPlay lab." \
             --prerelease --latest=false
-          gh release upload airplay-lab airplay-webos/dist/*.ipk --clobber
-          keep=$(cd airplay-webos/dist && ls *.ipk)
+          gh release upload airplay-lab airplay-webos/dist/*.ipk airplay-webos/receiver/dist/*.ipk --clobber
+          keep=$(ls airplay-webos/dist/*.ipk airplay-webos/receiver/dist/*.ipk | xargs -n1 basename | tr "\n" " ")
           for a in $(gh release view airplay-lab --json assets -q '.assets[].name'); do
             case " $keep " in *" $a "*) ;; *) gh release delete-asset airplay-lab "$a" -y ;; esac
           done
