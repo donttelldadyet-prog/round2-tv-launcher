@@ -106,6 +106,17 @@
       ],
       "takeover": false,
       "ambience": "rain"
+    },
+    {
+      "id": "test-2026",
+      "name": "test",
+      "source": "test-2026-mvm9x73z.mp4",
+      "rooms": [
+        "kaeden"
+      ],
+      "takeover": false,
+      "loop": "blend",
+      "cards": "bottom"
     }
   ],
   "sounds": [
