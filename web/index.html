@@ -1087,12 +1087,25 @@ window.R2_TV = {
       g.cancelScheduledValues(now); g.setValueAtTime(Math.max(g.value, 0.0001), now);
       g.exponentialRampToValueAtTime(Math.max(Math.min(1, to), 0.0001), now + Math.max(ms, 50) / 1000);
     }
+    var lgWhy = [];   /* what happened, shown to staff (Options › Staff mode) so a silent sound can be reported */
+    function lgNote(m) { lgWhy.push(m); try { console.log('[R2] sound: ' + m); } catch (e) {} }
     function lgGet(url, done) {
-      var x = new XMLHttpRequest();
-      try { x.open('GET', url); x.responseType = 'arraybuffer'; } catch (e) { done(null); return; }
-      x.onload = function () { done(x.response && x.response.byteLength > 44 ? x.response : null); };
-      x.onerror = function () { done(null); };
-      try { x.send(); } catch (e) { done(null); }
+      var x = new XMLHttpRequest(), fin = false, t;
+      function end(ab, why) { if (fin) return; fin = true; clearTimeout(t); if (!ab) lgNote(why); done(ab); }
+      try { x.open('GET', url); x.responseType = 'arraybuffer'; } catch (e) { end(null, 'cannot open ' + url); return; }
+      x.onload = function () {
+        var ab = x.response, n = ab ? ab.byteLength : 0;
+        if (n > 44) end(ab); else end(null, 'empty file (status ' + x.status + ') ' + url);
+      };
+      x.onerror = function () { end(null, 'cannot read ' + url); };
+      t = setTimeout(function () { try { x.abort(); } catch (e) {} end(null, 'timed out reading ' + url); }, 8000);
+      try { x.send(); } catch (e) { end(null, 'cannot read ' + url); }
+    }
+    function audible(b) {   /* some TVs "decode" to silence: check a few samples */
+      if (!b || b.duration < 1) return false;
+      var d = b.getChannelData(0), step = Math.max(1, Math.floor(d.length / 4000));
+      for (var i = 0; i < d.length; i += step) if (Math.abs(d[i]) > 0.0005) return true;
+      return false;
     }
     function wavBuffer(c, ab) {   /* 16-bit PCM WAV -> AudioBuffer by hand: needs no decoder on the TV */
       var d = new DataView(ab), p = 12, fmt = null;
@@ -1116,22 +1129,29 @@ window.R2_TV = {
     function lgLoad(sndObj, done) {
       if (lgCache.id === sndObj.id && lgCache.buf) { done(lgCache.buf); return; }
       var c = Sfx.ctx();
+      lgWhy = [];
       function keep(b) { if (b) lgCache = { id: sndObj.id, buf: b }; done(b); }
       function viaDecoder() {
         if (!sndObj.audio) { keep(null); return; }
         lgGet(sndObj.audio, function (ab) {
           if (!ab) { keep(null); return; }
-          var settled = false, fin = function (b) { if (!settled) { settled = true; keep(b || null); } };
+          var settled = false, fin = function (b) {
+            if (settled) return; settled = true;
+            if (!b) lgNote('TV could not unpack ' + sndObj.audio); else if (!audible(b)) { lgNote('TV unpacked it to silence'); b = null; }
+            keep(b || null);
+          };
           try {
             var pr = c.decodeAudioData(ab, fin, function () { fin(null); });
             if (pr && pr.then) pr.then(fin, function () { fin(null); });
           } catch (e) { fin(null); }
-          setTimeout(function () { fin(null); }, 15000);
+          setTimeout(function () { fin(null); }, 8000);
         });
       }
-      if (!sndObj.pcm) { viaDecoder(); return; }
+      if (!sndObj.pcm) { lgNote('no WAV copy on this TV yet (Check for new themes)'); viaDecoder(); return; }
       lgGet(sndObj.pcm, function (ab) {
-        var b = null; try { b = ab && wavBuffer(c, ab); } catch (e) { b = null; }
+        var b = null; try { b = ab && wavBuffer(c, ab); } catch (e) { lgNote('WAV unpack error: ' + e.message); b = null; }
+        if (ab && !b) lgNote('WAV not readable');
+        if (b && !audible(b)) { lgNote('WAV is silent'); b = null; }
         if (b) keep(b); else viaDecoder();
       });
     }
@@ -1151,10 +1171,15 @@ window.R2_TV = {
       lgCur = sndObj.id;
       lgLoad(sndObj, function (buf) {
         if (lgCur !== sndObj.id || lgSrc) return;
-        if (!buf) { console.log('[R2] LG sound ' + sndObj.id + ': no WAV or decoder, using the media player'); elTo(sndObj, lgVol); return; }
+        if (!buf) {
+          lgNote('using the media player');
+          if (isStaff()) toast('Sound ' + (sndObj.name || sndObj.id) + ': ' + lgWhy.join(' \u00B7 '));
+          elTo(sndObj, lgVol); return;
+        }
         var s2 = c.createBufferSource(); s2.buffer = buf; s2.loop = true; s2.connect(lgGain);
         lgGain.gain.cancelScheduledValues(c.currentTime); lgGain.gain.setValueAtTime(0.0001, c.currentTime);
         s2.start(); lgSrc = s2; lgRamp(c, lgVol, ms);
+        if (isStaff()) toast('Sound ' + (sndObj.name || sndObj.id) + ': playing (' + (lgWhy.length ? lgWhy.join(' \u00B7 ') + ' \u00B7 ' : '') + Math.round(buf.duration) + ' s, ' + buf.sampleRate + ' Hz, audio ' + c.state + ')');
       });
     }
     function elTo(sndObj, v) {   /* the browser's media player */
