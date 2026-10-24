@@ -149,10 +149,10 @@
     },
     {
       "id": "car-showcase",
-      "name": "[MAX] CAR SHOWCASE",
+      "name": "CAR SHOWCASE",
       "source": "sound-car-showcase-mvmbilpu.mp3",
       "rooms": [
-        "all"
+        "maximillion"
       ]
     },
     {
