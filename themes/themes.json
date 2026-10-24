@@ -154,6 +154,14 @@
       "rooms": [
         "all"
       ]
+    },
+    {
+      "id": "max",
+      "name": "MAX",
+      "source": "sound-max-mvmbbbnd.mp3",
+      "rooms": [
+        "all"
+      ]
     }
   ],
   "roomDefaults": {
