@@ -66,9 +66,10 @@
       "name": "Zen Garden",
       "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/38b749d1-5d48-4517-9b5c-d7af671eb9a4_seed282172144_1792765358971_d9b335dc.mp4",
       "rooms": [
-        "all"
+        "kai"
       ],
-      "takeover": false
+      "takeover": false,
+      "cards": "right"
     },
     {
       "id": "forest-waterfall-2026",
