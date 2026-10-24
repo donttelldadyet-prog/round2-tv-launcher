@@ -62,7 +62,9 @@ The Kai loops (Neon Summit) were made in OpenArt: still images with Nano Banana 
 
 Scarlett, Vale and Bella have LG TVs. They run the same menu as the other rooms, packaged as an LG app. LG doesn't let an app replace its home screen, so Round2 Home is an app you open (see "Getting guests to it" below).
 
-**One-time setup per TV** (about 20 minutes):
+**Rooted LG TVs (recommended):** if the TV has Homebrew Channel (rooted), skip the Developer Mode setup below and use [Rooted LG TVs](#rooted-lg-tvs) instead: no timer, no PC, and the TV opens Round2 Home by itself.
+
+**One-time setup per TV, not rooted** (about 20 minutes):
 
 1. On a computer, create a free account at [webostv.developer.lge.com](https://webostv.developer.lge.com) (Sign in > Create account). **Each LG TV needs its own account**: signing a second TV into the same account switches Developer Mode off on the first one (and removes Round2 Home from it). If LG accepts it, Gmail's `+` trick gives you separate addresses, e.g. `you+scarlett@gmail.com`.
 2. On the TV, open **LG Content Store**, search **Developer Mode**, install it and open it. Sign in with that account, switch **Dev Mode Status** on (the TV restarts), open the app again and switch **Key Server** on. Leave this screen up: it shows the TV's IP address and a passphrase.
@@ -77,6 +79,32 @@ Scarlett, Vale and Bella have LG TVs. They run the same menu as the other rooms,
 **Getting guests to it:** on LG's Home screen, move Round2 Home to the front of the apps row (press and hold OK on it, then **Move**). After opening Netflix or an HDMI input from Round2 Home, the remote's **Back** button returns to it. The **Home** button always opens LG's own home bar.
 
 **What's different on LG:** HDMI ports open LG's own input apps; More apps lists the apps the TV allows Round2 Home to see; AirPlay is built into most LG TVs from 2018 on, so the AirPlay item only explains how to mirror. Event backgrounds download in the background like on the other TVs.
+
+### Rooted LG TVs
+
+With Homebrew Channel on the TV, Round2 Home installs and updates from the TV remote, has no Developer Mode timer, and a small helper makes the TV behave like the other rooms:
+
+- switching the TV on opens Round2 Home (also with Quick Start+ on), and the guest's Options changes are reset;
+- pressing **Home** in Netflix, an HDMI input or any other app opens Round2 Home;
+- pressing **Home** while Round2 Home is showing opens LG's own home screen (for staff: LG settings, the app list, Homebrew Channel).
+
+**Setup, once per TV (with the remote):**
+
+1. LG Settings > Support > Software Update: switch **Auto Update** off. An LG update can remove root and every homebrew app.
+2. Open **Homebrew Channel** > Settings (gear, top right):
+   - switch **Block system updates** on;
+   - switch **Telnet** off, and leave **SSH Server** off unless you're using it. Both give full control of the TV to anyone on the shop Wi-Fi (SSH uses the password `alpine` until a key is added), and Round2 Home needs neither.
+   - **Add repository**, type `https://donttelldadyet-prog.github.io/round2-tv-launcher/lg.json` and confirm.
+3. Back in Homebrew Channel, pick **Round2 Home** > **Install**, then **Launch**, and pick the room. The helper sets itself up on that first start.
+4. Unplug the TV for 10 seconds and plug it back in, so the start-up hook runs once.
+
+Don't install LG's Developer Mode app on a rooted TV.
+
+**Switches:** Options > Staff mode (PIN) > **Open when TV turns on** and **Home button** (OPENS ROUND2 / LG HOME). **Update app** in the same list installs the newest version from GitHub through Homebrew Channel; the menu closes and reopens by itself. Homebrew Channel also shows updates.
+
+**To undo:** switch both off in Options, or delete `/var/lib/webosbrew/init.d/round2` over SSH and restart the TV. The helper's log is `/var/lib/webosbrew/round2/log.txt`.
+
+How it works: `webos/service/round2d.sh` watches LG's power state and which app is in front (Luna `getPowerState` and `getForegroundAppInfo`). Round2 Home writes the start-up hook and switches through Homebrew Channel's root service (`org.webosbrew.hbchannel.service/exec`). The build publishes `manager/lg.json` (the Homebrew Channel listing) with every release.
 
 ## Notes
 

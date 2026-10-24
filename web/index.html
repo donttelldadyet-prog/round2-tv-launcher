@@ -620,6 +620,82 @@ window.R2_TV = {
     }
     return { call: call, launch: launch, start: start, pick: pick, has: has, inputs: inputs, apps: apps };
   }());
+
+  /* ---- Rooted LG TVs (Homebrew Channel): a small helper opens Round2 Home when the TV is switched on
+     and when Home is pressed in another app (webos/service/round2d.sh), and updates install from the menu ---- */
+  var LGRoot = (function () {
+    var HB = 'luna://org.webosbrew.hbchannel.service/', CFG = '/var/lib/webosbrew/round2', HOOK = '/var/lib/webosbrew/init.d/round2';
+    var st = { ok: false, checked: false, poweron: true, home: true };
+    var svc = (function () {   /* this app's service folder, next to the app on the TV */
+      var m = /^(\/.+)\/applications\/sg\.round2\.tvhome\//.exec(decodeURIComponent(location.pathname || ''));
+      return (m ? m[1] : '/media/developer/apps/usr/palm') + '/services/sg.round2.tvhome.service';
+    }());
+    function exec(cmd, cb) {
+      WebOS.call(HB + 'exec', { command: cmd }, function (r) {
+        if (cb) cb(r.returnValue !== false && !r.error ? (r.stdoutString || '') : null, r);
+      });
+    }
+    function hook() {
+      return 'mkdir -p /var/lib/webosbrew/init.d ' + CFG + ' && cat > ' + HOOK + " <<'R2EOF'\n" +
+        '#!/bin/sh\n# Round2 Home: opens Round2 Home when the TV starts and when Home is pressed (set up by Round2 Home).\n' +
+        '# To undo: delete this file and restart the TV.\n' +
+        'D="' + svc + '"\n[ -f "$D/round2d.sh" ] && sh "$D/round2d.sh" boot </dev/null >/dev/null 2>&1\nexit 0\nR2EOF\n' +
+        'chmod 755 ' + HOOK;
+    }
+    function startHelper(cb) {
+      exec(hook() + ' && (command -v setsid >/dev/null 2>&1 && setsid sh "' + svc + '/round2d.sh" ensure || sh "' + svc + '/round2d.sh" ensure) </dev/null >/dev/null 2>&1; ls ' + CFG, function (out) {
+        if (out !== null) { st.poweron = !/poweron\.off/.test(out); st.home = !/home\.off/.test(out); }
+        if (cb) cb(out !== null);
+      });
+    }
+    function check(then) {
+      WebOS.call(HB + 'checkRoot', {}, function (r) {
+        st.checked = true; st.ok = r.returnValue === true;
+        if (st.ok) startHelper(then); else if (then) then(false);
+      });
+    }
+    function setFlag(name, on, cb) {
+      st[name] = on;
+      exec('mkdir -p ' + CFG + ' && ' + (on ? 'rm -f ' : 'touch ') + CFG + '/' + name + '.off', function (out) { if (cb) cb(out !== null); });
+    }
+    /* updates: the newest round2-home.ipk on GitHub, installed by Homebrew Channel (checks its SHA-256) */
+    var rel = null;
+    function current() { return window.R2_VERSION || '0'; }
+    function newer(a, b) {
+      var x = String(a).split('.'), y = String(b).split('.');
+      for (var i = 0; i < Math.max(x.length, y.length); i++) { var d = (+x[i] || 0) - (+y[i] || 0); if (d) return d > 0; }
+      return false;
+    }
+    var updater = {
+      updateCheck: function () {
+        var x = new XMLHttpRequest();
+        x.open('GET', 'https://api.github.com/repos/donttelldadyet-prog/round2-tv-launcher/releases/latest');
+        x.timeout = 20000;
+        x.onload = function () {
+          try {
+            var j = JSON.parse(x.responseText), v = String(j.tag_name || '').replace(/^v/, ''), a = null;
+            (j.assets || []).forEach(function (as) { if (as.name === 'round2-home.ipk') a = as; });
+            if (!a || !/^sha256:[0-9a-f]{64}$/.test(a.digest || '')) throw new Error('no ipk');
+            rel = { v: v, url: a.browser_download_url, hash: a.digest.slice(7) };
+            window.r2Update({ state: newer(v, current()) ? 'available' : 'latest', latest: v, current: current() });
+          } catch (e) { window.r2Update({ state: 'failed', current: current() }); }
+        };
+        x.onerror = x.ontimeout = function () { window.r2Update({ state: 'offline', current: current() }); };
+        x.send();
+      },
+      updateInstall: function () {
+        if (!rel) { updater.updateCheck(); return; }
+        exec('mkdir -p ' + CFG + ' && touch ' + CFG + '/relaunch', function () {   /* the helper reopens the menu afterwards */
+          WebOS.call(HB + 'install', { ipkUrl: rel.url, ipkHash: rel.hash, id: 'sg.round2.tvhome', subscribe: true }, function (r) {
+            if (r.returnValue === false || r.errorText) { exec('rm -f ' + CFG + '/relaunch'); window.r2Update({ state: 'failed', current: current() }); return; }
+            if (r.progress !== undefined && r.progress < 99) window.r2Update({ state: 'downloading', pct: Math.round(r.progress), latest: rel.v, current: current() });
+            else if (/Install/.test(r.statusText || '')) window.r2Update({ state: 'installing', latest: rel.v, current: current() });
+          }, true);
+        });
+      }
+    };
+    return { check: check, setFlag: setFlag, state: st, updater: updater, exec: exec };
+  }());
   var SAMPLE_MORE = [
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
     { name: 'Apple TV', android: 'com.apple.atve.androidtv.appletv' }, { name: 'Twitch', android: 'tv.twitch.android.app' },
@@ -1270,10 +1346,14 @@ window.R2_TV = {
       { act: 'tv',    label: 'TV settings',    hint: (isStaff() ? 'SYSTEM' : 'STAFF') + ' \u203A' },
       { act: 'staff', label: isStaff() ? 'Staff mode on' : 'Staff mode', hint: isStaff() ? 'CHANGES ARE SAVED \u00B7 OK TO LOCK' : (upd.state === 'available' ? 'UPDATE READY \u00B7 ' : '') + 'PIN \u203A' }
     ].concat(isStaff() ? [
-      { act: 'update', label: 'Update app', hint: updHint() },
+      { act: 'update', label: 'Update app', hint: updHint() }
+    ].concat(LGRoot.state.ok ? [
+      { act: 'lgPower', label: 'Open when TV turns on', hint: '\u2039 ' + (LGRoot.state.poweron ? 'ON' : 'OFF') + ' \u203A' },
+      { act: 'lgHome', label: 'Home button', hint: '\u2039 ' + (LGRoot.state.home ? 'OPENS ROUND2' : 'LG HOME') + ' \u203A' }
+    ] : []).concat([
       { act: 'themesNow', label: 'Check for new themes', hint: 'NOW \u203A' },
       { act: 'about', label: 'About this TV', hint: tvInfo() }
-    ] : []);
+    ]) : []);
   }
   var pin = '', pinDigit = 0, pinThen = null, pinFails = 0, pinBlockUntil = 0;
   function askPin(then) {
@@ -1349,7 +1429,7 @@ window.R2_TV = {
     if (st === 'checking') return 'CHECKING\u2026';
     if (st === 'available') return 'INSTALL V' + upd.latest + ' \u203A';
     if (st === 'downloading') return 'DOWNLOADING ' + (upd.pct || 0) + '%';
-    if (st === 'installing') return 'PRESS INSTALL';
+    if (st === 'installing') return Device.kind() === 'webos' ? 'INSTALLING\u2026' : 'PRESS INSTALL';
     if (st === 'latest') return 'UP TO DATE \u00B7 V' + upd.current;
     return 'CHECK \u203A';
   }
@@ -1359,7 +1439,7 @@ window.R2_TV = {
     if (updSilent && upd.state !== 'downloading' && upd.state !== 'installing') { updSilent = false; if (mode === 'settings') openSettings(setSel); return; }   /* background check: no message */
     var msg = { latest: 'Round2 Home is up to date (v' + upd.current + ').',
       available: 'Version ' + upd.latest + ' is ready. Press OK on Update app to install it.',
-      installing: 'On the next screen, press Install. The menu restarts by itself.',
+      installing: Device.kind() === 'webos' ? 'Installing. The menu closes and opens again by itself.' : 'On the next screen, press Install. The menu restarts by itself.',
       permission: 'First allow Round2 Home to install apps on the screen that opened, then come back and press Update app again.',
       failed: 'The update couldn\u2019t download. Check the Wi-Fi and try again.',
       offline: 'Couldn\u2019t reach GitHub. Check the Wi-Fi and try again.' }[upd.state];
@@ -1367,14 +1447,16 @@ window.R2_TV = {
     if (mode === 'settings') { var keep = setSel; openSettings(keep); }
   };
   /* the TV looks for a new version by itself: soon after starting, every 6 hours, and when the Theme manager asks */
+  function updater() { return window.R2Android || (LGRoot.state.ok ? LGRoot.updater : null); }
   function bgUpdateCheck() {
-    var b = window.R2Android; if (!b || !b.updateCheck || upd.state === 'downloading' || upd.state === 'installing') return;
+    var b = updater(); if (!b || !b.updateCheck || upd.state === 'downloading' || upd.state === 'installing') return;
     updSilent = true; try { b.updateCheck(); } catch (e) { updSilent = false; }
   }
   setTimeout(bgUpdateCheck, 20000);
   setInterval(bgUpdateCheck, 6 * 60 * 60 * 1000);
   function updateKey() {
-    var b = window.R2Android;
+    var b = updater();
+    if ((!b || !b.updateCheck) && Device.kind() === 'webos') { toast('Install the new round2-home.ipk with webOS Dev Manager on the PC (or Homebrew Channel on a rooted TV).'); return; }
     if (!b || !b.updateCheck) { toast('On the TV, this checks GitHub for a newer Round2 Home.'); return; }
     if (upd.state === 'available') { upd.state = 'downloading'; upd.pct = 0; b.updateInstall(); }
     else if (upd.state !== 'downloading' && upd.state !== 'checking') { upd = { state: 'checking' }; b.updateCheck(); }
@@ -1384,6 +1466,7 @@ window.R2_TV = {
   function tvInfo() {
     var ip = '', v = '';
     try { ip = window.R2Android && window.R2Android.ip ? window.R2Android.ip() : ''; v = window.R2Android && window.R2Android.version ? window.R2Android.version() : ''; } catch (e) {}
+    if (Device.kind() === 'webos') return 'LG \u00B7 V' + (window.R2_VERSION || '?') + ' \u00B7 ' + (LGRoot.state.ok ? 'ROOTED' : 'DEV MODE');
     return (ip ? 'IP ' + ip : 'NO NETWORK') + (v ? ' \u00B7 V' + v : '');
   }
   /* rows that need the staff PIN first */
@@ -1395,6 +1478,12 @@ window.R2_TV = {
     else if (act === 'sound') { prefs.sound = cycle(SOUNDS, prefs.sound, dir); savePref('sound', prefs.sound); Sfx.play('ok'); }
     else if (act === 'amb') { prefs.amb = cycle(ambList(), ambNow(), dir); savePref('amb', prefs.amb); Amb.apply(); }
     else if (act === 'cards') { prefs.cards = cycle(CARDS, prefs.cards, dir); savePref('cards', prefs.cards); applyCards(); Sfx.play('move'); }
+    else if (act === 'lgPower' || act === 'lgHome') {
+      var nm = act === 'lgPower' ? 'poweron' : 'home', on = !LGRoot.state[nm];
+      LGRoot.setFlag(nm, on, function (ok) { if (!ok) toast('The TV didn\u2019t accept that. Is Homebrew Channel still installed?'); });
+      Sfx.play('move');
+      if (act === 'lgHome') toast(on ? 'Home now opens Round2. Pressing Home while Round2 is showing still opens LG\u2019s home.' : 'Home now opens LG\u2019s home screen.');
+    }
     else if (act === 'ambVol') {   /* stops at 10% and 100% instead of wrapping round */
       var vn = Math.max(1, Math.min(10, (+prefs.ambVol || 5) + dir)); prefs.ambVol = String(vn); savePref('ambVol', prefs.ambVol); Amb.apply();
     }
@@ -1862,7 +1951,12 @@ window.R2_TV = {
       if (lgHiddenAt && Date.now() - lgHiddenAt > 4 * 60 * 60 * 1000) window.r2Reset();
       window.r2Resume();
     });
-    document.addEventListener('webOSRelaunch', function () { window.r2Home(); });   /* opened again from LG's Home while already running */
+    document.addEventListener('webOSRelaunch', function (ev) {   /* opened again while already running: LG's Home, or the root helper */
+      var p = (ev && ev.detail) || {};
+      try { if (!p.r2 && window.PalmSystem && window.PalmSystem.launchParams) p = JSON.parse(window.PalmSystem.launchParams) || {}; } catch (e) {}
+      if (p.r2 === 'poweron' || p.r2 === 'boot') { lgHiddenAt = 0; window.r2Reset(); }   /* the TV was switched on: back to the house settings */
+      window.r2Home();
+    });
   }
 
   /* pointer support for the browser preview */
@@ -1990,6 +2084,7 @@ window.R2_TV = {
   /* LG: find out which apps and HDMI ports this TV has, then show only those */
   if (Device.kind() === 'webos') WebOS.start(function () {
     if (mode === 'menu') { var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu(); }
+    LGRoot.check();   /* rooted: make sure the power-on / Home helper is set up and running */
   });
 }());
 </script>
