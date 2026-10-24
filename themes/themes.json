@@ -90,16 +90,6 @@
       ],
       "takeover": false,
       "cards": "right"
-    },
-    {
-      "id": "rainy-study-2026",
-      "name": "Rainy Study",
-      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/58bdca88-ca89-4a2f-aab4-9cb746afd7f9_seed503129137_1792766465573_d9297e2c.mp4",
-      "rooms": [
-        "all"
-      ],
-      "takeover": false,
-      "ambience": "rain"
     }
   ],
   "sounds": [
