@@ -66,6 +66,7 @@ jobs:
           files: |
             round2-home.apk
             round2-home.ipk
+          make_latest: true
       - name: List the new version for rooted LG TVs (Homebrew Channel)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,4 +81,3 @@ jobs:
             sleep 5
           done
           gh workflow run pages.yml --ref main
-          make_latest: true
