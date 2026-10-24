@@ -103,7 +103,7 @@
     },
     {
       "id": "lofi",
-      "name": "lofi",
+      "name": "LOFI 1",
       "source": "sound-lofi-mvl7324e.mp3",
       "rooms": [
         "vale"
