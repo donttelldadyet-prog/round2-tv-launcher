@@ -170,6 +170,14 @@
       "rooms": [
         "all"
       ]
+    },
+    {
+      "id": "bella-reading",
+      "name": "BELLA READING",
+      "source": "sound-bella-reading-mvmbrdie.mp3",
+      "rooms": [
+        "all"
+      ]
     }
   ],
   "roomDefaults": {
