@@ -33,10 +33,12 @@ def main():
             if not (target / '.git').exists():
                 target.parent.mkdir(exist_ok=True)
                 run('git', 'clone', item['repository'], str(target))
-            status = subprocess.check_output(['git', '-C', str(target), 'status', '--porcelain'], text=True)
-            if status.strip():
-                sys.exit('UxPlay has local modifications; preserve them before bootstrapping.')
-            run('git', '-C', str(target), 'checkout', '--detach', item['commit'])
+            # Round2: the only local changes are our patches (patches/uxplay), re-applied every time
+            run('git', '-C', str(target), 'reset', '-q', '--hard')
+            run('git', '-C', str(target), 'checkout', '-q', '--detach', item['commit'])
+            for patch in sorted((ROOT / 'patches' / 'uxplay').glob('*.patch')):
+                run('git', '-C', str(target), 'apply', str(patch))
+                print(f'UxPlay patch applied: {patch.name}')
             continue
         if (CACHE / item['directory']).exists():   # already extracted (or supplied)
             continue

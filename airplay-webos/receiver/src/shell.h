@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-struct TTF_Font;   // Round2: newer SDL_ttf in the openlgtv NDK names it TTF_Font
+#include <SDL_ttf.h>   // Round2: the font type is named differently across SDL_ttf versions
 struct UiRow {
     std::string label, value, note;
     bool enabled;
@@ -42,7 +42,11 @@ public:
     bool pointer_select(int& x, int& y) const;
     bool take_pointer_motion();
     UiHit hit_test(int x, int y, int row_count, const UiDialog *dialog = nullptr, int selected = 0, UiPage page = UiPage::Mirroring) const;
-    void screen(const std::string& status, const std::string& pin, int audio_delay_ms=100);
+    // Round2 look (round2_ui.cpp): fonts from the app's fonts/ folder, the room's colour as accent
+    bool load_fonts(const std::string& dir);
+    void close_fonts();
+    void set_accent(SDL_Color c) { accent_=c; }
+    void screen(const std::string& status, const std::string& pin, int audio_delay_ms=0);
     void page(UiPage page, const std::string& subtitle, const std::vector<UiRow>& rows, int selected,
               const std::string& footer, const UiDialog *dialog = nullptr,
               const std::string& pin = std::string(), bool donation_open = false, const UiHistoryData *history = nullptr);
@@ -50,18 +54,22 @@ public:
     void transparent();
     ~Shell();
 private:
-    friend struct HistoryRenderTest;
     InputMapper input_{SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN};
     bool pointer_select_ = false;
     int pointer_x_ = 0, pointer_y_ = 0;
     bool pointer_valid_=false,pointer_moved_=false;
-    TTF_Font *font_=nullptr, *large_=nullptr, *small_=nullptr, *pin_font_=nullptr, *pin_font_small_=nullptr;
-    SDL_Texture *donation_qr_=nullptr,*donation_icon_=nullptr;
-    void text(const std::string&,int y,TTF_Font*,SDL_Color);
-    void text_at(const std::string&,int x,int y,int max_width,TTF_Font*,SDL_Color);
-    void draw_history(const UiHistoryData&,const std::vector<UiRow>&,int,int,int,int);
-    void draw_donation_modal(int w, int h);
-    void draw_pairing_modal(const std::string& pin, int w, int h);
+    SDL_Color accent_{122,91,224,255};
+    TTF_Font *pix_=nullptr, *pix_small_=nullptr, *title_=nullptr, *body_=nullptr, *body_bold_=nullptr, *small_=nullptr, *pin_=nullptr;
+    int font_scale_h_=0;
+    void ensure_fonts();
+    std::string font_dir_;
+    void background(int w,int h);
+    void text(TTF_Font*,const std::string&,int x,int y,SDL_Color,int max_w=0,int align=0);
+    int text_w(TTF_Font*,const std::string&);
+    void draw_rows(const std::vector<UiRow>&,int selected,SDL_Rect area,int row_h,bool arrows_on_first_delay);
+    void draw_dialog(const UiDialog&,int w,int h);
+    void draw_pairing(const std::string& pin,int w,int h);
+    void footer(const std::string&,int w,int h);
 };
 int64_t now_ns();
 std::string app_directory();

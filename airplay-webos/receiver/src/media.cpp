@@ -11,6 +11,7 @@
 #include "media_rate.h"
 #include "settings.h"
 #include "ndl_glue.h"
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
@@ -38,6 +39,39 @@ static void load_event(int type, long long value, const char *message) {
     case 0x1c: m->ended=true; break;
     default: break;
     }
+}
+
+// Round2 0.2: one timeline for picture and sound, after AirPlay Server's DelayTracker/TimelineBuffer
+// (jqssun/android-airplay-server, GPL-3.0). The sender's timestamps keep picture and sound in step;
+// they are mapped onto the TV's clock with the smallest delay seen recently plus a cushion sized to
+// the network's jitter. Sound is stamped back to back, so nothing overlaps: with arrival-time stamps
+// (0.1.2-0.1.3) bursts of sound packets overlapped and the TV dropped them (every other beep).
+#include <algorithm>
+#include <vector>
+namespace {
+struct Timeline {
+    bool have=false;
+    double base=0;                 // ms added to the sender's time
+    double audio_next=-1;          // where the next sound buffer starts (ms)
+    std::vector<double> window;    // recent (arrival - sender time) in ms
+    size_t pos=0;
+    int rate=44100;
+    void reset(int r) { have=false; base=0; audio_next=-1; window.clear(); pos=0; rate=r>0?r:44100; }
+    double map(double sender_ms, double local_ms) {
+        const double lat=local_ms-sender_ms;
+        if(window.size()<240) window.push_back(lat); else { window[pos]=lat; pos=(pos+1)%window.size(); }
+        double lo=*std::min_element(window.begin(),window.end());
+        std::vector<double> j(window); for(double& v:j) v-=lo;
+        size_t k=j.size()*9/10; std::nth_element(j.begin(),j.begin()+k,j.end());
+        const double cushion=std::max(30.0,std::min(300.0,j[k]+20.0));
+        const double target=lo+cushion;
+        if(!have) { base=target; have=true; }
+        else if(target>base) base+=std::min(target-base,25.0);   // late packets: catch up quickly
+        else base-=std::min(base-target,0.5);                    // calm link: shed delay slowly
+        if(sender_ms+base<local_ms) base=local_ms-sender_ms+5;    // never stamp something in the past
+        return sender_ms+base;
+    }
+} g_timeline;
 }
 
 Media::Media() : impl_(new Impl) {}
@@ -88,6 +122,7 @@ bool Media::open(const char *app_id, int width, int height, bool audio, int rate
     }
     loaded_=true;
     g_load_ns=monotonic_ns();
+    g_timeline.reset(rate);
     ready=true;   // NDL accepts buffers straight after Load; LOADCOMPLETED follows
     fprintf(stderr,"[media-init] NDL Load end ms=%.2f\n",(monotonic_ns()-phase)/1e6);
     if(audio) {   // prime the audio path, as moonlight-tv's NDL backend does
@@ -105,15 +140,21 @@ FeedResult Media::feed(const void *data, size_t size, int64_t pts_ns, bool video
         return FeedResult::Error;
     }
     int64_t before=monotonic_ns();
-    // Low latency (Round2 0.1.2): stamp each buffer with the time it is handed over, in ms since
-    // Load, instead of the sender's media time. The TV then shows frames as they come rather than
-    // holding a buffer to line them up; that was about a second of delay on Bella.
-    (void)pts_ns;
-    long long pts_ms=(before-g_load_ns)/1000000;
-    // Audio delay setting: a positive value stamps audio later, a negative one stamps video later.
+    const double local_ms=(before-g_load_ns)/1e6;
+    double out=g_timeline.map(pts_ns/1e6,local_ms);
+    // Audio delay setting: a positive value plays sound later, a negative one plays the picture later.
     const int offset=av_offset_ms.load();
-    if(video && offset<0) pts_ms+=-offset;
-    if(!video && offset>0) pts_ms+=offset;
+    if(video) { if(offset<0) out+=-offset; }
+    else {
+        if(offset>0) out+=offset;
+        const double dur=double(size/4)*1000.0/g_timeline.rate;   // S16LE stereo
+        if(g_timeline.audio_next>=0 && std::abs(out-g_timeline.audio_next)<120) {
+            // back to back while that is still ahead of the clock; otherwise leave a tiny gap rather than overlap
+            out = g_timeline.audio_next>=local_ms+5 ? g_timeline.audio_next : std::max(out,g_timeline.audio_next);
+        }
+        g_timeline.audio_next=out+dur;
+    }
+    long long pts_ms=(long long)(out+0.5);
     int rc=video ? r2_ndl_video(data,unsigned(size),pts_ms) : r2_ndl_audio(data,unsigned(size),pts_ms);
     int64_t after=monotonic_ns();
     uint64_t elapsed=after>before?uint64_t(after-before):0;

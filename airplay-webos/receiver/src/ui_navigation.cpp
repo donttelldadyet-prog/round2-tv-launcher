@@ -32,14 +32,14 @@ int history_session_hit(const HistoryUiLayout& l,int x,int y,int count,int selec
     const int row=(y-l.list_y)/l.row_h;
     return row<visible&&first+row<count?first+row:-1;
 }
+// Round2: two pages - 0 home (UiPage::Mirroring), 1 more settings (UiPage::System)
 void UiNavigation::category(int index) {
-    if(dialog!=UiDialogKind::None||index<0||index>=5)return;
-    page=static_cast<UiPage>(index);focus=0;
+    if(dialog!=UiDialogKind::None||index<0||index>1)return;
+    page=index==0?UiPage::Mirroring:UiPage::System;focus=0;
 }
 void UiNavigation::move_category(int delta) {
     if(dialog!=UiDialogKind::None)return;
-    int current=static_cast<int>(page);
-    category((current+delta+5)%5);
+    category(page==UiPage::Mirroring?(delta?1:0):0);
 }
 void UiNavigation::move_row(int delta,int count) {
     if(dialog!=UiDialogKind::None||count<=0)return;

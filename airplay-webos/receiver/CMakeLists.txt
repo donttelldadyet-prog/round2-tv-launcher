@@ -8,7 +8,7 @@ pkg_check_modules(TTF REQUIRED SDL2_ttf)
 # Round2: webOS 5+ build. Video and audio go through NDL DirectMedia v2 (libAcbAPI is gone on
 # webOS 5), and the modern C++ ABI matches webOS 5's own libraries.
 pkg_check_modules(NDL REQUIRED NDL_directmedia)
-add_library(lg_media STATIC src/media.cpp src/ndl_glue.c src/shell.cpp src/input.cpp src/settings.cpp src/ui_navigation.cpp src/usage_stats.cpp)
+add_library(lg_media STATIC src/media.cpp src/ndl_glue.c src/shell.cpp src/round2_ui.cpp src/input.cpp src/settings.cpp src/ui_navigation.cpp src/usage_stats.cpp)
 target_include_directories(lg_media PUBLIC src ${SDL_INCLUDE_DIRS} ${TTF_INCLUDE_DIRS} ${NDL_INCLUDE_DIRS})
 target_link_directories(lg_media PUBLIC ${SDL_LIBRARY_DIRS} ${NDL_LIBRARY_DIRS})
 target_link_libraries(lg_media PUBLIC ${SDL_LIBRARIES} ${TTF_LIBRARIES} ${NDL_LIBRARIES} pthread)

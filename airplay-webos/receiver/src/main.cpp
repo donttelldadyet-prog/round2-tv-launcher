@@ -67,6 +67,15 @@ int main(int argc, char *argv[]) {
         if(!name.empty()) { FILE *f=fopen(name_file.c_str(),"w"); if(f){fputs(name.c_str(),f);fclose(f);} }
         else { std::ifstream in(name_file.c_str()); std::getline(in,name); }
         set_airplay_name(name);
+        // the room's colour, {"color": "#7A5BE0"}, also remembered
+        std::string color;
+        const char *c=params?strstr(params,"\"color\""):nullptr;
+        if(c && (c=strchr(c+7,'#')) && strlen(c)>=7) color.assign(c,7);
+        const std::string color_file=state_dir+"/accent-color";
+        if(!color.empty()) { FILE *f=fopen(color_file.c_str(),"w"); if(f){fputs(color.c_str(),f);fclose(f);} }
+        else { std::ifstream in(color_file.c_str()); std::getline(in,color); }
+        unsigned rgb=0;
+        if(color.size()==7 && sscanf(color.c_str()+1,"%6x",&rgb)==1) shell.set_accent({Uint8(rgb>>16),Uint8(rgb>>8),Uint8(rgb),255});
         fprintf(stderr,"[round2] AirPlay name: %s\n",airplay_name().c_str());
     }
     std::string build_commit="Unknown",build_version="Unknown";
@@ -266,50 +275,21 @@ int main(int argc, char *argv[]) {
         } else recover_decoder(failed_hevc,reason);
     };
     auto rows_for=[&](UiPage which)->std::vector<UiRow> {
+        // Round2: two pages. Home shows what guests need; More settings holds the rest.
         std::vector<UiRow> rows;
-        if(which==UiPage::Mirroring) {
-            rows.push_back(UiRow("Resolution",settings.width==3840?"4K":settings.width==1920?"1080p":"720p","H.264: up to 1080p; HEVC: up to 4K. Frame rate is configured separately.",receiver.idle_for_profile_change()));
-            rows.push_back(UiRow("Video codec",settings.codec==MirrorCodec::ExperimentalHevc?"H.265 (HEVC)":"H.264","Choose the video format. H.265 enables 4K.",receiver.idle_for_profile_change()));
-            rows.push_back(UiRow("Maximum frame rate",std::to_string(settings.max_fps)+" FPS",settings.max_fps==60?"Advertised maximum; the sender may choose less":"30 FPS maximum",receiver.idle_for_profile_change()));
-
-        } else if(which==UiPage::Media) {
-            rows.push_back(UiRow("Audio delay",std::to_string(receiver.audio_delay_ms.load())+" ms","Set before connecting; step size 25 ms",receiver.idle_for_profile_change()));
-
-        } else if(which==UiPage::Diagnostics) {
-            rows.push_back(UiRow("On-screen overlay",diagnostics_mode_name(settings.diagnostics),"Off, Compact or Detailed"));
-            std::string resolution=observed_width?std::to_string(observed_width)+" x "+std::to_string(observed_height):"Awaiting SPS";
-            rows.push_back(UiRow("Negotiated codec / SPS",std::string(receiver.incoming_video_codec==2?"HEVC":receiver.incoming_video_codec==1?"H.264":"Awaiting codec")+"  "+resolution,
-                "Receiver limit "+std::to_string(settings.width)+"x"+std::to_string(settings.height)+" / "+std::to_string(settings.max_fps)+" FPS max; iOS selects codec/rate"));
-            rows.push_back(UiRow("Incoming / Feed FPS",fmt("%.1f",live_incoming_fps)+" / "+fmt("%.1f",live_feed_fps),
-                "Measured over 1s; advertised maximum "+std::to_string(settings.max_fps)+" FPS"));
-            rows.push_back(UiRow("Video timing / output",fmt("%.1f",live_pts_fps)+" PTS FPS / unmeasured",
-                "Decoder callbacks/s "+fmt("%.1f",live_decoder_callbacks_fps)+" (not physical display FPS); Starfish "+std::to_string(media.video_info_width.load())+"x"+std::to_string(media.video_info_height.load())+"; ACB "+std::to_string(media.acb_window_width.load())+"x"+std::to_string(media.acb_window_height.load())));
-            rows.push_back(UiRow("Video / audio queue",std::to_string(live_queue.video_queue_packets)+" / "+std::to_string(live_queue.queue_packets-live_queue.video_queue_packets),"Video queue residence "+fmt("%.1f",live_queue_ms)+" ms, last 5s"));
-            rows.push_back(UiRow("Starfish",media.failed?"Error":media.playing?"Playing":media.ready?"Loaded":opened?"Loading":"Idle",
-                "Feed "+std::to_string(media.feed_video_accepted.load())+" accepted / "+std::to_string(media.feed_video_rejected.load())+" rejected; "+fmt("%.1f",live_feed_ms)+" ms avg"));
-            rows.push_back(UiRow("Session / memory",session_started?duration_text(uint64_t(std::max<int64_t>(0,now_ns()-session_started))/1000000):"Idle",
-                (live_rss_kb>=0?fmt("%.1f",live_rss_kb/1024.0)+" MiB RSS":"RSS unavailable")+"; "+std::to_string(usage.successful_sessions)+" sessions; "+
-                (fallback_reason.empty()?"no fallback":"fallback "+fallback_reason)));
-            rows.push_back(UiRow("Incoming audio",receiver.has_audio?audio_codec_name(receiver.last_audio_codec.load()):"Awaiting audio","Negotiated AirPlay audio codec"));
-            rows.push_back(UiRow("PCM output","Stereo 44.1 kHz","Decoded locally and sent to Starfish"));
-            const AirPlayAudioIntent audio_intent{receiver.last_audio_codec.load(),receiver.audio_samples_per_frame.load(),receiver.audio_using_screen.load(),receiver.audio_is_media.load(),receiver.has_audio.load()};
-            rows.push_back(UiRow("Audio playback",audio_only_playback?(media.playing?"Standalone playing":"Standalone starting"):
-                standalone_audio_candidate(audio_intent,receiver.mirror.load())?"Standalone ready":"Idle",
-                "Protected or unsupported sessions are not decoded"));
-            rows.push_back(UiRow("Mirroring audio",receiver.mirror?"Active":"Idle","Stereo audio during screen mirroring"));
-        } else if(which==UiPage::History) {
-            for(const SessionSummary& session:usage.recent) {
-                std::string kind=session.kind==SessionKind::Audio?"AirPlay music":
-                    std::string(session_kind_name(session.kind))+" - "+(session.codec==2?"HEVC":"H.264")+" - "+
-                    std::to_string(session.width)+"x"+std::to_string(session.height);
-                rows.push_back(UiRow(utc_text(session.started_utc),duration_text(session.duration_ms),kind,false));
-            }
-            rows.push_back(UiRow("Reset history","Select","Permanently clears saved usage statistics"));
-        } else if(which==UiPage::System) {
-            rows.push_back(UiRow("UxAir",build_version,"AirPlay Receiver for webOS",false));
-            rows.push_back(UiRow("Developer","Matej Skuhala (@depius)","Based on UxPlay by FDH2; uxplay-webOS by @danlflh",false));
-            rows.push_back(UiRow("License","GPL-3.0-or-later","See bundled license and third-party notices",false));
-            rows.push_back(UiRow("Enjoying UxAir? Buy me a coffee","","Support development · UxAir is free and open source"));
+        const bool idle=receiver.idle_for_profile_change();
+        const int delay=receiver.audio_delay_ms.load();
+        if(which==UiPage::System) {
+            rows.push_back(UiRow("Video format",settings.codec==MirrorCodec::ExperimentalHevc?"H.265 (HEVC)":"H.264","H.264 suits most phones. H.265 allows 4K but is experimental here.",idle));
+            rows.push_back(UiRow("Info overlay",diagnostics_mode_name(settings.diagnostics),"Shows connection numbers on top of the picture, for troubleshooting."));
+            rows.push_back(UiRow("Version",build_version,"Round2 AirPlay for LG webOS 5+",false));
+            rows.push_back(UiRow("Made with","UxAir · UxPlay","UxAir by Matej Skuhala (@depius), UxPlay by FDH2, uxplay-webOS by @danlflh; timing ideas from AirPlay Server by jqssun",false));
+            rows.push_back(UiRow("Licence","GPL-3.0","Free and open source. Licences are in the app's licenses folder.",false));
+        } else {
+            rows.push_back(UiRow("Picture quality",settings.width==3840?"4K":settings.width==1920?"1080p":"720p",idle?"Higher is sharper; 720p copes better with weak Wi-Fi.":"Disconnect the phone to change this.",idle));
+            rows.push_back(UiRow("Smoothness",std::to_string(settings.max_fps)+" fps",idle?"60 fps is smoother for games; 30 fps is lighter on Wi-Fi.":"Disconnect the phone to change this.",idle));
+            rows.push_back(UiRow("Sound timing",std::string(delay>0?"+":"")+std::to_string(delay)+" ms","If lips and sound don't match: left plays sound earlier, right later."));
+            rows.push_back(UiRow("More settings",">","Video format, info overlay, version and credits"));
         }
         return rows;
     };
@@ -318,24 +298,24 @@ int main(int argc, char *argv[]) {
         switch(nav.dialog) {
             case UiDialogKind::Resolution:
                 d.current=settings.width==3840?2:settings.width==1920?1:0;
-                d.title="Screen mirroring resolution";d.description="Frame rate is selected separately. Disconnect sender before applying.";
+                d.title="PICTURE QUALITY";d.description="Applies to the next connection.";
                 d.choices={"720p","1080p","4K"};
                 break;
             case UiDialogKind::Codec:
                 d.current=settings.codec==MirrorCodec::ExperimentalHevc?1:0;
-                d.title="Screen mirroring codec";d.description="Choose the video format. H.265 enables 4K.";
+                d.title="VIDEO FORMAT";d.description="H.265 allows 4K but is experimental on this TV.";
                 d.choices={"H.264","H.265 (HEVC)"};break;
             case UiDialogKind::FrameRate:
                 d.current=settings.max_fps==60?1:0;
-                d.title="Maximum mirroring frame rate";d.description="This is an AirPlay limit; the sender may choose a lower rate.";
-                d.choices={"30 FPS","60 FPS"};break;
+                d.title="SMOOTHNESS";d.description="The phone may send fewer frames than this.";
+                d.choices={"30 fps","60 fps"};break;
             case UiDialogKind::Overlay:
                 d.current=int(settings.diagnostics);
-                d.title="Playback diagnostics overlay";d.description="Incoming and feed FPS are not displayed FPS.";
+                d.title="INFO OVERLAY";d.description="Connection numbers on top of the picture.";
                 d.choices={"Off","Compact","Detailed"};break;
             case UiDialogKind::AudioDelay:
                 d.current=(receiver.audio_delay_ms.load()+1000)/25;
-                d.title="Audio delay";d.description="Choose before connecting; 25 ms steps.";
+                d.title="SOUND TIMING";d.description="Minus plays sound earlier, plus plays it later.";
                 for(int ms=-1000;ms<=1000;ms+=25)d.choices.push_back(std::to_string(ms)+" ms");break;
             case UiDialogKind::ResetHistory:
                 d.title="Reset usage history?";d.description="This permanently deletes saved sessions and usage statistics. Pairing and settings will not be affected.";
@@ -449,7 +429,7 @@ int main(int argc, char *argv[]) {
         const PairingInputResult pairing_input=pairing_input_result(!pairing_pin.empty(),action==Action::Back,action==Action::Exit);
         if((pairing_input==PairingInputResult::Consumed || donation_open) && action!=Action::Back)action=Action::None;
         if(opened && !ui_visible && action==Action::Select) {
-            ui_visible=true;nav.category(3);action=Action::None;last_ui=0;
+            ui_visible=true;nav.category(0);action=Action::None;last_ui=0;
         }
         if(action==Action::Select && ui_visible) {
             int x,y;
@@ -475,6 +455,7 @@ int main(int argc, char *argv[]) {
             }
             else if(donation_open) {donation_open=false;last_ui=0;}
             else if(ui_visible && nav.dialog!=UiDialogKind::None) {nav.back();last_ui=0;}
+            else if(ui_visible && page==UiPage::System) {nav.category(0);nav.focus=3;last_ui=0;}
             else if(opened && ui_visible) {ui_visible=false;shell.transparent();last_ui=0;}
             else if(ui_visible && nav.back()) {last_ui=0;}
             else if(opened||receiver.mirror||!receiver.pin().empty())finish();
@@ -491,14 +472,15 @@ int main(int argc, char *argv[]) {
             receiver.adjust_audio_delay(action==Action::Right?25:-25);
             last_ui=0;
             if(opened) {
-                last_overlay_lines={"Audio delay "+std::string(receiver.audio_delay_ms.load()>0?"+":"")+std::to_string(receiver.audio_delay_ms.load())+" ms","◀ sound earlier  ·  sound later ▶"};
+                last_overlay_lines={"Sound timing "+std::string(receiver.audio_delay_ms.load()>0?"+":"")+std::to_string(receiver.audio_delay_ms.load())+" ms","< sound earlier   ·   sound later >"};
                 shell.overlay(last_overlay_lines);
                 delay_overlay_until=now+2500000000LL;
             }
             action=Action::None;
         }
         if(ui_visible && (action==Action::Left||action==Action::Right) && nav.dialog==UiDialogKind::None) {
-            nav.move_category(action==Action::Right?1:-1);last_ui=0;
+            if(page==UiPage::Mirroring) receiver.adjust_audio_delay(action==Action::Right?25:-25);   // Round2: sound timing
+            last_ui=0;
         }
         if(ui_visible && action==Action::Select) {
             if(nav.dialog!=UiDialogKind::None) {
@@ -510,7 +492,7 @@ int main(int argc, char *argv[]) {
                 else if(kind==UiDialogKind::Overlay && choice>=0 && choice<=2) {
                     settings.diagnostics=DiagnosticsMode(choice);
                     if(!save_settings(state_dir+"/settings-v1",settings))fprintf(stderr,"[settings] save failed\n");
-                } else if(kind==UiDialogKind::AudioDelay && choice>=0 && choice<=80 && receiver.idle_for_profile_change())
+                } else if(kind==UiDialogKind::AudioDelay && choice>=0 && choice<=80)
                     receiver.adjust_audio_delay(choice*25-1000-receiver.audio_delay_ms.load());
                 else if(kind==UiDialogKind::ResetHistory && choice==1) {
                     usage.reset();if(!save_usage_stats(state_dir+"/usage-v1",usage)){fprintf(stderr,"[stats] reset save failed\n");receiver.show("History cleared in memory, but could not save the reset.");}history_storage=usage_storage_bytes(state_dir+"/usage-v1");history_dirty=true;
@@ -519,12 +501,11 @@ int main(int argc, char *argv[]) {
                 const std::vector<UiRow> rows=rows_for(page);
                 if(focus>=0 && focus<int(rows.size()) && rows[focus].enabled) {
                     if(page==UiPage::Mirroring && focus==0)nav.begin(UiDialogKind::Resolution,settings.width==3840?2:settings.width==1920?1:0);
-                    else if(page==UiPage::Mirroring && focus==1)nav.begin(UiDialogKind::Codec,settings.codec==MirrorCodec::ExperimentalHevc?1:0);
-                    else if(page==UiPage::Mirroring && focus==2)nav.begin(UiDialogKind::FrameRate,settings.max_fps==60?1:0);
-                    else if(page==UiPage::Diagnostics && focus==0)nav.begin(UiDialogKind::Overlay,int(settings.diagnostics));
-                    else if(page==UiPage::History && focus==int(usage.recent.size()))nav.begin(UiDialogKind::ResetHistory,0);
-                    else if(page==UiPage::Media && focus==0)nav.begin(UiDialogKind::AudioDelay,(receiver.audio_delay_ms.load()+1000)/25);
-                    else if(page==UiPage::System && focus==3)donation_open=true;
+                    else if(page==UiPage::Mirroring && focus==1)nav.begin(UiDialogKind::FrameRate,settings.max_fps==60?1:0);
+                    else if(page==UiPage::Mirroring && focus==2)nav.begin(UiDialogKind::AudioDelay,(receiver.audio_delay_ms.load()+1000)/25);
+                    else if(page==UiPage::Mirroring && focus==3)nav.category(1);
+                    else if(page==UiPage::System && focus==0)nav.begin(UiDialogKind::Codec,settings.codec==MirrorCodec::ExperimentalHevc?1:0);
+                    else if(page==UiPage::System && focus==1)nav.begin(UiDialogKind::Overlay,int(settings.diagnostics));
                 }
             }
             last_ui=0;
@@ -592,7 +573,7 @@ int main(int argc, char *argv[]) {
             }
         }
         if(!opened && (page==UiPage::History?(last_ui==0||usage_utc_day(uint64_t(time(nullptr)))!=history_day):now-last_ui>1000000000LL) && (pairing_pin.empty() || pairing_changed)) {
-            draw_page(receiver.status(),"Left/Right sections  •  Up/Down focus  •  OK select  •  Back cancel");
+            draw_page(receiver.status(),page==UiPage::System?"[UP/DOWN] MOVE   [OK] CHANGE   [BACK] HOME":"[UP/DOWN] MOVE   [OK] CHANGE   [LEFT/RIGHT] SOUND TIMING   [BACK] EXIT");
             last_ui=now;
         }
         if(now-last_live>1000000000LL) {
@@ -631,7 +612,7 @@ int main(int argc, char *argv[]) {
             }
         }
         if((page==UiPage::History?(opened&&ui_visible&&last_ui==0):session_ui_redraw_due(opened,ui_visible,last_ui,now)) && (pairing_pin.empty() || pairing_changed)) {
-            draw_page("Live session  •  Back returns to playback","Incoming and Feed are receiver rates  •  Displayed FPS unavailable");
+            draw_page("Connected",page==UiPage::System?"[UP/DOWN] MOVE   [OK] CHANGE   [BACK] HOME":"[UP/DOWN] MOVE   [OK] CHANGE   [LEFT/RIGHT] SOUND TIMING   [BACK] BACK TO MIRRORING");
             last_ui=now;
         }
         if(pairing_overlay_dirty && opened && !ui_visible) {

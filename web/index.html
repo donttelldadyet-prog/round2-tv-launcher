@@ -778,7 +778,7 @@ window.R2_TV = {
         say('AirPlay receiver ' + v + (fresh ? ' installed' : ' is up to date') + '. Opening it: on an iPhone pick Screen Mirroring \u203a ' + airplayName() + '.', 8000);
         WebOS.call('luna://com.webos.applicationManager/rescan', {}, function () {});
         LGRoot.exec('D=/media/developer/apps/usr/palm/applications/sg.round2.airplay; mkdir -p $D/state && chmod 777 $D $D/state');
-        setTimeout(function () { WebOS.launch('sg.round2.airplay', function () {}, { name: airplayName() }); }, 2500);
+        setTimeout(function () { WebOS.launch('sg.round2.airplay', function () {}, { name: airplayName(), color: room.color }); }, 2500);
         if (fresh) setTimeout(function () { location.reload(); }, 8000);   /* so the menu shows the new AirPlay item */
       });
     }
@@ -861,7 +861,7 @@ window.R2_TV = {
           if (item.input) { WebOS.launch(item.inputApp || 'com.webos.app.' + String(item.input).toLowerCase(), done); return; }
           if (item.info) { done(item.info); return; }
           var id = WebOS.pick(item.webos) || (item.webos && item.webos.join ? item.webos[0] : item.webos);
-          if (id) { WebOS.launch(id, done, id === 'sg.round2.airplay' ? { name: airplayName() } : null); return; }
+          if (id) { WebOS.launch(id, done, id === 'sg.round2.airplay' ? { name: airplayName(), color: room.color } : null); return; }
           done((item.label || item.name) + ' isn\'t installed on this TV.');
           return;
         }

@@ -34,14 +34,18 @@ def main():
     shutil.copy2(ROOT / 'packaging/largeIcon.png', stage / 'largeIcon.png')
     shutil.copy2(ROOT / 'build/uxair', stage / 'uxair')
     (stage / 'uxair').chmod(0o755)
-    shutil.copy2(ROOT / 'assets/bmc-qr.bmp', stage / 'bmc-qr.bmp')
-    shutil.copy2(ROOT / 'assets/bmc-icon.bmp', stage / 'bmc-icon.bmp')
+    # Round2: the Round2 fonts (SIL Open Font Licence) for the screens
+    (stage / 'fonts').mkdir()
+    for font in sorted((ROOT / 'assets/fonts').glob('*.ttf')):
+        shutil.copy2(font, stage / 'fonts' / font.name)
     shutil.copy2(SDK / 'arm-webos-linux-gnueabi/sysroot/usr/lib/libstdc++.so.6', stage / 'lib/libstdc++.so.6')
     # Round2: SDL2_ttf may be missing on webOS 5 firmware; ship the NDK's copy (its own deps are system libraries)
     shutil.copy2(SDK / 'arm-webos-linux-gnueabi/sysroot/usr/lib/libSDL2_ttf-2.0.so.0', stage / 'lib/libSDL2_ttf-2.0.so.0')
     for source, dest in [
         ('LICENSE', 'GPL-3.0.txt'),
         ('ROUND2.md', 'ROUND2.md'),
+        ('assets/fonts/OFL-ChakraPetch.txt', 'OFL-ChakraPetch.txt'),
+        ('assets/fonts/OFL-PressStart2P.txt', 'OFL-PressStart2P.txt'),
         ('.cache/openssl-3.5.8/LICENSE.txt', 'OpenSSL.txt'),
         ('.cache/libplist-2.7.0/COPYING', 'libplist.txt'),
         ('.cache/ffmpeg-8.1.2/COPYING.LGPLv2.1', 'FFmpeg.txt'),

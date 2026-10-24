@@ -47,3 +47,21 @@ the commit named in the package's `build-info.txt`.
   during mirroring (a short note shows the value).
 - The AirPlay name comes from the launch parameter `{"name": "..."}` (Round2 Home sends
   "<Room>'s AirPlay") and is remembered in `state/airplay-name`.
+
+## 0.2.0
+
+- **Timeline** (`src/media.cpp`): sender timestamps mapped onto the TV clock with the smallest recent
+  delay plus a jitter cushion (p90 + 20 ms, 30–300 ms), after AirPlay Server's DelayTracker and
+  TimelineBuffer (jqssun/android-airplay-server, GPL-3.0). Sound buffers are stamped back to back,
+  never overlapping and never in the past. 0.1.3's arrival-time stamps overlapped and the TV
+  dropped every other beep.
+- **UxPlay fixes** (`patches/uxplay/`, applied by `tools/bootstrap.py`): from AirPlay Server,
+  "deliver volume while audio stream paused" and "keep session on BLE discovery query"; and its
+  pin-pairing proof-length fix, adapted to this UxPlay version (bounds check before the copy).
+  Its HLS (AirPlay video) patches don't apply: this receiver doesn't play AirPlay video URLs.
+- **Screens** (`src/round2_ui.cpp`, `src/shell.*`, `src/main.cpp`, `src/ui_navigation.cpp`): Round2
+  look (Chakra Petch and Press Start 2P, SIL OFL, bundled in `fonts/`; the room's colour from the
+  launch parameter `color`). Two pages instead of five: Home (how to connect, picture quality,
+  smoothness, sound timing, More settings) and More settings (video format, info overlay, version,
+  credits, licence). History, detailed diagnostics and the donation screen were removed. Lists
+  scroll, layout scales with screen height. Left/right on Home changes sound timing.
