@@ -57,6 +57,9 @@ html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 #stage { position: fixed; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden;
   background: var(--void); font-family: var(--f-ui); -webkit-font-smoothing: antialiased; }
 .layer { position: absolute; inset: 0; left: 0; top: 0; right: 0; bottom: 0; }
+/* the first background fades in from black instead of popping in */
+#veil { background: #06050a; opacity: 1; transition: opacity 1.4s ease; pointer-events: none; }
+#veil.off { opacity: 0; }
 
 /* ---------- background world ---------- */
 #world { transition: transform .34s cubic-bezier(.55, 0, .85, .35); }
@@ -387,6 +390,7 @@ footer .keys { display: flex; gap: 30px; }
     <div class="layer" id="bgA"></div>
     <div class="layer" id="bgB"></div>
     <div class="layer bg-shade"></div>
+    <div class="layer" id="veil"></div>
   </div>
 
   <div id="ui" class="layer">
@@ -1840,7 +1844,7 @@ window.R2_TV = {
         'D=/media/developer/apps/usr/palm/applications; found=0; ' +
         /* the Round2 receiver: its last log from a normal launch (it may write outside its own folder) */
         'for f in $(find $D/sg.round2.airplay /tmp/sg.round2.airplay /var/palm/jail /home /media/developer/temp -maxdepth 5 -name uxair.log 2>/dev/null | head -n 2); do ' +
-        'echo "== $f"; grep -v "^\\[ndl\\] event" "$f" | tail -n 8; found=1; done; ' +
+        'echo "== $f"; grep -E "^.(session|media|codec|client|receiver|round2|queue|app|media-init|media-state)." "$f" | grep -v "queue-video" | tail -n 14; found=1; done; ' +
         'for a in com.github.depius.uxair com.github.danlflh.uxplaywebos; do [ -d "$D/$a" ] || continue; found=1; cd "$D/$a"; ' +
         'B=$(sed -n \'s/.*"main" *: *"\\([^"]*\\)".*/\\1/p\' appinfo.json); echo "== $a ($B)"; ' +
         '( $TO ./"$B" 2>&1; echo "[exit $?]" ) | grep -v "^ *$" | tail -n 10; ' +
@@ -1941,6 +1945,9 @@ window.R2_TV = {
     if (pos === 'right') dropCls('card-low'); else addCls('card-low');   /* compact card, no room box */
     for (var k in CARD_CLS) if (CARD_CLS.hasOwnProperty(k)) { if (k === pos) addCls(CARD_CLS[k]); else dropCls(CARD_CLS[k]); }
   }
+  var veilDone = false;
+  function liftVeil(ms) { if (veilDone) return; veilDone = true; setTimeout(function () { var v = $('veil'); if (v) v.className = 'layer off'; }, ms || 0); }
+  setTimeout(function () { liftVeil(0); }, 6000);   /* never stay dark */
   function showWall(w) {
     if (!w || (shownWall && shownWall.id === w.id && shownWall.room === roomKey)) return;
     shownWall = { id: w.id, room: roomKey };
@@ -1951,11 +1958,11 @@ window.R2_TV = {
     $('stage').style.setProperty('--fx', fp[0]); $('stage').style.setProperty('--fy', fp[1]);
     focusPt = [parseFloat(fp[0]) / 100, parseFloat(fp[1]) / 100];
     if (NATIVE) {
-      if (w.video && (w.video.indexOf('media/') === 0 || w.video.indexOf('theme/') === 0)) { var path = w.video; bridge(function (b) { b.bgPlay(path); b.bgZoom(1, 1, 0, focusPt[0], focusPt[1], false); }); return; }
+      if (w.video && (w.video.indexOf('media/') === 0 || w.video.indexOf('theme/') === 0)) { var path = w.video; bridge(function (b) { b.bgPlay(path); b.bgZoom(1, 1, 0, focusPt[0], focusPt[1], false); liftVeil(700); }); return; }
       bridge(function (b) { b.bgStop(); });
     }
     var back = front === 'bgA' ? 'bgB' : 'bgA', slot = $(back), old = $(front);
-    if (!w.video && !w.image) { $(front).style.opacity = '0'; return; }
+    if (!w.video && !w.image) { $(front).style.opacity = '0'; liftVeil(0); return; }
     var el;
     if (w.video) {
       el = document.createElement('video');
@@ -1968,6 +1975,7 @@ window.R2_TV = {
     var swapped = false;
     function swap() {
       if (swapped) return; swapped = true;
+      liftVeil(0);
       slot.style.opacity = '1'; old.style.opacity = '0';
       front = back;
       setTimeout(function () { if (front !== old.id) { var m = old.firstChild; if (m && m.pause) m.pause(); old.innerHTML = ''; } }, 300);

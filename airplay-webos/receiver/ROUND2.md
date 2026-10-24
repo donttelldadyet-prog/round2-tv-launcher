@@ -79,3 +79,9 @@ the commit named in the package's `build-info.txt`.
   laid back to back could run up to 400 ms ahead of the picture and fill the TV's sound buffer.
   Now a sound piece more than 250 ms ahead is skipped, and when the sound buffer is full the
   receiver tries again a moment later instead of waiting inside the TV's call.
+
+## 0.2.4
+
+- More settings › Sound handling: a test switch between Smooth (sound back to back) and Live
+  (0.1.3's arrival-time stamps). The log notes every 5 s how far sound runs ahead of the picture.
+- A session with no data from the phone for 8 s (was 20 s) ends, so the receiver screen returns sooner.
