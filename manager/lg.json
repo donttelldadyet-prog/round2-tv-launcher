@@ -8,15 +8,15 @@
       "manifest": {
         "id": "sg.round2.tvhome",
         "title": "Round2 Home",
-        "version": "1.0.66",
+        "version": "1.0.67",
         "type": "web",
         "appDescription": "The Round2 room menu: inputs, streaming apps and event backgrounds, driven by the remote.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.66/round2-home.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.67/round2-home.ipk",
         "ipkHash": {
-          "sha256": "33a86cdbffd7aae67512c078f95bf84edf149356bb090238647e8f2177b1ba61"
+          "sha256": "759f456f031c3793bf8be587f68be341992b629eb0457c5c36061589ea4a5fb3"
         }
       }
     },
