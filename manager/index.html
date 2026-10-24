@@ -233,7 +233,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     <div class="settings">
       <div class="card">
         <h2 style="margin-top:0">Staff PIN</h2>
-        <p style="margin:0 0 12px">On the TV: <b>Options › Staff mode</b>, then the PIN with the number buttons (or ▲▼ and ▶). It unlocks moving a TV to another room, the TV's own settings, and saving a room's default look. <span id="pinState" class="hint"></span></p>
+        <p style="margin:0 0 12px">On the TV: <b>Options › Staff</b>, then the PIN with the number buttons (or ▲▼ and ▶). It unlocks moving a TV to another room, the TV's own settings, and saving a room's default look. <span id="pinState" class="hint"></span></p>
         <div class="pinrow">
           <input id="pin1" type="password" inputmode="numeric" maxlength="8" placeholder="New PIN" aria-label="New PIN, 4 to 8 numbers" autocomplete="new-password">
           <input id="pin2" type="password" inputmode="numeric" maxlength="8" placeholder="Again" aria-label="Type the new PIN again" autocomplete="new-password">
@@ -245,7 +245,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       <div class="card">
         <h2 style="margin-top:0">TV app updates</h2>
         <p style="margin:0 0 12px">Newest Round2 Home: <b id="appLatest">checking…</b></p>
-        <p class="hint" style="margin:0 0 12px">TVs look for new versions by themselves every few hours. When one is found, <b>UPDATE READY</b> shows under Options › Staff mode, and staff install it with two presses: <b>Options › Staff mode › Update app</b>, then <b>Install</b>. TVs on Android 12 or newer install by themselves while switched off.</p>
+        <p class="hint" style="margin:0 0 12px">TVs look for new versions by themselves every few hours. When one is found, <b>UPDATE READY</b> shows next to Options › Staff, and staff install it from <b>Options › Staff (PIN) › Staff tools › Update app</b>, then <b>Install</b>. TVs on Android 12 or newer install by themselves while switched off.</p>
         <div class="row"><button class="btn primary" id="appAsk" type="button">Ask all TVs to check now</button></div>
         <p class="hint" id="appMsg" style="margin:10px 0 0"></p>
       </div>
@@ -272,10 +272,11 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         <li>To make one TV check right now: on the PC, <code>.\round2tv.ps1 themes</code>.</li>
       </ol>
       <h2>Moving a TV to another room</h2>
-      <p style="margin:0">On the TV: <b>Options › This TV's room</b> and pick the room. The character, colours, apps and themes all follow the room.</p>
+      <p style="margin:0">On the TV: <b>Options › Staff</b> (PIN) › <b>Staff tools › This TV's room</b> and pick the room. The character, colours, apps and themes all follow the room.</p>
       <h2>Install as an app</h2>
       <p style="margin:0">Windows (Edge or Chrome): the install icon at the right of the address bar. Mac (Safari): <b>File › Add to Dock</b>. Chrome on Mac: ⋮ › Cast, save and share › Install page as app.</p>
     </div>
+  </section>
 
   <!-- failsafes -->
   <section id="tab-stuck" hidden>
@@ -294,7 +295,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       <ol style="padding-left:20px;display:grid;gap:10px;margin:0">
         <li><b>Press Home 3 times quickly</b> (each press within about 1.5 seconds). LG's own home screen opens. This works even if the Round2 menu is frozen, because the button is caught outside the menu. One press of Home goes back to Round2.</li>
         <li><b>Back</b> on the remote leaves Netflix, an HDMI input or another app and returns to Round2.</li>
-        <li><b>Staff switches:</b> in Round2, <b>Options</b> › <b>Staff mode</b> (PIN). <b>Home button</b> › <b>LG HOME</b> makes Home open LG's home screen again. <b>Open when TV turns on</b> › <b>OFF</b> stops Round2 opening at power-on. Both stay until you change them back.</li>
+        <li><b>Staff switches:</b> in Round2, <b>Options</b> › <b>Staff</b> (PIN) › <b>Staff tools</b>. <b>Home button</b> › <b>LG HOME</b> makes Home open LG's home screen again. <b>Open when TV turns on</b> › <b>OFF</b> stops Round2 opening at power-on. Both stay until you change them back.</li>
         <li><b>Turn Home back to normal for good:</b> open <b>LG Input Hook</b> from LG's apps row and delete the keybind with ID <b>773</b>, then <b>Save changes</b>.</li>
         <li><b>Last resort:</b> unplug the TV for 30 seconds. Round2 opens again at start-up, and 3 presses of Home still get you to LG's home screen.</li>
       </ol>
@@ -541,7 +542,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         '<label class="hint" for="ip-' + k + '">TV address on the shop Wi-Fi</label>' +
         '<input id="ip-' + k + '" inputmode="decimal" placeholder="192.168.88.xx" value="' + esc((data.tvs || {})[k] || '') + '">' +
         '<button class="btn" type="button" data-room-ip="' + k + '">Save address</button>' +
-        '<p class="hint" style="margin:8px 0 0">The TV shows it under Options › Staff mode › About this TV. Then on the PC: <code>.\\round2tv.ps1 connect ' + k + '</code></p>' +
+        '<p class="hint" style="margin:8px 0 0">The TV shows it under Options › Staff › Staff tools › About this TV. Then on the PC: <code>.\\round2tv.ps1 connect ' + k + '</code></p>' +
         '</details></article>';
     }).join('');
   }
@@ -592,7 +593,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   function tab(n) {
     ls('r2m.tab', n);
     Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-tab') === n); });
-    ['schedule', 'rooms', 'sounds', 'settings', 'help'].forEach(function (k) { $('tab-' + k).hidden = k !== n; });
+    ['schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'].forEach(function (k) { $('tab-' + k).hidden = k !== n; });
     if (n === 'settings') renderSettings();
   }
   $('tabs').addEventListener('click', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-tab'); if (n) tab(n); });
@@ -1085,7 +1086,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   $('appAsk').onclick = function () {
     data.app = { updateRequested: new Date().toISOString() };
     saveSettings('Update request');
-    $('appMsg').textContent = 'Sent. Each TV checks within 30 minutes of someone using its home screen (or at once with .\\round2tv.ps1 themes), and shows UPDATE READY under Options › Staff mode when there\u2019s a newer version.';
+    $('appMsg').textContent = 'Sent. Each TV checks within 30 minutes of someone using its home screen (or at once with .\\round2tv.ps1 themes), and shows UPDATE READY under Options › Staff › Staff tools when there\u2019s a newer version.';
   };
   $('guestSave').onclick = function () {
     data.staff = data.staff || {}; data.staff.guestBackground = $('guestBg').checked;

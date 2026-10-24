@@ -7,8 +7,8 @@ enum class DiagnosticsMode { Off, Compact, Detailed };
 enum class MirrorCodec { H264, ExperimentalHevc };
 
 struct Settings {
-    int width = 1920;
-    int height = 1080;
+    int width = 1280;   // Round2: 720p by default; on Bella 1080p added about half a second of delay
+    int height = 720;
     int max_fps = 30;
     DiagnosticsMode diagnostics = DiagnosticsMode::Off;
     MirrorCodec codec = MirrorCodec::H264;

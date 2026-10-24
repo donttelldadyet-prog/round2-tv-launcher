@@ -286,7 +286,7 @@ int main(int argc, char *argv[]) {
             rows.push_back(UiRow("Made with","UxAir · UxPlay","UxAir by Matej Skuhala (@depius), UxPlay by FDH2, uxplay-webOS by @danlflh; timing ideas from AirPlay Server by jqssun",false));
             rows.push_back(UiRow("Licence","GPL-3.0","Free and open source. Licences are in the app's licenses folder.",false));
         } else {
-            rows.push_back(UiRow("Picture quality",settings.width==3840?"4K":settings.width==1920?"1080p":"720p",idle?"Higher is sharper; 720p copes better with weak Wi-Fi.":"Disconnect the phone to change this.",idle));
+            rows.push_back(UiRow("Picture quality",settings.width==3840?"4K":settings.width==1920?"1080p":"720p",idle?"720p is fastest (about 1 s behind the phone). 1080p is sharper but about half a second slower.":"Disconnect the phone to change this.",idle));
             rows.push_back(UiRow("Smoothness",std::to_string(settings.max_fps)+" fps",idle?"60 fps is smoother for games; 30 fps is lighter on Wi-Fi.":"Disconnect the phone to change this.",idle));
             rows.push_back(UiRow("Sound timing",std::string(delay>0?"+":"")+std::to_string(delay)+" ms","If lips and sound don't match: left plays sound earlier, right later."));
             rows.push_back(UiRow("More settings",">","Video format, info overlay, version and credits"));
@@ -298,8 +298,8 @@ int main(int argc, char *argv[]) {
         switch(nav.dialog) {
             case UiDialogKind::Resolution:
                 d.current=settings.width==3840?2:settings.width==1920?1:0;
-                d.title="PICTURE QUALITY";d.description="Applies to the next connection.";
-                d.choices={"720p","1080p","4K"};
+                d.title="PICTURE QUALITY";d.description="720p is fastest. Applies to the next connection.";
+                d.choices={"720p (fastest)","1080p","4K"};
                 break;
             case UiDialogKind::Codec:
                 d.current=settings.codec==MirrorCodec::ExperimentalHevc?1:0;
