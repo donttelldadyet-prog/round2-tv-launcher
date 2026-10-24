@@ -148,14 +148,6 @@
       ]
     },
     {
-      "id": "racing",
-      "name": "RACING",
-      "source": "sound-racing-mvmb1amk.mp3",
-      "rooms": [
-        "all"
-      ]
-    },
-    {
       "id": "car-showcase",
       "name": "CAR SHOWCASE",
       "source": "sound-car-showcase-mvmbilpu.mp3",
