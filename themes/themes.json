@@ -101,6 +101,17 @@
       "takeover": false,
       "loop": "blend",
       "cards": "bottom"
+    },
+    {
+      "id": "lofi-2026",
+      "name": "LOFI",
+      "source": "lofi-2026-mvp2b43x.mp4",
+      "rooms": [
+        "vale"
+      ],
+      "takeover": false,
+      "loop": "blend",
+      "cards": "low"
     }
   ],
   "sounds": [
