@@ -2367,7 +2367,22 @@ window.R2_TV = {
       } else if (fgPaused) { fgPaused = false; if (!document.hidden) { fgResumedAt = Date.now(); window.r2Resume(); } }
       fgPrev = id;
     }
-    WebOS.call('luna://com.webos.applicationManager/getForegroundAppInfo', { subscribe: true }, onFront, true);
+    /* Newer LG software keeps this page running behind other apps without saying it's hidden, and may not let
+       apps watch which app is in front. Rooted TVs then ask through Homebrew Channel every few seconds instead. */
+    var fgSeen = false, fgPoll = null;
+    function pollFront() {
+      if (fgPoll || !LGRoot.state.ok) return;
+      fgPoll = setInterval(function () {
+        LGRoot.exec('luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo \'{}\'', function (out) {
+          var m = /"appId"\s*:\s*"([^"]+)"/.exec(out || ''); if (m) onFront({ appId: m[1] });
+        });
+      }, 2500);
+    }
+    WebOS.call('luna://com.webos.applicationManager/getForegroundAppInfo', { subscribe: true }, function (r) {
+      if (r && r.returnValue === false) { if (!fgSeen) LGRoot.check(pollFront); return; }   /* not allowed for apps on this TV */
+      fgSeen = true; onFront(r);
+    }, true);
+    setTimeout(function () { if (!fgSeen) LGRoot.check(pollFront); }, 8000);   /* no answer at all: same fallback */
     document.addEventListener('webOSRelaunch', function (ev) {   /* opened again while already running: LG's Home, or the root helper */
       var p = (ev && ev.detail) || {};
       try { if (!p.r2 && window.PalmSystem && window.PalmSystem.launchParams) p = JSON.parse(window.PalmSystem.launchParams) || {}; } catch (e) {}
