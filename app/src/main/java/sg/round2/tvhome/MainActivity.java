@@ -540,37 +540,45 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public String openHomeHelper() {
-            if (HomeWatch.supported() && !HomeWatch.guardOn(act)) {
-                // Android 9: Usage access works on every TV (Accessibility helpers may be hidden, as on Prism+)
-                Intent[] usage = {
-                    new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + act.getPackageName())),
-                    new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS),
-                };
-                for (Intent i : usage) {
-                    try {
-                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        if (i.resolveActivity(act.getPackageManager()) == null) continue;
-                        act.startActivity(i);
-                        return "usage";
-                    } catch (Exception ignored) { }
-                }
-            }
-            Intent[] tries = {
-                new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
-                new Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"),
-                new Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.system.AccessibilityActivity"),
-                new Intent().setClassName("com.android.settings", "com.android.settings.Settings$AccessibilitySettingsActivity"),
+            // Every page that can switch the Home button over, best first. Some TVs (Prism+) hide
+            // these from their Settings menu, or keep a phone-style Settings app underneath that still
+            // lists every helper. Each OK press opens the next one that exists, so staff can look in each.
+            String[][] cands = {
+                {"acc",   null, "com.android.settings", "com.android.settings.Settings$AccessibilitySettingsActivity"},
+                {"home",  android.provider.Settings.ACTION_HOME_SETTINGS, null, null},
+                {"home",  "android.settings.MANAGE_DEFAULT_APPS_SETTINGS", null, null},
+                {"usage", null, "com.android.settings", "com.android.settings.Settings$UsageAccessSettingsActivity"},
+                {"usage", android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, null, null},
+                {"acc",   android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS, null, null},
+                {"acc",   null, "com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"},
+                {"acc",   null, "com.android.tv.settings", "com.android.tv.settings.system.AccessibilityActivity"},
             };
-            for (Intent i : tries) {
+            List<Intent> found = new ArrayList<>();
+            List<String> kinds = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            PackageManager pm = act.getPackageManager();
+            for (String[] c : cands) {
+                if (c[0].equals("usage") && (!HomeWatch.supported() || HomeWatch.guardOn(act))) continue;
+                Intent i = c[1] != null ? new Intent(c[1]) : new Intent().setClassName(c[2], c[3]);
                 try {
+                    android.content.ComponentName cn = i.resolveActivity(pm);
+                    if (cn == null || !seen.add(cn.flattenToShortString())) continue;
                     i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    if (i.resolveActivity(act.getPackageManager()) == null) continue;
-                    act.startActivity(i);
-                    return "ok";
+                    found.add(i); kinds.add(c[0]);
                 } catch (Exception ignored) { }
             }
-            return "This TV has no Accessibility page. Set up the Home button from a computer instead.";
+            if (found.isEmpty()) return "This TV has no page for the Home button.";
+            int n = found.size();
+            for (int k = 0; k < n; k++) {
+                int idx = (homeTry++) % n;
+                try {
+                    act.startActivity(found.get(idx));
+                    return kinds.get(idx) + "|" + (idx + 1) + "|" + n;
+                } catch (Exception ignored) { }
+            }
+            return "The TV would not open its settings pages.";
         }
+        private int homeTry = 0;
 
         /** Launchable apps for the "More apps" grid, as [{name, android}]. */
         @JavascriptInterface
