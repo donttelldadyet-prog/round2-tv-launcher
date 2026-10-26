@@ -294,6 +294,13 @@
       "ambVol": "10",
       "sound": "bubble",
       "cards": "low"
+    },
+    "scarlett": {
+      "updated": "2026-10-26T12:45:51.649Z",
+      "wall": "theme-starry-2026",
+      "amb": "cosmic",
+      "ambVol": "5",
+      "sound": "click"
     }
   },
   "tvs": {
