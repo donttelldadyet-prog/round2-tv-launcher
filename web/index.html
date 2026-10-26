@@ -1898,7 +1898,7 @@ window.R2_TV = {
       var ar = window.R2Android.androidHome();
       if (ar !== 'ok') toast(ar, 5000);
     } else if (k === 'ok' && act === 'about') {
-      toast(room.name + ' \u00B7 ' + tvInfo());
+      toast(room.name + ' \u00B7 ' + tvInfo() + (window.r2FrontLog ? '\nLast apps: ' + window.r2FrontLog.join(' \u203A ') : (Device.kind() === 'webos' ? '\nLast apps: none seen (app watch not allowed?)' : '')), 9000);
     } else if (k === 'left' || k === 'right') {
       if (!changeSetting(act, k === 'left' ? -1 : 1) && k === 'left') { Sfx.play('back'); closeSettings(); }
       else if (k === 'right' && act === 'walls') { Sfx.play('ok'); openWalls(); }
@@ -2335,15 +2335,18 @@ window.R2_TV = {
       if (Date.now() - fgResumedAt > 1500) window.r2Resume();
     });
     /* Which app is in front. Some LG apps (AirPlay, Screen Share) open on top without hiding this page,
-       so the ambience kept playing under them; and closing them dropped guests on LG's home screen.
-       Here: anything else in front = ambience off; LG's home right after a mirroring app = back to Round2. */
-    var fgPrev = '', fgPaused = false, fgResumedAt = 0, ME = 'sg.round2.tvhome', MIRROR = /airplay|screenshare|miracast|mediadiscovery|smartshare|castreceiver/i;
+       so the ambience kept playing under them; and leaving any app dropped guests on LG's home screen.
+       Here: anything else in front = ambience off; LG's home right after another app = back to Round2. */
+    var fgPrev = '', fgPaused = false, fgResumedAt = 0, ME = 'sg.round2.tvhome';
     function onFront(r) {
       var id = r && (r.appId || (r.foregroundAppInfo && r.foregroundAppInfo[0] && r.foregroundAppInfo[0].appId)) || '';
       if (!id) return;
+      if (id !== fgPrev) { window.r2FrontLog = (window.r2FrontLog || []).concat(id).slice(-6); }   /* About this TV shows these (which app LG's home is on this model) */
       if (id !== ME) {
         if (!fgPaused) { fgPaused = true; window.r2Pause(); }
-        if (/^com\.webos\.app\.(home|launcher)/.test(id) && MIRROR.test(fgPrev) && LGRoot.state.home !== false)
+        /* LG's home straight after an app (Back out of YouTube, an HDMI input, AirPlay): back to Round2 instead.
+           Not after Round2 itself, so Home pressed inside the menu still reaches LG's home (staff, unrooted TVs). */
+        if (/^com\.webos\.app\.(home|launcher)/.test(id) && fgPrev && fgPrev !== ME && !/^com\.webos\.app\.(home|launcher)/.test(fgPrev) && LGRoot.state.home !== false)
           setTimeout(function () { WebOS.launch(ME, function () {}, { r2: 'home' }); }, 300);
       } else if (fgPaused) { fgPaused = false; if (!document.hidden) { fgResumedAt = Date.now(); window.r2Resume(); } }
       fgPrev = id;
