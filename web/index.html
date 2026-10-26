@@ -1635,7 +1635,8 @@ window.R2_TV = {
       { act: 'lgHome', label: 'Home button', hint: '\u2039 ' + (LGRoot.state.home ? 'OPENS ROUND2' : 'LG HOME') + ' \u203A' },
       { act: 'airRx', label: 'AirPlay receiver', hint: 'INSTALL / UPDATE \u203A' },
       { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
-      { act: 'airTest', label: 'Test AirPlay app', hint: 'SHOW LOG \u203A' }
+      { act: 'airTest', label: 'Test AirPlay app', hint: 'SHOW LOG \u203A' },
+      { act: 'homeTest', label: 'Home helper check', hint: 'SHOW LOG \u203A' }
     ] : []).concat(window.R2Android && window.R2Android.openHomeHelper ? [
       { act: 'aHome', label: 'Home button', hint: aHomeSwitchable() ? '\u2039 ' + (aHomeState() === 'on' ? 'OPENS ROUND2' : 'TV HOME') + ' \u203A' : ({ on: 'OPENS ROUND2', watch: 'OPENS ROUND2', paused: 'PAUSED 5 MIN' }[aHomeState()] || 'OFF \u00B7 SWITCH ON') + ' \u203A' }
     ].concat(/^(watch|paused)$/.test(aHomeState()) && window.R2Android.androidHome ? [
@@ -1871,6 +1872,21 @@ window.R2_TV = {
       LGRoot.exec(cmd + ' 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
         toast(String(txt).replace(/\s+$/, '').slice(-900), 120000);
+      });
+    } else if (k === 'ok' && act === 'homeTest') {
+      /* rooted LG: is the Home / power-on helper running, is the Home button hooked, and what it saw last (photo it for Claude) */
+      Sfx.play('ok'); toast('Checking the Home helper\u2026', 8000);
+      var hc = 'C=/var/lib/webosbrew/round2; P=$(head -n 1 $C/pids 2>/dev/null); ' +
+        'if [ -n "$P" ] && kill -0 $P 2>/dev/null; then echo "helper: running"; else echo "helper: NOT running"; fi; ' +
+        'echo "files: $(ls $C 2>/dev/null | tr \'\\n\' \' \')"; ' +
+        'echo "boot hook: $([ -f /var/lib/webosbrew/init.d/round2 ] && echo yes || echo NO)"; ' +
+        'IH=$(ls -d /media/developer/apps/usr/palm/*/*inputhook* 2>/dev/null | head -n 1); echo "LG Input Hook: ${IH:-NOT installed}"; ' +
+        'echo "Home key: $(tr -d \'\\n \' < /home/root/.config/lginputhook/keybinds.json 2>/dev/null | grep -o \'"773":{[^}]*}\' | cut -c1-90)"; ' +
+        'echo "LG home app: $(luna-send -n 1 luna://com.webos.applicationManager/getAppInfo \'{"id":"com.webos.app.home"}\' 2>/dev/null | grep -o \'"returnValue":[a-z]*\')"; ' +
+        'echo "== log"; tail -n 22 $C/log.txt 2>/dev/null';
+      LGRoot.exec(hc + ' 2>&1', function (out, r) {
+        var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
+        toast(String(txt).replace(/\s+$/, '').slice(-1100), 120000);
       });
     } else if (k === 'ok' && act === 'aHome') {
       if (!window.r2HomeHelperWatch) {   /* back from Accessibility: show the new ON/OFF */

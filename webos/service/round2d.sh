@@ -21,7 +21,10 @@ CFG=/var/lib/webosbrew/round2
 SELF="$0"
 mkdir -p "$CFG"
 
-log() { echo "$(date '+%m-%d %H:%M:%S') $*" >> "$CFG/log.txt"; }
+log() {
+  echo "$(date '+%m-%d %H:%M:%S') $*" >> "$CFG/log.txt"
+  [ "$(wc -l < "$CFG/log.txt")" -gt 400 ] && { tail -n 200 "$CFG/log.txt" > "$CFG/log.tmp"; mv "$CFG/log.tmp" "$CFG/log.txt"; }
+}
 on() { [ ! -f "$CFG/$1.off" ]; }
 launch() {
   log "open Round2 Home ($1)"
@@ -52,6 +55,7 @@ watch_apps() {
     luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo '{"subscribe":true}' 2>/dev/null | while read -r line; do
       id=$(echo "$line" | field appId)
       [ -z "$id" ] && continue
+      [ "$id" != "$prev" ] && log "front $id"                         # for Staff tools > Home helper check
       if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then          # Round2 Home just updated itself
         rm -f "$CFG/relaunch"; sleep 1; launch update; prev=$APP; continue
       fi
