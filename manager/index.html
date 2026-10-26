@@ -164,7 +164,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 <header class="top"><div class="wrap">
   <div class="brand">ROUND2 <small>TV THEMES</small></div>
   <nav class="tabs" role="tablist" id="tabs" hidden>
-    <button role="tab" aria-selected="true" data-tab="schedule">Schedule</button>
+    <button role="tab" aria-selected="true" data-tab="schedule">Events</button>
     <button role="tab" aria-selected="false" data-tab="rooms">Rooms</button>
     <button role="tab" aria-selected="false" data-tab="sounds">Sounds</button>
     <button role="tab" aria-selected="false" data-tab="settings">Settings</button>
@@ -198,8 +198,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   <!-- schedule -->
   <section id="tab-schedule" hidden>
     <div class="row" style="justify-content:space-between">
-      <div><h1>Schedule</h1><p class="sub">Event backgrounds the TVs download by themselves. Today is <b id="today"></b>.</p></div>
-      <button class="btn primary" id="addBtn">+ New theme</button>
+      <div><h1>Events</h1><p class="sub">Dated and all-room backgrounds (Halloween, CNY, promotions) the TVs download by themselves. Each room’s own backgrounds and its default are on the <b>Rooms</b> page. Today is <b id="today"></b>.</p></div>
+      <button class="btn primary" id="addBtn">+ New event</button>
     </div>
     <div id="status"></div>
     <div class="row" style="margin:0 0 10px">
@@ -332,7 +332,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         <span class="f">Rooms</span>
         <div class="roompick" id="fRooms"></div>
       </div>
-      <div class="f">
+      <div class="f" id="fDatesBox">
         <span class="f">Dates</span>
         <div class="seg" id="quick">
           <button type="button" data-q="now7">Now · 7 days</button>
@@ -349,7 +349,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         <select id="fAmb"></select>
         <span class="hint">Plays on the home screen with this theme (guests can still change it). New sounds: the Sounds tab.</span>
       </label>
-      <label class="switch"><input type="checkbox" id="fTake" checked>
+      <label class="switch" id="fTakeBox"><input type="checkbox" id="fTake" checked>
         <span>Switch rooms to it automatically<br><span class="hint">Off: only adds it to the TV's Background list.</span></span></label>
       <div class="f">
         <span class="f">Info card position</span>
@@ -484,6 +484,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (t.from && t.from > d) return 'soon';
     return 'live';
   }
+  /* a room's own background (always there, no dates) or an event (dated, all rooms, or switches rooms by itself) */
+  function isEvent(t) { return t.kind ? t.kind !== 'background' : (!!t.from || !!t.until || !!t.takeover || (t.rooms || ['all']).indexOf('all') >= 0); }
   function roomsOf(t) { var r = t.rooms || ['all']; return r.indexOf('all') >= 0 ? Object.keys(ROOMS) : r; }
   function slug(name) {
     var base = String(name || 'theme').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'theme';
@@ -500,11 +502,11 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     $('today').textContent = nice(today());
     var f = $('roomFilter').value || 'all';
     var list = data.themes.map(function (t, i) { return { t: t, i: i }; }).filter(function (x) {
-      return f === 'all' || roomsOf(x.t).indexOf(f) >= 0;
+      return isEvent(x.t) && (f === 'all' || roomsOf(x.t).indexOf(f) >= 0);
     });
     var order = { live: 0, soon: 1, ended: 2 };
     list.sort(function (a, b) { return order[state(a.t)] - order[state(b.t)] || String(a.t.from || '').localeCompare(String(b.t.from || '')); });
-    if (!list.length) { $('list').innerHTML = '<div class="empty">No themes' + (f !== 'all' ? ' for ' + esc(ROOMS[f].name) : '') + ' yet. Press <b>+ New theme</b> to add one.</div>'; return; }
+    if (!list.length) { $('list').innerHTML = '<div class="empty">No events' + (f !== 'all' ? ' for ' + esc(ROOMS[f].name) : '') + ' yet. Press <b>+ New event</b> to add one. Room backgrounds are on the Rooms page.</div>'; return; }
     $('list').innerHTML = list.map(function (x) {
       var t = x.t, st = state(t), pub = published[t.id];
       var dates = t.from || t.until ? (t.from ? nice(t.from) : 'Now') + ' – ' + (t.until ? nice(t.until) : 'no end') : 'Always';
@@ -527,18 +529,20 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     var d = today();
     $('rooms').innerHTML = Object.keys(ROOMS).map(function (k) {
       var R = ROOMS[k], items = [], auto = null;
-      data.themes.forEach(function (t) {
+      var def = ((data.roomDefaults || {})[k] || {}).wall;
+      data.themes.forEach(function (t, ti) {
         if (roomsOf(t).indexOf(k) < 0 || state(t) === 'ended') return;
         if (state(t) === 'live' && t.takeover && !auto) auto = t;
-        items.push({ name: t.name || t.id, note: state(t) === 'live' ? (t.until ? 'until ' + nice(t.until) : 'live') : 'from ' + nice(t.from), on: false, t: t });
+        var ev = isEvent(t);
+        items.push({ name: t.name || t.id, ti: ev ? -1 : ti, t: t, on: false,
+          note: (def === 'theme-' + t.id ? 'default · ' : '') + (ev ? 'event · ' + (state(t) === 'live' ? (t.until ? 'until ' + nice(t.until) : 'live') : 'from ' + nice(t.from)) : 'room background') });
       });
       items.forEach(function (it) { it.on = it.t === auto; });
       (BUILTIN[k] || []).concat(BUILTIN._all).forEach(function (n, i) { items.push({ name: n, note: 'built in', on: !auto && i === 0 }); });
       return '<article class="card room" style="--rc:' + R.c + '"><h3>' + esc(R.name) + '</h3><div class="tier">' + esc(R.t) + '</div><ul>' +
-        items.map(function (it) { return '<li class="' + (it.on ? 'on' : '') + '"><span>' + esc(it.name) + '</span><span>' + esc(it.note) + '</span></li>'; }).join('') +
+        items.map(function (it) { return '<li class="' + (it.on ? 'on' : '') + '"><span>' + esc(it.name) + (it.ti >= 0 ? ' <button class="btn ghost" style="padding:2px 8px;font-size:12px" data-edit-bg="' + it.ti + '">Edit</button>' : '') + '</span><span>' + esc(it.note) + '</span></li>'; }).join('') +
         '</ul>' + rdSummary(k) + '<button class="btn primary" data-room-defaults="' + k + '">Default settings</button>' +
-        '<button class="btn" data-room-new="' + k + '">+ Theme for ' + esc(R.name) + '</button>' +
-        '<button class="btn ghost" data-room-show="' + k + '">See schedule</button>' +
+        '<button class="btn" data-room-new="' + k + '">+ Background for ' + esc(R.name) + '</button>' +
         '<details class="adv"><summary>Advanced</summary>' +
         '<label class="hint" for="ip-' + k + '">TV address on the shop Wi-Fi</label>' +
         '<input id="ip-' + k + '" inputmode="decimal" placeholder="192.168.88.xx" value="' + esc((data.tvs || {})[k] || '') + '">' +
@@ -611,7 +615,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       saveSettings('TV address for ' + ROOMS[ipk].name, true); return;
     }
     var a = e.target.getAttribute('data-room-new'), b = e.target.getAttribute('data-room-show');
-    if (a) openEditor(-1, { rooms: [a] });
+    if (a) openEditor(-1, { rooms: [a], kind: 'background', takeover: false });
+    var eb = e.target.getAttribute('data-edit-bg'); if (eb != null) openEditor(+eb);
     if (b) { $('roomFilter').value = b; tab('schedule'); renderList(); }
   });
   $('list').addEventListener('click', function (e) {
@@ -619,7 +624,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (ed != null) openEditor(+ed);
     if (dup != null) { var c = JSON.parse(JSON.stringify(data.themes[+dup])); delete c.id; c.name = (c.name || '') + ' (copy)'; openEditor(-1, c); }
   });
-  $('addBtn').onclick = function () { openEditor(-1); };
+  $('addBtn').onclick = function () { openEditor(-1, { kind: 'event', rooms: ['all'], from: today() }); };
 
   /* ---------- editor ---------- */
   var ed = { src: 'link', rooms: ['all'], cards: 'bottom' };
@@ -759,7 +764,11 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   function openEditor(i, preset) {
     editing = i; pendingFile = null; $('fFile').value = ''; $('fileInfo').textContent = ''; $('edMsg').textContent = '';
     var t = i >= 0 ? data.themes[i] : (preset || {});
-    $('edTitle').textContent = i >= 0 ? 'Edit theme' : 'New theme';
+    ed.kind = isEvent(t) || (!t.kind && i < 0 && !preset) ? 'event' : 'background';
+    if (preset && preset.kind) ed.kind = preset.kind;
+    var bg = ed.kind === 'background';
+    $('edTitle').textContent = (i >= 0 ? 'Edit ' : 'New ') + (bg ? 'room background' : 'event') + (bg && (t.rooms || []).length === 1 && ROOMS[t.rooms[0]] ? ' \u00B7 ' + ROOMS[t.rooms[0]].name : '');
+    $('fDatesBox').hidden = bg; $('fTakeBox').hidden = bg;
     $('fName').value = t.name || '';
     var isFile = t.source && !/^https?:/.test(t.source);
     ed.src = isFile ? 'file' : 'link'; setSeg('[aria-label="Video source"]', 'data-src', ed.src);
@@ -769,7 +778,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     ed.rooms = (t.rooms || ['all']).slice(); renderRoomPick();
     $('fFrom').value = t.from || (i < 0 && !preset ? today() : (t.from || ''));
     $('fUntil').value = t.until || '';
-    $('fTake').checked = t.takeover !== false;
+    $('fTake').checked = ed.kind === 'background' ? false : t.takeover !== false;
     ed.cards = t.cards || (t.layout === 'low' ? 'low' : (i >= 0 ? 'right' : 'bottom'));
     setSeg('#fCards', 'data-c', ed.cards); $('tv').className = 'tv p-' + ed.cards;
     $('fFocus').value = t.focus || '';
@@ -810,9 +819,12 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     var focus = $('fFocus').value.trim();
     if (focus && !/^\d{1,3}% \d{1,3}%$/.test(focus)) { msg.textContent = 'Zoom point looks like "50% 40%".'; return; }
     var t = { id: old ? old.id : slug(name), name: name, source: ed.src === 'link' ? link : (old ? old.source : ''), rooms: ed.rooms.slice() };
-    if ($('fFrom').value) t.from = $('fFrom').value;
-    if ($('fUntil').value) t.until = $('fUntil').value;
-    t.takeover = $('fTake').checked;
+    t.kind = ed.kind || 'event';
+    if (t.kind === 'event') {
+      if ($('fFrom').value) t.from = $('fFrom').value;
+      if ($('fUntil').value) t.until = $('fUntil').value;
+      t.takeover = $('fTake').checked;
+    } else t.takeover = false;   /* room background: always in the list, the room's default is set under Default settings */
     if ($('fAmb').value) t.ambience = $('fAmb').value;
     if ($('fBlend').checked) t.loop = 'blend';
     t.cards = ed.cards;
@@ -875,7 +887,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   var BUILTIN_IDS = { kai: [['summit', 'Neon Summit'], ['summit2', 'Neon Summit · Centre']], _all: [['lounge', 'Round2 Lounge']] };
   function wallOptions(room) {
     var o = (BUILTIN_IDS[room] || []).concat(BUILTIN_IDS._all);
-    data.themes.forEach(function (t) { if (state(t) !== 'ended' && roomsOf(t).indexOf(room) >= 0) o.push(['theme-' + t.id, (t.name || t.id) + (t.takeover ? ' (event)' : '')]); });
+    data.themes.forEach(function (t) { if (state(t) !== 'ended' && roomsOf(t).indexOf(room) >= 0) o.push(['theme-' + t.id, (t.name || t.id) + (isEvent(t) ? ' (event)' : '')]); });
     return o;
   }
   function ambOptions() {

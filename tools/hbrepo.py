@@ -19,29 +19,20 @@ manifest = {
     'appDescription': desc, 'iconUri': ICON, 'sourceUrl': REPO, 'rootRequired': False,
     'ipkUrl': f'{REPO}/releases/download/v{version}/round2-home.ipk', 'ipkHash': {'sha256': sha},
 }
-# Other apps the rooted Round2 TVs use, pinned to a checked release (update the version and SHA-256 by hand)
-UX = 'https://github.com/depius/uxair-webos'
-UX_ICON = 'https://raw.githubusercontent.com/depius/uxair-webos/v1.1.0/packaging/icon.png'
-UX_DESC = 'AirPlay screen mirroring for older LG TVs without built-in AirPlay (UxAir by depius, open source).'
+# Round2's own AirPlay receiver for LG webOS 5 TVs without AirPlay (Bella), pinned to a checked build
+# from the airplay-lab release (update the version and SHA-256 by hand when the receiver changes).
+# UxAir and UxPlay webOS were listed before; they need libAcbAPI, which webOS 5 doesn't have.
+RX_VER = '0.2.5'
+RX_SHA = '5b8c5a7ea1f8d29a485dbb8e927b6b6a14a5493cbca64ec810cefedfbd27b660'
+RX_ICON = 'https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/main/airplay-webos/receiver/packaging/icon.png'
+RX_DESC = 'Round2 AirPlay: iPhone, iPad and Mac screen mirroring for LG TVs without built-in AirPlay (based on UxAir, GPL-3).'
 extras = [{
-    'id': 'com.github.depius.uxair', 'title': 'UxAir (AirPlay)', 'iconUri': UX_ICON, 'shortDescription': UX_DESC,
+    'id': 'sg.round2.airplay', 'title': 'Round2 AirPlay', 'iconUri': RX_ICON, 'shortDescription': RX_DESC,
     'manifest': {
-        'id': 'com.github.depius.uxair', 'title': 'UxAir', 'version': '1.1.0', 'type': 'native',
-        'appDescription': UX_DESC, 'iconUri': UX_ICON, 'sourceUrl': UX, 'rootRequired': True,
-        'ipkUrl': f'{UX}/releases/download/v1.1.0/com.github.depius.uxair_1.1.0_arm.ipk',
-        'ipkHash': {'sha256': '669e8883d04ad2f6ed6711a543fdc1ef6be322c666f1259a61c785886084bda2'},
-    },
-}, {
-    'id': 'com.github.danlflh.uxplaywebos', 'title': 'UxPlay webOS (AirPlay)',
-    'iconUri': 'https://raw.githubusercontent.com/danlflh/uxplay-webos/v0.1.0/packaging/icon.png',
-    'shortDescription': 'AirPlay screen mirroring for older LG TVs (UxPlay webOS by danlflh, open source; the earlier version of UxAir).',
-    'manifest': {
-        'id': 'com.github.danlflh.uxplaywebos', 'title': 'UxPlay webOS', 'version': '0.1.0', 'type': 'native',
-        'appDescription': 'AirPlay screen mirroring for older LG TVs (UxPlay webOS by danlflh, open source).',
-        'iconUri': 'https://raw.githubusercontent.com/danlflh/uxplay-webos/v0.1.0/packaging/icon.png',
-        'sourceUrl': 'https://github.com/danlflh/uxplay-webos', 'rootRequired': True,
-        'ipkUrl': 'https://github.com/danlflh/uxplay-webos/releases/download/v0.1.0/com.github.danlflh.uxplaywebos_0.1.0_arm.ipk',
-        'ipkHash': {'sha256': 'f2a2a96f962680f79ea19ede8860614ad72b0781c65f23d47a198ed16c91f04f'},
+        'id': 'sg.round2.airplay', 'title': 'Round2 AirPlay', 'version': RX_VER, 'type': 'native',
+        'appDescription': RX_DESC, 'iconUri': RX_ICON, 'sourceUrl': f'{REPO}/tree/main/airplay-webos/receiver', 'rootRequired': True,
+        'ipkUrl': f'{REPO}/releases/download/airplay-lab/sg.round2.airplay_{RX_VER}_arm.ipk',
+        'ipkHash': {'sha256': RX_SHA},
     },
 }]
 print(json.dumps({'packages': [{

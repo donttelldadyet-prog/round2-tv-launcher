@@ -529,7 +529,7 @@ window.R2_TV = {
     netflix: { name: 'Netflix',     android: 'com.netflix.ninja',                 tizen: 'org.tizen.netflix-app',   webos: 'netflix' },
     prime:   { name: 'Prime Video', android: 'com.amazon.amazonvideo.livingroom', tizen: 'org.tizen.primevideo',    webos: 'amazon' },
     max:     { name: 'HBO Max',     android: 'com.wbd.stream',                                                         webos: ['com.wbd.stream', 'com.hbo.hbomax', 'max', 'hbomax'] },
-    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay', 'sg.round2.airplay', 'com.github.depius.uxair', 'com.github.danlflh.uxplaywebos'] },
+    airplay: { name: 'AirPlay',     android: ['io.github.jqssun.airplay', 'com.phairplay.googletv'],                 webos: ['com.webos.app.airplay', 'airplay', 'sg.round2.airplay'] },
     /* LG without AirPlay: LG's Screen Share (Miracast) for Android phones and Windows laptops */
     share:   { name: 'Screen Share',                                                                                   webos: ['com.webos.app.miracast', 'com.webos.app.screenshare'] }
   };
@@ -1416,6 +1416,7 @@ window.R2_TV = {
     items = [{ key: 'inputs', label: 'Inputs', hint: 'HDMI' }];
     var lg = Device.kind() === 'webos';
     if (lg ? WebOS.pick(APPS.airplay.webos) : APPS.airplay.android.some(function (pk) { return Device.installed(pk); })) items.push(mk('airplay', 'MIRROR'));
+    else if (lg && LGRoot.state.ok) items.push({ key: 'airplay', label: 'AirPlay', hint: 'SET UP', setup: true, uxair: airplayName() });   /* rooted LG: Round2 AirPlay installs on first OK */
     /* LG Screen Share (Android, Windows) as well, unless the TV's own AirPlay already covers mirroring */
     if (lg && WebOS.pick(APPS.share.webos) && !/^(com\.webos\.app\.airplay|airplay)$/.test(WebOS.pick(APPS.airplay.webos) || '')) items.push(mk('share', 'ALWAYS ON'));
     items.push(mk('youtube'), mk('netflix'), mk('prime'));
@@ -1463,9 +1464,13 @@ window.R2_TV = {
       tag = 'SETTINGS';
       body = 'Change the background, sounds and more for your session. Everything goes back to normal when the TV is switched off.';
       rows = [['BACKGROUND', currentWall().name]];
-    } else if (it.key === 'netflix' || it.key === 'prime') {
+    } else if (it.key === 'netflix') {
       tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
       body = esc(room.name) + '\'s account is already signed in: pick the ' + esc(room.name.toUpperCase()) + ' profile and press play. Rather use your own? Sign in with it, and sign out before you leave.';
+      rows = [['PROFILE', room.name], ['SCREEN', room.screen]];
+    } else if (it.key === 'prime') {
+      tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
+      body = 'Ready to watch: open the ' + esc(room.name.toUpperCase()) + ' profile and choose a film or series. Got your own Prime account? You\'re welcome to log in, just log out again at the end of your session.';
       rows = [['PROFILE', room.name], ['SCREEN', room.screen]];
     } else if (it.key === 'max') {
       tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
@@ -1546,7 +1551,8 @@ window.R2_TV = {
       if (rooms.indexOf('all') < 0 && rooms.indexOf(roomKey) < 0) continue;
       if ((t.from && t.from > d) || (t.until && t.until < d)) continue;
       out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: t.localVideo || 'theme/' + t.id + '.mp4', thumb: t.localThumb || 'https://r2.theme/' + t.id + '.jpg',
-        layout: t.layout, cards: t.cards, focus: t.focus, ambience: t.ambience, event: true, takeover: !!t.takeover });
+        layout: t.layout, cards: t.cards, focus: t.focus, ambience: t.ambience, takeover: !!t.takeover,
+        event: t.kind ? t.kind !== 'background' : !!(t.from || t.until || t.takeover || rooms.indexOf('all') >= 0) });   /* a room's own background is not an event */
     }
     return out;
   }
@@ -2219,6 +2225,7 @@ window.R2_TV = {
     if (it.key === 'inputs') { openGrid('inputs'); return; }
     if (it.key === 'options') { openSettings(0); return; }
     if (it.info && Device.kind() === 'webos') { toast(it.info); return; }
+    if (it.setup) { AirLab.receiver(); return; }
     if (Device.kind() === 'preview') { dive(function () { doOpen(it); setTimeout(function () { arrive(false); }, 500); }); return; }
     dive(function () { doOpen(it); });
   }
@@ -2354,6 +2361,21 @@ window.R2_TV = {
     gsel = +b.getAttribute('data-g'); renderGrid(true); launch(gridItems[gsel]);
   });
   $('apps').addEventListener('click', function (ev) { if (ev.target === $('apps')) closeGrid(); });
+  /* LG Magic Remote pointer (and a mouse): pointing at something highlights it, like moving onto it with the arrows */
+  function hoverOn(box, sel1, attr, fn) {
+    $(box).addEventListener('mouseover', function (ev) {
+      var b = ev.target.closest ? ev.target.closest(sel1) : null; if (!b || !b.hasAttribute(attr)) return;
+      fn(+b.getAttribute(attr));
+    });
+  }
+  hoverOn('items', '.mi', 'data-i', function (i) { if (mode === 'menu' && i !== sel) { select(i); Sfx.play('move'); } });
+  hoverOn('setList', '.mi', 'data-s', function (i) {
+    if (mode !== 'settings' || i === setSel) return;
+    var kids = $('setList').children; if (!kids[i]) return;
+    if (kids[setSel]) kids[setSel].className = 'mi'; setSel = i; kids[setSel].className = 'mi on'; Sfx.play('move');
+  });
+  hoverOn('wallRows', '.mi', 'data-w', function (i) { if (mode === 'walls' && i !== wsel) { moveWall(i, false); Sfx.play('move'); } });
+  hoverOn('grid', '.tile', 'data-g', function (i) { if (mode === 'grid' && i !== gsel) { gsel = i; renderGrid(true); Sfx.play('move'); } });
 
   /* ================= room ================= */
   function applyRoom(key) {
@@ -2465,7 +2487,7 @@ window.R2_TV = {
   /* LG: find out which apps and HDMI ports this TV has, then show only those */
   if (Device.kind() === 'webos') WebOS.start(function () {
     if (mode === 'menu') { var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1); renderMenu(); }
-    LGRoot.check();   /* rooted: make sure the power-on / Home helper is set up and running */
+    LGRoot.check(function () { if (mode === 'menu') { var k2 = sel; buildItems(); sel = Math.min(k2, items.length - 1); renderMenu(); } });   /* rooted: helper set up and running; AirPlay item */
   });
 }());
 </script>
