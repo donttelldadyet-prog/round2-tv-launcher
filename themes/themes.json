@@ -15,11 +15,12 @@
     },
     {
       "id": "starry-2026",
-      "name": "Starry",
+      "name": "transend_",
       "source": "starry-2026-mvknnvn8.mp4",
       "rooms": [
         "scarlett"
       ],
+      "kind": "background",
       "takeover": false,
       "loop": "blend",
       "cards": "low"
