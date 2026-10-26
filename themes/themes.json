@@ -289,10 +289,11 @@
       "fx": "fade"
     },
     "bella": {
-      "updated": "2026-10-24T19:15:08.531Z",
+      "updated": "2026-10-26T12:14:57.863Z",
       "amb": "mystery-box",
       "ambVol": "10",
-      "sound": "zen"
+      "sound": "zen",
+      "cards": "low"
     }
   },
   "tvs": {
