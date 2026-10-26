@@ -2386,6 +2386,9 @@ window.R2_TV = {
     document.addEventListener('webOSRelaunch', function (ev) {   /* opened again while already running: LG's Home, or the root helper */
       var p = (ev && ev.detail) || {};
       try { if (!p.r2 && window.PalmSystem && window.PalmSystem.launchParams) p = JSON.parse(window.PalmSystem.launchParams) || {}; } catch (e) {}
+      /* handlesRelaunch: webOS leaves bringing the app to the front to the app itself. Older LG software did it anyway;
+         newer software (Scarlett) doesn't, so Home from YouTube reached the menu but it stayed behind (nothing, or black). */
+      try { if (window.PalmSystem && window.PalmSystem.activate) window.PalmSystem.activate(); } catch (e) {}
       if (p.r2 === 'poweron' || p.r2 === 'boot') { lgHiddenAt = 0; window.r2Reset(); }   /* the TV was switched on: back to the house settings */
       window.r2Home();
       if (p.r2 === 'lab') setTimeout(AirLab.result, 800);   /* back from the AirPlay lab test */
