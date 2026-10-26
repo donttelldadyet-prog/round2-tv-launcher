@@ -42,16 +42,6 @@
       }
     },
     {
-      "id": "purple-nebula-2026",
-      "name": "Purple Nebula",
-      "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/ec65a4b0-3312-494c-9fd2-e7a4cc047af5_seed114633729_1792766129024_fff02be9.mp4",
-      "rooms": [
-        "scarlett"
-      ],
-      "takeover": false,
-      "cards": "right"
-    },
-    {
       "id": "black-hole-2026",
       "name": "Black Hole",
       "source": "https://cdn.openart.ai/openart-ai/production/2026-10/create-video/RyveDy02gv1pYejK1Erk/b4221708-30d9-42c4-96bc-3dc3a61d5bc2_seed528548160_1792765113890_b94d9514.mp4",
