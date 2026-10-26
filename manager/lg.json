@@ -8,55 +8,35 @@
       "manifest": {
         "id": "sg.round2.tvhome",
         "title": "Round2 Home",
-        "version": "1.0.86",
+        "version": "1.0.87",
         "type": "web",
         "appDescription": "The Round2 room menu: inputs, streaming apps and event backgrounds, driven by the remote.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.86/round2-home.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.87/round2-home.ipk",
         "ipkHash": {
-          "sha256": "896408ebd5e4146556bd333def68a9a777d2ac815e6793c83eb3729927b694d0"
+          "sha256": "8e8250add46bcc4c352d5d2a60ed685c4a6f5e9579a061744f85794f3051ce75"
         }
       }
     },
     {
-      "id": "com.github.depius.uxair",
-      "title": "UxAir (AirPlay)",
-      "iconUri": "https://raw.githubusercontent.com/depius/uxair-webos/v1.1.0/packaging/icon.png",
-      "shortDescription": "AirPlay screen mirroring for older LG TVs without built-in AirPlay (UxAir by depius, open source).",
+      "id": "sg.round2.airplay",
+      "title": "Round2 AirPlay",
+      "iconUri": "https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/main/airplay-webos/receiver/packaging/icon.png",
+      "shortDescription": "Round2 AirPlay: iPhone, iPad and Mac screen mirroring for LG TVs without built-in AirPlay (based on UxAir, GPL-3).",
       "manifest": {
-        "id": "com.github.depius.uxair",
-        "title": "UxAir",
-        "version": "1.1.0",
+        "id": "sg.round2.airplay",
+        "title": "Round2 AirPlay",
+        "version": "0.2.5",
         "type": "native",
-        "appDescription": "AirPlay screen mirroring for older LG TVs without built-in AirPlay (UxAir by depius, open source).",
-        "iconUri": "https://raw.githubusercontent.com/depius/uxair-webos/v1.1.0/packaging/icon.png",
-        "sourceUrl": "https://github.com/depius/uxair-webos",
+        "appDescription": "Round2 AirPlay: iPhone, iPad and Mac screen mirroring for LG TVs without built-in AirPlay (based on UxAir, GPL-3).",
+        "iconUri": "https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/main/airplay-webos/receiver/packaging/icon.png",
+        "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/airplay-webos/receiver",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/depius/uxair-webos/releases/download/v1.1.0/com.github.depius.uxair_1.1.0_arm.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/airplay-lab/sg.round2.airplay_0.2.5_arm.ipk",
         "ipkHash": {
-          "sha256": "669e8883d04ad2f6ed6711a543fdc1ef6be322c666f1259a61c785886084bda2"
-        }
-      }
-    },
-    {
-      "id": "com.github.danlflh.uxplaywebos",
-      "title": "UxPlay webOS (AirPlay)",
-      "iconUri": "https://raw.githubusercontent.com/danlflh/uxplay-webos/v0.1.0/packaging/icon.png",
-      "shortDescription": "AirPlay screen mirroring for older LG TVs (UxPlay webOS by danlflh, open source; the earlier version of UxAir).",
-      "manifest": {
-        "id": "com.github.danlflh.uxplaywebos",
-        "title": "UxPlay webOS",
-        "version": "0.1.0",
-        "type": "native",
-        "appDescription": "AirPlay screen mirroring for older LG TVs (UxPlay webOS by danlflh, open source).",
-        "iconUri": "https://raw.githubusercontent.com/danlflh/uxplay-webos/v0.1.0/packaging/icon.png",
-        "sourceUrl": "https://github.com/danlflh/uxplay-webos",
-        "rootRequired": true,
-        "ipkUrl": "https://github.com/danlflh/uxplay-webos/releases/download/v0.1.0/com.github.danlflh.uxplaywebos_0.1.0_arm.ipk",
-        "ipkHash": {
-          "sha256": "f2a2a96f962680f79ea19ede8860614ad72b0781c65f23d47a198ed16c91f04f"
+          "sha256": "5b8c5a7ea1f8d29a485dbb8e927b6b6a14a5493cbca64ec810cefedfbd27b660"
         }
       }
     }
