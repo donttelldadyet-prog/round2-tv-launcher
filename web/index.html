@@ -543,7 +543,7 @@ window.R2_TV = {
 
   /* ---- LG webOS: Luna service calls, made straight through the TV's PalmServiceBridge ---- */
   var WebOS = (function () {
-    var live = [], ok = {}, ports = null, points = null;
+    var live = [], ok = {}, ports = null, points = null, adFreeYT = false;
     function call(uri, params, cb, keep) {
       if (!window.PalmServiceBridge) { if (cb) cb({ returnValue: false, errorText: 'not an LG TV' }); return null; }
       var b = new window.PalmServiceBridge();
@@ -580,7 +580,12 @@ window.R2_TV = {
       return '';
     }
     function start(then) {
-      var want = WEBOS_MORE.map(function (a) { return a.webos; }), n = 3;
+      var want = WEBOS_MORE.map(function (a) { return a.webos; }), n = 4;
+      /* YouTube AdFree (webosbrew, Homebrew Channel) replaces LG's YouTube under the same app id: tell them apart by title */
+      call('luna://com.webos.applicationManager/getAppInfo', { id: 'youtube.leanback.v4' }, function (r) {
+        var a = (r && r.appInfo) || {}; adFreeYT = /adfree|ad-free|webosbrew/i.test((a.title || '') + ' ' + (a.vendor || '') + ' ' + (a.appDescription || ''));
+        one();
+      });
       function one() { if (--n === 0 && then) then(); }
       for (var k in APPS) if (APPS.hasOwnProperty(k) && APPS[k].webos) want = want.concat(APPS[k].webos);
       for (var h = 1; h <= 4; h++) want.push('com.webos.app.hdmi' + h);
@@ -626,7 +631,7 @@ window.R2_TV = {
       out.push({ name: 'TV Settings', settings: true, mono: '⚙' });
       return out;
     }
-    return { call: call, launch: launch, start: start, pick: pick, has: has, inputs: inputs, apps: apps };
+    return { call: call, launch: launch, start: start, pick: pick, has: has, inputs: inputs, apps: apps, adFreeYT: function () { return adFreeYT; } };
   }());
 
   /* ---- Rooted LG TVs (Homebrew Channel): a small helper opens Round2 Home when the TV is switched on
@@ -1428,7 +1433,8 @@ window.R2_TV = {
   function mk(k, hint) {
     var a = APPS[k], pkg = a.android;
     if (pkg && pkg.join) { var pick = pkg[pkg.length - 1]; for (var i = 0; i < pkg.length; i++) if (Device.installed(pkg[i])) { pick = pkg[i]; break; } pkg = pick; }
-    var adFree = pkg === 'io.gh.reisxd.tizentube.cobalt' || pkg === 'com.teamsmart.videomanager.tv';   /* TizenTube or SmartTube */
+    var adFree = pkg === 'io.gh.reisxd.tizentube.cobalt' || pkg === 'com.teamsmart.videomanager.tv' ||   /* TizenTube or SmartTube */
+      (k === 'youtube' && Device.kind() === 'webos' && WebOS.adFreeYT());                                   /* LG: YouTube AdFree */
     var it = { key: k, label: a.name, hint: adFree ? 'NO ADS' : (hint || 'STREAM'), adFree: adFree, android: pkg, tizen: a.tizen, webos: a.webos };
     /* LG has AirPlay built in: there is nothing to open, the guest just picks this TV on their iPhone */
     /* older LG TVs without AirPlay (rooted): UxAir is an app, so it is opened and the guest picks UxAir on their iPhone */
@@ -1477,9 +1483,9 @@ window.R2_TV = {
       body = 'The Round2 HBO Max account is already signed in. Just pick a show and press play.';
       rows = [['ACCOUNT', 'Round2 (shared)'], ['SCREEN', room.screen]];
     } else if (it.key === 'youtube') {
-      tag = it.adFree ? 'STREAM · NO ADS' : 'STREAM';
-      body = (it.adFree ? 'YouTube without ads or sponsor segments. ' : '') + 'Sign in with your own account if you like, and sign out before your session ends.';
-      rows = [['SCREEN', room.screen]];
+      tag = 'STREAM · ' + (it.adFree ? 'NO ADS' : esc(TIERS[room.t].toUpperCase()));
+      body = (it.adFree ? 'YouTube without ads or sponsor segments. ' : 'YouTube, ready to go. ') + 'Sign in with your own account if you like, and sign out before your session ends.';
+      rows = [['ADS', it.adFree ? 'Blocked' : 'Shown'], ['SCREEN', room.screen]];
     } else {
       tag = 'STREAM · ' + esc(TIERS[room.t].toUpperCase());
       body = 'Sign in with your own account if it asks. Sign out before your session ends so the next group starts fresh.';
