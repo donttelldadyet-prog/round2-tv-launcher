@@ -26,11 +26,12 @@
     },
     {
       "id": "nebula-1-2026",
-      "name": "Nebula 1",
+      "name": "NEBULA GLIMPSE",
       "source": "nebula-1-2026-mvkvfr7j.mp4",
       "rooms": [
         "scarlett"
       ],
+      "kind": "background",
       "takeover": false,
       "loop": "blend",
       "cards": "low",
