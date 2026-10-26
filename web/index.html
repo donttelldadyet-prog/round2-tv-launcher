@@ -1868,9 +1868,11 @@ window.R2_TV = {
         });
       }
       Sfx.play('ok');
-      var hr = window.R2Android.openHomeHelper();
-      if (hr === 'ok') toast('Choose “Round2 Home button” and switch it ON.\nPress Back to return here.', 6000);
-      else if (hr === 'usage') toast('Choose \u201CRound2 Home\u201D and switch Usage access ON.\nPress Back to return here.', 6000);
+      var hr = String(window.R2Android.openHomeHelper()), hp = hr.split('|');
+      var more = hp[2] && hp[2] !== '1' ? '\nNot there? Back, then OK again for the next page (' + hp[1] + ' of ' + hp[2] + ').' : '\nPress Back to return here.';
+      if (hp[0] === 'acc' || hp[0] === 'ok') toast('Look for \u201CRound2 Home button\u201D (often at the bottom) and switch it ON.' + more, 9000);
+      else if (hp[0] === 'usage') toast('Look for \u201CRound2 Home\u201D and switch Usage access ON.' + more, 9000);
+      else if (hp[0] === 'home') toast('If it lists home apps, choose \u201CRound2 Home\u201D.' + more, 9000);
       else toast(hr, 6000);
     } else if (k === 'ok' && act === 'aDroid') {
       Sfx.play('ok');
