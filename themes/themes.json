@@ -123,6 +123,17 @@
       "takeover": false,
       "loop": "blend",
       "cards": "low"
+    },
+    {
+      "id": "cathedral-2026",
+      "name": "CATHEDRAL",
+      "source": "cathedral-2026-mvp5r9vh.mp4",
+      "rooms": [
+        "atlas"
+      ],
+      "takeover": false,
+      "loop": "blend",
+      "cards": "low"
     }
   ],
   "sounds": [
