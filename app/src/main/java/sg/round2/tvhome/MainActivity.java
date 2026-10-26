@@ -513,6 +513,40 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** "on" if the Round2 Home button helper (HomeGuard) is switched on in Accessibility, else "off". */
+        @JavascriptInterface
+        public String homeHelper() {
+            try {
+                String s = android.provider.Settings.Secure.getString(act.getContentResolver(),
+                        android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+                return s != null && s.contains(act.getPackageName() + "/") && s.contains("HomeGuard") ? "on" : "off";
+            } catch (Exception ex) { return "off"; }
+        }
+
+        /**
+         * Opens the screen where staff switch "Round2 Home button" on. Some TVs (Prism+) hide
+         * Accessibility from their Settings menu although the page itself is still there, so this
+         * tries the standard way first, then the TV settings pages by name.
+         */
+        @JavascriptInterface
+        public String openHomeHelper() {
+            Intent[] tries = {
+                new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
+                new Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"),
+                new Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.system.AccessibilityActivity"),
+                new Intent().setClassName("com.android.settings", "com.android.settings.Settings$AccessibilitySettingsActivity"),
+            };
+            for (Intent i : tries) {
+                try {
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (i.resolveActivity(act.getPackageManager()) == null) continue;
+                    act.startActivity(i);
+                    return "ok";
+                } catch (Exception ignored) { }
+            }
+            return "This TV has no Accessibility page. Set up the Home button from a computer instead.";
+        }
+
         /** Launchable apps for the "More apps" grid, as [{name, android}]. */
         @JavascriptInterface
         public String apps() {

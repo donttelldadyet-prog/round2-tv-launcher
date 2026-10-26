@@ -1628,6 +1628,8 @@ window.R2_TV = {
       { act: 'airRx', label: 'AirPlay receiver', hint: 'INSTALL / UPDATE \u203A' },
       { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
       { act: 'airTest', label: 'Test AirPlay app', hint: 'SHOW LOG \u203A' }
+    ] : []).concat(window.R2Android && window.R2Android.openHomeHelper ? [
+      { act: 'aHome', label: 'Home button', hint: (window.R2Android.homeHelper() === 'on' ? 'OPENS ROUND2' : 'OFF \u00B7 SWITCH ON') + ' \u203A' }
     ] : []).concat([
       { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' },
       { act: 'about', label: 'About this TV', hint: tvInfo() }
@@ -1855,6 +1857,17 @@ window.R2_TV = {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
         toast(String(txt).replace(/\s+$/, '').slice(-900), 120000);
       });
+    } else if (k === 'ok' && act === 'aHome') {
+      if (!window.r2HomeHelperWatch) {   /* back from Accessibility: show the new ON/OFF */
+        window.r2HomeHelperWatch = true;
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden && mode === 'settings' && inTools) setTimeout(function () { openSettings(setSel); }, 300);
+        });
+      }
+      Sfx.play('ok');
+      var hr = window.R2Android.openHomeHelper();
+      if (hr === 'ok') toast('Choose “Round2 Home button” and switch it ON.\nPress Back to return here.', 6000);
+      else toast(hr, 6000);
     } else if (k === 'ok' && act === 'about') {
       toast(room.name + ' \u00B7 ' + tvInfo());
     } else if (k === 'left' || k === 'right') {
