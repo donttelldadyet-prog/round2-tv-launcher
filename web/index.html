@@ -2362,8 +2362,9 @@ window.R2_TV = {
         if (!fgPaused) { fgPaused = true; window.r2Pause(); }
         /* LG's home straight after an app (Back out of YouTube, an HDMI input, AirPlay): back to Round2 instead.
            Not after Round2 itself, so Home pressed inside the menu still reaches LG's home (staff, unrooted TVs). */
-        if (/^com\.webos\.app\.(home|launcher)/.test(id) && fgPrev && fgPrev !== ME && !/^com\.webos\.app\.(home|launcher)/.test(fgPrev) && LGRoot.state.home !== false)
-          setTimeout(function () { WebOS.launch(ME, function () {}, { r2: 'home' }); }, 300);
+        /* rooted TVs: the helper already does this, quicker; doing it here too made two launches race */
+        if (!LGRoot.state.ok && /^com\.webos\.app\.(home|launcher)/.test(id) && fgPrev && fgPrev !== ME && !/^com\.webos\.app\.(home|launcher)/.test(fgPrev))
+          WebOS.launch(ME, function () {}, { r2: 'home' });
       } else if (fgPaused) { fgPaused = false; if (!document.hidden) { fgResumedAt = Date.now(); window.r2Resume(); } }
       fgPrev = id;
     }

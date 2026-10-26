@@ -46,6 +46,11 @@ stop() {
   # the luna-send subscriptions belonging to the old copy
   pkill -f '^luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo' 2>/dev/null
   pkill -f '^luna-send -i luna://com.webos.service.tvpower/power/getPowerState' 2>/dev/null
+  # any other copy still running (an older version, or one started twice at boot): only one may watch,
+  # or every Home and Back is handled twice. Home-button presses ("key") are left alone.
+  for p in $(ps | grep '[r]ound2d.sh' | grep -v ' key' | awk '{print $1}'); do
+    [ "$p" != "$$" ] && kill "$p" 2>/dev/null
+  done
 }
 
 # --- what each event does ---
