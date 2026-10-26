@@ -2184,7 +2184,7 @@ window.R2_TV = {
         var w = currentWall && currentWall();
         line('ROOM', room ? room.name : roomKey);
         line('BACKGROUND', w ? (w.name || w.id) : 'DEFAULT');
-        line('SOUND', nat() ? 'TV SPEAKERS' : 'BROWSER');
+        line('SOUND', ({ n: 'SPEAKERS', d: 'SOUND BAR + SUBWOOFER', v: 'HOME THEATER + SUBWOOFER' })[room && room.t] || 'SPEAKERS');   /* each tier's sound setup */
         var v = ''; try { v = window.R2Android && window.R2Android.version ? window.R2Android.version() : (window.R2_VERSION || ''); } catch (e) {}
         line('VERSION', v ? 'V' + v : 'PREVIEW');
         setTimeout(function () { line('READY', 'PRESS OK'); }, 250);
