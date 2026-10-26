@@ -1617,6 +1617,7 @@ window.R2_TV = {
 
   /* Options: what guests change on top, staff things in one "Staff tools" page (it scrolls if long) */
   var inTools = false;
+  function aHomeState() { try { return window.R2Android.homeHelper(); } catch (e) { return 'off'; } }
   function setRows() {
     if (inTools && isStaff()) return [
       { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + ' \u203A' },
@@ -1629,8 +1630,10 @@ window.R2_TV = {
       { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
       { act: 'airTest', label: 'Test AirPlay app', hint: 'SHOW LOG \u203A' }
     ] : []).concat(window.R2Android && window.R2Android.openHomeHelper ? [
-      { act: 'aHome', label: 'Home button', hint: (window.R2Android.homeHelper() === 'on' ? 'OPENS ROUND2' : 'OFF \u00B7 SWITCH ON') + ' \u203A' }
-    ] : []).concat([
+      { act: 'aHome', label: 'Home button', hint: ({ on: 'OPENS ROUND2', watch: 'OPENS ROUND2', paused: 'PAUSED 5 MIN' }[aHomeState()] || 'OFF \u00B7 SWITCH ON') + ' \u203A' }
+    ].concat(/^(watch|paused)$/.test(aHomeState()) && window.R2Android.androidHome ? [
+      { act: 'aDroid', label: 'Android home screen', hint: '5 MIN \u203A' }
+    ] : []) : []).concat([
       { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' },
       { act: 'about', label: 'About this TV', hint: tvInfo() }
     ]);
@@ -1867,7 +1870,12 @@ window.R2_TV = {
       Sfx.play('ok');
       var hr = window.R2Android.openHomeHelper();
       if (hr === 'ok') toast('Choose “Round2 Home button” and switch it ON.\nPress Back to return here.', 6000);
+      else if (hr === 'usage') toast('Choose \u201CRound2 Home\u201D and switch Usage access ON.\nPress Back to return here.', 6000);
       else toast(hr, 6000);
+    } else if (k === 'ok' && act === 'aDroid') {
+      Sfx.play('ok');
+      var ar = window.R2Android.androidHome();
+      if (ar !== 'ok') toast(ar, 5000);
     } else if (k === 'ok' && act === 'about') {
       toast(room.name + ' \u00B7 ' + tvInfo());
     } else if (k === 'left' || k === 'right') {

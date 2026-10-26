@@ -240,6 +240,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         lastAck = System.currentTimeMillis(); unacked = 0;
+        HomeWatch.start(this);   // no-op unless Usage access is on (Android 9 TVs without the Accessibility helper)
 
         if (bg != null) bg.resume();
         if (web != null) {
@@ -513,14 +514,23 @@ public class MainActivity extends Activity {
             }
         }
 
-        /** "on" if the Round2 Home button helper (HomeGuard) is switched on in Accessibility, else "off". */
+        /**
+         * The Home button helper: "on" (Accessibility helper), "watch" (Usage access watch, Android 9),
+         * "paused" (watch paused for the Android home screen), "off-usage" (Android 9: switch on Usage
+         * access) or "off" (switch on the Accessibility helper).
+         */
         @JavascriptInterface
         public String homeHelper() {
-            try {
-                String s = android.provider.Settings.Secure.getString(act.getContentResolver(),
-                        android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-                return s != null && s.contains(act.getPackageName() + "/") && s.contains("HomeGuard") ? "on" : "off";
-            } catch (Exception ex) { return "off"; }
+            if (HomeWatch.guardOn(act)) return "on";
+            if (!HomeWatch.supported()) return "off";
+            if (!HomeWatch.granted(act)) return "off-usage";
+            return System.currentTimeMillis() < HomeWatch.pausedUntil(act) ? "paused" : "watch";
+        }
+
+        /** Staff: the TV's own home screen for 5 minutes. */
+        @JavascriptInterface
+        public String androidHome() {
+            return HomeWatch.openStockHome(act) ? "ok" : "The TV's own home screen could not be opened.";
         }
 
         /**
@@ -530,6 +540,21 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public String openHomeHelper() {
+            if (HomeWatch.supported() && !HomeWatch.guardOn(act)) {
+                // Android 9: Usage access works on every TV (Accessibility helpers may be hidden, as on Prism+)
+                Intent[] usage = {
+                    new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + act.getPackageName())),
+                    new Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS),
+                };
+                for (Intent i : usage) {
+                    try {
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        if (i.resolveActivity(act.getPackageManager()) == null) continue;
+                        act.startActivity(i);
+                        return "usage";
+                    } catch (Exception ignored) { }
+                }
+            }
             Intent[] tries = {
                 new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS),
                 new Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"),

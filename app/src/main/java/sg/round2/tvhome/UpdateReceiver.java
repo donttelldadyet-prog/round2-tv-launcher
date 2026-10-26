@@ -22,6 +22,7 @@ public class UpdateReceiver extends BroadcastReceiver {
     public void onReceive(Context ctx, Intent intent) {
         if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
             rearmHomeGuard(ctx);
+            HomeWatch.start(ctx);
             try {
                 Intent i = new Intent(ctx, MainActivity.class);
                 i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
