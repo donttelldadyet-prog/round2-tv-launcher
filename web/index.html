@@ -1617,6 +1617,7 @@ window.R2_TV = {
 
   /* Options: what guests change on top, staff things in one "Staff tools" page (it scrolls if long) */
   var inTools = false;
+  function aHomeSwitchable() { try { return window.R2Android.homeGuardSwitchable && window.R2Android.homeGuardSwitchable() === '1'; } catch (e) { return false; } }
   function aHomeState() { try { return window.R2Android.homeHelper(); } catch (e) { return 'off'; } }
   function setRows() {
     if (inTools && isStaff()) return [
@@ -1630,7 +1631,7 @@ window.R2_TV = {
       { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
       { act: 'airTest', label: 'Test AirPlay app', hint: 'SHOW LOG \u203A' }
     ] : []).concat(window.R2Android && window.R2Android.openHomeHelper ? [
-      { act: 'aHome', label: 'Home button', hint: ({ on: 'OPENS ROUND2', watch: 'OPENS ROUND2', paused: 'PAUSED 5 MIN' }[aHomeState()] || 'OFF \u00B7 SWITCH ON') + ' \u203A' }
+      { act: 'aHome', label: 'Home button', hint: aHomeSwitchable() ? '\u2039 ' + (aHomeState() === 'on' ? 'OPENS ROUND2' : 'TV HOME') + ' \u203A' : ({ on: 'OPENS ROUND2', watch: 'OPENS ROUND2', paused: 'PAUSED 5 MIN' }[aHomeState()] || 'OFF \u00B7 SWITCH ON') + ' \u203A' }
     ].concat(/^(watch|paused)$/.test(aHomeState()) && window.R2Android.androidHome ? [
       { act: 'aDroid', label: 'Android home screen', hint: '5 MIN \u203A' }
     ] : []) : []).concat([
@@ -1778,6 +1779,11 @@ window.R2_TV = {
       Sfx.play('move');
       if (act === 'lgHome') toast(on ? 'Home now opens Round2. Press Home 3 times quickly for LG\u2019s home.' : 'Home now opens LG\u2019s home screen.');
     }
+    else if (act === 'aHome' && aHomeSwitchable()) {
+      var hOn = aHomeState() !== 'on', hr2 = window.R2Android.setHomeGuard(hOn);
+      Sfx.play('move');
+      toast(hr2 !== 'ok' ? hr2 : hOn ? 'Home now opens Round2. Hold Home 2 seconds for the TV\u2019s home.' : 'Home now opens the TV\u2019s own home screen.');
+    }
     else if (act === 'ambVol') {   /* stops at 10% and 100% instead of wrapping round */
       var vn = Math.max(1, Math.min(10, (+prefs.ambVol || 5) + dir)); prefs.ambVol = String(vn); savePref('ambVol', prefs.ambVol); Amb.apply();
     }
@@ -1868,6 +1874,13 @@ window.R2_TV = {
         });
       }
       Sfx.play('ok');
+      if (aHomeSwitchable()) {   /* switched on by the PC toolkit: Round2 can switch it itself (Prism+ hides it in Settings) */
+        var wasOn = aHomeState() === 'on', sr = window.R2Android.setHomeGuard(!wasOn);
+        if (sr !== 'ok') { toast(sr, 5000); return; }
+        toast(wasOn ? 'Home now opens the TV\u2019s own home screen.' : 'Home now opens Round2. Hold Home 2 seconds for the TV\u2019s home.', 5000);
+        setTimeout(function () { openSettings(setSel); }, 600);
+        return;
+      }
       var hr = String(window.R2Android.openHomeHelper()), hp = hr.split('|');
       var more = hp[2] && hp[2] !== '1' ? '\nNot there? Back, then OK again for the next page (' + hp[1] + ' of ' + hp[2] + ').' : '\nPress Back to return here.';
       if (hp[0] === 'acc' || hp[0] === 'ok') toast('Look for \u201CRound2 Home button\u201D (often at the bottom) and switch it ON.' + more, 9000);

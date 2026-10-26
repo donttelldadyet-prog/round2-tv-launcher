@@ -67,4 +67,25 @@ public class UpdateReceiver extends BroadcastReceiver {
             Settings.Secure.putString(ctx.getContentResolver(), "accessibility_enabled", "1");
         } catch (Exception ignored) { }
     }
+
+    /** Staff tools › Home button on TVs whose menus hide the helper (Prism+). Needs the same permission. */
+    static boolean canSwitchHomeGuard(Context ctx) {
+        return ctx.checkCallingOrSelfPermission("android.permission.WRITE_SECURE_SETTINGS") == PackageManager.PERMISSION_GRANTED;
+    }
+
+    static boolean setHomeGuard(Context ctx, boolean on) {
+        if (!canSwitchHomeGuard(ctx)) return false;
+        try {
+            String cur = Settings.Secure.getString(ctx.getContentResolver(), "enabled_accessibility_services");
+            StringBuilder others = new StringBuilder();
+            if (cur != null) for (String s : cur.split(":")) if (!s.isEmpty() && !s.equals(GUARD)) others.append(others.length() > 0 ? ":" : "").append(s);
+            if (on) {
+                Settings.Secure.putString(ctx.getContentResolver(), "enabled_accessibility_services", others.length() > 0 ? others + ":" + GUARD : GUARD);
+                Settings.Secure.putString(ctx.getContentResolver(), "accessibility_enabled", "1");
+            } else {
+                Settings.Secure.putString(ctx.getContentResolver(), "enabled_accessibility_services", others.toString());
+            }
+            return true;
+        } catch (Exception ex) { return false; }
+    }
 }

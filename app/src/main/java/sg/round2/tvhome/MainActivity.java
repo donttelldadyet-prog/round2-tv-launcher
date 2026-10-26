@@ -527,6 +527,13 @@ public class MainActivity extends Activity {
             return System.currentTimeMillis() < HomeWatch.pausedUntil(act) ? "paused" : "watch";
         }
 
+        /** "1" if Round2 can switch its Home button helper on and off itself (granted by the PC toolkit). */
+        @JavascriptInterface
+        public String homeGuardSwitchable() { return UpdateReceiver.canSwitchHomeGuard(act) ? "1" : "0"; }
+
+        @JavascriptInterface
+        public String setHomeGuard(boolean on) { return UpdateReceiver.setHomeGuard(act, on) ? "ok" : "The TV did not allow this."; }
+
         /** Staff: the TV's own home screen for 5 minutes. */
         @JavascriptInterface
         public String androidHome() {
