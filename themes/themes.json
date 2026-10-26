@@ -305,6 +305,14 @@
       "rooms": [
         "maximillion"
       ]
+    },
+    {
+      "id": "chasing-the-sunset-mp3",
+      "name": "CHASING THE SUNSET MP3",
+      "source": "sound-chasing-the-sunset-mp3-mvpkelsm.mp3",
+      "rooms": [
+        "maximillion"
+      ]
     }
   ],
   "roomDefaults": {
