@@ -151,6 +151,18 @@
       "takeover": false,
       "ambience": "lofi2",
       "cards": "right"
+    },
+    {
+      "id": "bella-rina-2026",
+      "name": "_BELLA_RINA_",
+      "source": "bella-rina-2026-mvpknh0h.mp4",
+      "rooms": [
+        "bella"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "right"
     }
   ],
   "sounds": [
