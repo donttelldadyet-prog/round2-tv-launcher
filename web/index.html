@@ -2331,8 +2331,24 @@ window.R2_TV = {
       if (document.hidden) { lgHiddenAt = Date.now(); window.r2Pause(); if (v && v.pause) { try { v.pause(); } catch (e) {} } return; }
       /* off for hours (the TV was switched off with Quick Start+, or the room changed groups): back to the house settings */
       if (lgHiddenAt && Date.now() - lgHiddenAt > 4 * 60 * 60 * 1000) window.r2Reset();
-      window.r2Resume();
+      fgPaused = false;
+      if (Date.now() - fgResumedAt > 1500) window.r2Resume();
     });
+    /* Which app is in front. Some LG apps (AirPlay, Screen Share) open on top without hiding this page,
+       so the ambience kept playing under them; and closing them dropped guests on LG's home screen.
+       Here: anything else in front = ambience off; LG's home right after a mirroring app = back to Round2. */
+    var fgPrev = '', fgPaused = false, fgResumedAt = 0, ME = 'sg.round2.tvhome', MIRROR = /airplay|screenshare|miracast|mediadiscovery|smartshare|castreceiver/i;
+    function onFront(r) {
+      var id = r && (r.appId || (r.foregroundAppInfo && r.foregroundAppInfo[0] && r.foregroundAppInfo[0].appId)) || '';
+      if (!id) return;
+      if (id !== ME) {
+        if (!fgPaused) { fgPaused = true; window.r2Pause(); }
+        if (/^com\.webos\.app\.(home|launcher)/.test(id) && MIRROR.test(fgPrev) && LGRoot.state.home !== false)
+          setTimeout(function () { WebOS.launch(ME, function () {}, { r2: 'home' }); }, 300);
+      } else if (fgPaused) { fgPaused = false; if (!document.hidden) { fgResumedAt = Date.now(); window.r2Resume(); } }
+      fgPrev = id;
+    }
+    WebOS.call('luna://com.webos.applicationManager/getForegroundAppInfo', { subscribe: true }, onFront, true);
     document.addEventListener('webOSRelaunch', function (ev) {   /* opened again while already running: LG's Home, or the root helper */
       var p = (ev && ev.detail) || {};
       try { if (!p.r2 && window.PalmSystem && window.PalmSystem.launchParams) p = JSON.parse(window.PalmSystem.launchParams) || {}; } catch (e) {}
