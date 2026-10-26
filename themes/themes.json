@@ -90,6 +90,17 @@
       ],
       "takeover": false,
       "cards": "right"
+    },
+    {
+      "id": "library-2026",
+      "name": "LIBRARY",
+      "source": "library-2026-mvopm0t7.mp4",
+      "rooms": [
+        "bella"
+      ],
+      "takeover": false,
+      "loop": "blend",
+      "cards": "bottom"
     }
   ],
   "sounds": [
