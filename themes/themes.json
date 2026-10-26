@@ -115,11 +115,12 @@
     },
     {
       "id": "cat-2026",
-      "name": "CAT",
+      "name": "CHILL_CAR.JPEG",
       "source": "cat-2026-mvp43ob4.mp4",
       "rooms": [
         "vale"
       ],
+      "kind": "background",
       "takeover": false,
       "loop": "blend",
       "cards": "low"
