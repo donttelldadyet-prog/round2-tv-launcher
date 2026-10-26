@@ -112,6 +112,17 @@
       "takeover": false,
       "loop": "blend",
       "cards": "low"
+    },
+    {
+      "id": "cat-2026",
+      "name": "CAT",
+      "source": "cat-2026-mvp43ob4.mp4",
+      "rooms": [
+        "vale"
+      ],
+      "takeover": false,
+      "loop": "blend",
+      "cards": "low"
     }
   ],
   "sounds": [
