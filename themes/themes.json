@@ -134,6 +134,17 @@
       "takeover": false,
       "loop": "blend",
       "cards": "low"
+    },
+    {
+      "id": "eiffel-2026",
+      "name": "EIFFEL",
+      "source": "eiffel-2026-mvp9dha0.mp4",
+      "rooms": [
+        "atlas"
+      ],
+      "takeover": false,
+      "loop": "blend",
+      "cards": "low"
     }
   ],
   "sounds": [
