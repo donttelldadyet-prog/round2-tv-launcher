@@ -281,6 +281,14 @@
       "rooms": [
         "bella"
       ]
+    },
+    {
+      "id": "melancholic-walz",
+      "name": "MELANCHOLIC WALZ",
+      "source": "sound-melancholic-walz-mvpjop8q.mp3",
+      "rooms": [
+        "bella"
+      ]
     }
   ],
   "roomDefaults": {
