@@ -145,6 +145,18 @@
       "takeover": false,
       "loop": "blend",
       "cards": "low"
+    },
+    {
+      "id": "candy-clouds-2026",
+      "name": "Candy Clouds",
+      "source": "candy-clouds-2026-mvpg7bq5.mp4",
+      "rooms": [
+        "vale"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "ambience": "lofi2",
+      "cards": "right"
     }
   ],
   "sounds": [
