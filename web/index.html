@@ -335,6 +335,27 @@ footer .keys { display: flex; gap: 30px; }
   font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
   max-width: 1500px; white-space: pre-line; overflow-wrap: anywhere; }
 
+/* Food order alerts (FoodAlerts.java / ntfy): a card top right in the room's colour */
+#food { position: absolute; top: 150px; right: 96px; width: 660px; z-index: 40; display: flex; background: #110E1A;
+  box-shadow: 0 0 0 4000px rgba(6,5,10,.45), 0 30px 80px rgba(0,0,0,.7);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 26px), calc(100% - 26px) 100%, 0 100%); }
+#food:not([hidden]) { animation: foodIn .42s cubic-bezier(.2,.8,.2,1) both; }
+#food.out { animation: foodOut .28s ease-in both; }
+#food .edge { width: 10px; flex: none; background: var(--room); }
+#food .body { flex: 1; padding: 26px 34px 28px 30px; }
+#food .tag { display: flex; justify-content: space-between; gap: 16px; font-family: var(--f-pix); font-size: 12px; letter-spacing: .16em; color: var(--room); }
+#food .tag i { font-style: normal; color: var(--mute); }
+#food h2 { margin: 16px 0 10px; font: 700 50px/1 var(--f-ui); letter-spacing: .06em; color: var(--ink); }
+#food p { margin: 0; font: 500 24px/1.35 var(--f-ui); color: #d6d0e3; }
+#food .items { margin-top: 14px; font: 600 18px/1.4 var(--f-ui); letter-spacing: .04em; color: var(--mute); text-transform: uppercase; }
+#food .ok { display: inline-flex; align-items: center; margin-top: 22px; padding: 12px 34px 12px 18px; background: var(--room); color: var(--room-ink);
+  font: 700 18px var(--f-ui); letter-spacing: .12em; clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 100%, 0 100%); }
+#food .ok b { font-family: var(--f-pix); font-weight: 400; font-size: 11px; margin-right: 14px; }
+#food.ready h2 { animation: foodPulse 1.6s ease-in-out 3; }
+@keyframes foodIn { from { opacity: 0; transform: translateX(60px) } to { opacity: 1; transform: none } }
+@keyframes foodOut { to { opacity: 0; transform: translateX(60px) } }
+@keyframes foodPulse { 50% { color: var(--room); } }
+
 /* Older TV browsers (LG webOS before 2022) have no gap in flex rows: the same spacing with margins */
 .nogap .hud > * + * { margin-left: 26px; }
 .nogap .badge > * + *, .nogap .divider > * + *, .nogap .peek .go > * + *, .nogap .pinbox .digits > * + * { margin-left: 12px; }
@@ -466,6 +487,11 @@ footer .keys { display: flex; gap: 30px; }
     <circle cx="560" cy="250" r="5" fill="#ff3b5c"/><circle cx="560" cy="50" r="4" fill="#ffffff"/>
   </svg>
   <div id="toast" role="status" hidden></div>
+  <div id="food" role="alert" hidden><div class="edge"></div><div class="body">
+    <div class="tag"><span id="foodTag"></span><i id="foodWhen"></i></div>
+    <h2 id="foodTitle"></h2><p id="foodText"></p><div class="items" id="foodItems"></div>
+    <div class="ok" id="foodOk"><b>[OK]</b>GOT IT</div>
+  </div></div>
 </div>
 
 <div id="preview" hidden>
@@ -2134,6 +2160,97 @@ window.R2_TV = {
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, ms || 2600);
   }
 
+  /* ================= food order alerts =================
+     Make.com posts to this room's private ntfy.sh topic when an order is paid ("received") and when
+     Madd Pizza marks it at the pickup point in Telegram ("ready"). On Android the app listens (also while
+     Netflix or the PlayStation is on) and hands the alert here when the menu is on screen; elsewhere
+     (LG, the browser preview) this page listens itself. The topic key comes from the build (GitHub secret). */
+  var Food = (function () {
+    var KEY = '__FOOD_ALERT_KEY__';
+    var cur = null, hideTimer, remindTimer, es = null, esTopic = '';
+    var TEXT = {
+      received: { title: 'ORDER LOCKED IN', text: 'Madd Pizza is firing it up. We’ll ping you right here the moment it lands.' },
+      ready:    { title: 'LOOT DROPPED', text: 'Your order just landed at the drop zone — the rack right outside the entrance. Grab it while it’s hot!' }
+    };
+    function keyOk() { return /^[A-Za-z0-9]{12,}$/.test(KEY); }
+    function nativeOn() { try { return Device.kind() === 'android' && window.R2Android.foodAlerts && window.R2Android.foodAlerts() === '1'; } catch (e) { return false; } }
+    function topicRoom(key) { return key === 'maximillion' ? 'max' : key; }
+    function clock() { try { return new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+    function show(p, reminder) {
+      if (!p || !TEXT[p.type]) return;
+      var t = TEXT[p.type], el = $('food');
+      cur = p;
+      $('foodTag').textContent = 'ORDER #' + (p.no || '') + (reminder ? ' · REMINDER' : '');
+      $('foodWhen').textContent = clock();
+      $('foodTitle').textContent = t.title;
+      $('foodText').textContent = t.text;
+      $('foodItems').textContent = p.items || '';
+      $('foodItems').hidden = !p.items;
+      $('foodOk').hidden = p.type !== 'ready';
+      el.className = p.type; el.hidden = true; void el.offsetWidth; el.hidden = false;
+      Sfx.play('ok');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(function () { hide(false); }, p.type === 'ready' ? 10 * 60000 : 12000);
+    }
+    function hide(seen) {
+      var el = $('food'), p = cur;
+      if (!p) return;
+      cur = null; clearTimeout(hideTimer);
+      if (seen && p.type === 'ready') {
+        clearTimeout(remindTimer); store('r2.foodReady', '');
+        try { window.R2Android && window.R2Android.foodSeen && window.R2Android.foodSeen(String(p.no)); } catch (e) {}
+      }
+      el.className += ' out';
+      setTimeout(function () { if (!cur) { el.hidden = true; el.className = ''; } }, 300);
+    }
+    /* the guest presses OK or Back: the alert goes; true = the key was used here */
+    function key(k) {
+      if (!cur || (k !== 'ok' && k !== 'back')) return false;
+      Sfx.play(k === 'ok' ? 'ok' : 'back'); hide(true); return true;
+    }
+    /* web listener (LG, preview): one EventSource on this room's topic */
+    function listen(room) {
+      if (!keyOk() || !window.EventSource) return;
+      var topic = 'r2-' + KEY + '-' + room;
+      if (es && esTopic === topic) return;
+      if (es) es.close();
+      esTopic = topic;
+      var last = store('r2.foodId.' + room);
+      es = new EventSource('https://ntfy.sh/' + topic + '/sse?since=' + (last || '10m'));
+      es.onmessage = function (ev) {
+        var m, p;
+        try { m = JSON.parse(ev.data); p = JSON.parse(m.message); } catch (e) { return; }
+        if (m.event && m.event !== 'message') return;
+        store('r2.foodId.' + room, m.id);
+        var age = Date.now() / 1000 - (m.time || 0);
+        if ((p.type === 'received' && age > 180) || (p.type === 'ready' && age > 3600)) return;
+        if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); remindLater(p); }
+        show(p, false);
+      };
+    }
+    function remindLater(p) {
+      clearTimeout(remindTimer);
+      remindTimer = setTimeout(function () {
+        var still = store('r2.foodReady');
+        if (still && still.indexOf('"no":"' + p.no + '"') > -1 && !cur) show(p, true);
+      }, 5 * 60000);
+    }
+    /* a ready order nobody has said OK to yet comes back when the guest returns to the menu */
+    function resume() {
+      if (cur) return;
+      var j = '';
+      try { j = nativeOn() ? window.R2Android.foodPending() : (store('r2.foodReady') || ''); } catch (e) {}
+      if (j) { try { show(JSON.parse(j), true); } catch (e) {} }
+    }
+    function setRoom(key) {
+      var r = topicRoom(key), info = ROOMS[key];
+      if (nativeOn()) { try { window.R2Android.foodRoom(r, info.color, info.ink); } catch (e) {} }
+      else listen(r);
+    }
+    return { show: show, key: key, resume: resume, setRoom: setRoom };
+  }());
+  window.r2Food = function (p) { Food.show(p, false); };
+
   /* Leaving: the chosen transition plays, the app opens under its last frames */
   var leaving = false, entryTimer;
   function clearAnim() {
@@ -2268,6 +2385,7 @@ window.R2_TV = {
     if (leaving) return;
     if (Boot.isUp()) { Boot.hide(); return; }   /* a key during start-up just skips the boot screen */
     if (LogView.isOpen()) { LogView.key(k); return; }
+    if (Food.key(k)) return;                     /* a food alert on screen: OK / Back closes it */
     if (Sfx.wake() && !ambStarted) { ambStarted = true; Amb.apply(); }   /* in case the TV held audio until the first key */
     if (/entering|settle|enter-/.test($('stage').className)) { addCls('snap'); clearAnim(); void $('stage').offsetWidth; dropCls('snap'); }   /* a key press skips the intro */
     if (mode === 'menu') {
@@ -2327,6 +2445,7 @@ window.R2_TV = {
     var st = $('stage'); st.style.opacity = '0.999'; void st.offsetWidth; st.style.opacity = '';   /* force a full repaint */
   }
   window.r2Resume = function () {
+    setTimeout(Food.resume, 1200);
     setTimeout(function () { window.r2SyncThemes(false); }, 3000);
     clearTimeout(guardTimer); guardTimer = setTimeout(repairScreen, 2200);
     arrive(false);
@@ -2453,6 +2572,7 @@ window.R2_TV = {
     sel = 0; buildItems(); renderMenu();
     showWall(currentWall());
     if (lastThemeSync) window.r2SyncThemes(true);   /* this room may have its own event backgrounds */
+    Food.setRoom(key);
     var btns = document.querySelectorAll('#roomBtns button');
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-r') === key);
   }
@@ -2510,6 +2630,7 @@ window.R2_TV = {
   window.addEventListener('resize', function () { if (!$('preview').hidden) PREVIEW_BAR = $('preview').offsetHeight; fit(); });
   window.addEventListener('load', fit);
   applyRoom(roomKey);
+  setTimeout(Food.resume, 3000);   /* a ready order still waiting for an OK */
   fit(); tick(); setInterval(tick, 15000);
   setTimeout(fit, 400); setTimeout(fit, 1500);
   /* LG: the themes already on the TV, straight from the background service (Android's come through the bridge below) */
