@@ -183,15 +183,15 @@
     },
     {
       "id": "test-2026",
-      "name": "TEST",
-      "source": "test-2026-mvq40mh1.mp4",
+      "name": "PURPLE SKY",
+      "source": "test-2026-mvq4a13n.mp4",
       "rooms": [
         "maximillion"
       ],
       "kind": "background",
       "takeover": false,
       "loop": "blend",
-      "cards": "bottom"
+      "cards": "low"
     }
   ],
   "sounds": [
