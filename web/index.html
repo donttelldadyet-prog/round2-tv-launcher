@@ -1909,7 +1909,7 @@ window.R2_TV = {
         'echo "== summary"; for k in "Exported" "exported" "ACB" "libAcbAPI" "Starfish" "tarfish" "idevine" "DRM" "ecoder" "SbPlayer" "WebMediaPlayerImpl" "ReportError" "License" "attest" "went wrong"; do ' +
         'n=$(grep -c "$k" $C 2>/dev/null); echo "[$k $n]"; done | tr \'\\n\' \' \'; echo; echo "log size: $(wc -c < $C) bytes, from $(head -c 40 $C | tr -d \'\\n\')"; ' +
         'echo "== last YouTube session (network and cache noise left out)"; N=$(grep -n "Using webOS UI locale" $C | tail -n 1 | cut -d: -f1); ' +
-        'tail -n +${N:-1} $C | grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector|addedNodes is not iterable|format_support_query_metrics|navigator.cc" | tail -n 900; ' +
+        'tail -n +${N:-1} $C | grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector|addedNodes is not iterable|format_support_query_metrics|navigator.cc|css_declared_style|rule_matching|savegame|YTAF storage|watchdog|lounge/bc/bind|log_event|quic_connection|Created QUIC" | tail -n 600; ' +
         'else echo "log: ${L:-none}"; [ -n "$L" ] && grep -i -E "youtube|leanback|cobalt|starfish|attest|sabr|went wrong|player.*err|err.*player" "$L" | grep -v -i "round2" | tail -n 24 | cut -c1-170; fi';
       LGRoot.exec(yc + ' 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
