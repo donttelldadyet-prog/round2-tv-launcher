@@ -727,8 +727,7 @@ window.R2_TV = {
   /* ---- AirPlay lab (rooted LG, webOS 5+): installs a test app from the airplay-lab release through
      Homebrew Channel, runs it for 20 s from a root shell, then reopens Round2 Home with the result ---- */
   var AirLab = (function () {
-    var APP = 'sg.round2.lab.ndl', DIR = '/media/developer/apps/usr/palm/applications/' + APP, LOG = '/tmp/r2lab.log',
-        LOGS = LOG + ' /var/palm/jail/' + APP + LOG;   /* a jailed app's /tmp is its jail's */
+    var APP = 'sg.round2.airplay';
     var busy = false;
     function say(m, ms) { toast(m, ms || 4000); }
     function fail(m) { busy = false; say('AirPlay lab: ' + m, 20000); }
@@ -792,47 +791,7 @@ window.R2_TV = {
         if (fresh) setTimeout(function () { location.reload(); }, 8000);   /* so the menu shows the new AirPlay item */
       });
     }
-    function launchTest() {
-      say('Starting the picture test. Watch for about 30 seconds. It tries 4 ways, numbered by white squares in the top corner. Note which numbers show ROUND2 PICTURE TEST.', 6000);
-      var am = 'luna://com.webos.service.applicationManager/';
-      var script = 'rm -f ' + LOGS + '; sleep 3; ' +
-        'luna-send -n 1 ' + am + 'launch \'{"id":"' + APP + '","params":{"log":"' + LOG + '"}}\'; sleep 34; ' +
-        'luna-send -n 1 ' + am + 'closeByAppId \'{"id":"' + APP + '"}\'; sleep 2; ' +
-        'luna-send -n 1 ' + am + 'launch \'{"id":"sg.round2.tvhome","params":{"r2":"lab"}}\'';
-      LGRoot.exec('(command -v setsid >/dev/null 2>&1 && setsid sh -c \'' + script.replace(/'/g, "'\\''") + '\' || sh -c \'' + script.replace(/'/g, "'\\''") + '\') </dev/null >/dev/null 2>&1 &', function () { busy = false; });
-    }
-    function run() {
-      if (busy) return;
-      if (!LGRoot.state.ok) { say('AirPlay lab needs a rooted LG TV with Homebrew Channel.', 6000); return; }
-      busy = true; say('AirPlay lab: checking for the test app…');
-      release(function (rel) {
-        if (!rel) { fail('couldn’t find the test app on GitHub. Check the internet and try again.'); return; }
-        installed(function (have) {
-          if (have && have === rel.v) { launchTest(); return; }
-          say('AirPlay lab: downloading the test app (about 11 MB)…', 60000);
-          var done = false;
-          WebOS.call('luna://org.webosbrew.hbchannel.service/install', { ipkUrl: rel.url, ipkHash: rel.hash, id: APP, subscribe: true }, function (r) {
-            if (done) return;
-            if (r.returnValue === false || r.errorText) { done = true; fail('Homebrew Channel couldn’t install it: ' + (r.errorText || 'no reason given')); return; }
-            if (r.progress !== undefined && r.progress < 99) say('AirPlay lab: downloading… ' + Math.round(r.progress) + '%', 60000);
-          }, true);
-          waitInstalled(rel.v, 40, function (ok) {
-            if (done) return; done = true;
-            if (ok) launchTest(); else fail('the test app didn’t finish installing.');
-          });
-        });
-      });
-    }
-    function result() {
-      LGRoot.exec('L=""; for f in ' + LOGS + '; do [ -s "$f" ] && L="$f"; done; ' +
-        'if [ -n "$L" ]; then grep -E "^.(lab|ndl)." "$L" | grep -v "event 0x" | tail -n 9; else echo "No result: the test app didn’t start or couldn’t write its log."; ' +
-        'ls ' + DIR + ' 2>&1 | head -n 3; fi', function (out) {
-        var txt = String(out || 'no answer').replace(/\s+$/, '');
-        var ok = /RESULT OK/.test(txt);
-        toast((ok ? 'AirPlay lab: tell Claude which numbered tries showed the picture.\n' : 'AirPlay lab: problem. Send Claude a photo of this.\n') + txt.slice(-900), 180000);
-      });
-    }
-    return { run: run, result: result, receiver: receiver };
+    return { receiver: receiver };
   }());
   var SAMPLE_MORE = [
     { name: 'Disney+', android: 'com.disney.disneyplus' }, { name: 'Spotify', android: 'com.spotify.tv.android' },
@@ -1640,10 +1599,7 @@ window.R2_TV = {
       { act: 'lgPower', label: 'Open when TV turns on', hint: '\u2039 ' + (LGRoot.state.poweron ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'lgHome', label: 'Home button', hint: '\u2039 ' + (LGRoot.state.home ? 'OPENS ROUND2' : 'LG HOME') + ' \u203A' },
       { act: 'airRx', label: 'AirPlay receiver', hint: 'INSTALL / UPDATE \u203A' },
-      { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
-      { act: 'airTest', label: 'Test AirPlay app', hint: 'SHOW LOG \u203A' },
-      { act: 'homeTest', label: 'Home helper check', hint: 'SHOW LOG \u203A' },
-      { act: 'ytLog', label: 'YouTube log', hint: 'SHOW LOG \u203A' }
+      { act: 'diag', label: 'Diagnostics', hint: 'SHOW LOG \u203A' }
     ] : []).concat(window.R2Android && window.R2Android.openHomeHelper ? [
       { act: 'aHome', label: 'Home button', hint: aHomeSwitchable() ? '\u2039 ' + (aHomeState() === 'on' ? 'OPENS ROUND2' : 'TV HOME') + ' \u203A' : ({ on: 'OPENS ROUND2', watch: 'OPENS ROUND2', paused: 'PAUSED 5 MIN' }[aHomeState()] || 'OFF \u00B7 SWITCH ON') + ' \u203A' }
     ].concat(/^(watch|paused)$/.test(aHomeState()) && window.R2Android.androidHome ? [
@@ -1860,30 +1816,21 @@ window.R2_TV = {
       Sfx.play('ok'); window.r2SyncThemes(true);
     } else if (k === 'ok' && act === 'airRx') {
       Sfx.play('ok'); AirLab.receiver();
-    } else if (k === 'ok' && act === 'airLab') {
-      Sfx.play('ok'); AirLab.run();
-    } else if (k === 'ok' && act === 'airTest') {
-      /* rooted LG: start the AirPlay app's program for a few seconds and show why it closes (photo it for Claude) */
-      Sfx.play('ok'); toast('Testing the AirPlay app\u2026 about 10 seconds', 12000);
-      var cmd = 'if timeout -t 1 true 2>/dev/null; then TO="timeout -t 8"; else TO="timeout 8"; fi; ' +
-        'D=/media/developer/apps/usr/palm/applications; found=0; ' +
-        /* the Round2 receiver: its last log from a normal launch (it may write outside its own folder) */
-        'for f in $(find $D/sg.round2.airplay /tmp/sg.round2.airplay /var/palm/jail /home /media/developer/temp -maxdepth 5 -name uxair.log 2>/dev/null | head -n 2); do ' +
-        'echo "== $f"; grep -E "^.(session|media|codec|client|receiver|round2|queue|app|media-init|media-state)." "$f" | grep -v "queue-video" | tail -n 14; found=1; done; ' +
-        'for a in com.github.depius.uxair com.github.danlflh.uxplaywebos; do [ -d "$D/$a" ] || continue; found=1; cd "$D/$a"; ' +
-        'B=$(sed -n \'s/.*"main" *: *"\\([^"]*\\)".*/\\1/p\' appinfo.json); echo "== $a ($B)"; ' +
-        '( $TO ./"$B" 2>&1; echo "[exit $?]" ) | grep -v "^ *$" | tail -n 10; ' +
-        'for f in *.log state/*.log; do [ -f "$f" ] && { echo "-- $f"; tail -n 5 "$f"; }; done; done; ' +
-        '[ $found = 1 ] || echo "No AirPlay app installed"; ' +
-        'echo "-- $(grep -h -m1 -i "webos\\|version" /etc/starfish-release /etc/os-release 2>/dev/null | head -n 1) $(uname -r) $(ls /lib/libc-*.so 2>/dev/null | head -n 1)"';
-      LGRoot.exec(cmd + ' 2>&1', function (out, r) {
-        var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
-        toast(String(txt).replace(/\s+$/, '').slice(-900), 120000);
-      });
-    } else if (k === 'ok' && act === 'ytLog') {
-      /* rooted LG: the TV's own log around YouTube, right after "Something went wrong" (photo it for the app's developer) */
-      Sfx.play('ok'); toast('Reading the TV log\u2026', 8000);
-      var yc = 'L=$(ls /var/log/messages /var/log/messages.0 2>/dev/null | head -n 1); ' +
+    } else if (k === 'ok' && act === 'diag') {
+      /* rooted LG: one full-screen log for staff to photograph or download: the Home / power-on helper,
+         the AirPlay receiver, and YouTube (the TV's log, or RF1705 Cobalt's own log) */
+      Sfx.play('ok'); toast('Reading the TV\u2019s logs\u2026', 8000);
+      var hc = 'C=/var/lib/webosbrew/round2; P=$(head -n 1 $C/pids 2>/dev/null); echo "===== HOME HELPER"; ' +
+        'if [ -n "$P" ] && kill -0 $P 2>/dev/null; then echo "helper: running"; else echo "helper: NOT running"; fi; ' +
+        'echo "boot hook: $([ -f /var/lib/webosbrew/init.d/round2 ] && echo yes || echo NO)"; ' +
+        'IH=$(ls -d /media/developer/apps/usr/palm/*/*inputhook* 2>/dev/null | head -n 1); echo "LG Input Hook: ${IH:-NOT installed}"; ' +
+        'echo "Home key: $(tr -d \'\\n \' < /home/root/.config/lginputhook/keybinds.json 2>/dev/null | grep -o \'"773":{[^}]*}\' | cut -c1-90)"; ' +
+        'tail -n 12 $C/log.txt 2>/dev/null';
+      var ac = 'D=/media/developer/apps/usr/palm/applications; echo "===== AIRPLAY RECEIVER $(sed -n \'s/.*"version" *: *"\\([^"]*\\)".*/\\1/p\' $D/sg.round2.airplay/appinfo.json 2>/dev/null || echo "not installed")"; ' +
+        'for f in $(find $D/sg.round2.airplay /tmp/sg.round2.airplay /var/palm/jail /home /media/developer/temp -maxdepth 5 -name uxair.log 2>/dev/null | head -n 1); do ' +
+        'grep -E "^.(session|media|codec|client|receiver|round2|queue|app|media-init|media-state)." "$f" | grep -v "queue-video" | tail -n 12; done; ' +
+        'echo "TV: $(grep -h -m1 -i "webos\\|version" /etc/starfish-release /etc/os-release 2>/dev/null | head -n 1)"';
+      var yc = 'echo "===== YOUTUBE"; ' + 'L=$(ls /var/log/messages /var/log/messages.0 2>/dev/null | head -n 1); ' +
         'echo "app: $(luna-send -n 1 luna://com.webos.applicationManager/getAppInfo \'{"id":"youtube.leanback.v4"}\' 2>/dev/null | grep -o \'"\\(title\\|version\\|vendor\\)":"[^"]*"\' | tr \'\\n\' \' \')"; ' +
         'C=/tmp/cobalt-starterless.log; if [ -f $C ]; then echo "== Cobalt log: video steps"; ' +
         /* RF1705's Cobalt app: which step of showing the video fails. Lines first, the summary last so it is never cut off */
@@ -1911,24 +1858,9 @@ window.R2_TV = {
         'echo "== last YouTube session (network and cache noise left out)"; N=$(grep -n "Using webOS UI locale" $C | tail -n 1 | cut -d: -f1); ' +
         'tail -n +${N:-1} $C | grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector|addedNodes is not iterable|format_support_query_metrics|navigator.cc|css_declared_style|rule_matching|savegame|YTAF storage|watchdog|lounge/bc/bind|log_event|quic_connection|Created QUIC" | tail -n 600; ' +
         'else echo "log: ${L:-none}"; [ -n "$L" ] && grep -i -E "youtube|leanback|cobalt|starfish|attest|sabr|went wrong|player.*err|err.*player" "$L" | grep -v -i "round2" | tail -n 24 | cut -c1-170; fi';
-      LGRoot.exec(yc + ' 2>&1', function (out, r) {
+      LGRoot.exec('(' + hc + ') 2>&1; (' + ac + ') 2>&1; (' + yc + ') 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
         LogView.show(txt);
-      });
-    } else if (k === 'ok' && act === 'homeTest') {
-      /* rooted LG: is the Home / power-on helper running, is the Home button hooked, and what it saw last (photo it for Claude) */
-      Sfx.play('ok'); toast('Checking the Home helper\u2026', 8000);
-      var hc = 'C=/var/lib/webosbrew/round2; P=$(head -n 1 $C/pids 2>/dev/null); ' +
-        'if [ -n "$P" ] && kill -0 $P 2>/dev/null; then echo "helper: running"; else echo "helper: NOT running"; fi; ' +
-        'echo "files: $(ls $C 2>/dev/null | tr \'\\n\' \' \')"; ' +
-        'echo "boot hook: $([ -f /var/lib/webosbrew/init.d/round2 ] && echo yes || echo NO)"; ' +
-        'IH=$(ls -d /media/developer/apps/usr/palm/*/*inputhook* 2>/dev/null | head -n 1); echo "LG Input Hook: ${IH:-NOT installed}"; ' +
-        'echo "Home key: $(tr -d \'\\n \' < /home/root/.config/lginputhook/keybinds.json 2>/dev/null | grep -o \'"773":{[^}]*}\' | cut -c1-90)"; ' +
-        'echo "LG home app: $(luna-send -n 1 luna://com.webos.applicationManager/getAppInfo \'{"id":"com.webos.app.home"}\' 2>/dev/null | grep -o \'"returnValue":[a-z]*\')"; ' +
-        'echo "== log"; tail -n 22 $C/log.txt 2>/dev/null';
-      LGRoot.exec(hc + ' 2>&1', function (out, r) {
-        var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
-        toast(String(txt).replace(/\s+$/, '').slice(-1100), 120000);
       });
     } else if (k === 'ok' && act === 'aHome') {
       if (!window.r2HomeHelperWatch) {   /* back from Accessibility: show the new ON/OFF */
@@ -2464,7 +2396,6 @@ window.R2_TV = {
       try { if (window.PalmSystem && window.PalmSystem.activate) window.PalmSystem.activate(); } catch (e) {}
       if (p.r2 === 'poweron' || p.r2 === 'boot') { lgHiddenAt = 0; window.r2Reset(); }   /* the TV was switched on: back to the house settings */
       window.r2Home();
-      if (p.r2 === 'lab') setTimeout(AirLab.result, 800);   /* back from the AirPlay lab test */
     });
   }
 
@@ -2582,7 +2513,6 @@ window.R2_TV = {
   if (Device.kind() === 'preview') themesArrived();
   whenThemes(function () { Boot.ready(); }, 3500);   /* the boot screen fades and the Home animation plays */
   /* LG: opened fresh by the AirPlay lab (Round2 Home wasn't running) */
-  try { if (Device.kind() === 'webos' && window.PalmSystem && /"r2"\s*:\s*"lab"/.test(window.PalmSystem.launchParams || '')) setTimeout(function () { LGRoot.check(function () { AirLab.result(); }); }, 2500); } catch (e) {}
   var ambStarted = false;
   whenThemes(function () { setTimeout(function () { if (!ambStarted) { Amb.apply(); ambStarted = true; } }, 1000); }, 3500);
   setTimeout(function () { Sfx.prepare(); }, 2600);
