@@ -161,7 +161,10 @@ public class FoodAlerts extends Service {
             if (!"message".equals(m.optString("event"))) return;
             long time = m.optLong("time", 0);
             prefs(this).edit().putLong("since", time).apply();
-            JSONObject p = new JSONObject(m.optString("message", "{}"));
+            // Make.com sends Title "received 231025" / "ready 231025" and the items as the message
+            String[] tn = m.optString("title").trim().split(" ", 2);
+            JSONObject p = new JSONObject().put("type", tn[0]).put("no", tn.length > 1 ? tn[1] : "")
+                    .put("items", m.optString("message").length() > 300 ? m.optString("message").substring(0, 300) : m.optString("message"));
             String type = p.optString("type");
             long age = System.currentTimeMillis() / 1000 - time;
             if ("received".equals(type) && age > 180) return;            // old news after a reconnect

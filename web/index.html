@@ -2219,7 +2219,9 @@ window.R2_TV = {
       es = new EventSource('https://ntfy.sh/' + topic + '/sse?since=' + (last || '10m'));
       es.onmessage = function (ev) {
         var m, p;
-        try { m = JSON.parse(ev.data); p = JSON.parse(m.message); } catch (e) { return; }
+        try { m = JSON.parse(ev.data); } catch (e) { return; }
+        var tn = String(m.title || '').split(' ');   /* Make.com: Title "received 231025" / "ready 231025", items as the message */
+        p = { type: tn[0], no: tn[1] || '', items: String(m.message || '').slice(0, 300) };
         if (m.event && m.event !== 'message') return;
         store('r2.foodId.' + room, m.id);
         var age = Date.now() / 1000 - (m.time || 0);
