@@ -182,6 +182,23 @@
       "takeover": false,
       "loop": "blend",
       "cards": "bottom"
+    },
+    {
+      "id": "embers-petals-2026",
+      "name": "Embers & Petals",
+      "source": "embers-petals-2026-mvqs0pzs.mp4",
+      "rooms": [
+        "atlas"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "low",
+      "frame": {
+        "zoom": 0.993,
+        "x": 0.5,
+        "y": 0.5
+      }
     }
   ],
   "sounds": [
