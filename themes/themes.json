@@ -120,14 +120,20 @@
     },
     {
       "id": "cathedral-2026",
-      "name": "CATHEDRAL",
-      "source": "cathedral-2026-mvp5r9vh.mp4",
+      "name": "Shutters & Peonies",
+      "source": "cathedral-2026-mvqhsqq2.mp4",
       "rooms": [
         "atlas"
       ],
+      "kind": "background",
       "takeover": false,
       "loop": "blend",
-      "cards": "low"
+      "cards": "low",
+      "frame": {
+        "zoom": 0.838,
+        "x": 0.5,
+        "y": 0.6
+      }
     },
     {
       "id": "eiffel-2026",
