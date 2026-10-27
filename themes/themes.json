@@ -216,23 +216,6 @@
         "x": 0.5,
         "y": 0.5
       }
-    },
-    {
-      "id": "cute-catz-2026",
-      "name": "CUTE CATZ",
-      "source": "cute-catz-2026-mvqtpayr.mp4",
-      "rooms": [
-        "kai"
-      ],
-      "kind": "background",
-      "takeover": false,
-      "loop": "blend",
-      "cards": "bottom",
-      "frame": {
-        "zoom": 0.993,
-        "x": 0.5,
-        "y": 0.5
-      }
     }
   ],
   "sounds": [
