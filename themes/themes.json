@@ -187,6 +187,18 @@
       "takeover": false,
       "loop": "blend",
       "cards": "low"
+    },
+    {
+      "id": "peonies-2026",
+      "name": "PEONIES",
+      "source": "peonies-2026-mvqm9if0.mp4",
+      "rooms": [
+        "atlas"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "bottom"
     }
   ],
   "sounds": [
