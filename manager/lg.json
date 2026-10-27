@@ -8,15 +8,15 @@
       "manifest": {
         "id": "sg.round2.tvhome",
         "title": "Round2 Home",
-        "version": "1.0.94",
+        "version": "1.0.95",
         "type": "web",
         "appDescription": "The Round2 room menu: inputs, streaming apps and event backgrounds, driven by the remote.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.94/round2-home.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.95/round2-home.ipk",
         "ipkHash": {
-          "sha256": "810b68f4d88e15d01d0631ce1d132d4c385aafd2955cc902bd5b0460ec63dbf3"
+          "sha256": "0b62593dd50e982e8fcf98b322bc78e45a0cb7e9fb8651fa4699ec504ca62edb"
         }
       }
     },
@@ -37,6 +37,26 @@
         "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/airplay-lab/sg.round2.airplay_0.2.5_arm.ipk",
         "ipkHash": {
           "sha256": "5b8c5a7ea1f8d29a485dbb8e927b6b6a14a5493cbca64ec810cefedfbd27b660"
+        }
+      }
+    },
+    {
+      "id": "youtube.leanback.v4",
+      "title": "YouTube Cobalt AdFree",
+      "iconUri": "https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/assets/largeIcon.png",
+      "shortDescription": "YouTube without ads, with SponsorBlock (RF1705, open source). Replaces LG's YouTube app.",
+      "manifest": {
+        "id": "youtube.leanback.v4",
+        "title": "YouTube Cobalt AdFree",
+        "version": "1.2.5",
+        "type": "native",
+        "appDescription": "YouTube for LG TVs with ad blocking and SponsorBlock (RF1705/youtube-webos-cobalt-adfree).",
+        "iconUri": "https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/assets/largeIcon.png",
+        "sourceUrl": "https://github.com/RF1705/youtube-webos-cobalt-adfree",
+        "rootRequired": false,
+        "ipkUrl": "https://github.com/RF1705/youtube-webos-cobalt-adfree/releases/download/v1.2.5/youtube.leanback.v4_1.2.5_arm.ipk",
+        "ipkHash": {
+          "sha256": "189af7d46617a511b191dc472a9fcfec3d0f44caf70107fb1da9adde3d39f2de"
         }
       }
     }
