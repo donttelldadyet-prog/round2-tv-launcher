@@ -35,19 +35,43 @@ extras = [{
         'ipkHash': {'sha256': RX_SHA},
     },
 }, {
-    # Ad-free YouTube for the LG rooms (RF1705/youtube-webos-cobalt-adfree, open source; stable channel), pinned
-    # to a checked release. It uses LG YouTube's own app id, so it replaces the official YouTube app (keeps sign-in
-    # and phone pairing). Round2 Home shows "NO ADS" on YouTube once it's installed.
-    'id': 'youtube.leanback.v4', 'title': 'YouTube Cobalt AdFree',
+    # Ad-free YouTube for the LG rooms. Each of these replaces LG's YouTube app (they all use its app id,
+    # youtube.leanback.v4), so install ONE. Listed under separate names so Homebrew Channel shows all three.
+    # Pinned to checked releases; Round2 Home shows "NO ADS" on YouTube once one is installed.
+    'id': 'youtube.leanback.v4.rf1705', 'title': 'YouTube Cobalt AdFree (RF1705)',
     'iconUri': 'https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/assets/largeIcon.png',
-    'shortDescription': 'YouTube without ads, with SponsorBlock (RF1705, open source). Replaces LG\'s YouTube app.',
+    'shortDescription': 'Ad-free YouTube with SponsorBlock, Cobalt-based (RF1705, open source). Replaces LG\'s YouTube app.',
     'manifest': {
-        'id': 'youtube.leanback.v4', 'title': 'YouTube Cobalt AdFree', 'version': '1.2.5', 'type': 'native',
+        'id': 'youtube.leanback.v4.rf1705', 'title': 'YouTube Cobalt AdFree (RF1705)', 'version': '1.2.5', 'type': 'native',
         'appDescription': 'YouTube for LG TVs with ad blocking and SponsorBlock (RF1705/youtube-webos-cobalt-adfree).',
         'iconUri': 'https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/assets/largeIcon.png',
         'sourceUrl': 'https://github.com/RF1705/youtube-webos-cobalt-adfree', 'rootRequired': False,
         'ipkUrl': 'https://github.com/RF1705/youtube-webos-cobalt-adfree/releases/download/v1.2.5/youtube.leanback.v4_1.2.5_arm.ipk',
         'ipkHash': {'sha256': '189af7d46617a511b191dc472a9fcfec3d0f44caf70107fb1da9adde3d39f2de'},
+    },
+}, {
+    'id': 'youtube.leanback.v4.nicholasbly', 'title': 'YouTube AdFree (NicholasBly, any webOS)',
+    'iconUri': 'https://raw.githubusercontent.com/NicholasBly/youtube-webos/main/assets/icon.png',
+    'shortDescription': 'Updated fork of webosbrew\'s YouTube AdFree (NicholasBly, open source). For webOS 3 to 6 (Bella, Scarlett). Replaces LG\'s YouTube app.',
+    'manifest': {
+        'id': 'youtube.leanback.v4.nicholasbly', 'title': 'YouTube AdFree (NicholasBly)', 'version': '0.8.4', 'type': 'web',
+        'appDescription': 'Updated fork of webosbrew youtube-webos with ad blocking, SponsorBlock and fixes (NicholasBly/youtube-webos).',
+        'iconUri': 'https://raw.githubusercontent.com/NicholasBly/youtube-webos/main/assets/icon.png',
+        'sourceUrl': 'https://github.com/NicholasBly/youtube-webos', 'rootRequired': False,
+        'ipkUrl': 'https://github.com/NicholasBly/youtube-webos/releases/download/0.8.4/youtube.leanback.v4_0.8.4_all.ipk',
+        'ipkHash': {'sha256': '524570a54c391a1f5d40287c9462e9162840193df78e55fcae4c98eaef96eea3'},
+    },
+}, {
+    'id': 'youtube.leanback.v4.nicholasbly22', 'title': 'YouTube AdFree (NicholasBly, webOS 22+)',
+    'iconUri': 'https://raw.githubusercontent.com/NicholasBly/youtube-webos/main/assets/icon.png',
+    'shortDescription': 'The lighter NicholasBly build for 2022 and newer LG TVs (webOS 22 to 25, e.g. Vale). Replaces LG\'s YouTube app.',
+    'manifest': {
+        'id': 'youtube.leanback.v4.nicholasbly22', 'title': 'YouTube AdFree (NicholasBly, webOS 22+)', 'version': '0.8.4', 'type': 'web',
+        'appDescription': 'Lighter build of NicholasBly/youtube-webos for webOS 22 and newer.',
+        'iconUri': 'https://raw.githubusercontent.com/NicholasBly/youtube-webos/main/assets/icon.png',
+        'sourceUrl': 'https://github.com/NicholasBly/youtube-webos', 'rootRequired': False,
+        'ipkUrl': 'https://github.com/NicholasBly/youtube-webos/releases/download/0.8.4/youtube.leanback.v4_0.8.4_all_webOS22%2B.ipk',
+        'ipkHash': {'sha256': 'c56c4e4a1a72dddc6a12f0adb8a81b70dbeecc1dde04a68228a8483b0b590ab4'},
     },
 }]
 print(json.dumps({'packages': [{
