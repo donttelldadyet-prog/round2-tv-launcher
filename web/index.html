@@ -1885,9 +1885,12 @@ window.R2_TV = {
       Sfx.play('ok'); toast('Reading the TV log\u2026', 8000);
       var yc = 'L=$(ls /var/log/messages /var/log/messages.0 2>/dev/null | head -n 1); ' +
         'echo "app: $(luna-send -n 1 luna://com.webos.applicationManager/getAppInfo \'{"id":"youtube.leanback.v4"}\' 2>/dev/null | grep -o \'"\\(title\\|version\\|vendor\\)":"[^"]*"\' | tr \'\\n\' \' \')"; ' +
-        'C=/tmp/cobalt-starterless.log; if [ -f $C ]; then echo "== Cobalt log"; ' +
-        /* RF1705's Cobalt app: its own log says which step of showing the video fails (video window, ACB, Starfish, DRM) */
-        'grep -i -E "error|warn|fail|cannot|exported|acb|starfish|video window|drm|widevine|decoder|pipeline|codec" $C | grep -v -i "selector" | tail -n 26 | cut -c1-170; ' +
+        'C=/tmp/cobalt-starterless.log; if [ -f $C ]; then echo "== Cobalt log: video steps"; ' +
+        /* RF1705's Cobalt app: which step of showing the video fails (video window, ACB, Starfish, DRM). Network and cache noise left out */
+        'for k in "exported video window" "SDL_webOSCreateExportedWindow" "ACB" "libAcbAPI" "Starfish" "starfish" "Widevine" "widevine" "DRM" "drm" "decoder" "SbPlayer" "ReportError" "Media pipeline"; do ' +
+        'n=$(grep -c "$k" $C 2>/dev/null); [ "$n" -gt 0 ] && echo "[$k: $n]"; done | tr \'\\n\' \' \'; echo; ' +
+        'grep -E "exported|Exported|ACB|Acb|tarfish|idevine|DRM|drm|ecoder|SbPlayer|player|Player|video window|ReportError|codec|Codec|HDR|pipeline" $C | ' +
+        'grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector" | tail -n 30 | cut -c1-160; ' +
         'else echo "log: ${L:-none}"; [ -n "$L" ] && grep -i -E "youtube|leanback|cobalt|starfish|attest|sabr|went wrong|player.*err|err.*player" "$L" | grep -v -i "round2" | tail -n 24 | cut -c1-170; fi';
       LGRoot.exec(yc + ' 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
