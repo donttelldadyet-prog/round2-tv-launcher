@@ -131,11 +131,12 @@
     },
     {
       "id": "eiffel-2026",
-      "name": "EIFFEL",
-      "source": "eiffel-2026-mvp9dha0.mp4",
+      "name": "SHIPZZ",
+      "source": "eiffel-2026-mvqh8a40.mp4",
       "rooms": [
         "atlas"
       ],
+      "kind": "background",
       "takeover": false,
       "loop": "blend",
       "cards": "low"
