@@ -227,7 +227,7 @@
       "kind": "background",
       "takeover": false,
       "loop": "blend",
-      "cards": "bottom"
+      "cards": "right"
     }
   ],
   "sounds": [
