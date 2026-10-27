@@ -542,7 +542,8 @@ function Cmd-Alerts([string]$what) {
   if ("$what".ToLower() -eq 'test') {
     Log "`$ GET https://api.github.com/repos/$repo/releases?per_page=20"
     $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=20" -UseBasicParsing | ForEach-Object { $_ } |
-      Where-Object { $_.prerelease -and $_.tag_name -like 'test-*' } | Select-Object -First 1
+      Where-Object { $_.prerelease -and $_.tag_name -match '^test-.*-\d+$' } |
+      Sort-Object { [int]($_.tag_name -replace '^.*-', '') } -Descending | Select-Object -First 1
     if (-not $rel) { Die 'No test build published yet (run "Build Round2 Home" on the branch from the Actions tab)' }
     $a = @($rel.assets | Where-Object { $_.name -eq 'round2-home.apk' }) | Select-Object -First 1
     if (-not $a) { Die "$($rel.tag_name) has no APK" }
