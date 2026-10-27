@@ -180,6 +180,18 @@
         "x": 0.5,
         "y": 0.5
       }
+    },
+    {
+      "id": "test-2026",
+      "name": "TEST",
+      "source": "test-2026-mvq40mh1.mp4",
+      "rooms": [
+        "maximillion"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "bottom"
     }
   ],
   "sounds": [
