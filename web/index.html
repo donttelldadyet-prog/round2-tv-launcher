@@ -335,7 +335,7 @@ footer .keys { display: flex; gap: 30px; }
   font-size: 22px; font-weight: 600; letter-spacing: .04em; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
   max-width: 1500px; white-space: pre-line; overflow-wrap: anywhere; }
 
-/* Food order alerts (FoodAlerts.java / ntfy): a card top right in the room's colour */
+/* Food order alerts (FoodAlerts.java / Firebase): a card top right in the room's colour */
 #food { position: absolute; top: 132px; right: 96px; width: 500px; z-index: 40; display: flex; align-items: flex-start; }
 #food:not([hidden]) { animation: foodIn .6s cubic-bezier(.22,1,.36,1) both; }
 #food.out { animation: foodOut .28s ease-in both; }
@@ -2193,7 +2193,7 @@ window.R2_TV = {
   }
 
   /* ================= food order alerts =================
-     Make.com posts to this room's private ntfy.sh topic when an order is paid ("received") and when
+     Make.com writes to this room's Firebase node when an order is paid ("received") and when
      Madd Pizza marks it at the pickup point in Telegram ("ready"). On Android the app listens (also while
      Netflix or the PlayStation is on) and hands the alert here when the menu is on screen; elsewhere
      (LG, the browser preview) this page listens itself. The topic key comes from the build (GitHub secret). */
@@ -2255,27 +2255,32 @@ window.R2_TV = {
       return true;
     }
     /* web listener (LG, preview): one EventSource on this room's topic */
+    /* Firebase Realtime Database: Make.com writes each alert to /r2/<key>/<room>/last; this streams it.
+       On every (re)connect Firebase first sends the current value, so "t" (server time) tells new from seen. */
+    var FB_URL = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app';
     function listen(room) {
-      if (!keyOk() || !window.EventSource) return;
-      var topic = 'r2-' + KEY + '-' + room;
+      if (!keyOk() || !window.EventSource || FB_URL.indexOf('https://') !== 0) return;
+      var topic = KEY + '/' + room;
       if (es && esTopic === topic) return;
       if (es) es.close();
       esTopic = topic;
-      var last = store('r2.foodId.' + room);
-      es = new EventSource('https://ntfy.sh/' + topic + '/sse?since=' + (last || '10m'));
-      es.onmessage = function (ev) {
-        var m, p;
+      es = new EventSource(FB_URL + '/r2/' + topic + '/last.json');
+      es.addEventListener('put', function (ev) {
+        var m, d;
         try { m = JSON.parse(ev.data); } catch (e) { return; }
-        var tn = String(m.title || '').split(' ');   /* Make.com: Title "received 231025" / "ready 231025", items as the message */
-        p = { type: tn[0], no: tn[1] || '', items: String(m.message || '').slice(0, 300) };
-        for (var ti = 0; m.tags && ti < m.tags.length; ti++) if (/^R2-/.test(m.tags[ti])) p.ref = m.tags[ti];   /* the order's reference */
-        if (m.event && m.event !== 'message') return;
-        store('r2.foodId.' + room, m.id);
-        var age = Date.now() / 1000 - (m.time || 0);
+        d = m && m.path === '/' ? m.data : null;
+        if (!d || !d.t) return;
+        var seen = Number(store('r2.foodT.' + room) || 0);
+        if (d.t <= seen) return;
+        store('r2.foodT.' + room, String(d.t));
+        var p = { type: d.type, no: String(d.no || ''), items: String(d.items || '').slice(0, 300) };
+        if (/^R2-/.test(d.ref || '')) p.ref = d.ref;
+        var age = (Date.now() - d.t) / 1000;
         if ((p.type === 'received' && age > 180) || (p.type === 'ready' && age > 3600)) return;
+        if (p.type !== 'received' && p.type !== 'ready') return;
         if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); remindLater(p); addUnacked(p.ref); }
         show(p, false);
-      };
+      });
     }
     /* LG / preview: OK on a "ready" alert tells Make.com, which replies under each waiting order in Telegram */
     var ACK_URL = 'https://hook.eu1.make.com/ks522ziapwremxa35kdtan6h6l1oxe17';

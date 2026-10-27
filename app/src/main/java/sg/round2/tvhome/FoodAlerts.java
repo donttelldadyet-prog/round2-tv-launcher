@@ -33,7 +33,7 @@ import java.net.URL;
 /**
  * Food order alerts for this room's TV.
  *
- * Make.com posts to this room's private ntfy.sh topic when an order is paid ("received") and when
+ * Make.com writes to this room's node in Firebase (FB_URL below) when an order is paid ("received") and when
  * Madd Pizza taps "Food is at the pickup point" in Telegram ("ready"). This service keeps one
  * connection to that topic open and shows the alert:
  *  - Round2 Home in front: the menu shows it in its own style (window.r2Food).
@@ -74,7 +74,7 @@ public class FoodAlerts extends Service {
         SharedPreferences p = prefs(c);
         boolean changed = !room.equals(p.getString("room", ""));
         p.edit().putString("room", room).putString("color", color == null ? "" : color).putString("ink", ink == null ? "" : ink).apply();
-        if (changed) { p.edit().putLong("since", 0).apply(); drop(); }
+        if (changed) { drop(); }
         start(c);
     }
 
@@ -184,27 +184,33 @@ public class FoodAlerts extends Service {
     @Override
     public void onDestroy() { if (inst == this) inst = null; running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }
 
+    /** The Firebase Realtime Database that carries the alerts. Make.com writes each alert to
+     *  /r2/<key>/<room>/last; every TV streams its own room's node (Server-Sent Events). */
+    static final String FB_URL = "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app";
+
     private void listen() {
         long wait = 5_000;
         while (running) {
             String room = prefs(this).getString("room", "");
-            if (room.isEmpty()) { sleep(20_000); continue; }
-            long since = prefs(this).getLong("since", 0);
+            if (room.isEmpty() || !FB_URL.startsWith("https://")) { sleep(20_000); continue; }
             HttpURLConnection c = null;
             try {
-                String topic = "r2-" + BuildConfig.FOOD_ALERT_KEY + "-" + room;
-                URL u = new URL("https://ntfy.sh/" + topic + "/json?since=" + (since > 0 ? String.valueOf(since + 1) : "10m"));
+                URL u = new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/last.json");
                 c = (HttpURLConnection) u.openConnection();
                 c.setConnectTimeout(15_000);
-                c.setReadTimeout(120_000);   // ntfy sends a keepalive about every 45 s
+                c.setReadTimeout(120_000);   // Firebase sends a keep-alive every 30 s
+                c.setRequestProperty("Accept", "text/event-stream");
                 c.setRequestProperty("User-Agent", "Round2Home-Android");
+                c.setInstanceFollowRedirects(true);
                 live = c;
                 BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
                 wait = 5_000;
-                String line;
+                String line, event = "";
                 while (running && (line = r.readLine()) != null) {
                     if (!room.equals(prefs(this).getString("room", ""))) break;   // room changed: reconnect
-                    handleLine(line);
+                    if (line.startsWith("event:")) event = line.substring(6).trim();
+                    else if (line.startsWith("data:") && "put".equals(event)) handleEvent(line.substring(5).trim());
+                    else if (line.startsWith("data:") && ("cancel".equals(event) || "auth_revoked".equals(event))) break;
                 }
             } catch (Exception ignored) {
             } finally {
@@ -215,24 +221,26 @@ public class FoodAlerts extends Service {
         }
     }
 
-    private void handleLine(String line) {
+    /** One Firebase "put": {"path":"/","data":{"type":"ready","no":"231025","items":"...","ref":"R2-...","t":1793...}}.
+     *  On every (re)connect Firebase sends the current value first; "t" (server time) tells new from already seen. */
+    private void handleEvent(String raw) {
         try {
-            JSONObject m = new JSONObject(line);
-            if (!"message".equals(m.optString("event"))) return;
-            long time = m.optLong("time", 0);
-            prefs(this).edit().putLong("since", time).apply();
-            // Make.com sends Title "received 231025" / "ready 231025" and the items as the message
-            String[] tn = m.optString("title").trim().split(" ", 2);
-            JSONObject p = new JSONObject().put("type", tn[0]).put("no", tn.length > 1 ? tn[1] : "")
-                    .put("items", m.optString("message").length() > 300 ? m.optString("message").substring(0, 300) : m.optString("message"));
-            // the order's reference (R2-...) comes as an ntfy tag, so OK can be reported back for that order
-            org.json.JSONArray tags = m.optJSONArray("tags");
-            if (tags != null) for (int i = 0; i < tags.length(); i++) if (tags.optString(i).startsWith("R2-")) p.put("ref", tags.optString(i));
-            String type = p.optString("type");
-            long age = System.currentTimeMillis() / 1000 - time;
+            JSONObject ev = new JSONObject(raw);
+            if (!"/".equals(ev.optString("path"))) return;
+            JSONObject d = ev.optJSONObject("data");
+            if (d == null) return;
+            long t = d.optLong("t", 0);
+            if (t <= prefs(this).getLong("since", 0)) return;                // already shown
+            prefs(this).edit().putLong("since", t).apply();
+            String type = d.optString("type");
+            long age = System.currentTimeMillis() / 1000 - t / 1000;
             if ("received".equals(type) && age > 180) return;            // old news after a reconnect
             if ("ready".equals(type) && age > 3600) return;
             if (!"received".equals(type) && !"ready".equals(type)) return;
+            String items = d.optString("items");
+            JSONObject p = new JSONObject().put("type", type).put("no", d.optString("no"))
+                    .put("items", items.length() > 300 ? items.substring(0, 300) : items);
+            if (d.optString("ref").startsWith("R2-")) p.put("ref", d.optString("ref"));
             final String json = p.toString();
             if ("ready".equals(type)) {
                 addUnacked(this, p.optString("ref", null));
