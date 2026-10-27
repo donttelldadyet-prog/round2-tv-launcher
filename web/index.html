@@ -583,7 +583,7 @@ window.R2_TV = {
       var want = WEBOS_MORE.map(function (a) { return a.webos; }), n = 4;
       /* YouTube AdFree (webosbrew, Homebrew Channel) replaces LG's YouTube under the same app id: tell them apart by title */
       call('luna://com.webos.applicationManager/getAppInfo', { id: 'youtube.leanback.v4' }, function (r) {
-        var a = (r && r.appInfo) || {}; adFreeYT = /adfree|ad-free|webosbrew/i.test((a.title || '') + ' ' + (a.vendor || '') + ' ' + (a.appDescription || ''));
+        var a = (r && r.appInfo) || {}; adFreeYT = /adfree|ad-free|webosbrew|rf1705|sponsorblock/i.test((a.title || '') + ' ' + (a.vendor || '') + ' ' + (a.appDescription || ''));
         one();
       });
       function one() { if (--n === 0 && then) then(); }

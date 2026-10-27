@@ -34,6 +34,21 @@ extras = [{
         'ipkUrl': f'{REPO}/releases/download/airplay-lab/sg.round2.airplay_{RX_VER}_arm.ipk',
         'ipkHash': {'sha256': RX_SHA},
     },
+}, {
+    # Ad-free YouTube for the LG rooms (RF1705/youtube-webos-cobalt-adfree, open source; stable channel), pinned
+    # to a checked release. It uses LG YouTube's own app id, so it replaces the official YouTube app (keeps sign-in
+    # and phone pairing). Round2 Home shows "NO ADS" on YouTube once it's installed.
+    'id': 'youtube.leanback.v4', 'title': 'YouTube Cobalt AdFree',
+    'iconUri': 'https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/assets/largeIcon.png',
+    'shortDescription': 'YouTube without ads, with SponsorBlock (RF1705, open source). Replaces LG\'s YouTube app.',
+    'manifest': {
+        'id': 'youtube.leanback.v4', 'title': 'YouTube Cobalt AdFree', 'version': '1.2.5', 'type': 'native',
+        'appDescription': 'YouTube for LG TVs with ad blocking and SponsorBlock (RF1705/youtube-webos-cobalt-adfree).',
+        'iconUri': 'https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/assets/largeIcon.png',
+        'sourceUrl': 'https://github.com/RF1705/youtube-webos-cobalt-adfree', 'rootRequired': False,
+        'ipkUrl': 'https://github.com/RF1705/youtube-webos-cobalt-adfree/releases/download/v1.2.5/youtube.leanback.v4_1.2.5_arm.ipk',
+        'ipkHash': {'sha256': '189af7d46617a511b191dc472a9fcfec3d0f44caf70107fb1da9adde3d39f2de'},
+    },
 }]
 print(json.dumps({'packages': [{
     'id': 'sg.round2.tvhome', 'title': 'Round2 Home', 'iconUri': ICON,
