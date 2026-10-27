@@ -163,6 +163,23 @@
       "takeover": false,
       "loop": "blend",
       "cards": "right"
+    },
+    {
+      "id": "sunset-drive-2026",
+      "name": "SUNSET DRIVE",
+      "source": "sunset-drive-2026-mvq3ps1i.mp4",
+      "rooms": [
+        "maximillion"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "low",
+      "frame": {
+        "zoom": 0.993,
+        "x": 0.5,
+        "y": 0.5
+      }
     }
   ],
   "sounds": [
