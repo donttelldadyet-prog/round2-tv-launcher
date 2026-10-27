@@ -216,6 +216,18 @@
         "x": 0.5,
         "y": 0.5
       }
+    },
+    {
+      "id": "kyoto-after-hours-2026",
+      "name": "Kyoto After Hours",
+      "source": "kyoto-after-hours-2026-mvqx6ayp.mp4",
+      "rooms": [
+        "kai"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "bottom"
     }
   ],
   "sounds": [
