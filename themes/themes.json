@@ -199,6 +199,23 @@
         "x": 0.5,
         "y": 0.5
       }
+    },
+    {
+      "id": "sunset-boudoir-2026",
+      "name": "Sunset Boudoir",
+      "source": "sunset-boudoir-2026-mvqs2iq2.mp4",
+      "rooms": [
+        "atlas"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "right",
+      "frame": {
+        "zoom": 0.993,
+        "x": 0.5,
+        "y": 0.5
+      }
     }
   ],
   "sounds": [
