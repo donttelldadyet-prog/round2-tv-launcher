@@ -1902,16 +1902,18 @@ window.R2_TV = {
         'R2EOF\n' +
         'pkill -f r2logs/serve.sh 2>/dev/null; pkill -f "httpd -f -p 8765" 2>/dev/null; ' +
         '(command -v setsid >/dev/null 2>&1 && setsid sh $W/serve.sh || sh $W/serve.sh) </dev/null >/dev/null 2>&1 & ' +
-        'IP=$(ip -4 addr 2>/dev/null | grep -o "inet [0-9.]*" | cut -d" " -f2 | grep -v "^127\\." | head -n 1); [ -z "$IP" ] && IP=$(ifconfig 2>/dev/null | grep -o "inet addr:[0-9.]*" | cut -d: -f2 | grep -v "^127\\." | head -n 1); ' +
+        'IP=$(ip -4 addr 2>/dev/null | grep -o "inet [0-9.]*" | cut -d" " -f2 | grep -v "^127\\." | head -n 1); [ -z "$IP" ] && IP=$(ifconfig 2>/dev/null | grep -o -E "inet (addr:)?[0-9.]+" | grep -o -E "[0-9.]+$" | grep -v "^127\\." | head -n 1); ' +
         'echo "== WHOLE LOG: on the laptop (shop Wi-Fi) open  http://$IP:8765/  for 10 minutes"; ' +
         'U=""; for d in /tmp/usb/*/* /media/usb* /mnt/usb*; do [ -d "$d" ] && [ -w "$d" ] && { U="$d"; break; }; done; ' +
         'if [ -n "$U" ]; then cp $W/$R-logs-$T.txt "$U/" && sync && echo "== also saved to USB: $R-logs-$T.txt"; fi; ' +
         'echo "== summary"; for k in "Exported" "exported" "ACB" "libAcbAPI" "Starfish" "tarfish" "idevine" "DRM" "ecoder" "SbPlayer" "WebMediaPlayerImpl" "ReportError" "License" "attest" "went wrong"; do ' +
         'n=$(grep -c "$k" $C 2>/dev/null); echo "[$k $n]"; done | tr \'\\n\' \' \'; echo; echo "log size: $(wc -c < $C) bytes, from $(head -c 40 $C | tr -d \'\\n\')"; ' +
+        'echo "== last YouTube session (network and cache noise left out)"; N=$(grep -n "Using webOS UI locale" $C | tail -n 1 | cut -d: -f1); ' +
+        'tail -n +${N:-1} $C | grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector|addedNodes is not iterable|format_support_query_metrics|navigator.cc" | tail -n 900; ' +
         'else echo "log: ${L:-none}"; [ -n "$L" ] && grep -i -E "youtube|leanback|cobalt|starfish|attest|sabr|went wrong|player.*err|err.*player" "$L" | grep -v -i "round2" | tail -n 24 | cut -c1-170; fi';
       LGRoot.exec(yc + ' 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
-        toast(String(txt).replace(/\s+$/, '').slice(-1600), 120000);
+        LogView.show(txt);
       });
     } else if (k === 'ok' && act === 'homeTest') {
       /* rooted LG: is the Home / power-on helper running, is the Home button hooked, and what it saw last (photo it for Claude) */
@@ -2293,6 +2295,35 @@ window.R2_TV = {
     });
   }
 
+  /* ---- Log pages: long diagnostics shown full screen, one page at a time, so staff can photograph each page ---- */
+  var LogView = (function () {
+    var el = null, lines = [], page = 0, PER = 30;
+    function draw() {
+      var pages = Math.max(1, Math.ceil(lines.length / PER));
+      page = Math.max(0, Math.min(page, pages - 1));
+      el.innerHTML = '<div style="display:flex;justify-content:space-between;margin-bottom:10px;color:#ffd23f;font-size:20px">' +
+        '<b>PAGE ' + (page + 1) + ' OF ' + pages + '</b><span>\u25C0 \u25B6 or \u25B2 \u25BC  change page \u00B7 BACK close</span></div>' +
+        '<pre style="margin:0;white-space:pre-wrap;word-break:break-all">' + esc(lines.slice(page * PER, page * PER + PER).join('\n')) + '</pre>';
+    }
+    return {
+      isOpen: function () { return !!(el && el.style.display !== 'none'); },
+      show: function (text) {
+        if (!el) {
+          el = document.createElement('div');
+          el.style.cssText = 'position:fixed;inset:30px 40px;z-index:200;background:#0b0914;color:#f4f1fb;border:2px solid #ffd23f;padding:18px 24px;font:15px/1.38 monospace;overflow:hidden';
+          document.body.appendChild(el);
+        }
+        lines = String(text).replace(/\s+$/, '').split('\n').map(function (l) { return l.length > 190 ? l.slice(0, 190) + '\u2026' : l; });
+        page = 0; el.style.display = 'block'; draw();
+      },
+      key: function (k) {
+        if (k === 'back' || k === 'ok') { el.style.display = 'none'; Sfx.play('back'); return; }
+        if (k === 'right' || k === 'down') page++; else if (k === 'left' || k === 'up') page--;
+        Sfx.play('move'); draw();
+      }
+    };
+  }());
+
   /* ================= remote ================= */
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 23: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
   for (var dk = 0; dk < 10; dk++) { KEYS[48 + dk] = 'd' + dk; KEYS[96 + dk] = 'd' + dk; }   /* number buttons, for the staff PIN */
@@ -2300,6 +2331,7 @@ window.R2_TV = {
     if (leaving && Date.now() - leavingSince > 2500) unstick();   /* the lock only guards against double presses, never longer */
     if (leaving) return;
     if (Boot.isUp()) { Boot.hide(); return; }   /* a key during start-up just skips the boot screen */
+    if (LogView.isOpen()) { LogView.key(k); return; }
     if (Sfx.wake() && !ambStarted) { ambStarted = true; Amb.apply(); }   /* in case the TV held audio until the first key */
     if (/entering|settle|enter-/.test($('stage').className)) { addCls('snap'); clearAnim(); void $('stage').offsetWidth; dropCls('snap'); }   /* a key press skips the intro */
     if (mode === 'menu') {
