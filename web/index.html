@@ -359,6 +359,8 @@ footer .keys { display: flex; gap: 30px; }
 #food .ok { display: inline-flex; align-items: center; margin-top: 12px; padding: 8px 26px 8px 12px; background: var(--room); color: var(--room-ink);
   font: 700 14px var(--f-ui); letter-spacing: .12em; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); }
 #food .ok b { font-family: var(--f-pix); font-weight: 400; font-size: 9px; margin-right: 10px; }
+#food .ok { animation: okNudge 1.6s ease-in-out 1.2s infinite; }
+@keyframes okNudge { 0%, 100% { transform: none } 50% { transform: translateX(6px) } }
 #food.ready h2 { animation: foodPulse 1.2s ease-in-out .6s 4; }
 @keyframes foodIn { 0% { opacity: 0; transform: translateX(120px) } 100% { opacity: 1; transform: none } }
 @keyframes foodOut { to { opacity: 0; transform: translateX(80px) } }
@@ -2206,11 +2208,10 @@ window.R2_TV = {
       if (list.length > 4) rows.push('<li><b>+' + (list.length - 4) + '</b>more</li>');
       $('foodItems').innerHTML = rows.join('');
       $('foodItems').hidden = !rows.length;
-      $('foodOk').hidden = p.type !== 'ready';
       el.className = p.type; el.hidden = true; void el.offsetWidth; el.hidden = false;
       Sfx.play('ok');
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(function () { hide(false); }, p.type === 'ready' ? 10 * 60000 : 12000);
+      hideTimer = setTimeout(function () { hide(false); }, p.type === 'ready' ? 10 * 60000 : 20000);
     }
     function hide(seen) {
       var el = $('food'), p = cur;

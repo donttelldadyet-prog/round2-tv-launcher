@@ -48,7 +48,7 @@ public class FoodAlerts extends Service {
 
     private static final String PREFS = "food";
     private static final long REPEAT_MS = 5 * 60_000;
-    private static final long RECEIVED_SHOW_MS = 12_000, READY_SHOW_MS = 45_000;
+    private static final long RECEIVED_SHOW_MS = 20_000, READY_SHOW_MS = 45_000;
 
     private static volatile HttpURLConnection live;
     private static volatile FoodAlerts inst;
@@ -206,7 +206,7 @@ public class FoodAlerts extends Service {
             try { Toast.makeText(this, title + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
             return;
         }
-        showCard(tag, title, text, p.optString("items"), ready ? READY_SHOW_MS : RECEIVED_SHOW_MS, ready ? p.optString("no") : null);
+        showCard(tag, title, text, p.optString("items"), ready ? READY_SHOW_MS : RECEIVED_SHOW_MS, p.optString("no"), ready);
     }
 
     private int dp(float v) { return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
@@ -220,10 +220,10 @@ public class FoodAlerts extends Service {
 
     /** A card in the menu's style, top right, over whatever is playing: a room-coloured "!" that pops
      *  and wobbles, and a card that flashes in the room colour.
-     *  "Received" cards can't take remote presses (they go by themselves). A "ready" card (readyNo set)
-     *  takes the remote while it is up: OK or Back closes it and counts as seen; any other button just
-     *  closes it (it comes back once after 5 minutes). Nothing reaches Netflix until it is closed. */
-    private void showCard(String tag, String title, String text, String items, long ms, final String readyNo) {
+     *  While it is up it takes the remote: OK or Back closes it (on a "ready" card that counts as seen);
+     *  any other button just closes it (a "ready" card comes back once after 5 minutes).
+     *  Netflix gets no presses until it is closed, so a guest can't skip past it by accident. */
+    private void showCard(String tag, String title, String text, String items, long ms, final String no, final boolean ready) {
         hideCard();
         u = getResources().getDisplayMetrics().widthPixels / 1920f;
         final int room = colour(prefs(this).getString("color", ""), 0xFFF2C21B);
@@ -285,7 +285,7 @@ public class FoodAlerts extends Service {
                 if (i == 4) break;
             }
         }
-        if (readyNo != null) {
+        {
             TextView ok = new TextView(this);
             ok.setText("[OK]  GOT IT"); ok.setTextColor(ink); ok.setBackgroundColor(room);
             ok.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15)); ok.setTypeface(Typeface.DEFAULT_BOLD); ok.setLetterSpacing(0.12f);
@@ -299,28 +299,27 @@ public class FoodAlerts extends Service {
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE,
-                (readyNo != null ? 0 : WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.END;
         lp.x = px(70); lp.y = px(56);
         try {
             WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-            if (readyNo != null) {
+            {
                 box.setFocusable(true); box.setFocusableInTouchMode(true);
                 box.setOnKeyListener(new View.OnKeyListener() {
                     @Override public boolean onKey(View v, int code, android.view.KeyEvent e) {
                         if (e.getAction() != android.view.KeyEvent.ACTION_UP) return true;   // swallow the press
                         if (code == android.view.KeyEvent.KEYCODE_DPAD_CENTER || code == android.view.KeyEvent.KEYCODE_ENTER
                                 || code == android.view.KeyEvent.KEYCODE_BACK || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER)
-                            seen(FoodAlerts.this, readyNo);
+                            if (ready) seen(FoodAlerts.this, no);
                         hideCard();
                         return true;
                     }
                 });
             }
             wm.addView(box, lp);
-            if (readyNo != null) box.requestFocus();
+            box.requestFocus();
             final View me = box;
             card = box;
             // slide in, the "!" slams in and wobbles, the card flashes the room colour 4 times
