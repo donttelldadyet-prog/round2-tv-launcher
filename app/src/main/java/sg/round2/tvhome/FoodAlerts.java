@@ -192,8 +192,8 @@ public class FoodAlerts extends Service {
         boolean ready = "ready".equals(p.optString("type"));
         String tag = "ORDER #" + p.optString("no") + (reminder ? " \u00B7 REMINDER" : "");
         String title = ready ? "LOOT DROPPED" : "ORDER LOCKED IN";
-        String text = ready ? "Your order just landed at the drop zone \u2014 the rack right outside the entrance. Grab it while it\u2019s hot!"
-                            : "Madd Pizza is firing it up. We\u2019ll ping you right here the moment it lands.";
+        String text = ready ? "It\u2019s at the drop zone \u2014 the rack right outside the entrance. Grab it while it\u2019s hot!"
+                            : "Madd Pizza is firing it up. We\u2019ll ping you here when it lands.";
         if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
             try { Toast.makeText(this, title + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
             return;
@@ -206,32 +206,51 @@ public class FoodAlerts extends Service {
     private int colour(String hex, int fallback) { try { return Color.parseColor(hex); } catch (Exception e) { return fallback; } }
 
     /** A card in the menu's style, top right, over whatever is playing. It can't take remote presses. */
+    /** Sizes in the menu's 1920-wide units, so the card looks the same on every TV whatever its density. */
+    private float u = 1f;
+    private int px(float v) { return Math.round(v * u); }
+
+    /** A card in the menu's style, top right, over whatever is playing: a room-coloured "!" that pops
+     *  and wobbles, and a card that flashes in the room colour. It can't take remote presses. */
     private void showCard(String tag, String title, String text, long ms) {
         hideCard();
-        int room = colour(prefs(this).getString("color", ""), 0xFFF2C21B);
+        u = getResources().getDisplayMetrics().widthPixels / 1920f;
+        final int room = colour(prefs(this).getString("color", ""), 0xFFF2C21B);
+        final int ink = colour(prefs(this).getString("ink", ""), 0xFF0B0914);
+        final int panel = 0xFF110E1A;
 
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.HORIZONTAL);
-        box.setBackgroundColor(0xF2110E1A);
-        View stripe = new View(this);
-        stripe.setBackgroundColor(room);
-        box.addView(stripe, new LinearLayout.LayoutParams(dp(6), LinearLayout.LayoutParams.MATCH_PARENT));
+        box.setClipChildren(false); box.setClipToPadding(false);
+        box.setPadding(px(14), px(14), px(14), px(14));
 
-        LinearLayout col = new LinearLayout(this);
+        final TextView bang = new TextView(this);
+        bang.setText("!"); bang.setGravity(Gravity.CENTER);
+        bang.setTextColor(ink); bang.setBackgroundColor(room);
+        bang.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(44));
+        bang.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(px(76), px(76));
+        bl.rightMargin = px(10);
+        box.addView(bang, bl);
+
+        final LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(22), dp(18), dp(24), dp(18));
+        col.setPadding(px(20), px(16), px(22), px(18));
+        final android.graphics.drawable.GradientDrawable bgd = new android.graphics.drawable.GradientDrawable();
+        bgd.setColor(panel); bgd.setStroke(Math.max(1, px(2)), room);
+        col.setBackground(bgd);
         TextView t1 = new TextView(this);
-        t1.setText(tag); t1.setTextColor(room); t1.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-        t1.setTypeface(Typeface.MONOSPACE, Typeface.BOLD); t1.setLetterSpacing(0.18f);
+        t1.setText(tag); t1.setTextColor(room); t1.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(13));
+        t1.setTypeface(Typeface.MONOSPACE, Typeface.BOLD); t1.setLetterSpacing(0.14f);
         TextView t2 = new TextView(this);
-        t2.setText(title); t2.setTextColor(0xFFF4F1FB); t2.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
-        t2.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD)); t2.setLetterSpacing(0.04f);
-        t2.setPadding(0, dp(6), 0, dp(4));
+        t2.setText(title); t2.setTextColor(0xFFF4F1FB); t2.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(34));
+        t2.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD)); t2.setLetterSpacing(0.05f);
+        t2.setPadding(0, px(8), 0, px(4));
         TextView t3 = new TextView(this);
-        t3.setText(text); t3.setTextColor(0xFFD6D0E3); t3.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        t3.setLineSpacing(0, 1.2f);
+        t3.setText(text); t3.setTextColor(0xFFD6D0E3); t3.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
+        t3.setLineSpacing(0, 1.15f);
         col.addView(t1); col.addView(t2); col.addView(t3);
-        box.addView(col, new LinearLayout.LayoutParams(dp(400), LinearLayout.LayoutParams.WRAP_CONTENT));
+        box.addView(col, new LinearLayout.LayoutParams(px(410), LinearLayout.LayoutParams.WRAP_CONTENT));
 
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -240,14 +259,35 @@ public class FoodAlerts extends Service {
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.END;
-        lp.x = dp(36); lp.y = dp(40);
+        lp.x = px(70); lp.y = px(56);
         try {
             WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
             wm.addView(box, lp);
+            final View me = box;
             card = box;
-            box.setAlpha(0f); box.setTranslationX(dp(24));
-            box.animate().alpha(1f).translationX(0).setDuration(260).start();
-            main.postDelayed(new Runnable() { @Override public void run() { hideCard(); } }, ms);
+            // slide in, the "!" slams in and wobbles, the card flashes the room colour 4 times
+            box.setAlpha(0f); box.setTranslationX(px(120));
+            box.animate().alpha(1f).translationX(0).setDuration(380).setInterpolator(new android.view.animation.OvershootInterpolator(1.2f)).start();
+            bang.setScaleX(0f); bang.setScaleY(0f); bang.setRotation(-30f);
+            bang.animate().scaleX(1f).scaleY(1f).rotation(0f).setStartDelay(100).setDuration(450)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
+            android.animation.ObjectAnimator wob = android.animation.ObjectAnimator.ofFloat(bang, "rotation", 0f, -14f, 12f, -8f, 4f, 0f);
+            wob.setDuration(700); wob.setStartDelay(700); wob.setRepeatCount(2); wob.start();
+            for (int i = 0; i < 8; i++) {
+                final boolean on = i % 2 == 0;
+                main.postDelayed(new Runnable() { @Override public void run() { if (card == me) bgd.setColor(on ? room : panel); } }, 200 + i * 250L);
+            }
+            // then the "!" keeps blinking while the card is up
+            main.postDelayed(new Runnable() {
+                boolean lit;
+                @Override public void run() {
+                    if (card != me) return;
+                    lit = !lit;
+                    bang.setBackgroundColor(lit ? 0xFFF4F1FB : room); bang.setTextColor(lit ? 0xFF0B0914 : ink);
+                    main.postDelayed(this, 550);
+                }
+            }, 3000);
+            main.postDelayed(new Runnable() { @Override public void run() { if (card == me) hideCard(); } }, ms);
         } catch (Exception e) {
             try { Toast.makeText(this, title + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
         }
