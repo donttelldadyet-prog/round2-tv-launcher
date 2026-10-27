@@ -244,6 +244,7 @@ public class MainActivity extends Activity {
         HomeWatch.start(this);   // no-op unless Usage access is on (Android 9 TVs without the Accessibility helper)
         front = this;
         FoodAlerts.start(this);  // no-op in builds without the food alert key
+        FoodAlerts.menuInFront();
 
         if (bg != null) bg.resume();
         if (web != null) {

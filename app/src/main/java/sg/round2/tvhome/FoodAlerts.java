@@ -51,6 +51,7 @@ public class FoodAlerts extends Service {
     private static final long RECEIVED_SHOW_MS = 12_000, READY_SHOW_MS = 45_000;
 
     private static volatile HttpURLConnection live;
+    private static volatile FoodAlerts inst;
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile boolean running;
     private View card;
@@ -75,6 +76,12 @@ public class FoodAlerts extends Service {
         p.edit().putString("room", room).putString("color", color == null ? "" : color).putString("ink", ink == null ? "" : ink).apply();
         if (changed) { p.edit().putLong("since", 0).apply(); drop(); }
         start(c);
+    }
+
+    /** The Round2 menu came to the front: drop the card drawn over other apps (the menu shows its own). */
+    static void menuInFront() {
+        final FoodAlerts s = inst;
+        if (s != null) s.main.post(new Runnable() { @Override public void run() { s.hideCard(); } });
     }
 
     /** A guest pressed OK on a "ready" alert: stop reminding. */
@@ -115,6 +122,7 @@ public class FoodAlerts extends Service {
         b.setSmallIcon(R.drawable.icon).setContentTitle("Round2 food alerts").setContentText("Shows when your order is ready").setOngoing(true);
         try { startForeground(4403, b.build()); } catch (Exception ignored) { }
         if (!enabled()) { stopSelf(); return; }
+        inst = this;
         running = true;
         new Thread(this::listen, "food-alerts").start();
     }
@@ -122,7 +130,7 @@ public class FoodAlerts extends Service {
     @Override public int onStartCommand(Intent i, int flags, int id) { return START_STICKY; }
 
     @Override
-    public void onDestroy() { running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }
+    public void onDestroy() { if (inst == this) inst = null; running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }
 
     private void listen() {
         long wait = 5_000;
@@ -198,7 +206,7 @@ public class FoodAlerts extends Service {
             try { Toast.makeText(this, title + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
             return;
         }
-        showCard(tag, title, text, ready ? READY_SHOW_MS : RECEIVED_SHOW_MS);
+        showCard(tag, title, text, p.optString("items"), ready ? READY_SHOW_MS : RECEIVED_SHOW_MS, ready ? p.optString("no") : null);
     }
 
     private int dp(float v) { return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
@@ -211,8 +219,11 @@ public class FoodAlerts extends Service {
     private int px(float v) { return Math.round(v * u); }
 
     /** A card in the menu's style, top right, over whatever is playing: a room-coloured "!" that pops
-     *  and wobbles, and a card that flashes in the room colour. It can't take remote presses. */
-    private void showCard(String tag, String title, String text, long ms) {
+     *  and wobbles, and a card that flashes in the room colour.
+     *  "Received" cards can't take remote presses (they go by themselves). A "ready" card (readyNo set)
+     *  takes the remote while it is up: OK or Back closes it and counts as seen; any other button just
+     *  closes it (it comes back once after 5 minutes). Nothing reaches Netflix until it is closed. */
+    private void showCard(String tag, String title, String text, String items, long ms, final String readyNo) {
         hideCard();
         u = getResources().getDisplayMetrics().widthPixels / 1920f;
         final int room = colour(prefs(this).getString("color", ""), 0xFFF2C21B);
@@ -250,19 +261,66 @@ public class FoodAlerts extends Service {
         t3.setText(text); t3.setTextColor(0xFFD6D0E3); t3.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
         t3.setLineSpacing(0, 1.15f);
         col.addView(t1); col.addView(t2); col.addView(t3);
+        // the order, one row per item, quantity in the room colour (at most 4 rows)
+        java.util.List<String> list = new java.util.ArrayList<>();
+        for (String x : (items == null ? "" : items).split("\\s*\u00B7\\s*|\n")) if (x.trim().length() > 0 && !"triggered".equals(x.trim())) list.add(x.trim());
+        if (!list.isEmpty()) {
+            View rule = new View(this); rule.setBackgroundColor(0x24F4F1FB);
+            LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, Math.max(1, px(1)));
+            rl.topMargin = px(10); rl.bottomMargin = px(6);
+            col.addView(rule, rl);
+            for (int i = 0; i < list.size() && i < 5; i++) {
+                String x = (i == 4 && list.size() > 5) ? "+" + (list.size() - 4) + " more" : list.get(i);
+                java.util.regex.Matcher mm = java.util.regex.Pattern.compile("^(\\d+)\\s*x\\s+(.*)$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(x);
+                android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+                if (mm.matches()) {
+                    sb.append(mm.group(1) + "\u00D7  ");
+                    sb.setSpan(new android.text.style.ForegroundColorSpan(room), 0, sb.length(), 0);
+                    sb.append(mm.group(2));
+                } else sb.append(x);
+                TextView li = new TextView(this);
+                li.setText(sb); li.setTextColor(0xFFF4F1FB); li.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(18));
+                li.setTypeface(Typeface.DEFAULT_BOLD); li.setSingleLine(true); li.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                col.addView(li);
+                if (i == 4) break;
+            }
+        }
+        if (readyNo != null) {
+            TextView ok = new TextView(this);
+            ok.setText("[OK]  GOT IT"); ok.setTextColor(ink); ok.setBackgroundColor(room);
+            ok.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15)); ok.setTypeface(Typeface.DEFAULT_BOLD); ok.setLetterSpacing(0.12f);
+            ok.setPadding(px(12), px(7), px(22), px(7));
+            LinearLayout.LayoutParams ol = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            ol.topMargin = px(12);
+            col.addView(ok, ol);
+        }
         box.addView(col, new LinearLayout.LayoutParams(px(410), LinearLayout.LayoutParams.WRAP_CONTENT));
 
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                (readyNo != null ? 0 : WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.END;
         lp.x = px(70); lp.y = px(56);
         try {
             WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+            if (readyNo != null) {
+                box.setFocusable(true); box.setFocusableInTouchMode(true);
+                box.setOnKeyListener(new View.OnKeyListener() {
+                    @Override public boolean onKey(View v, int code, android.view.KeyEvent e) {
+                        if (e.getAction() != android.view.KeyEvent.ACTION_UP) return true;   // swallow the press
+                        if (code == android.view.KeyEvent.KEYCODE_DPAD_CENTER || code == android.view.KeyEvent.KEYCODE_ENTER
+                                || code == android.view.KeyEvent.KEYCODE_BACK || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER)
+                            seen(FoodAlerts.this, readyNo);
+                        hideCard();
+                        return true;
+                    }
+                });
+            }
             wm.addView(box, lp);
+            if (readyNo != null) box.requestFocus();
             final View me = box;
             card = box;
             // slide in, the "!" slams in and wobbles, the card flashes the room colour 4 times
