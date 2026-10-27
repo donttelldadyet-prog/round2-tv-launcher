@@ -1889,6 +1889,9 @@ window.R2_TV = {
         /* RF1705's Cobalt app: which step of showing the video fails. Lines first, the summary last so it is never cut off */
         'grep -E "exported|Exported|ACB|Acb|tarfish|idevine|DRM|drm|ecoder|SbPlayer|Player|video window|ReportError|HDR|license|License|SABR|sabr|attest|went wrong|rror" $C | ' +
         'grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector|IsTypeSupported|RequestMediaKeySystemAccess|canPlayType" | tail -n 16 | cut -c1-150; ' +
+        'U=""; for d in /tmp/usb/*/* /media/usb* /mnt/usb*; do [ -d "$d" ] && [ -w "$d" ] && { U="$d"; break; }; done; ' +
+        /* a USB stick in the TV: the whole log goes onto it, for Claude or the app's developer */
+        'if [ -n "$U" ]; then T=$(date +%m%d-%H%M); cp $C "$U/cobalt-log-$T.txt" && [ -f "$L" ] && cp "$L" "$U/tv-log-$T.txt"; sync; echo "== SAVED to USB: cobalt-log-$T.txt"; else echo "== (plug in a USB stick to save the whole log)"; fi; ' +
         'echo "== summary"; for k in "Exported" "exported" "ACB" "libAcbAPI" "Starfish" "tarfish" "idevine" "DRM" "ecoder" "SbPlayer" "WebMediaPlayerImpl" "ReportError" "License" "attest" "went wrong"; do ' +
         'n=$(grep -c "$k" $C 2>/dev/null); echo "[$k $n]"; done | tr \'\\n\' \' \'; echo; echo "log size: $(wc -c < $C) bytes, from $(head -c 40 $C | tr -d \'\\n\')"; ' +
         'else echo "log: ${L:-none}"; [ -n "$L" ] && grep -i -E "youtube|leanback|cobalt|starfish|attest|sabr|went wrong|player.*err|err.*player" "$L" | grep -v -i "round2" | tail -n 24 | cut -c1-170; fi';
