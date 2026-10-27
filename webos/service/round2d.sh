@@ -15,7 +15,13 @@
 # so the TV never sees Home at all: no flash of LG's home bar. 3 quick presses still open LG's home.
 # Without LG Input Hook, the helper below catches LG's home bar after it opens instead.
 #
-# Usage: round2d.sh boot | start | ensure | stop | key
+# Food order alerts (Round2 food menu): while another app is in front (Netflix, HDMI, YouTube), shows
+#   the room's alerts with LG's own pop-ups: a toast for "order locked in", a pop-up with a GOT IT button
+#   for "loot dropped". GOT IT is reported to Make.com, which replies under the order in Telegram.
+#   Round2 Home writes the room to $CFG/food ("<room> <key>"); while Round2 Home is in front, the menu
+#   shows the alert itself.
+#
+# Usage: round2d.sh boot | start | ensure | stop | key | ack
 APP=sg.round2.tvhome
 CFG=/var/lib/webosbrew/round2
 SELF="$0"
@@ -46,6 +52,7 @@ stop() {
   # the luna-send subscriptions belonging to the old copy
   pkill -f '^luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo' 2>/dev/null
   pkill -f '^luna-send -i luna://com.webos.service.tvpower/power/getPowerState' 2>/dev/null
+  pkill -f 'curl -sN .*firebasedatabase' 2>/dev/null
   # any other copy still running (an older version, or one started twice at boot): only one may watch,
   # or every Home and Back is handled twice. Home-button presses ("key") are left alone.
   for p in $(ps | grep '[r]ound2d.sh' | grep -v ' key' | awk '{print $1}'); do
@@ -60,7 +67,7 @@ watch_apps() {
     luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo '{"subscribe":true}' 2>/dev/null | while read -r line; do
       id=$(echo "$line" | field appId)
       [ -z "$id" ] && continue
-      [ "$id" != "$prev" ] && log "front $id"                         # for Staff tools > Home helper check
+      [ "$id" != "$prev" ] && { log "front $id"; echo "$id" > "$CFG/front"; }   # for Staff tools > Home helper check, and food alerts
       if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then          # Round2 Home just updated itself
         rm -f "$CFG/relaunch"; sleep 1; launch update; prev=$APP; continue
       fi
@@ -101,6 +108,66 @@ watch_power() {
     sleep 5
   done
 }
+# --- food order alerts over other apps ---
+FB=https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app
+ACK=https://hook.eu1.make.com/ks522ziapwremxa35kdtan6h6l1oxe17
+num() { sed -n "s/.*\"$1\" *: *\([0-9][0-9]*\).*/\1/p"; }
+clean() { tr -d "\\\\\"'"; }   # no quotes or backslashes: safe inside the luna-send JSON below
+food_show() {   # $1 type, $2 order no, $3 items
+  if [ "$1" = received ]; then
+    luna-send -n 1 luna://com.webos.notification/createToast \
+      "{\"sourceId\":\"$APP\",\"message\":\"ORDER #$2 LOCKED IN \u00b7 Madd Pizza is firing it up. We\u2019ll ping you when it lands.\"}" >/dev/null 2>&1
+  else
+    luna-send -n 1 luna://com.webos.notification/createAlert \
+      "{\"sourceId\":\"$APP\",\"title\":\"LOOT DROPPED \u00b7 ORDER #$2\",\"message\":\"It\u2019s at the drop zone \u2014 the rack right outside the entrance. Grab it while it\u2019s hot!\\n\\n$3\",\"modal\":false,\"buttons\":[{\"label\":\"GOT IT\",\"onclick\":\"luna://org.webosbrew.hbchannel.service/exec\",\"params\":{\"command\":\"sh $CFG/round2d.sh ack\"}}]}" >/dev/null 2>&1
+  fi
+  log "food $1 #$2 shown over $(cat "$CFG/front" 2>/dev/null)"
+}
+food_ack() {    # GOT IT pressed: tell Make.com about every order waiting at the pickup point
+  set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
+  [ -f "$CFG/food.unacked" ] || exit 0
+  mv "$CFG/food.unacked" "$CFG/food.acking"
+  while read -r ref; do
+    [ -n "$ref" ] && curl -s -m 15 $K -d "ref=$ref&room=$room&k=$key" "$ACK" >/dev/null 2>&1 && log "food ack $ref"
+  done < "$CFG/food.acking"
+  rm -f "$CFG/food.acking"
+}
+watch_food() {
+  command -v curl >/dev/null 2>&1 || { log "food alerts: no curl on this TV"; return; }
+  K=""
+  while :; do
+    set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
+    if [ -z "$room" ] || [ -z "$key" ]; then sleep 30; continue; fi
+    ev=""
+    curl -sN -m 3600 $K -H 'Accept: text/event-stream' "$FB/r2/$key/$room/last.json" 2>/dev/null | while read -r line; do
+      case "$line" in
+        event:*) ev=${line#event: } ;;
+        data:*)
+          [ "$ev" = put ] || continue
+          echo "$line" | grep -q '"path":"/","data":{' || continue
+          t=$(echo "$line" | num t); type=$(echo "$line" | field type); no=$(echo "$line" | field no)
+          [ -n "$t" ] || continue
+          [ "$t" -le "$(cat "$CFG/food.t" 2>/dev/null || echo 0)" ] && continue
+          echo "$t" > "$CFG/food.t"
+          age=$(( $(date +%s) - t / 1000 ))
+          case "$type" in
+            received) [ "$age" -le 180 ] || continue ;;
+            ready) [ "$age" -le 3600 ] || continue
+                   ref=$(echo "$line" | field ref); [ -n "$ref" ] && echo "$ref" >> "$CFG/food.unacked" ;;
+            *) continue ;;
+          esac
+          [ "$(cat "$CFG/front" 2>/dev/null)" = "$APP" ] && continue   # Round2 Home is in front: the menu shows it
+          food_show "$type" "$no" "$(echo "$line" | field items | clean)" ;;
+      esac
+    done
+    # an old TV that can't check Firebase's certificate: carry on without checking (alerts only, nothing private)
+    if [ -z "$K" ] && ! curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null && curl -s -k -m 10 -o /dev/null "$FB/.json" 2>/dev/null; then
+      K="-k"; log "food alerts: certificate check unavailable, continuing without it"
+    fi
+    sleep 5
+  done
+}
+
 first_open() {
   # a full start: wait until the TV is showing something, then open Round2 Home over it
   n=0
@@ -123,6 +190,7 @@ case "$1" in
     launch home
     exit 0 ;;
   stop) stop; log "stopped"; exit 0 ;;
+  ack) K=""; curl -s -m 10 -o /dev/null https://hook.eu1.make.com/ 2>/dev/null || K="-k"; food_ack; exit 0 ;;
   ensure)                                   # Round2 Home calls this on every start: keep one up-to-date copy running
     cmp -s "$SELF" "$CFG/round2d.sh" 2>/dev/null || cp "$SELF" "$CFG/round2d.sh"
     if running && [ "$(cat "$CFG/sum" 2>/dev/null)" = "$(sum)" ]; then exit 0; fi ;;
@@ -137,7 +205,9 @@ watch_apps </dev/null >/dev/null 2>&1 &
 A=$!
 watch_power </dev/null >/dev/null 2>&1 &
 P=$!
-printf '%s\n%s\n' "$A" "$P" > "$CFG/pids"
+watch_food </dev/null >/dev/null 2>&1 &
+F=$!
+printf '%s\n%s\n%s\n' "$A" "$P" "$F" > "$CFG/pids"
 [ "$1" = "boot" ] && first_open </dev/null >/dev/null 2>&1 &
 # keep the log short
 [ -f "$CFG/log.txt" ] && [ "$(wc -l < "$CFG/log.txt")" -gt 300 ] && { tail -n 100 "$CFG/log.txt" > "$CFG/log.tmp"; mv "$CFG/log.tmp" "$CFG/log.txt"; }

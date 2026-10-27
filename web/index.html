@@ -2319,6 +2319,11 @@ window.R2_TV = {
       var r = topicRoom(key), info = ROOMS[key];
       if (nativeOn()) { try { window.R2Android.foodRoom(r, info.color, info.ink); } catch (e) {} }
       else listen(r);
+      /* rooted LG: the background helper (webos/service/round2d.sh) shows the alerts over other apps; it needs the room */
+      if (Device.kind() === 'webos' && keyOk()) setTimeout(function () {
+        var line = r + ' ' + KEY, f = '/var/lib/webosbrew/round2/food';
+        try { LGRoot.exec('mkdir -p /var/lib/webosbrew/round2 && { [ "$(cat ' + f + ' 2>/dev/null)" = "' + line + '" ] || { echo "' + line + '" > ' + f + "; pkill -f 'curl -sN .*firebasedatabase'; }; }"); } catch (e) {}
+      }, 4000);
     }
     return { show: show, key: key, resume: resume, setRoom: setRoom };
   }());
