@@ -26,13 +26,19 @@ $TouchedKeys = @('window_animation_scale', 'transition_animation_scale', 'animat
 
 $script:TV = if ($env:TV) { $env:TV } elseif (Test-Path $TargetFile) { (Get-Content $TargetFile -Raw).Trim() } else { '192.168.88.14:5555' }
 
-# One folder per TV, so each TV keeps its own backup and undo list
-function Set-Tv([string]$tv) {
-  $script:TV = $tv
-  $script:TvDir = Join-Path (Join-Path $Dir 'tvs') ($tv -replace '[^A-Za-z0-9.-]', '_')
+# One folder per TV, so each TV keeps its own backup and undo list. Until the TV answers, the folder is
+# named after its address; once connected it is named after the TV's serial number (Resolve-TvDir), so the
+# backups follow the TV when the router gives it a new address.
+function Set-TvDir([string]$path) {
+  $script:TvDir = $path
   foreach ($d in 'backup', 'shots') { New-Item -ItemType Directory -Force -Path (Join-Path $script:TvDir $d) | Out-Null }
   $script:Undo = Join-Path $script:TvDir 'undo.ps1'
   $script:HomeFile = Join-Path $script:TvDir 'original_home.txt'
+}
+function Set-Tv([string]$tv) {
+  $script:TV = $tv
+  $script:TvResolved = $false
+  Set-TvDir (Join-Path (Join-Path $Dir 'tvs') ($tv -replace '[^A-Za-z0-9.-]', '_'))
 }
 # Older toolkit versions kept the first TV's (the TCL's) files at the top level: move them into its own folder once
 if (Test-Path (Join-Path $Dir 'undo.ps1')) {
@@ -82,7 +88,7 @@ function Get-TvState {
   return "$s".Trim()
 }
 function Need-Adb { if (-not $script:Adb) { Die 'adb is missing - run: .\round2tv.ps1 setup' } }
-function Need-Tv { Need-Adb; if ((Get-TvState) -ne 'device') { Die "Not connected to $($script:TV) - run: .\round2tv.ps1 connect" } }
+function Need-Tv { Need-Adb; if ((Get-TvState) -ne 'device') { Die "Not connected to $($script:TV) - run: .\round2tv.ps1 connect" }; Resolve-TvDir }
 function Need-Backup { if (-not (Test-Path $Undo)) { Die 'No backup yet - run: .\round2tv.ps1 backup' } }
 function Add-Undo([string]$c) { Add-Content -Path $Undo -Value "#STEP $c" -Encoding UTF8 }
 
@@ -122,6 +128,61 @@ function Q([string]$c) {   # quiet read-only check
   Log "  (check) $c"
   $o = & $script:Adb -s $script:TV shell $c 2>$null
   return ((@($o) | ForEach-Object { "$_".TrimEnd("`r") }) -join "`n").Trim()
+}
+
+# The TV's own folder, named after its model and serial number. Folders from before (named after an address)
+# that belong to this TV are found by the serial number in their backups and merged in: the oldest backup's
+# undo list stays the main one (it holds the TV's original state), newer ones are kept under backup\.
+function Resolve-TvDir {
+  if ($script:TvResolved) { return }
+  $script:TvResolved = $true
+  $serial = Q 'getprop ro.serialno'
+  if (-not $serial -or $serial -eq 'unknown') { $serial = Q 'getprop ro.boot.serialno' }
+  if (-not $serial -or $serial -eq 'unknown') { $serial = Q 'settings get secure android_id' }
+  if (-not $serial -or $serial -eq 'unknown' -or $serial -eq 'null') { return }   # keep the address folder
+  $serial = $serial.Trim()
+  $tvs = Join-Path $Dir 'tvs'
+  $want = Join-Path $tvs ((((Q 'getprop ro.product.model') + '-' + $serial)) -replace '[^A-Za-z0-9.-]', '_')
+  $mine = @()
+  foreach ($d in @(Get-ChildItem $tvs -Directory -ErrorAction SilentlyContinue)) {
+    if ($d.FullName -eq $want) { continue }
+    $m = Join-Path $d.FullName 'serial.txt'
+    $hit = (Test-Path $m) -and ((Get-Content $m -Raw).Trim() -eq $serial)
+    if (-not $hit) {
+      foreach ($g in @(Get-ChildItem (Join-Path $d.FullName 'backup') -Recurse -Filter 'getprop.txt' -ErrorAction SilentlyContinue)) {
+        if (Select-String -Path $g.FullName -SimpleMatch "[ro.serialno]: [$serial]" -Quiet) { $hit = $true; break }
+      }
+    }
+    if ($hit) { $mine += $d }
+  }
+  if ($mine.Count) {
+    # oldest backup first: that folder becomes this TV's folder (if it has none yet)
+    $first = { param($f) $b = @(Get-ChildItem (Join-Path $f.FullName 'backup') -Directory -ErrorAction SilentlyContinue | Sort-Object Name); if ($b.Count) { $b[0].Name } else { '99999999' } }
+    $mine = @($mine | Sort-Object { & $first $_ })
+    if (-not (Test-Path (Join-Path $want 'undo.ps1')) -and (Test-Path (Join-Path $mine[0].FullName 'undo.ps1'))) {
+      if (Test-Path $want) { Remove-Item $want -Recurse -Force }
+      Move-Item $mine[0].FullName $want
+      $mine = @($mine | Select-Object -Skip 1)
+    }
+    foreach ($d in $mine) {   # the rest: their backups, screenshots and undo lists go under this TV's folder
+      foreach ($sub in 'backup', 'shots') {
+        New-Item -ItemType Directory -Force -Path (Join-Path $want $sub) | Out-Null
+        foreach ($x in @(Get-ChildItem (Join-Path $d.FullName $sub) -ErrorAction SilentlyContinue)) {
+          $to = Join-Path (Join-Path $want $sub) $x.Name
+          if (-not (Test-Path $to)) { Move-Item $x.FullName $to }
+        }
+      }
+      $u = Join-Path $d.FullName 'undo.ps1'
+      if (Test-Path $u) { Move-Item $u (Join-Path (Join-Path $want 'backup') ("undo-from-" + $d.Name + ".ps1")) -Force }
+      Remove-Item $d.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Say "This TV's earlier backups are now together in $want"
+  }
+  Set-TvDir $want
+  Set-Content (Join-Path $want 'serial.txt') $serial -Encoding ASCII
+  Set-Content (Join-Path $want 'address.txt') $script:TV -Encoding ASCII
+  # the undo list talks to the TV by address: keep it pointing at the current one
+  if (Test-Path $script:Undo) { (Get-Content $script:Undo) | ForEach-Object { if ($_ -like '$TV = *') { "`$TV = '$($script:TV)'" } else { $_ } } | Set-Content $script:Undo -Encoding UTF8 }
 }
 function Key([string]$k, [double]$wait = 0.8) { Sh "input keyevent $k"; Start-Sleep -Milliseconds ([int]($wait * 1000)) }
 
@@ -237,6 +298,7 @@ function Cmd-Connect([string]$ip) {
   }
   if ($st -ne 'device') { Die "The TV didn't authorise this computer ($st)" }
   Set-Content -Path $TargetFile -Value $script:TV -Encoding ASCII
+  Resolve-TvDir
   Say "This TV's backups and undo list: $($script:TvDir)"
   Say ("Connected to $($script:TV) - " + (Q 'getprop ro.product.model') + ', Android ' + (Q 'getprop ro.build.version.release') + ', CPU ' + (Q 'getprop ro.product.cpu.abi'))
 }
