@@ -119,23 +119,6 @@
       "cards": "low"
     },
     {
-      "id": "cathedral-2026",
-      "name": "Shutters & Peonies",
-      "source": "cathedral-2026-mvqhsqq2.mp4",
-      "rooms": [
-        "atlas"
-      ],
-      "kind": "background",
-      "takeover": false,
-      "loop": "blend",
-      "cards": "low",
-      "frame": {
-        "zoom": 0.838,
-        "x": 0.5,
-        "y": 0.6
-      }
-    },
-    {
       "id": "candy-clouds-2026",
       "name": "Candy Clouds",
       "source": "candy-clouds-2026-mvpg7bq5.mp4",
