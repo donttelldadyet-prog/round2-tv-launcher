@@ -1886,11 +1886,11 @@ window.R2_TV = {
       var yc = 'L=$(ls /var/log/messages /var/log/messages.0 2>/dev/null | head -n 1); ' +
         'echo "app: $(luna-send -n 1 luna://com.webos.applicationManager/getAppInfo \'{"id":"youtube.leanback.v4"}\' 2>/dev/null | grep -o \'"\\(title\\|version\\|vendor\\)":"[^"]*"\' | tr \'\\n\' \' \')"; ' +
         'C=/tmp/cobalt-starterless.log; if [ -f $C ]; then echo "== Cobalt log: video steps"; ' +
-        /* RF1705's Cobalt app: which step of showing the video fails (video window, ACB, Starfish, DRM). Network and cache noise left out */
-        'for k in "exported video window" "SDL_webOSCreateExportedWindow" "ACB" "libAcbAPI" "Starfish" "starfish" "Widevine" "widevine" "DRM" "drm" "decoder" "SbPlayer" "ReportError" "Media pipeline"; do ' +
-        'n=$(grep -c "$k" $C 2>/dev/null); [ "$n" -gt 0 ] && echo "[$k: $n]"; done | tr \'\\n\' \' \'; echo; ' +
-        'grep -E "exported|Exported|ACB|Acb|tarfish|idevine|DRM|drm|ecoder|SbPlayer|player|Player|video window|ReportError|codec|Codec|HDR|pipeline" $C | ' +
-        'grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector" | tail -n 30 | cut -c1-160; ' +
+        /* RF1705's Cobalt app: which step of showing the video fails. Lines first, the summary last so it is never cut off */
+        'grep -E "exported|Exported|ACB|Acb|tarfish|idevine|DRM|drm|ecoder|SbPlayer|Player|video window|ReportError|HDR|license|License|SABR|sabr|attest|went wrong|rror" $C | ' +
+        'grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector|IsTypeSupported|RequestMediaKeySystemAccess|canPlayType" | tail -n 16 | cut -c1-150; ' +
+        'echo "== summary"; for k in "Exported" "exported" "ACB" "libAcbAPI" "Starfish" "tarfish" "idevine" "DRM" "ecoder" "SbPlayer" "WebMediaPlayerImpl" "ReportError" "License" "attest" "went wrong"; do ' +
+        'n=$(grep -c "$k" $C 2>/dev/null); echo "[$k $n]"; done | tr \'\\n\' \' \'; echo; echo "log size: $(wc -c < $C) bytes, from $(head -c 40 $C | tr -d \'\\n\')"; ' +
         'else echo "log: ${L:-none}"; [ -n "$L" ] && grep -i -E "youtube|leanback|cobalt|starfish|attest|sabr|went wrong|player.*err|err.*player" "$L" | grep -v -i "round2" | tail -n 24 | cut -c1-170; fi';
       LGRoot.exec(yc + ' 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
