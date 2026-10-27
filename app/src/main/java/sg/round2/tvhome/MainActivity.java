@@ -617,6 +617,54 @@ public class MainActivity extends Activity {
         }
         private int homeTry = 0;
 
+        /** Food alerts over other apps (Netflix, HDMI): "on", "off" (needs switching on) or "na" (build without alerts). */
+        @JavascriptInterface
+        public String foodOverlay() {
+            if (!FoodAlerts.enabled()) return "na";
+            if (android.os.Build.VERSION.SDK_INT < 23) return "on";
+            return android.provider.Settings.canDrawOverlays(act) ? "on" : "off";
+        }
+
+        /**
+         * Opens a page where staff allow Round2 Home to "display over other apps", best first. Some TVs
+         * (Prism+) hide it, so each OK press opens the next page that exists: "overlay|2|4", or a message.
+         */
+        @JavascriptInterface
+        public String openFoodOverlay() {
+            android.net.Uri pkg = android.net.Uri.parse("package:" + act.getPackageName());
+            Intent[] cands = {
+                new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkg),
+                new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+                new Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.device.apps.specialaccess.SpecialAppAccessActivity"),
+                new Intent().setClassName("com.android.tv.settings", "com.android.tv.settings.device.apps.specialaccess.SystemAlertWindowActivity"),
+                new Intent().setClassName("com.android.settings", "com.android.settings.Settings$OverlaySettingsActivity"),
+                new Intent().setClassName("com.android.settings", "com.android.settings.Settings$AppDrawOverlaySettingsActivity"),
+                new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg),
+            };
+            List<Intent> found = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            PackageManager pm = act.getPackageManager();
+            for (Intent i : cands) {
+                try {
+                    android.content.ComponentName cn = i.resolveActivity(pm);
+                    if (cn == null || !seen.add(cn.flattenToShortString() + i.getAction() + i.getData())) continue;
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    found.add(i);
+                } catch (Exception ignored) { }
+            }
+            if (found.isEmpty()) return "This TV has no page for it. On the PC: round2tv.ps1 alerts";
+            int n = found.size();
+            for (int k = 0; k < n; k++) {
+                int idx = (overlayTry++) % n;
+                try {
+                    act.startActivity(found.get(idx));
+                    return (found.get(idx).getAction() != null && found.get(idx).getAction().equals(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS) ? "info" : "overlay") + "|" + (idx + 1) + "|" + n;
+                } catch (Exception ignored) { }
+            }
+            return "The TV would not open its settings pages. On the PC: round2tv.ps1 alerts";
+        }
+        private int overlayTry = 0;
+
         /** Launchable apps for the "More apps" grid, as [{name, android}]. */
         @JavascriptInterface
         public String apps() {

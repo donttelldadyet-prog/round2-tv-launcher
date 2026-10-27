@@ -1636,6 +1636,7 @@ window.R2_TV = {
   var inTools = false;
   function aHomeSwitchable() { try { return window.R2Android.homeGuardSwitchable && window.R2Android.homeGuardSwitchable() === '1'; } catch (e) { return false; } }
   function aHomeState() { try { return window.R2Android.homeHelper(); } catch (e) { return 'off'; } }
+  function aFoodState() { try { return window.R2Android.foodOverlay ? window.R2Android.foodOverlay() : 'na'; } catch (e) { return 'na'; } }
   function setRows() {
     if (inTools && isStaff()) return [
       { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + ' \u203A' },
@@ -1650,7 +1651,9 @@ window.R2_TV = {
       { act: 'aHome', label: 'Home button', hint: aHomeSwitchable() ? '\u2039 ' + (aHomeState() === 'on' ? 'OPENS ROUND2' : 'TV HOME') + ' \u203A' : ({ on: 'OPENS ROUND2', watch: 'OPENS ROUND2', paused: 'PAUSED 5 MIN' }[aHomeState()] || 'OFF \u00B7 SWITCH ON') + ' \u203A' }
     ].concat(/^(watch|paused)$/.test(aHomeState()) && window.R2Android.androidHome ? [
       { act: 'aDroid', label: 'Android home screen', hint: '5 MIN \u203A' }
-    ] : []) : []).concat([
+    ] : []) : []).concat(window.R2Android && aFoodState() !== 'na' ? [
+      { act: 'aFood', label: 'Food alerts over apps', hint: aFoodState() === 'on' ? 'ON \u2713' : 'OFF \u00B7 SWITCH ON \u203A' }
+    ] : []).concat([
       { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' },
       { act: 'about', label: 'About this TV', hint: tvInfo() }
     ]);
@@ -1933,6 +1936,15 @@ window.R2_TV = {
       else if (hp[0] === 'usage') toast('Look for \u201CRound2 Home\u201D and switch Usage access ON.' + more, 9000);
       else if (hp[0] === 'home') toast('If it lists home apps, choose \u201CRound2 Home\u201D.' + more, 9000);
       else toast(hr, 6000);
+    } else if (k === 'ok' && act === 'aFood') {
+      /* lets the food order card show over Netflix and HDMI (Android's "display over other apps") */
+      Sfx.play('ok');
+      if (aFoodState() === 'on') { toast('Already on: food alerts show over Netflix, YouTube and HDMI.', 5000); return; }
+      var fr = String(window.R2Android.openFoodOverlay()), fp = fr.split('|');
+      var fmore = fp[2] && fp[2] !== '1' ? '\nNot there? Back, then OK again for the next page (' + fp[1] + ' of ' + fp[2] + ').' : '\nPress Back to return here.';
+      if (fp[0] === 'overlay') toast('Find \u201CRound2 Home\u201D and switch \u201CDisplay over other apps\u201D (or \u201CAllow\u201D) ON.' + fmore, 10000);
+      else if (fp[0] === 'info') toast('Look for \u201CDisplay over other apps\u201D or \u201CPermissions\u201D and allow it.' + fmore, 10000);
+      else toast(fr, 7000);
     } else if (k === 'ok' && act === 'aDroid') {
       Sfx.play('ok');
       var ar = window.R2Android.androidHome();
