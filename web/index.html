@@ -2236,7 +2236,8 @@ window.R2_TV = {
       cur = null; clearTimeout(hideTimer);
       if (seen && p.type === 'ready') {
         clearTimeout(remindTimer); store('r2.foodReady', '');
-        try { window.R2Android && window.R2Android.foodSeen && window.R2Android.foodSeen(String(p.no)); } catch (e) {}
+        if (nativeOn()) { try { window.R2Android.foodSeen(String(p.no)); } catch (e) {} }   /* the app reports it to the Telegram group */
+        else sendAcks();
       }
       el.className += ' out';
       setTimeout(function () { if (!cur) { el.hidden = true; el.className = ''; } }, 300);
@@ -2267,13 +2268,33 @@ window.R2_TV = {
         try { m = JSON.parse(ev.data); } catch (e) { return; }
         var tn = String(m.title || '').split(' ');   /* Make.com: Title "received 231025" / "ready 231025", items as the message */
         p = { type: tn[0], no: tn[1] || '', items: String(m.message || '').slice(0, 300) };
+        for (var ti = 0; m.tags && ti < m.tags.length; ti++) if (/^R2-/.test(m.tags[ti])) p.ref = m.tags[ti];   /* the order's reference */
         if (m.event && m.event !== 'message') return;
         store('r2.foodId.' + room, m.id);
         var age = Date.now() / 1000 - (m.time || 0);
         if ((p.type === 'received' && age > 180) || (p.type === 'ready' && age > 3600)) return;
-        if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); remindLater(p); }
+        if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); remindLater(p); addUnacked(p.ref); }
         show(p, false);
       };
+    }
+    /* LG / preview: OK on a "ready" alert tells Make.com, which replies under each waiting order in Telegram */
+    var ACK_URL = 'https://hook.eu1.make.com/ks522ziapwremxa35kdtan6h6l1oxe17';
+    function addUnacked(ref) {
+      if (!ref) return;
+      var a = []; try { a = JSON.parse(store('r2.foodAcks') || '[]'); } catch (e) {}
+      a = a.filter(function (o) { return o.ref !== ref && Date.now() - o.at < 3 * 3600000; });
+      a.push({ ref: ref, at: Date.now() }); store('r2.foodAcks', JSON.stringify(a.slice(-6)));
+    }
+    function sendAcks() {
+      var a = []; try { a = JSON.parse(store('r2.foodAcks') || '[]'); } catch (e) {}
+      store('r2.foodAcks', '[]');
+      a.forEach(function (o) {
+        try {
+          var x = new XMLHttpRequest(); x.open('POST', ACK_URL, true);
+          x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+          x.send('ref=' + encodeURIComponent(o.ref) + '&room=' + encodeURIComponent(topicRoom(roomKey)) + '&k=' + encodeURIComponent(KEY));
+        } catch (e) {}
+      });
     }
     function remindLater(p) {
       clearTimeout(remindTimer);

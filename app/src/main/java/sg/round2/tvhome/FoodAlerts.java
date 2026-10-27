@@ -88,6 +88,58 @@ public class FoodAlerts extends Service {
     static void seen(Context c, String no) {
         SharedPreferences p = prefs(c);
         if (no != null && no.equals(p.getString("pendingNo", ""))) p.edit().remove("pending").remove("pendingNo").apply();
+        sendAcks(c);
+    }
+
+    /* ---------- "the room has seen it": a reply under the order in the Telegram group ---------- */
+    static final String ACK_URL = "https://hook.eu1.make.com/ks522ziapwremxa35kdtan6h6l1oxe17";
+
+    /** Remembers a "ready" order the guests haven't pressed OK on yet (its order reference). */
+    private static void addUnacked(Context c, String ref) {
+        if (ref == null || !ref.startsWith("R2-")) return;
+        try {
+            SharedPreferences p = prefs(c);
+            org.json.JSONArray a = new org.json.JSONArray(p.getString("unacked", "[]")), out = new org.json.JSONArray();
+            long now = System.currentTimeMillis();
+            for (int i = 0; i < a.length(); i++) {
+                JSONObject o = a.optJSONObject(i);
+                if (o != null && !ref.equals(o.optString("ref")) && now - o.optLong("at") < 3 * 3600_000L) out.put(o);
+            }
+            out.put(new JSONObject().put("ref", ref).put("at", now));
+            while (out.length() > 6) out.remove(0);
+            p.edit().putString("unacked", out.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    /** OK pressed on a "ready" alert: tells Make.com about every order waiting at the pickup point for this room
+     *  (a room with two orders gets both confirmed). Make.com replies under each order's message in Telegram. */
+    private static void sendAcks(Context c) {
+        final SharedPreferences p = prefs(c);
+        final String list = p.getString("unacked", "[]"), room = p.getString("room", "");
+        p.edit().putString("unacked", "[]").apply();
+        if (!enabled() || "[]".equals(list)) return;
+        new Thread(new Runnable() { @Override public void run() {
+            try {
+                org.json.JSONArray a = new org.json.JSONArray(list);
+                for (int i = 0; i < a.length(); i++) {
+                    String ref = a.getJSONObject(i).optString("ref");
+                    String body = "ref=" + java.net.URLEncoder.encode(ref, "UTF-8") + "&room=" + java.net.URLEncoder.encode(room, "UTF-8")
+                            + "&k=" + java.net.URLEncoder.encode(BuildConfig.FOOD_ALERT_KEY, "UTF-8");
+                    for (int tryNo = 0; tryNo < 2; tryNo++) {
+                        HttpURLConnection h = null;
+                        try {
+                            h = (HttpURLConnection) new URL(ACK_URL).openConnection();
+                            h.setConnectTimeout(15_000); h.setReadTimeout(15_000);
+                            h.setDoOutput(true); h.setRequestMethod("POST");
+                            h.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+                            h.getOutputStream().write(body.getBytes("UTF-8"));
+                            if (h.getResponseCode() < 500) break;
+                        } catch (Exception e) { sleep(3000); }
+                        finally { if (h != null) h.disconnect(); }
+                    }
+                }
+            } catch (Exception ignored) { }
+        } }, "food-ack").start();
     }
 
     /** The "ready" alert nobody has confirmed yet (JSON), or null. */
@@ -173,6 +225,9 @@ public class FoodAlerts extends Service {
             String[] tn = m.optString("title").trim().split(" ", 2);
             JSONObject p = new JSONObject().put("type", tn[0]).put("no", tn.length > 1 ? tn[1] : "")
                     .put("items", m.optString("message").length() > 300 ? m.optString("message").substring(0, 300) : m.optString("message"));
+            // the order's reference (R2-...) comes as an ntfy tag, so OK can be reported back for that order
+            org.json.JSONArray tags = m.optJSONArray("tags");
+            if (tags != null) for (int i = 0; i < tags.length(); i++) if (tags.optString(i).startsWith("R2-")) p.put("ref", tags.optString(i));
             String type = p.optString("type");
             long age = System.currentTimeMillis() / 1000 - time;
             if ("received".equals(type) && age > 180) return;            // old news after a reconnect
@@ -180,6 +235,7 @@ public class FoodAlerts extends Service {
             if (!"received".equals(type) && !"ready".equals(type)) return;
             final String json = p.toString();
             if ("ready".equals(type)) {
+                addUnacked(this, p.optString("ref", null));
                 prefs(this).edit().putString("pending", json).putString("pendingNo", p.optString("no")).putLong("pendingAt", System.currentTimeMillis()).apply();
                 final String no = p.optString("no");
                 main.postDelayed(new Runnable() { @Override public void run() {
