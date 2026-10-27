@@ -1895,12 +1895,12 @@ window.R2_TV = {
         'printf "<h2>Round2 %s logs %s</h2><p><a href=\"%s-logs-%s.txt\" download>Download everything (one file)</a></p><p><a href=\"cobalt-log.txt\" download>cobalt-log.txt</a> &middot; <a href=\"tv-log.txt\" download>tv-log.txt</a></p>" $R $T $R $T > $W/index.html; ' +
         'cp $W/$R-logs-$T.txt $W/all-logs.txt; ' +
         "cat > $W/serve.sh <<'R2EOF'\n" +
-        '#!/bin/sh\n# Round2: serves the YouTube logs on the shop Wi-Fi for 10 minutes, then stops\nW=/tmp/r2logs; P=8765\n' +
-        'if busybox --list 2>/dev/null | grep -qx httpd; then busybox httpd -f -p $P -h $W & S=$!; sleep 600; kill $S\n' +
+        '#!/bin/sh\n# Round2: serves the YouTube logs on the shop Wi-Fi for 10 minutes, then stops\nW=/tmp/r2logs; P=8765; echo $$ > $W/serve.pid\n' +
+        'if busybox --list 2>/dev/null | grep -qx httpd; then busybox httpd -f -p $P -h $W & S=$!; echo $S > $W/httpd.pid; sleep 600; kill $S\n' +
         'else end=$(( $(date +%s) + 600 )); while [ $(date +%s) -lt $end ]; do ' +
         '{ printf "HTTP/1.0 200 OK\\r\\nContent-Type: text/plain; charset=utf-8\\r\\nContent-Disposition: attachment; filename=\\"round2-logs.txt\\"\\r\\nConnection: close\\r\\n\\r\\n"; cat $W/all-logs.txt; } | (nc -l -p $P 2>/dev/null || busybox nc -l -p $P); done; fi\n' +
         'R2EOF\n' +
-        'pkill -f r2logs/serve.sh 2>/dev/null; pkill -f "httpd -f -p 8765" 2>/dev/null; ' +
+        'for f in $W/serve.pid $W/httpd.pid; do [ -f $f ] && kill $(cat $f) 2>/dev/null; rm -f $f; done; ' +
         '(command -v setsid >/dev/null 2>&1 && setsid sh $W/serve.sh || sh $W/serve.sh) </dev/null >/dev/null 2>&1 & ' +
         'IP=$(ip -4 addr 2>/dev/null | grep -o "inet [0-9.]*" | cut -d" " -f2 | grep -v "^127\\." | head -n 1); [ -z "$IP" ] && IP=$(ifconfig 2>/dev/null | grep -o -E "inet (addr:)?[0-9.]+" | grep -o -E "[0-9.]+$" | grep -v "^127\\." | head -n 1); ' +
         'echo "== WHOLE LOG: on the laptop (shop Wi-Fi) open  http://$IP:8765/  for 10 minutes"; ' +
