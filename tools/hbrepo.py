@@ -50,6 +50,18 @@ extras = [{
         'ipkHash': {'sha256': '189af7d46617a511b191dc472a9fcfec3d0f44caf70107fb1da9adde3d39f2de'},
     },
 }, {
+    'id': 'youtube.leanback.v4.rf1705beta', 'title': 'YouTube Cobalt AdFree BETA (RF1705)',
+    'iconUri': 'https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/assets/largeIcon.png',
+    'shortDescription': 'Newer test build of RF1705\'s Cobalt AdFree (2.x). Try it if 1.2.5 misbehaves. Replaces LG\'s YouTube app.',
+    'manifest': {
+        'id': 'youtube.leanback.v4.rf1705beta', 'title': 'YouTube Cobalt AdFree BETA (RF1705)', 'version': '2.0.6', 'type': 'native',
+        'appDescription': 'Beta of RF1705/youtube-webos-cobalt-adfree.',
+        'iconUri': 'https://raw.githubusercontent.com/RF1705/youtube-webos-cobalt-adfree/main/assets/largeIcon.png',
+        'sourceUrl': 'https://github.com/RF1705/youtube-webos-cobalt-adfree', 'rootRequired': False,
+        'ipkUrl': 'https://github.com/RF1705/youtube-webos-cobalt-adfree/releases/download/v2.0.6-beta/youtube.leanback.v4_2.0.6_arm.ipk',
+        'ipkHash': {'sha256': 'b04aefc057d0bac230ee69388e31f48dd170ea000b7245ed549a259fde2bc86c'},
+    },
+}, {
     'id': 'youtube.leanback.v4.nicholasbly', 'title': 'YouTube AdFree (NicholasBly, any webOS)',
     'iconUri': 'https://raw.githubusercontent.com/NicholasBly/youtube-webos/main/assets/icon.png',
     'shortDescription': 'Updated fork of webosbrew\'s YouTube AdFree (NicholasBly, open source). For webOS 3 to 6 (Bella, Scarlett). Replaces LG\'s YouTube app.',

@@ -1642,7 +1642,8 @@ window.R2_TV = {
       { act: 'airRx', label: 'AirPlay receiver', hint: 'INSTALL / UPDATE \u203A' },
       { act: 'airLab', label: 'AirPlay lab', hint: 'PICTURE TEST \u203A' },
       { act: 'airTest', label: 'Test AirPlay app', hint: 'SHOW LOG \u203A' },
-      { act: 'homeTest', label: 'Home helper check', hint: 'SHOW LOG \u203A' }
+      { act: 'homeTest', label: 'Home helper check', hint: 'SHOW LOG \u203A' },
+      { act: 'ytLog', label: 'YouTube log', hint: 'SHOW LOG \u203A' }
     ] : []).concat(window.R2Android && window.R2Android.openHomeHelper ? [
       { act: 'aHome', label: 'Home button', hint: aHomeSwitchable() ? '\u2039 ' + (aHomeState() === 'on' ? 'OPENS ROUND2' : 'TV HOME') + ' \u203A' : ({ on: 'OPENS ROUND2', watch: 'OPENS ROUND2', paused: 'PAUSED 5 MIN' }[aHomeState()] || 'OFF \u00B7 SWITCH ON') + ' \u203A' }
     ].concat(/^(watch|paused)$/.test(aHomeState()) && window.R2Android.androidHome ? [
@@ -1878,6 +1879,16 @@ window.R2_TV = {
       LGRoot.exec(cmd + ' 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
         toast(String(txt).replace(/\s+$/, '').slice(-900), 120000);
+      });
+    } else if (k === 'ok' && act === 'ytLog') {
+      /* rooted LG: the TV's own log around YouTube, right after "Something went wrong" (photo it for the app's developer) */
+      Sfx.play('ok'); toast('Reading the TV log\u2026', 8000);
+      var yc = 'L=$(ls /var/log/messages /var/log/messages.0 2>/dev/null | head -n 1); ' +
+        'echo "app: $(luna-send -n 1 luna://com.webos.applicationManager/getAppInfo \'{"id":"youtube.leanback.v4"}\' 2>/dev/null | grep -o \'"\\(title\\|version\\|vendor\\)":"[^"]*"\' | tr \'\\n\' \' \')"; ' +
+        'echo "log: ${L:-none}"; [ -n "$L" ] && grep -i -E "youtube|leanback|cobalt|starfish|attest|sabr|went wrong|player.*err|err.*player" "$L" | grep -v -i "round2" | tail -n 24 | cut -c1-170';
+      LGRoot.exec(yc + ' 2>&1', function (out, r) {
+        var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
+        toast(String(txt).replace(/\s+$/, '').slice(-1600), 120000);
       });
     } else if (k === 'ok' && act === 'homeTest') {
       /* rooted LG: is the Home / power-on helper running, is the Home button hooked, and what it saw last (photo it for Claude) */
