@@ -16,6 +16,7 @@ public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context ctx, Intent intent) {
         HomeWatch.start(ctx);
+        FoodAlerts.start(ctx);
         if (Build.VERSION.SDK_INT > 28 || HomeWatch.guardOn(ctx)) return;
         try {
             Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);

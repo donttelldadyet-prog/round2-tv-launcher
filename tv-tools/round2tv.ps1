@@ -534,6 +534,34 @@ function Cmd-Room([string]$name) {
   Say "This TV now shows the $name room."
 }
 
+function Cmd-Alerts([string]$what) {
+  # Food order alerts: lets Round2 Home show 'order ready' over Netflix, the PlayStation input, etc.
+  # 'alerts test' first installs the newest TEST build (a pre-release) on this TV only.
+  Need-Tv
+  $repo = 'donttelldadyet-prog/round2-tv-launcher'
+  if ("$what".ToLower() -eq 'test') {
+    Log "`$ GET https://api.github.com/repos/$repo/releases?per_page=20"
+    $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=20" -UseBasicParsing | ForEach-Object { $_ } |
+      Where-Object { $_.prerelease -and $_.tag_name -match '^test-.*-\d+$' } |
+      Sort-Object { [int]($_.tag_name -replace '^.*-', '') } -Descending | Select-Object -First 1
+    if (-not $rel) { Die 'No test build published yet (run "Build Round2 Home" on the branch from the Actions tab)' }
+    $a = @($rel.assets | Where-Object { $_.name -eq 'round2-home.apk' }) | Select-Object -First 1
+    if (-not $a) { Die "$($rel.tag_name) has no APK" }
+    $apk = Join-Path (Join-Path $Dir 'apk') ("round2-home-" + $rel.tag_name + ".apk")
+    Say "Installing test build $($rel.tag_name) on this TV only"
+    try { Invoke-WebRequest -Uri $a.browser_download_url -OutFile $apk -UseBasicParsing } catch { Die "Download failed: $_" }
+    $o = Run-Adb -A @('install', '-r', $apk)
+    $o | ForEach-Object { Write-Host "   $_" }
+    if (($o -join ' ') -notmatch 'Success') { Die 'Install failed' }
+    Say 'The next normal release replaces it by itself.'
+  }
+  $was = Q 'appops get sg.round2.tvhome SYSTEM_ALERT_WINDOW'
+  Sh 'appops set sg.round2.tvhome SYSTEM_ALERT_WINDOW allow'
+  if ($was -notmatch 'allow' -and (Test-Path $Undo)) { Add-Undo 'appops set sg.round2.tvhome SYSTEM_ALERT_WINDOW default' }
+  Sh 'am start -n sg.round2.tvhome/.MainActivity'
+  Say 'Food alerts can now show over other apps. Open the menu once so it knows the room.'
+}
+
 function Cmd-Diag {
   Need-Tv
   $f = Join-Path $script:TvDir ("diag-" + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
@@ -701,6 +729,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   diag                   collect logs and settings from this TV into a file to send to Claude (changes nothing)
   themes                 make this TV check for new event backgrounds now (see themes/README.md)
   perf                   measure how smoothly the menu draws (dropped and slow frames)
+  alerts [test]          let food order alerts show over other apps ('test' first installs the newest test build here only)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
   homeguard              make the Home button open Round2 Home when the TV keeps its own home (undo turns it off)
   rescue                 menu stuck? close Round2 Home, switch its Home button off, show the Android home screen
@@ -733,6 +762,7 @@ switch ($Command.ToLower()) {
   'rescue' { Cmd-Rescue }
   'wallpaper' { Cmd-Wallpaper $a1 }
   'room' { Cmd-Room $a1 }
+  'alerts' { Cmd-Alerts $a1 }
   'perf' { Cmd-Perf }
   'themes' { Cmd-Themes }
   'diag' { Cmd-Diag }

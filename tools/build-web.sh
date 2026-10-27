@@ -8,6 +8,9 @@ mkdir -p web-assets
   printf '<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
   cat web/index.html
 } > web-assets/index.html
+# private part of the food alert topic names (GitHub secret FOOD_ALERT_KEY); left empty, the alerts stay off
+FOOD_KEY="$(printf '%s' "${FOOD_ALERT_KEY:-}" | tr -cd 'A-Za-z0-9')"
+sed -i "s/__FOOD_ALERT_KEY__/${FOOD_KEY}/" web-assets/index.html
 mkdir -p web-assets/media
 # Scene loops: download each listed source, compress for TVs (1080p H.264, no audio, fast start) and make a thumbnail
 if [ -f web/media/sources.txt ] && command -v ffmpeg >/dev/null; then

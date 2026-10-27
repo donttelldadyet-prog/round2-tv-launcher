@@ -14,7 +14,10 @@ android {
         targetSdk 34
         versionCode versionStamp
         versionName "1.0.${buildNumber}"
+        // private part of the food alert topic names (GitHub secret FOOD_ALERT_KEY); empty = alerts off
+        buildConfigField "String", "FOOD_ALERT_KEY", "\"${(System.getenv('FOOD_ALERT_KEY') ?: '').replaceAll('[^A-Za-z0-9]', '')}\""
     }
+    buildFeatures { buildConfig true }
     signingConfigs {
         round2 {
             // Stable key so every new build installs over the last one.

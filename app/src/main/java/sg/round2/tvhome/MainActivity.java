@@ -62,6 +62,7 @@ public class MainActivity extends Activity {
     private long firstUnacked = 0, lastReload = 0;
     private String pendingRoom;
     private boolean pageReady;
+    private static volatile MainActivity front;   // the menu while it is on screen (food alerts go to it)
     private long stoppedAt;   // when the screen was last hidden (an app, the screensaver, standby)
     private static final long RELOAD_AFTER_MS = 10 * 60 * 1000L;
 
@@ -241,6 +242,9 @@ public class MainActivity extends Activity {
         super.onResume();
         lastAck = System.currentTimeMillis(); unacked = 0;
         HomeWatch.start(this);   // no-op unless Usage access is on (Android 9 TVs without the Accessibility helper)
+        front = this;
+        FoodAlerts.start(this);  // no-op in builds without the food alert key
+        FoodAlerts.menuInFront();
 
         if (bg != null) bg.resume();
         if (web != null) {
@@ -284,6 +288,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        if (front == this) front = null;
         if (bg != null) bg.pause();
         if (web != null) web.evaluateJavascript("window.r2Pause && window.r2Pause()", null);   // stop the rain ambience
         if (web != null) web.onPause();   // stops the background video while an app is open
@@ -323,8 +328,33 @@ public class MainActivity extends Activity {
     }
 
     /** Methods the web menu can call as window.R2Android.* */
+    /** A food alert from FoodAlerts: the menu shows it if it is on screen. False = show it natively. */
+    static boolean showFood(final String json) {
+        final MainActivity a = front;
+        if (a == null || a.web == null || !a.pageReady) return false;
+        a.runOnUiThread(new Runnable() { @Override public void run() {
+            if (a.web != null) a.web.evaluateJavascript("window.r2Food && window.r2Food(" + json + ")", null);
+        } });
+        return true;
+    }
+
     static final class Bridge {
         private final MainActivity act;
+
+        /* ---- food order alerts (FoodAlerts) ---- */
+        /** "1" if this build has the alert key, so the menu can leave the alerts to the app. */
+        @JavascriptInterface
+        public String foodAlerts() { return FoodAlerts.enabled() ? "1" : "0"; }
+
+        @JavascriptInterface
+        public void foodRoom(String room, String color, String ink) { FoodAlerts.setRoom(act, room, color, ink); }
+
+        @JavascriptInterface
+        public void foodSeen(String no) { FoodAlerts.seen(act, no); }
+
+        /** A "ready" alert nobody has pressed OK on yet ("" if none). */
+        @JavascriptInterface
+        public String foodPending() { String j = FoodAlerts.pending(act); return j == null ? "" : j; }
 
         Bridge(MainActivity act) { this.act = act; }
 
