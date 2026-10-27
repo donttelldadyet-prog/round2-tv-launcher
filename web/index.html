@@ -337,7 +337,7 @@ footer .keys { display: flex; gap: 30px; }
 
 /* Food order alerts (FoodAlerts.java / ntfy): a card top right in the room's colour */
 #food { position: absolute; top: 132px; right: 96px; width: 500px; z-index: 40; display: flex; align-items: flex-start; }
-#food:not([hidden]) { animation: foodIn .5s cubic-bezier(.2,.9,.25,1.2) both; }
+#food:not([hidden]) { animation: foodIn .6s cubic-bezier(.22,1,.36,1) both; }
 #food.out { animation: foodOut .28s ease-in both; }
 /* the attention-grabber: a room-coloured "!" block that slams in, wobbles and keeps pinging */
 #food .bang { position: relative; flex: none; width: 76px; height: 76px; margin-right: 10px; display: flex; align-items: center; justify-content: center;
@@ -362,7 +362,12 @@ footer .keys { display: flex; gap: 30px; }
 #food .ok { animation: okNudge 1.6s ease-in-out 1.2s infinite; }
 @keyframes okNudge { 0%, 100% { transform: none } 50% { transform: translateX(6px) } }
 #food.ready h2 { animation: foodPulse 1.2s ease-in-out .6s 4; }
-@keyframes foodIn { 0% { opacity: 0; transform: translateX(120px) } 100% { opacity: 1; transform: none } }
+@keyframes foodIn { 0% { opacity: 0; transform: translateX(160px) } 60% { opacity: 1 } 100% { opacity: 1; transform: none } }
+/* a button other than OK/Back: the card shakes and the OK label lights up */
+#food.shake .card, #food.shake .bang { animation: foodShake .42s ease-in-out; }
+#food.shake .ok { animation: okLight .45s ease-out; }
+@keyframes foodShake { 0%, 100% { transform: none } 20% { transform: translateX(-16px) } 40% { transform: translateX(14px) } 60% { transform: translateX(-10px) } 80% { transform: translateX(6px) } }
+@keyframes okLight { 0% { background: var(--ink); color: #0b0914; transform: scale(1.12) } 100% { transform: none } }
 @keyframes foodOut { to { opacity: 0; transform: translateX(80px) } }
 @keyframes bangPop { 0% { transform: scale(0) rotate(-30deg) } 100% { transform: none } }
 @keyframes bangWobble { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-14deg) scale(1.1) } 40% { transform: rotate(12deg) } 60% { transform: rotate(-8deg) } 80% { transform: rotate(4deg) } }
@@ -2225,9 +2230,16 @@ window.R2_TV = {
       setTimeout(function () { if (!cur) { el.hidden = true; el.className = ''; } }, 300);
     }
     /* the guest presses OK or Back: the alert goes; true = the key was used here */
+    var shakeTimer;
     function key(k) {
-      if (!cur || (k !== 'ok' && k !== 'back')) return false;
-      Sfx.play(k === 'ok' ? 'ok' : 'back'); hide(true); return true;
+      if (!cur) return false;
+      if (k === 'ok' || k === 'back') { Sfx.play(k === 'ok' ? 'ok' : 'back'); hide(true); return true; }
+      /* any other button: shake the card and light up [OK] so first-timers see what to press */
+      var el = $('food');
+      el.className = el.className.replace(/ ?shake/g, ''); void el.offsetWidth; el.className += ' shake';
+      clearTimeout(shakeTimer); shakeTimer = setTimeout(function () { el.className = el.className.replace(/ ?shake/g, ''); }, 500);
+      Sfx.play('back');
+      return true;
     }
     /* web listener (LG, preview): one EventSource on this room's topic */
     function listen(room) {

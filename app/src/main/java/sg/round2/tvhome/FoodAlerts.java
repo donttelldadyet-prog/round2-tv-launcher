@@ -216,6 +216,7 @@ public class FoodAlerts extends Service {
     /** A card in the menu's style, top right, over whatever is playing. It can't take remote presses. */
     /** Sizes in the menu's 1920-wide units, so the card looks the same on every TV whatever its density. */
     private float u = 1f;
+    private TextView okLabel;
     private int px(float v) { return Math.round(v * u); }
 
     /** A card in the menu's style, top right, over whatever is playing: a room-coloured "!" that pops
@@ -286,7 +287,8 @@ public class FoodAlerts extends Service {
             }
         }
         {
-            TextView ok = new TextView(this);
+            final TextView ok = new TextView(this);
+            okLabel = ok;
             ok.setText("[OK]  GOT IT"); ok.setTextColor(ink); ok.setBackgroundColor(room);
             ok.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15)); ok.setTypeface(Typeface.DEFAULT_BOLD); ok.setLetterSpacing(0.12f);
             ok.setPadding(px(12), px(7), px(22), px(7));
@@ -311,9 +313,10 @@ public class FoodAlerts extends Service {
                     @Override public boolean onKey(View v, int code, android.view.KeyEvent e) {
                         if (e.getAction() != android.view.KeyEvent.ACTION_UP) return true;   // swallow the press
                         if (code == android.view.KeyEvent.KEYCODE_DPAD_CENTER || code == android.view.KeyEvent.KEYCODE_ENTER
-                                || code == android.view.KeyEvent.KEYCODE_BACK || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER)
+                                || code == android.view.KeyEvent.KEYCODE_BACK || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER) {
                             if (ready) seen(FoodAlerts.this, no);
-                        hideCard();
+                            hideCard();
+                        } else nudge(v, room, ink);   // any other button: shake the card and point at OK
                         return true;
                     }
                 });
@@ -323,8 +326,9 @@ public class FoodAlerts extends Service {
             final View me = box;
             card = box;
             // slide in, the "!" slams in and wobbles, the card flashes the room colour 4 times
-            box.setAlpha(0f); box.setTranslationX(px(120));
-            box.animate().alpha(1f).translationX(0).setDuration(380).setInterpolator(new android.view.animation.OvershootInterpolator(1.2f)).start();
+            box.setAlpha(0f); box.setTranslationX(px(160));
+            box.animate().alpha(1f).translationX(0).setDuration(560).setInterpolator(new android.view.animation.DecelerateInterpolator(2.2f)).start();
+            playConfirm();
             bang.setScaleX(0f); bang.setScaleY(0f); bang.setRotation(-30f);
             bang.animate().scaleX(1f).scaleY(1f).rotation(0f).setStartDelay(100).setDuration(450)
                     .setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
@@ -350,7 +354,43 @@ public class FoodAlerts extends Service {
         }
     }
 
+    /** A button other than OK/Back: the card shakes and the OK label flashes, so first-timers see what to press. */
+    private void nudge(View v, int room, int ink) {
+        v.animate().cancel(); v.setTranslationX(0);
+        android.animation.ObjectAnimator sh = android.animation.ObjectAnimator.ofFloat(v, "translationX", 0, -px(16), px(14), -px(10), px(6), 0);
+        sh.setDuration(420); sh.start();
+        final TextView ok = okLabel;
+        if (ok == null) return;
+        ok.setBackgroundColor(0xFFF4F1FB); ok.setTextColor(0xFF0B0914);
+        ok.animate().scaleX(1.12f).scaleY(1.12f).setDuration(140).withEndAction(new Runnable() { @Override public void run() {
+            ok.animate().scaleX(1f).scaleY(1f).setDuration(200).start();
+        } }).start();
+        final int r = room, i = ink;
+        main.postDelayed(new Runnable() { @Override public void run() { ok.setBackgroundColor(r); ok.setTextColor(i); } }, 450);
+    }
+
+    /** The menu's own confirm sound. The menu renders its sounds to sfx-<pack>.ok.wav when it loads;
+     *  the newest one is the pack in use. No file (sound off, or the menu hasn't run yet): silent. */
+    private void playConfirm() {
+        try {
+            java.io.File best = null;
+            java.io.File[] fs = getCacheDir().listFiles();
+            if (fs != null) for (java.io.File f : fs)
+                if (f.getName().startsWith("sfx-") && f.getName().endsWith(".ok.wav") && (best == null || f.lastModified() > best.lastModified())) best = f;
+            if (best == null) return;
+            final android.media.MediaPlayer mp = new android.media.MediaPlayer();
+            mp.setAudioAttributes(new android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+            mp.setDataSource(best.getPath());
+            mp.setOnCompletionListener(new android.media.MediaPlayer.OnCompletionListener() { @Override public void onCompletion(android.media.MediaPlayer m) { m.release(); } });
+            mp.prepare();
+            mp.start();
+        } catch (Exception ignored) { }
+    }
+
     private void hideCard() {
+        okLabel = null;
         if (card == null) return;
         try { ((WindowManager) getSystemService(WINDOW_SERVICE)).removeView(card); } catch (Exception ignored) { }
         card = null;
