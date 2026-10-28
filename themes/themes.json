@@ -390,6 +390,14 @@
       "rooms": [
         "kai"
       ]
+    },
+    {
+      "id": "microdose",
+      "name": "microdose",
+      "source": "sound-microdose-mvsh83mb.mp3",
+      "rooms": [
+        "kai"
+      ]
     }
   ],
   "roomDefaults": {
