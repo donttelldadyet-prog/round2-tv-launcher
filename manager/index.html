@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Round2 Themes</title>
-<meta name="description" content="Schedule event backgrounds for the Round2 TVs">
+<title>Round2 Control Centre</title>
+<meta name="description" content="Messages, TV tests, the food menu and event backgrounds for the Round2 TVs">
 <meta name="theme-color" content="#06050A">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -169,23 +169,41 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #0b0914; padding: 10px 18px; font-weight: 600; z-index: 20; max-width: calc(100vw - 32px); }
 [hidden] { display: none !important; }
 
+/* phones: the tabs scroll sideways, inputs are big enough not to zoom, buttons are easy to tap */
+.tcard { border-top: 4px solid var(--rc); display: grid; gap: 10px; }
+.tcard h3 { margin: 0; font-size: 20px; color: var(--rc); letter-spacing: .08em; text-transform: uppercase; }
+.tcard .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tcard .btns .btn { padding: 12px 8px; }
+.tcard .st { font-size: 13px; color: var(--mute); display: grid; gap: 2px; }
 @media (max-width: 860px) {
+  header.top .wrap { gap: 8px; }
+  nav.tabs { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+  nav.tabs::-webkit-scrollbar { display: none; }
+  nav.tabs button { flex: none; }
+  .who { width: 100%; }
+  h1 { font-size: 24px; margin-top: 18px; }
+  .card { padding: 14px; }
+  input, select, textarea { font-size: 16px !important; }
+  .roompick button, .seg button { padding: 11px 13px; }
+  .msgs .btn.primary { width: 100%; padding: 14px; font-size: 15px; }
   .theme { grid-template-columns: 1fr; }
   .theme .acts { flex-direction: row; flex-wrap: wrap; }
   .ed { grid-template-columns: 1fr; }
   .ed .side { border-left: 0; border-top: 1px solid var(--line); }
-  nav.tabs { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  nav.tabs { margin-left: 0; width: 100%; }
   nav.tabs button { padding: 8px 9px; font-size: 12px; letter-spacing: .08em; }
 }
 </style>
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div class="brand">ROUND2 <small>TV THEMES</small></div>
-  <nav class="tabs" role="tablist" id="tabs" hidden>
-    <button role="tab" aria-selected="true" data-tab="schedule">Events</button>
+  <div class="brand">ROUND2 <small>CONTROL CENTRE</small></div>
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" aria-selected="true" data-tab="messages">Messages</button>
+    <button role="tab" aria-selected="false" data-tab="tests">TV tests</button>
+    <button role="tab" aria-selected="false" data-tab="foodmenu">Food menu</button>
+    <button role="tab" aria-selected="false" data-tab="schedule">Events</button>
     <button role="tab" aria-selected="false" data-tab="rooms">Rooms</button>
-    <button role="tab" aria-selected="false" data-tab="messages">Messages</button>
     <button role="tab" aria-selected="false" data-tab="sounds">Sounds</button>
     <button role="tab" aria-selected="false" data-tab="settings">Settings</button>
     <button role="tab" aria-selected="false" data-tab="help">Help</button>
@@ -279,6 +297,22 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
           <div class="mstat" id="mStat" style="margin-top:10px"></div></div>
       </div>
     </div>
+  </section>
+
+  <section id="tab-tests" hidden>
+    <h1>TV tests</h1>
+    <p class="sub">Check any room's TV from here: send a test message or a test food alert and watch it arrive. Nothing reaches the kitchen, and the test order isn't real.</p>
+    <div class="banner warn" data-needkey hidden><div class="grow">Add the <b>TV messages key</b> on the Messages tab first (once per phone or computer).</div></div>
+    <div class="rooms" id="tRooms"></div>
+  </section>
+
+  <section id="tab-foodmenu" hidden>
+    <div class="row" style="justify-content:space-between;align-items:flex-end">
+      <div><h1>Food menu</h1><p class="sub" style="margin-bottom:8px">The room menu guests order from (on round2.sg). Edit items and prices, then Publish.</p></div>
+      <a class="btn ghost" href="https://donttelldadyet-prog.github.io/round2sg-home/menu/admin.html" target="_blank" rel="noopener">Open on its own</a>
+    </div>
+    <p class="hint" style="margin:0 0 10px">Publishing needs the GitHub key to cover the <b>round2sg-home</b> project too. If it says the key was rejected, add that project to your key on GitHub (or paste a separate key in the menu's own Settings).</p>
+    <iframe id="menuFrame" title="Round2 menu editor" style="width:100%;height:calc(100vh - 190px);min-height:560px;border:1px solid var(--line);background:var(--bg)" loading="lazy"></iframe>
   </section>
 
   <section id="tab-rooms" hidden>
@@ -630,8 +664,18 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   /* ---------- sign in ---------- */
   function showApp(on) {
-    $('signin').hidden = on; $('tabs').hidden = !on; $('who').hidden = !on;
-    if (on) tab(ls('r2m.tab') || 'schedule'); else ['schedule', 'rooms', 'messages', 'sounds', 'settings', 'help', 'stuck'].forEach(function (n) { $('tab-' + n).hidden = true; });
+    $('who').hidden = !on;
+    tab(ls('r2m.tab') || 'messages');
+  }
+  /* the menu editor (round2sg-home) lives on the same site, so it can use this page's GitHub key if it has none yet */
+  function openMenuEditor() {
+    var f = $('menuFrame');
+    if (f.getAttribute('src')) return;
+    try {
+      var g = JSON.parse(localStorage.getItem('r2gh') || 'null') || {};
+      if (!g.token && token) { g.token = token; localStorage.setItem('r2gh', JSON.stringify(g)); }
+    } catch (e) {}
+    f.setAttribute('src', 'https://donttelldadyet-prog.github.io/round2sg-home/menu/admin.html');
   }
   function connect(t) {
     token = t.trim();
@@ -796,12 +840,79 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     };
   }());
 
+  /* ---------- TV tests: a test message or food alert to any room's TV, and what each TV last received ---------- */
+  var Tests = (function () {
+    var timer = null;
+    function key() { return ls('r2m.msgKey') || ''; }
+    function topic(r) { return r === 'maximillion' ? 'max' : r; }
+    function url(r, node) { return 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/' + key() + '/' + topic(r) + '/' + node + '.json'; }
+    function put(r, node, body) { return fetch(url(r, node), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (x) { if (!x.ok) throw new Error('the TV database said ' + x.status); }); }
+    function get(r, node) { return fetch(url(r, node), { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }); }
+    function when(t) { if (!t) return 'never'; var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : new Date(t).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
+    function render() {
+      document.querySelectorAll('[data-needkey]').forEach(function (b) { b.hidden = !!key(); });
+      $('tRooms').innerHTML = Object.keys(ROOMS).map(function (k) {
+        var R = ROOMS[k];
+        return '<article class="card tcard" style="--rc:' + R.c + '"><h3>' + esc(R.name) + '</h3>' +
+          '<div class="btns"><button class="btn" data-t="msg" data-r="' + k + '">Test message</button><button class="btn" data-t="note" data-r="' + k + '">Long message</button>' +
+          '<button class="btn" data-t="received" data-r="' + k + '">Order locked in</button><button class="btn" data-t="ready" data-r="' + k + '">Loot dropped</button></div>' +
+          '<div class="st" id="tst-' + k + '">' + (key() ? 'Checking\u2026' : '') + '</div></article>';
+      }).join('');
+      status();
+    }
+    function status() {
+      if (!key()) return;
+      Object.keys(ROOMS).forEach(function (k) {
+        Promise.all([get(k, 'last'), get(k, 'msg'), get(k, 'msgShown'), get(k, 'msgAck')]).then(function (a) {
+          var el = $('tst-' + k); if (!el) return;
+          var last = a[0], m = a[1], sh = a[2], ak = a[3], lines = [];
+          lines.push('Last food alert: ' + (last && last.t ? esc(last.type === 'ready' ? 'Loot dropped' : 'Order locked in') + ' \u00B7 ' + when(last.t) : 'none yet'));
+          if (m) lines.push('Message \u201C' + esc(m.title || '') + '\u201D: ' + (ak && ak.id === m.id ? '<span style="color:var(--ok)">\u2713 acknowledged ' + when(ak.t) + '</span>' : sh && sh.id === m.id ? 'shown ' + when(sh.t) + (m.ack ? ', waiting for OK' : '') : Date.now() < m.at ? 'scheduled' : 'not shown yet (TV off or not updated?)'));
+          else lines.push('No message waiting');
+          el.innerHTML = lines.map(function (l) { return '<span>' + l + '</span>'; }).join('');
+        });
+      });
+    }
+    var LONG = 'This is a longer test message, so you can check that it is read a page at a time. Press OK to turn the page. ' +
+      'On the home screen it shows as a big card, and over Netflix or the PlayStation as a small card the size of a food alert. ' +
+      'If you can read this last page, paging works on this TV. Press OK once more to acknowledge it.';
+    function send(t, r) {
+      if (!key()) { toast('Add the TV messages key on the Messages tab first.'); return; }
+      var now = Date.now(), p;
+      if (t === 'msg' || t === 'note') {
+        p = put(r, 'msg', { id: 'test' + now.toString(36), kind: t === 'msg' ? 'celebrate' : 'note', title: t === 'msg' ? 'Test message' : 'A longer test', to: '',
+          text: t === 'msg' ? 'If you can read this on ' + ROOMS[r].name + '\u2019s TV, messages work. Press OK.' : LONG, from: 'Round2 control centre', ack: true, at: now, until: now + 3600000, t: { '.sv': 'timestamp' } });
+      } else {
+        p = put(r, 'last', { type: t, no: 'TEST', items: '1 x Test item \u00B7 2 x Nothing real', ref: 'R2-TEST-' + now.toString(36), t: { '.sv': 'timestamp' } });
+      }
+      p.then(function () { toast('Sent to ' + ROOMS[r].name + '\u2019s TV. It should appear within a few seconds.'); setTimeout(status, 4000); })
+        .catch(function (e) { toast('Couldn\u2019t send: ' + e.message); });
+    }
+    var ready = false;
+    return {
+      open: function () {
+        if (!ready) { ready = true; $('tRooms').addEventListener('click', function (e) { var t = e.target.getAttribute && e.target.getAttribute('data-t'); if (t) send(t, e.target.getAttribute('data-r')); }); }
+        render(); clearInterval(timer); timer = setInterval(status, 15000);
+      },
+      close: function () { clearInterval(timer); }
+    };
+  }());
+
+  /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
+     Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
+  var TABS = ['messages', 'tests', 'foodmenu', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   function tab(n) {
+    if (TABS.indexOf(n) < 0) n = 'messages';
     ls('r2m.tab', n);
     Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-tab') === n); });
-    ['schedule', 'rooms', 'messages', 'sounds', 'settings', 'help', 'stuck'].forEach(function (k) { $('tab-' + k).hidden = k !== n; });
+    var needGh = GH_TABS.indexOf(n) >= 0 && !token;
+    TABS.forEach(function (k) { $('tab-' + k).hidden = k !== n || needGh; });
+    $('signin').hidden = !needGh;
+    if (needGh) return;
     if (n === 'settings') renderSettings();
     if (n === 'messages') Msgs.open(); else Msgs.close();
+    if (n === 'tests') Tests.open(); else Tests.close();
+    if (n === 'foodmenu') openMenuEditor();
   }
   $('tabs').addEventListener('click', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-tab'); if (n) tab(n); });
   $('roomFilter').innerHTML = '<option value="all">All rooms</option>' + Object.keys(ROOMS).map(function (k) { return '<option value="' + k + '">' + ROOMS[k].name + '</option>'; }).join('');
@@ -1333,8 +1444,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   /* ---------- start ---------- */
   var saved = ls('r2m.token');
+  showApp(false);   // the Messages and TV tests tabs work straight away; GitHub tabs fill in once the key is checked
   if (saved) connect(saved).catch(function () { token = ''; showApp(false); $('tokMsg').textContent = 'The saved key stopped working (expired or deleted). Make a new one and paste it here.'; });
-  else showApp(false);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
 }());
 </script>

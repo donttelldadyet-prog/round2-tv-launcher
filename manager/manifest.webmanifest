@@ -1,7 +1,7 @@
 {
-  "name": "Round2 TV Themes",
-  "short_name": "R2 Themes",
-  "description": "Schedule event backgrounds for the Round2 TVs",
+  "name": "Round2 Control Centre",
+  "short_name": "Round2",
+  "description": "Messages, TV tests, the food menu and event backgrounds for the Round2 TVs",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
