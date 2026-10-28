@@ -120,7 +120,8 @@ header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; 
 .pinbox.bad .digits { animation: shake .36s linear; }
 @keyframes shake { 20%, 60% { transform: translateX(-12px); } 40%, 80% { transform: translateX(12px); } }
 /* easter egg: a quiet signature under Options; press Up three times on the first row to light it */
-.sig { margin-top: 30px; padding-left: 4px; font: 500 15px/1 var(--f-ui); letter-spacing: .2em; color: #fff; opacity: .22; transition: opacity .3s linear, color .3s linear, text-shadow .3s linear; }
+.sig { margin-top: 30px; padding-left: 4px; font: 500 15px/1.6 var(--f-ui); letter-spacing: .2em; color: #fff; opacity: .22; transition: opacity .3s linear, color .3s linear, text-shadow .3s linear; }
+.sig .sigdot { display: none; }   /* shown only if the two lines ever sit on one */
 .sig.lit { opacity: 1; color: var(--room); text-shadow: 0 0 14px var(--room); }
 .picking .sig, .pinning .sig { display: none; }
 .mi svg { flex: none; opacity: 0; }
@@ -460,7 +461,7 @@ footer .keys { display: flex; gap: 30px; }
         <div class="digits" id="pinDigits"></div>
         <p id="pinMsg">Type the staff PIN with the number buttons, or use &#9650;&#9660; to pick each number and &#9654; for the next.</p>
       </div>
-      <div class="sig" id="sig">MADE BY @MAKINGBROADWAY</div>
+      <div class="sig" id="sig" aria-label="Curated in-house by Round2 · proof of concept by @makingbroadway">CURATED IN-HOUSE BY ROUND2 <span class="sigdot">&middot;</span><br>PROOF OF CONCEPT BY @MAKINGBROADWAY</div>
     </nav>
 
     <div class="side">
