@@ -186,6 +186,41 @@ final class NativeSound {
     }
 
     /**
+     * For the menu's equaliser: n levels (0..1, low to high pitch) of the rain loop at the point being played,
+     * measured with Goertzel filters on 512 samples and scaled by the current fade. "" when the rain isn't
+     * playing (an uploaded sound or nothing), and the menu then follows its own volume instead.
+     */
+    String levels(int n) {
+        AudioTrack r = rain; byte[] pcm = loopPcm; int sr = loopRate; float v = rainVol;
+        if (r == null || pcm == null || sr <= 0 || v <= 0.001f || n <= 0 || n > 64) return "";
+        try { if (r.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) return ""; } catch (Exception e) { return ""; }
+        int total = pcm.length / 2; if (total < 1024) return "";
+        int pos;
+        try { pos = (int) ((r.getPlaybackHeadPosition() & 0xffffffffL) % total); } catch (Exception e) { return ""; }
+        final int N = 512;
+        StringBuilder out = new StringBuilder();
+        double gainScale = Math.min(1.0, 0.35 + v * 2.0);   // louder ambience, taller bars
+        for (int b = 0; b < n; b++) {
+            double f = 90 * Math.pow(7500 / 90.0, n == 1 ? 0 : b / (double) (n - 1));
+            double k = 2 * Math.cos(2 * Math.PI * f / sr), s1 = 0, s2 = 0;
+            for (int i = 0; i < N; i++) {
+                int idx = ((pos + i) % total) * 2;
+                short x = (short) ((pcm[idx] & 0xff) | (pcm[idx + 1] << 8));
+                double w = x / 32768.0 * (0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)));
+                double s0 = w + k * s1 - s2; s2 = s1; s1 = s0;
+            }
+            double mag = Math.sqrt(Math.max(0, s1 * s1 + s2 * s2 - k * s1 * s2)) / (N / 4.0);
+            // the rain sits around -48 to -28 dB per band (measured on the built-in loop); higher bands a little
+            // quieter, so they get a small lift and every bar moves
+            double db = 20 * Math.log10(mag + 1e-6) + 6.0 * b / Math.max(1, n - 1);
+            double lvl = Math.max(0, Math.min(1, (db + 50) / 24)) * gainScale;
+            if (b > 0) out.append(',');
+            out.append(Math.round(lvl * 1000) / 1000.0);
+        }
+        return out.toString();
+    }
+
+    /**
      * After standby (or a long screensaver) some TVs switch off or re-route their audio output, e.g. Sony with a
      * home theater on HDMI ARC: players made before then stay "playing" but are silent. Rebuild them, at the same
      * volume they were heading for, so the menu's next fade-in is heard.

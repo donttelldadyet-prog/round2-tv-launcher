@@ -421,6 +421,10 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String loopHas() { return act.sound.hasLoop() ? "1" : "0"; }
 
+        /** The menu's equaliser: n levels of the rain being played ("" when it isn't). */
+        @JavascriptInterface
+        public String ambLevels(int n) { return act.sound == null ? "" : act.sound.levels(n); }
+
         @JavascriptInterface
         public void loopTo(double vol, int ms) { act.sound.loopTo((float) vol, ms); }
 

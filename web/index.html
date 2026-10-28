@@ -163,6 +163,7 @@ section.peek { position: absolute; right: 64px; top: 180px; width: 600px; paddin
 .peek .go { display: flex; align-items: center; gap: 12px; margin-top: 34px; padding-top: 22px; border-top: 1px solid rgba(244,241,251,.16);
   font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; color: var(--accent); }
 .peek .go .bar { flex: 1; height: 10px; opacity: .5; background: repeating-linear-gradient(90deg, var(--accent) 0 12px, transparent 12px 18px); }
+.peek .go canvas.eq { flex: 1; min-width: 0; height: 20px; align-self: flex-start; opacity: .75; background: none; }   /* ambience equaliser (Meter) */
 .swap { animation: swap .14s linear both; }
 @keyframes swap { from { opacity: 0 } to { opacity: 1 } }
 
@@ -1303,7 +1304,7 @@ window.R2_TV = {
     }
     function lgFile(sndObj, v, ms) {
       var c = Sfx.ctx(); if (!c) return;
-      if (!lgGain) { lgGain = c.createGain(); lgGain.gain.value = 0.0001; lgGain.connect(c.destination); }
+      if (!lgGain) { lgGain = c.createGain(); lgGain.gain.value = 0.0001; lgGain.connect(c.destination); Meter.tap(c, lgGain); }
       lgVol = v;
       if (!sndObj) {
         elTo(null, 0);
@@ -1346,7 +1347,7 @@ window.R2_TV = {
       clearTimeout(thunderTimer);
       if (playing !== 'storm') return;
       var nb = nat();
-      if (nb) { try { nb.sfxPlay('thunder', Math.min(1, vol() * 1.6 * (0.55 + Math.random() * 0.35))); } catch (e) {} thunderTimer = setTimeout(thunder, 15000 + Math.random() * 20000); return; }
+      if (nb) { try { var tv = Math.min(1, vol() * 1.6 * (0.55 + Math.random() * 0.35)); nb.sfxPlay('thunder', tv); Meter.kick(0.5 + tv); } catch (e) {} thunderTimer = setTimeout(thunder, 15000 + Math.random() * 20000); return; }
       var c = Sfx.ctx();
       if (c && thunderBuf && gain) {
         var s2 = c.createBufferSource(), g2 = c.createGain();
@@ -1384,7 +1385,7 @@ window.R2_TV = {
         if (!gain) {
           gain = c.createGain(); gain.gain.value = 0.0001;
           var tone = c.createBiquadFilter(); tone.type = 'lowpass'; tone.frequency.value = 7000;
-          gain.connect(tone); tone.connect(c.destination);
+          gain.connect(tone); tone.connect(c.destination); Meter.tap(c, tone);
         }
         if (!src) {
           src = c.createBufferSource(); src.buffer = rainBuf; src.loop = true;
@@ -1404,8 +1405,62 @@ window.R2_TV = {
         gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), now); gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
       },
       pause: function () { stop(); },
-      resume: function () { this.apply(); }
+      resume: function () { this.apply(); },
+      level: function () { return playing ? Math.min(1, vol() * (playing === 'storm' ? 1.25 : 1) * 2.2) : 0; }
     };
+  }());
+
+  /* ---- The info card's equaliser: little bars hanging from the line next to PRESS OK, moving with the ambience.
+     LG and the browser: the real sound, through an AnalyserNode. Android plays the ambience itself, so it measures
+     the rain at the point being played (R2Android.ambLevels); uploaded sounds there follow volume and fades.
+     Thunder kicks the bars. Ambience off: the bars rest as the old dashed line. Drawn ~20 times a second, only
+     while the menu is showing. ---- */
+  var Meter = (function () {
+    var an = null, buf = null, kickV = 0, disp = [], last = 0, BAR = 12, GAP = 6, H = 20;
+    function tap(c, node) {
+      try { if (!an || an.context !== c) { an = c.createAnalyser(); an.fftSize = 512; an.smoothingTimeConstant = 0.55; buf = new Uint8Array(an.frequencyBinCount); } node.connect(an); } catch (e) { an = null; }
+    }
+    function kick(v) { kickV = Math.max(kickV, Math.min(1.2, v)); }
+    function bands(n) {
+      var out = [], i, L = Amb.level(), nb = window.R2Android;
+      if (!L) return out;
+      if (nb && nb.ambLevels) {
+        try { var t = String(nb.ambLevels(n) || ''); if (t) out = t.split(',').map(Number); } catch (e) {}
+      } else if (an) {
+        an.getByteFrequencyData(buf);
+        var bins = buf.length * 0.75;   /* up to ~8 kHz */
+        for (i = 0; i < n; i++) {
+          var a = Math.floor(Math.pow(bins, i / n)), b = Math.max(a + 1, Math.floor(Math.pow(bins, (i + 1) / n))), m = 0;
+          for (var j = a; j < b; j++) m = Math.max(m, buf[j] || 0);
+          out.push(Math.max(0, (m - 60) / 170));
+        }
+      }
+      if (out.length !== n) { out = []; for (i = 0; i < n; i++) out.push(L * (0.22 + 0.5 * Math.random() * Math.random() + (Math.random() < 0.06 ? 0.3 : 0))); }
+      if (kickV > 0.02) { for (i = 0; i < n; i++) out[i] = Math.min(1, out[i] + kickV * (1 - 0.55 * i / n) * (0.6 + 0.4 * Math.random())); kickV *= 0.88; }
+      return out;
+    }
+    function draw() {
+      var cv = document.querySelector('#peek canvas.eq'); if (!cv) return;
+      var w = cv.clientWidth; if (!w) return;
+      if (cv.width !== w) { cv.width = w; disp = []; }
+      var n = Math.max(1, Math.floor((w + GAP) / (BAR + GAP))), ctx = cv.getContext('2d'), lv = bands(n), i;
+      ctx.clearRect(0, 0, w, H);
+      ctx.fillStyle = (getComputedStyle(cv).getPropertyValue('--accent') || '').trim() || '#F2C21B';
+      for (i = 0; i < n; i++) {
+        var target = lv.length ? 2 + Math.min(1, lv[i]) * (H - 2) : 10;   /* off: the old dashed line */
+        var d = disp[i] === undefined ? target : disp[i];
+        d = target > d ? d + (target - d) * 0.7 : Math.max(target, d - 1.6);   /* quick up, slow fall */
+        disp[i] = d;
+        ctx.fillRect(i * (BAR + GAP), 0, BAR, Math.round(d));
+      }
+    }
+    function frame(t) {
+      requestAnimationFrame(frame);
+      if (t - last < 50 || document.hidden || mode !== 'menu' || leaving) return;
+      last = t; try { draw(); } catch (e) {}
+    }
+    requestAnimationFrame(frame);
+    return { tap: tap, kick: kick };
   }());
 
   var cfg = window.R2_TV;
@@ -1500,7 +1555,7 @@ window.R2_TV = {
     for (var i = 0; i < rows.length; i++) dl += '<dt>' + esc(rows[i][0]) + '</dt><dd>' + esc(rows[i][1]) + '</dd>';
     return '<div class="swap"><div class="tag">' + tag + '</div><h1>' + esc(title) + '</h1><p>' + body + '</p>' +
       (dl ? '<dl>' + dl + '</dl>' : '') +
-      '<div class="go"><span>&#9654; PRESS OK</span><span class="bar"></span><span style="color:var(--mute)">ROUND2.SG</span></div></div>';
+      '<div class="go"><span>&#9654; PRESS OK</span><canvas class="bar eq" height="20"></canvas><span style="color:var(--mute)">ROUND2.SG</span></div></div>';
   }
 
   var ARROW = '<svg width="16" height="18" viewBox="0 0 14 16" aria-hidden="true"><path d="M1 1l12 7-12 7z" fill="currentColor"/></svg>';
