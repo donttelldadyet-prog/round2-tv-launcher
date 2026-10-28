@@ -50,7 +50,7 @@ public class FoodAlerts extends Service {
     private static final long REPEAT_MS = 5 * 60_000;
     private static final long RECEIVED_SHOW_MS = 20_000, READY_SHOW_MS = 45_000;
 
-    private static volatile HttpURLConnection live;
+    private static volatile HttpURLConnection live, liveMsg;
     private static volatile FoodAlerts inst;
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile boolean running;
@@ -152,7 +152,10 @@ public class FoodAlerts extends Service {
     }
 
     private static SharedPreferences prefs(Context c) { return c.getSharedPreferences(PREFS, MODE_PRIVATE); }
-    private static void drop() { HttpURLConnection c = live; if (c != null) try { c.disconnect(); } catch (Exception ignored) { } }
+    private static void drop() {
+        HttpURLConnection c = live; if (c != null) try { c.disconnect(); } catch (Exception ignored) { }
+        HttpURLConnection m = liveMsg; if (m != null) try { m.disconnect(); } catch (Exception ignored) { }
+    }
 
     /* ---------- the service ---------- */
 
@@ -177,6 +180,8 @@ public class FoodAlerts extends Service {
         inst = this;
         running = true;
         new Thread(this::listen, "food-alerts").start();
+        new Thread(this::listenMsg, "room-messages").start();
+        main.post(msgTick);   // a message waiting from before a restart
     }
 
     @Override public int onStartCommand(Intent i, int flags, int id) { return START_STICKY; }
@@ -281,6 +286,8 @@ public class FoodAlerts extends Service {
     /** Sizes in the menu's 1920-wide units, so the card looks the same on every TV whatever its density. */
     private float u = 1f;
     private TextView okLabel;
+    private Runnable onOk;                    // a message's own OK action (acknowledged)
+    private String bangText = "!", okText = "[OK]  GOT IT";
     private int px(float v) { return Math.round(v * u); }
 
     /** A card in the menu's style, top right, over whatever is playing: a room-coloured "!" that pops
@@ -301,7 +308,7 @@ public class FoodAlerts extends Service {
         box.setPadding(px(14), px(14), px(14), px(14));
 
         final TextView bang = new TextView(this);
-        bang.setText("!"); bang.setGravity(Gravity.CENTER);
+        bang.setText(bangText); bang.setGravity(Gravity.CENTER);
         bang.setTextColor(ink); bang.setBackgroundColor(room);
         bang.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(44));
         bang.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
@@ -353,7 +360,7 @@ public class FoodAlerts extends Service {
         {
             final TextView ok = new TextView(this);
             okLabel = ok;
-            ok.setText("[OK]  GOT IT"); ok.setTextColor(ink); ok.setBackgroundColor(room);
+            ok.setText(okText); ok.setTextColor(ink); ok.setBackgroundColor(room);
             ok.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15)); ok.setTypeface(Typeface.DEFAULT_BOLD); ok.setLetterSpacing(0.12f);
             ok.setPadding(px(12), px(7), px(22), px(7));
             LinearLayout.LayoutParams ol = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -378,7 +385,8 @@ public class FoodAlerts extends Service {
                         if (e.getAction() != android.view.KeyEvent.ACTION_UP) return true;   // swallow the press
                         if (code == android.view.KeyEvent.KEYCODE_DPAD_CENTER || code == android.view.KeyEvent.KEYCODE_ENTER
                                 || code == android.view.KeyEvent.KEYCODE_BACK || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER) {
-                            if (ready) seen(FoodAlerts.this, no);
+                            Runnable act = onOk; onOk = null;
+                            if (act != null) act.run(); else if (ready) seen(FoodAlerts.this, no);
                             hideCard();
                         } else nudge(v, room, ink);   // any other button: shake the card and point at OK
                         return true;
@@ -454,10 +462,151 @@ public class FoodAlerts extends Service {
     }
 
     private void hideCard() {
-        okLabel = null;
+        okLabel = null; bangText = "!";
         if (card == null) return;
         try { ((WindowManager) getSystemService(WINDOW_SERVICE)).removeView(card); } catch (Exception ignored) { }
         card = null;
+    }
+
+    /* ---------- personal messages (Theme manager > Messages) ----------
+     * The owners write one message per room to /r2/<key>/<room>/msg:
+     *   {"id","kind":"birthday|anniversary|celebrate|note","title","text","from","to","ack":true|false,"at":ms,"until":ms}
+     * The TV shows it at "at" (over any app, or in the menu), until "until". A message that must be acknowledged
+     * comes back every 5 minutes until someone presses OK; the TV then writes /msgAck {"id","t"} so the manager
+     * shows it was seen. It also writes /msgShown when it first appears. Removing /msg cancels it. */
+    private static final long MSG_REPEAT_MS = 5 * 60_000;
+
+    private void listenMsg() {
+        long wait = 5_000;
+        while (running) {
+            String room = prefs(this).getString("room", "");
+            if (room.isEmpty()) { sleep(20_000); continue; }
+            HttpURLConnection c = null;
+            try {
+                c = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/msg.json").openConnection();
+                c.setConnectTimeout(15_000); c.setReadTimeout(120_000);
+                c.setRequestProperty("Accept", "text/event-stream");
+                c.setRequestProperty("User-Agent", "Round2Home-Android");
+                liveMsg = c;
+                BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
+                wait = 5_000;
+                String line, event = "";
+                while (running && (line = r.readLine()) != null) {
+                    if (!room.equals(prefs(this).getString("room", ""))) break;
+                    if (line.startsWith("event:")) event = line.substring(6).trim();
+                    else if (line.startsWith("data:") && ("put".equals(event) || "patch".equals(event))) handleMsg(line.substring(5).trim());
+                    else if (line.startsWith("data:") && ("cancel".equals(event) || "auth_revoked".equals(event))) break;
+                }
+            } catch (Exception ignored) {
+            } finally {
+                liveMsg = null;
+                if (c != null) try { c.disconnect(); } catch (Exception ignored) { }
+            }
+            if (running) { sleep(wait); wait = Math.min(wait * 2, 60_000); }
+        }
+    }
+
+    private void handleMsg(String raw) {
+        try {
+            JSONObject ev = new JSONObject(raw);
+            if (!"/".equals(ev.optString("path"))) return;
+            SharedPreferences p = prefs(this);
+            JSONObject d = ev.optJSONObject("data");
+            if (d == null) {                                               // cancelled in the manager
+                p.edit().remove("msg").apply();
+                main.post(new Runnable() { @Override public void run() { if (msgCardId != null) hideCard(); msgCardId = null; } });
+                return;
+            }
+            String id = d.optString("id");
+            if (id.isEmpty() || id.equals(p.getString("msgDone", ""))) return;
+            p.edit().putString("msg", d.toString()).apply();
+            main.removeCallbacks(msgTick); main.post(msgTick);
+        } catch (Exception ignored) { }
+    }
+
+    /** The message waiting to be shown or acknowledged, if it is due now (for the menu), else null. */
+    static String msgDue(Context c) {
+        try {
+            String j = prefs(c).getString("msg", null);
+            if (j == null) return null;
+            JSONObject d = new JSONObject(j);
+            long now = System.currentTimeMillis(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
+            return now >= at && now <= until ? j : null;
+        } catch (Exception e) { return null; }
+    }
+
+    private String msgCardId;
+    private final Runnable msgTick = new Runnable() {
+        @Override public void run() {
+            main.removeCallbacks(this);
+            SharedPreferences p = prefs(FoodAlerts.this);
+            String j = p.getString("msg", null);
+            if (j == null) return;
+            try {
+                JSONObject d = new JSONObject(j);
+                String id = d.optString("id");
+                long now = System.currentTimeMillis(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
+                if (now > until) { p.edit().remove("msg").apply(); return; }
+                if (now < at) { main.postDelayed(this, Math.min(at - now, 60_000)); return; }
+                boolean again = id.equals(p.getString("msgShownId", ""));
+                if (!again) { p.edit().putString("msgShownId", id).apply(); report(FoodAlerts.this, "msgShown", id); }
+                showMsg(j, again);
+                if (d.optBoolean("ack")) main.postDelayed(this, MSG_REPEAT_MS);       // until someone presses OK
+                else p.edit().putString("msgDone", id).remove("msg").apply();
+            } catch (Exception ignored) { }
+        }
+    };
+
+    private void showMsg(String json, boolean again) {
+        if (MainActivity.showMsg(json)) return;                           // Round2 Home is in front: the menu shows it
+        JSONObject d;
+        try { d = new JSONObject(json); } catch (Exception e) { return; }
+        final String id = d.optString("id");
+        final boolean ack = d.optBoolean("ack");
+        String kind = d.optString("kind", "note");
+        String tag = ("birthday".equals(kind) ? "BIRTHDAY" : "anniversary".equals(kind) ? "ANNIVERSARY" : "celebrate".equals(kind) ? "CELEBRATION" : "A MESSAGE")
+                + (d.optString("to").isEmpty() ? "" : " · FOR " + d.optString("to").toUpperCase()) + (again ? " · REMINDER" : "");
+        String text = d.optString("text") + (d.optString("from").isEmpty() ? "" : "\n\u2014 " + d.optString("from"));
+        if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
+            try { Toast.makeText(this, d.optString("title") + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
+            return;
+        }
+        bangText = "birthday".equals(kind) || "celebrate".equals(kind) ? "★" : "anniversary".equals(kind) ? "♥" : "!";
+        okText = ack ? "[OK]  SEEN IT" : "[OK]  CLOSE";
+        onOk = new Runnable() { @Override public void run() { msgCardId = null; if (ack) msgAck(FoodAlerts.this, id); } };
+        showCard(tag, d.optString("title"), text, "", ack ? 10 * 60_000L : 60_000L, "", false);
+        okText = "[OK]  GOT IT";
+        msgCardId = id;
+    }
+
+    /** OK pressed on a message (here or in the menu): stop showing it, and tell the manager. */
+    static void msgAck(Context c, String id) {
+        if (id == null || id.isEmpty()) return;
+        SharedPreferences p = prefs(c);
+        p.edit().putString("msgDone", id).remove("msg").apply();
+        FoodAlerts s = inst;
+        if (s != null) s.main.removeCallbacks(s.msgTick);
+        report(c, "msgAck", id);
+    }
+
+    /** Writes {"id","t":server time} to /r2/<key>/<room>/<node> (the manager reads it as the message's status). */
+    private static void report(Context c, final String node, final String id) {
+        final String room = prefs(c).getString("room", "");
+        if (!enabled() || room.isEmpty()) return;
+        new Thread(new Runnable() { @Override public void run() {
+            for (int tryNo = 0; tryNo < 3; tryNo++) {
+                HttpURLConnection h = null;
+                try {
+                    h = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/" + node + ".json").openConnection();
+                    h.setConnectTimeout(15_000); h.setReadTimeout(15_000);
+                    h.setDoOutput(true); h.setRequestMethod("PUT");
+                    h.setRequestProperty("Content-Type", "application/json");
+                    h.getOutputStream().write(new JSONObject().put("id", id).put("t", new JSONObject().put(".sv", "timestamp")).toString().getBytes("UTF-8"));
+                    if (h.getResponseCode() < 300) return;
+                } catch (Exception e) { sleep(3000); }
+                finally { if (h != null) h.disconnect(); }
+            }
+        } }, "msg-report").start();
     }
 
     private static void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException ignored) { } }

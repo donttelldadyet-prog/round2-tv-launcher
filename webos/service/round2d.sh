@@ -168,6 +168,69 @@ watch_food() {
   done
 }
 
+# --- personal messages over other apps (Theme manager > Messages) ---
+# The owners write one message per room to /r2/<key>/<room>/msg ({"id","kind","title","text","from","to","ack","at","until"}).
+# While Round2 Home is in front, the menu shows it; otherwise this shows an LG pop-up at "at". One that must be
+# acknowledged comes back every 5 minutes until OK is pressed; OK writes /msgAck so the manager shows it was seen.
+msg_put() {     # $1 node (msgShown | msgAck), $2 id
+  set -- "$1" "$2" $(cat "$CFG/food" 2>/dev/null)
+  [ -n "$3" ] && [ -n "$4" ] && curl -s -m 15 $K -X PUT -H 'Content-Type: application/json' \
+    -d "{\"id\":\"$2\",\"t\":{\".sv\":\"timestamp\"}}" "$FB/r2/$4/$3/$1.json" >/dev/null 2>&1
+}
+msg_ack() {     # OK pressed on the LG pop-up
+  id=$(cat "$CFG/msg.id" 2>/dev/null); [ -n "$id" ] || exit 0
+  echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"
+  msg_put msgAck "$id"; log "message $id acknowledged"
+}
+msg_tick() {    # every 20 s: is the message due, and is something other than Round2 Home in front?
+  while :; do
+    sleep 20
+    [ -f "$CFG/msg.cur" ] || continue
+    line=$(cat "$CFG/msg.cur"); id=$(printf '%s\n' "$line" | field id)
+    [ -n "$id" ] || continue
+    [ "$id" = "$(cat "$CFG/msg.done" 2>/dev/null)" ] && continue
+    now=$(date +%s); a=$(printf '%s\n' "$line" | num at); u=$(printf '%s\n' "$line" | num until)
+    at=$(( ${a:-0} / 1000 )); until=$(( ${u:-0} / 1000 ))
+    [ "$until" -gt 0 ] || until=$(( at + 10800 ))
+    [ "$now" -ge "$at" ] || continue
+    [ "$now" -le "$until" ] || { rm -f "$CFG/msg.cur"; continue; }
+    last=$(cat "$CFG/msg.last" 2>/dev/null || echo 0)
+    [ $(( now - last )) -ge 300 ] || continue                                   # at most every 5 minutes
+    [ "$(cat "$CFG/front" 2>/dev/null)" = "$APP" ] && continue                  # the menu shows it itself
+    echo "$now" > "$CFG/msg.last"; echo "$id" > "$CFG/msg.id"
+    [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }
+    title=$(printf '%s\n' "$line" | field title | clean); text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean); from=$(printf '%s\n' "$line" | field from | clean)
+    [ -n "$from" ] && text="$text\\n\u2014 $from"
+    if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="SEEN IT"; cmd="sh $CFG/round2d.sh msgack"
+    else ok="CLOSE"; cmd="true"; echo "$id" > "$CFG/msg.done"; fi
+    luna-send -n 1 luna://com.webos.notification/createAlert \
+      "{\"sourceId\":\"$APP\",\"title\":\"$title\",\"message\":\"$text\",\"modal\":false,\"buttons\":[{\"label\":\"$ok\",\"onclick\":\"luna://org.webosbrew.hbchannel.service/exec\",\"params\":{\"command\":\"$cmd\"}}]}" >/dev/null 2>&1
+    log "message $id shown over $(cat "$CFG/front" 2>/dev/null)"
+  done
+}
+watch_msg() {
+  command -v curl >/dev/null 2>&1 || return
+  while :; do
+    set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
+    if [ -z "$room" ] || [ -z "$key" ]; then sleep 30; continue; fi
+    ev=""
+    curl -sN -m 3600 $K -H 'Accept: text/event-stream' "$FB/r2/$key/$room/msg.json" 2>/dev/null | while read -r line; do
+      case "$line" in
+        event:*) ev=${line#event: } ;;
+        data:*)
+          [ "$ev" = put ] || continue
+          printf '%s\n' "$line" | grep -q '"path":"/"' || continue
+          if printf '%s\n' "$line" | grep -q '"data":null'; then rm -f "$CFG/msg.cur"; continue; fi   # cancelled
+          id=$(printf '%s\n' "$line" | field id); [ -n "$id" ] || continue
+          [ "$id" = "$(cat "$CFG/msg.done" 2>/dev/null)" ] && continue
+          [ "$id" = "$(cat "$CFG/msg.id" 2>/dev/null)" ] || rm -f "$CFG/msg.last"
+          printf '%s\n' "$line" > "$CFG/msg.cur" ;;   # printf: keep the message's \n as written
+      esac
+    done
+    sleep 5
+  done
+}
+
 first_open() {
   # a full start: wait until the TV is showing something, then open Round2 Home over it
   n=0
@@ -191,6 +254,7 @@ case "$1" in
     exit 0 ;;
   stop) stop; log "stopped"; exit 0 ;;
   ack) K=""; curl -s -m 10 -o /dev/null https://hook.eu1.make.com/ 2>/dev/null || K="-k"; food_ack; exit 0 ;;
+  msgack) K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; msg_ack; exit 0 ;;
   ensure)                                   # Round2 Home calls this on every start: keep one up-to-date copy running
     cmp -s "$SELF" "$CFG/round2d.sh" 2>/dev/null || cp "$SELF" "$CFG/round2d.sh"
     if running && [ "$(cat "$CFG/sum" 2>/dev/null)" = "$(sum)" ]; then exit 0; fi ;;
@@ -207,7 +271,11 @@ watch_power </dev/null >/dev/null 2>&1 &
 P=$!
 watch_food </dev/null >/dev/null 2>&1 &
 F=$!
-printf '%s\n%s\n%s\n' "$A" "$P" "$F" > "$CFG/pids"
+( K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; watch_msg ) </dev/null >/dev/null 2>&1 &
+M=$!
+( K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; msg_tick ) </dev/null >/dev/null 2>&1 &
+T=$!
+printf '%s\n%s\n%s\n%s\n%s\n' "$A" "$P" "$F" "$M" "$T" > "$CFG/pids"
 [ "$1" = "boot" ] && first_open </dev/null >/dev/null 2>&1 &
 # keep the log short
 [ -f "$CFG/log.txt" ] && [ "$(wc -l < "$CFG/log.txt")" -gt 300 ] && { tail -n 100 "$CFG/log.txt" > "$CFG/log.tmp"; mv "$CFG/log.tmp" "$CFG/log.txt"; }

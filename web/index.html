@@ -370,6 +370,33 @@ footer .keys { display: flex; gap: 30px; }
 #food.shake .ok { animation: okLight .45s ease-out; }
 @keyframes foodShake { 0%, 100% { transform: none } 20% { transform: translateX(-16px) } 40% { transform: translateX(14px) } 60% { transform: translateX(-10px) } 80% { transform: translateX(6px) } }
 @keyframes okLight { 0% { background: var(--ink); color: #0b0914; transform: scale(1.12) } 100% { transform: none } }
+/* a personal message from the owners (Theme manager > Messages): centre stage, the room colour, confetti or hearts */
+#msg { position: absolute; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; background: rgba(6,5,10,.55); }
+#msg:not([hidden]) { animation: msgFade .5s ease-out both; }
+#msg.out { animation: msgFade .3s ease-in reverse both; }
+#msg .box { position: relative; width: 860px; max-width: calc(100% - 160px); background: #110E1A; padding: 44px 56px 40px; text-align: center;
+  box-shadow: inset 0 0 0 3px var(--room), 0 0 80px rgba(0,0,0,.6); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%);
+  animation: msgPop .7s cubic-bezier(.2,1.4,.4,1) .1s both; }
+#msg .icon { width: 92px; height: 92px; margin: 0 auto 18px; display: flex; align-items: center; justify-content: center; background: var(--room); color: var(--room-ink);
+  font: 400 46px/1 var(--f-ui); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%); animation: bangPop .6s cubic-bezier(.2,1.6,.4,1) .3s both, msgBeat 1.6s ease-in-out 1.2s infinite; }
+#msg .tag { font-family: var(--f-pix); font-size: 11px; letter-spacing: .18em; color: var(--room); }
+#msg h2 { margin: 14px 0 18px; font: 800 58px/1.05 var(--f-ui); letter-spacing: .04em; color: var(--ink); }
+#msg p { margin: 0 auto; max-width: 680px; font: 500 26px/1.45 var(--f-ui); color: #e4def0; white-space: pre-line; }
+#msg .from { margin-top: 18px; font: 600 20px var(--f-ui); letter-spacing: .08em; color: var(--room); }
+#msg .ok { display: inline-flex; align-items: center; margin-top: 30px; padding: 10px 30px 10px 14px; background: var(--room); color: var(--room-ink);
+  font: 700 16px var(--f-ui); letter-spacing: .12em; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); animation: okNudge 1.6s ease-in-out 1.6s infinite; }
+#msg .ok b { font-family: var(--f-pix); font-weight: 400; font-size: 10px; margin-right: 10px; }
+#msg.shake .box { animation: foodShake .42s ease-in-out; }
+#msg .fx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+#msg .fx i { position: absolute; top: -30px; width: 12px; height: 18px; background: var(--room); opacity: .9; animation: msgFall linear infinite; }
+#msg .fx i:nth-child(3n) { background: var(--ink); width: 10px; height: 10px; }
+#msg .fx i:nth-child(4n) { background: var(--accent); }
+#msg.anniversary .fx i { background: none; width: auto; height: auto; color: var(--room); font: 28px/1 var(--f-ui); }
+#msg.anniversary .fx i::before { content: '\2665'; }
+@keyframes msgFade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes msgPop { 0% { opacity: 0; transform: scale(.82) } 100% { opacity: 1; transform: none } }
+@keyframes msgBeat { 0%, 100% { transform: none } 15% { transform: scale(1.1) } 30% { transform: none } }
+@keyframes msgFall { 0% { transform: translateY(0) rotate(0) } 100% { transform: translateY(1150px) rotate(540deg) } }
 @keyframes foodOut { to { opacity: 0; transform: translateX(80px) } }
 @keyframes bangPop { 0% { transform: scale(0) rotate(-30deg) } 100% { transform: none } }
 @keyframes bangWobble { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-14deg) scale(1.1) } 40% { transform: rotate(12deg) } 60% { transform: rotate(-8deg) } 80% { transform: rotate(4deg) } }
@@ -509,6 +536,10 @@ footer .keys { display: flex; gap: 30px; }
     <circle cx="560" cy="250" r="5" fill="#ff3b5c"/><circle cx="560" cy="50" r="4" fill="#ffffff"/>
   </svg>
   <div id="toast" role="status" hidden></div>
+  <div id="msg" role="alert" hidden><div class="fx" id="msgFx"></div><div class="box">
+    <div class="icon" id="msgIcon">&#9733;</div><div class="tag" id="msgTag"></div>
+    <h2 id="msgTitle"></h2><p id="msgText"></p><div class="from" id="msgFrom"></div>
+    <div class="ok" id="msgOk"><b>[OK]</b><span id="msgOkText">SEEN IT</span></div></div></div>
   <div id="food" role="alert" hidden><i class="ring"></i><div class="bang">!</div><div class="card">
     <div class="tag"><span id="foodTag"></span><i id="foodWhen"></i></div>
     <h2 id="foodTitle"></h2><p id="foodText"></p><ul class="items" id="foodItems"></ul>
@@ -566,7 +597,7 @@ window.R2_TV = {
     scarlett:    { name: 'Scarlett',    t: 'n', color: '#F2C21B', ink: '#0b0914', pax: '1–3 pax', screen: '65" TV', ps: 'PS4' },
     bella:       { name: 'Bella',       t: 'd', color: '#7A5BE0', ink: '#ffffff', pax: '1–4 pax', screen: '75" TV', ps: 'PS4 Pro', psPort: 'HDMI 2' },
     kai:         { name: 'Kai',         t: 'd', color: '#24B49A', ink: '#0b0914', pax: '1–4 pax', screen: '75" TV', ps: 'PS4 Pro' },
-    atlas:       { name: 'Atlas',       t: 'd', color: '#E9E7EF', ink: '#0b0914', pax: '1–5 pax', screen: '75" TV', ps: 'PS4 Pro' },
+    atlas:       { name: 'Atlas',       t: 'd', color: '#E9E7EF', ink: '#0b0914', pax: '1–5 pax', screen: '75" TV', ps: 'PS4 Pro', psPort: 'HDMI 2' },
     maximillion: { name: 'Maximillion', t: 'v', color: '#E0402F', ink: '#ffffff', pax: '1–6 pax', screen: '85" TV', ps: 'PS4 Pro', psPort: 'HDMI 4' }
   };
 
@@ -2383,9 +2414,120 @@ window.R2_TV = {
         try { LGRoot.exec('mkdir -p /var/lib/webosbrew/round2 && { [ "$(cat ' + f + ' 2>/dev/null)" = "' + line + '" ] || { echo "' + line + '" > ' + f + "; pkill -f 'curl -sN .*firebasedatabase'; }; }"); } catch (e) {}
       }, 4000);
     }
-    return { show: show, key: key, resume: resume, setRoom: setRoom };
+    return { show: show, key: key, resume: resume, setRoom: setRoom,
+      link: function () { return keyOk() ? { fb: FB_URL, key: KEY, room: topicRoom(roomKey), native: nativeOn() } : null; } };
   }());
   window.r2Food = function (p) { Food.show(p, false); };
+
+  /* ================= personal messages =================
+     The owners send one message per room from the Theme manager (Messages tab): a birthday, an anniversary,
+     anything. It travels like the food alerts, to /r2/<key>/<room>/msg:
+       {"id","kind":"birthday|anniversary|celebrate|note","title","text","from","to","ack":true|false,"at":ms,"until":ms}
+     It appears at "at" (and not after "until"). One that must be acknowledged stays until OK is pressed and comes back
+     every 5 minutes until then; the TV writes /msgAck so the manager shows it was seen (and /msgShown when it first
+     appears). On Android the app listens (also over Netflix or the PlayStation) and hands it here when the menu is in
+     front; elsewhere (LG, the preview) this page listens, and the rooted LG helper shows it over other apps. */
+  var Msg = (function () {
+    var cur = null, es = null, esTopic = '', timer = null, hideTimer = null, shakeT = null, REPEAT = 5 * 60000;
+    var KIND = { birthday: ['\u2605', 'BIRTHDAY'], anniversary: ['\u2665', 'ANNIVERSARY'], celebrate: ['\u2605', 'CELEBRATION'], note: ['!', 'A MESSAGE FOR YOU'] };
+    function link() { return Food.link(); }
+    function done(id) { return id && store('r2.msgDone') === id; }
+    function report(node, id) {
+      var l = link(); if (!l || l.native) return;   /* Android: the app reports */
+      try {
+        var x = new XMLHttpRequest(); x.open('PUT', l.fb + '/r2/' + l.key + '/' + l.room + '/' + node + '.json', true);
+        x.setRequestHeader('Content-Type', 'application/json');
+        x.send(JSON.stringify({ id: id, t: { '.sv': 'timestamp' } }));
+      } catch (e) {}
+    }
+    function pending() { try { return JSON.parse(store('r2.msg') || 'null'); } catch (e) { return null; } }
+    function times(d) { var at = Number(d.at) || 0; return { at: at, until: Number(d.until) || at + 3 * 3600000 }; }
+    function render(d, again) {
+      var k = KIND[d.kind] || KIND.note, el = $('msg');
+      cur = d;
+      $('msgIcon').textContent = k[0];
+      $('msgTag').textContent = k[1] + (d.to ? ' \u00B7 FOR ' + String(d.to).toUpperCase() : '') + (again ? ' \u00B7 REMINDER' : '');
+      $('msgTitle').textContent = d.title || '';
+      $('msgText').textContent = d.text || '';
+      $('msgFrom').textContent = d.from ? '\u2014 ' + d.from : '';
+      $('msgOkText').textContent = d.ack ? 'SEEN IT' : 'CLOSE';
+      var fx = '';
+      if (d.kind !== 'note') for (var i = 0; i < 26; i++) fx += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;animation-duration:' + (3.5 + Math.random() * 3).toFixed(2) + 's;animation-delay:-' + (Math.random() * 6).toFixed(2) + 's"></i>';
+      $('msgFx').innerHTML = fx;
+      el.className = d.kind || ''; el.hidden = true; void el.offsetWidth; el.hidden = false;
+      Sfx.play('ok');
+      clearTimeout(hideTimer);
+      if (!d.ack) hideTimer = setTimeout(function () { hide(true); }, 60000);
+    }
+    function show(d, again) {
+      if (!d || !d.id || done(d.id) || (cur && cur.id === d.id)) return;
+      if (store('r2.msgShown') !== d.id) { store('r2.msgShown', d.id); report('msgShown', d.id); }
+      render(d, again);
+    }
+    function hide(finished) {
+      var d = cur; if (!d) return;
+      cur = null; clearTimeout(hideTimer);
+      if (finished) {
+        store('r2.msgDone', d.id); store('r2.msg', '');
+        if (d.ack) {
+          var l = link();
+          if (l && l.native) { try { window.R2Android.msgAck(d.id); } catch (e) {} } else report('msgAck', d.id);
+        }
+      } else if (d.ack) { clearTimeout(timer); timer = setTimeout(tick, REPEAT); }   /* Back: it comes back in 5 minutes */
+      var el = $('msg'); el.className += ' out';
+      setTimeout(function () { if (!cur) { el.hidden = true; el.className = ''; } }, 320);
+    }
+    function key(k) {
+      if (!cur) return false;
+      if (k === 'ok') { Sfx.play('ok'); hide(true); return true; }
+      if (k === 'back') { Sfx.play('back'); hide(!cur.ack); return true; }
+      var el = $('msg'); el.className = el.className.replace(/ ?shake/g, ''); void el.offsetWidth; el.className += ' shake';
+      clearTimeout(shakeT); shakeT = setTimeout(function () { el.className = el.className.replace(/ ?shake/g, ''); }, 500);
+      Sfx.play('back'); return true;
+    }
+    /* LG / preview: wait for "at", then check the TV hasn't already been acknowledged over another app */
+    function tick() {
+      clearTimeout(timer);
+      var d = pending(); if (!d || done(d.id)) return;
+      var t = times(d), now = Date.now();
+      if (now > t.until) { store('r2.msg', ''); return; }
+      if (now < t.at) { timer = setTimeout(tick, Math.min(t.at - now, 60000)); return; }
+      var l = link();
+      if (l && d.ack) {
+        try {
+          var x = new XMLHttpRequest(); x.open('GET', l.fb + '/r2/' + l.key + '/' + l.room + '/msgAck.json', true);
+          x.onload = function () { var a = null; try { a = JSON.parse(x.responseText); } catch (e) {} if (a && a.id === d.id) { store('r2.msgDone', d.id); store('r2.msg', ''); return; } go(); };
+          x.onerror = go; x.send();
+          return;
+        } catch (e) {}
+      }
+      go();
+      function go() { if (!document.hidden) show(d, store('r2.msgShown') === d.id); if (d.ack) timer = setTimeout(tick, REPEAT); }
+    }
+    function listen() {
+      var l = link(); if (!l || l.native || !window.EventSource) return;
+      var topic = l.key + '/' + l.room;
+      if (es && esTopic === topic) return;
+      if (es) es.close();
+      esTopic = topic;
+      es = new EventSource(l.fb + '/r2/' + topic + '/msg.json');
+      es.addEventListener('put', function (ev) {
+        var m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (!m || m.path !== '/') return;
+        if (!m.data) { store('r2.msg', ''); if (cur) hide(false); clearTimeout(timer); return; }   /* cancelled */
+        if (!m.data.id || done(m.data.id)) return;
+        store('r2.msg', JSON.stringify(m.data)); tick();
+      });
+    }
+    /* back in the menu: a message still waiting for OK (Android asks the app) */
+    function resume() {
+      var l = link();
+      if (l && l.native) { var j = ''; try { j = window.R2Android.msgDue(); } catch (e) {} if (j) { try { show(JSON.parse(j), true); } catch (e) {} } return; }
+      tick();
+    }
+    return { show: function (d) { show(d, store('r2.msgShown') === (d && d.id)); }, key: key, resume: resume, setRoom: function () { setTimeout(listen, 1500); } };
+  }());
+  window.r2Msg = function (d) { Msg.show(d); };
 
   /* Leaving: the chosen transition plays, the app opens under its last frames */
   var leaving = false, entryTimer;
@@ -2522,6 +2664,7 @@ window.R2_TV = {
     if (Boot.isUp()) { Boot.hide(); return; }   /* a key during start-up just skips the boot screen */
     if (LogView.isOpen()) { LogView.key(k); return; }
     if (Food.key(k)) return;                     /* a food alert on screen: OK / Back closes it */
+    if (Msg.key(k)) return;                      /* a personal message on screen */
     if (Sfx.wake() && !ambStarted) { ambStarted = true; Amb.apply(); }   /* in case the TV held audio until the first key */
     if (/entering|settle|enter-/.test($('stage').className)) { addCls('snap'); clearAnim(); void $('stage').offsetWidth; dropCls('snap'); }   /* a key press skips the intro */
     if (mode === 'menu') {
@@ -2582,6 +2725,7 @@ window.R2_TV = {
   }
   window.r2Resume = function () {
     setTimeout(Food.resume, 1200);
+    setTimeout(Msg.resume, 1800);
     setTimeout(function () { window.r2SyncThemes(false); }, 3000);
     clearTimeout(guardTimer); guardTimer = setTimeout(repairScreen, 2200);
     arrive(false);
@@ -2709,6 +2853,7 @@ window.R2_TV = {
     showWall(currentWall());
     if (lastThemeSync) window.r2SyncThemes(true);   /* this room may have its own event backgrounds */
     Food.setRoom(key);
+    Msg.setRoom(key);
     var btns = document.querySelectorAll('#roomBtns button');
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-r') === key);
   }
@@ -2767,6 +2912,7 @@ window.R2_TV = {
   window.addEventListener('load', fit);
   applyRoom(roomKey);
   setTimeout(Food.resume, 3000);   /* a ready order still waiting for an OK */
+  setTimeout(Msg.resume, 3600);    /* a personal message still waiting for an OK */
   fit(); tick(); setInterval(tick, 15000);
   setTimeout(fit, 400); setTimeout(fit, 1500);
   /* LG: the themes already on the TV, straight from the background service (Android's come through the bridge below) */

@@ -344,6 +344,16 @@ public class MainActivity extends Activity {
         return true;
     }
 
+    /** A personal message (FoodAlerts): the menu shows it if it is on screen. False = show it natively. */
+    static boolean showMsg(final String json) {
+        final MainActivity a = front;
+        if (a == null || a.web == null || !a.pageReady) return false;
+        a.runOnUiThread(new Runnable() { @Override public void run() {
+            if (a.web != null) a.web.evaluateJavascript("window.r2Msg && window.r2Msg(" + json + ")", null);
+        } });
+        return true;
+    }
+
     static final class Bridge {
         private final MainActivity act;
 
@@ -357,6 +367,13 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void foodSeen(String no) { FoodAlerts.seen(act, no); }
+
+        /** A personal message due now and not yet acknowledged ("" if none). */
+        @JavascriptInterface
+        public String msgDue() { String j = FoodAlerts.msgDue(act); return j == null ? "" : j; }
+
+        @JavascriptInterface
+        public void msgAck(String id) { FoodAlerts.msgAck(act, id); }
 
         /** A "ready" alert nobody has pressed OK on yet ("" if none). */
         @JavascriptInterface
