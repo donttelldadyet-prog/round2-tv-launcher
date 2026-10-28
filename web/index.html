@@ -163,7 +163,7 @@ section.peek { position: absolute; right: 64px; top: 180px; width: 600px; paddin
 .peek .go { display: flex; align-items: center; gap: 12px; margin-top: 34px; padding-top: 22px; border-top: 1px solid rgba(244,241,251,.16);
   font-family: var(--f-pix); font-size: 13px; letter-spacing: .14em; color: var(--accent); }
 .peek .go .bar { flex: 1; height: 10px; opacity: .5; background: repeating-linear-gradient(90deg, var(--accent) 0 12px, transparent 12px 18px); }
-.peek .go canvas.eq { flex: 1; min-width: 0; height: 20px; align-self: flex-start; opacity: .75; background: none; }   /* ambience equaliser (Meter) */
+.peek .go canvas.eq { flex: 1; min-width: 0; height: 26px; opacity: .75; background: none; }   /* ambience equaliser (Meter) */
 .swap { animation: swap .14s linear both; }
 @keyframes swap { from { opacity: 0 } to { opacity: 1 } }
 
@@ -1410,13 +1410,13 @@ window.R2_TV = {
     };
   }());
 
-  /* ---- The info card's equaliser: little bars hanging from the line next to PRESS OK, moving with the ambience.
+  /* ---- The info card's equaliser: little bars on the line next to PRESS OK, moving with the ambience.
      LG and the browser: the real sound, through an AnalyserNode. Android plays the ambience itself, so it measures
      the rain at the point being played (R2Android.ambLevels); uploaded sounds there follow volume and fades.
-     Thunder kicks the bars. Ambience off: the bars rest as the old dashed line. Drawn ~20 times a second, only
-     while the menu is showing. ---- */
+     Thunder kicks the bars. Ambience off: the bars rest as the old dashed line. Bars are centred on the line and
+     grow up and down. Drawn ~20 times a second, only while the menu or Options is showing. ---- */
   var Meter = (function () {
-    var an = null, buf = null, kickV = 0, disp = [], last = 0, BAR = 12, GAP = 6, H = 20;
+    var an = null, buf = null, kickV = 0, disp = [], last = 0, BAR = 12, GAP = 6, H = 26;
     function tap(c, node) {
       try { if (!an || an.context !== c) { an = c.createAnalyser(); an.fftSize = 512; an.smoothingTimeConstant = 0.55; buf = new Uint8Array(an.frequencyBinCount); } node.connect(an); } catch (e) { an = null; }
     }
@@ -1447,16 +1447,18 @@ window.R2_TV = {
       ctx.clearRect(0, 0, w, H);
       ctx.fillStyle = (getComputedStyle(cv).getPropertyValue('--accent') || '').trim() || '#F2C21B';
       for (i = 0; i < n; i++) {
-        var target = lv.length ? 2 + Math.min(1, lv[i]) * (H - 2) : 10;   /* off: the old dashed line */
+        var target = lv.length ? 2 + Math.min(1, lv[i]) * (H - 2) : 10;   /* off: the old dashed line, 10px */
         var d = disp[i] === undefined ? target : disp[i];
         d = target > d ? d + (target - d) * 0.7 : Math.max(target, d - 1.6);   /* quick up, slow fall */
         disp[i] = d;
-        ctx.fillRect(i * (BAR + GAP), 0, BAR, Math.round(d));
+        var hh = Math.max(2, Math.round(d / 2) * 2);                         /* centred: grows up and down equally */
+        ctx.fillRect(i * (BAR + GAP), (H - hh) / 2, BAR, hh);
       }
     }
     function frame(t) {
       requestAnimationFrame(frame);
-      if (t - last < 50 || document.hidden || mode !== 'menu' || leaving) return;
+      /* the main menu and Options (with its background list); not the PIN pad or the Diagnostics pages */
+      if (t - last < 50 || document.hidden || leaving || !/^(menu|settings|walls)$/.test(mode) || (LogView && LogView.isOpen())) return;
       last = t; try { draw(); } catch (e) {}
     }
     requestAnimationFrame(frame);
@@ -1555,7 +1557,7 @@ window.R2_TV = {
     for (var i = 0; i < rows.length; i++) dl += '<dt>' + esc(rows[i][0]) + '</dt><dd>' + esc(rows[i][1]) + '</dd>';
     return '<div class="swap"><div class="tag">' + tag + '</div><h1>' + esc(title) + '</h1><p>' + body + '</p>' +
       (dl ? '<dl>' + dl + '</dl>' : '') +
-      '<div class="go"><span>&#9654; PRESS OK</span><canvas class="bar eq" height="20"></canvas><span style="color:var(--mute)">ROUND2.SG</span></div></div>';
+      '<div class="go"><span>&#9654; PRESS OK</span><canvas class="bar eq" height="26"></canvas><span style="color:var(--mute)">ROUND2.SG</span></div></div>';
   }
 
   var ARROW = '<svg width="16" height="18" viewBox="0 0 14 16" aria-hidden="true"><path d="M1 1l12 7-12 7z" fill="currentColor"/></svg>';
