@@ -34,6 +34,11 @@ header.top .wrap { display: flex; align-items: center; gap: 16px; padding-top: 1
 nav.tabs { display: flex; gap: 4px; margin-left: auto; }
 nav.tabs button { background: none; border: 1px solid transparent; padding: 8px 14px; letter-spacing: .12em; font-size: 13px; text-transform: uppercase; color: var(--mute); }
 nav.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--line2); background: var(--panel); }
+nav.subtabs { display: flex; gap: 6px; margin: 18px 0 -4px; overflow-x: auto; scrollbar-width: none; }
+nav.subtabs::-webkit-scrollbar { display: none; }
+nav.subtabs:empty { display: none; }
+nav.subtabs button { flex: none; background: none; border: 1px solid var(--line2); border-radius: 999px; padding: 8px 16px; font-size: 13px; letter-spacing: .06em; color: var(--mute); }
+nav.subtabs button[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
 .who { font-size: 13px; color: var(--mute); }
 .who button { background: none; border: 0; color: var(--focus); padding: 0; margin-left: 6px; text-decoration: underline; }
 
@@ -199,20 +204,16 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 <header class="top"><div class="wrap">
   <div class="brand">ROUND2 <small>CONTROL CENTRE</small></div>
   <nav class="tabs" role="tablist" id="tabs">
-    <button role="tab" aria-selected="true" data-tab="messages">Messages</button>
-    <button role="tab" aria-selected="false" data-tab="tests">TV tests</button>
-    <button role="tab" aria-selected="false" data-tab="foodmenu">Food menu</button>
-    <button role="tab" aria-selected="false" data-tab="schedule">Events</button>
-    <button role="tab" aria-selected="false" data-tab="rooms">Rooms</button>
-    <button role="tab" aria-selected="false" data-tab="sounds">Sounds</button>
-    <button role="tab" aria-selected="false" data-tab="settings">Settings</button>
-    <button role="tab" aria-selected="false" data-tab="help">Help</button>
-    <button role="tab" aria-selected="false" data-tab="stuck">If stuck</button>
+    <button role="tab" aria-selected="true" data-group="notif">Notifications</button>
+    <button role="tab" aria-selected="false" data-group="themes">Themes</button>
+    <button role="tab" aria-selected="false" data-group="menu">Food menu</button>
+    <button role="tab" aria-selected="false" data-group="help">Help</button>
   </nav>
   <div class="who" id="who" hidden></div>
 </div></header>
 
 <main class="wrap">
+  <nav class="subtabs" id="subtabs" aria-label="Pages in this tab"></nav>
   <!-- sign in -->
   <section id="signin" class="signin" hidden>
     <h1>Connect to GitHub</h1>
@@ -221,7 +222,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       <ol>
         <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub › New fine-grained token</a> (signed in as the Round2 account).</li>
         <li>Token name: <code>Round2 themes – <span id="devName">this computer</span></code>. Expiration: 1 year.</li>
-        <li>Repository access: <b>Only select repositories</b> › <code>round2-tv-launcher</code>.</li>
+        <li>Repository access: <b>Only select repositories</b> › <code>round2-tv-launcher</code> and <code>round2sg-home</code> (the second one lets the Food menu tab publish).</li>
         <li>Permissions › Repository permissions › <b>Contents: Read and write</b>. Leave everything else as it is.</li>
         <li>Press <b>Generate token</b>, copy it, and paste it here.</li>
       </ol>
@@ -901,10 +902,20 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
   var TABS = ['messages', 'tests', 'foodmenu', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var GROUPS = {
+    notif: [['messages', 'Send a message'], ['tests', 'Test a TV']],
+    themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'Settings']],
+    menu: [['foodmenu', 'Food menu']],
+    help: [['help', 'How it works'], ['stuck', 'If stuck']]
+  };
+  function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'notif'; }
   function tab(n) {
     if (TABS.indexOf(n) < 0) n = 'messages';
-    ls('r2m.tab', n);
-    Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-tab') === n); });
+    ls('r2m.tab', n); ls('r2m.sub.' + groupOf(n), n);
+    var g = groupOf(n);
+    Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-group') === g); });
+    var subs = GROUPS[g];
+    $('subtabs').innerHTML = subs.length < 2 ? '' : subs.map(function (x) { return '<button type="button" data-tab="' + x[0] + '"' + (x[0] === n ? ' aria-current="page"' : '') + '>' + x[1] + '</button>'; }).join('');
     var needGh = GH_TABS.indexOf(n) >= 0 && !token;
     TABS.forEach(function (k) { $('tab-' + k).hidden = k !== n || needGh; });
     $('signin').hidden = !needGh;
@@ -914,7 +925,9 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'foodmenu') openMenuEditor();
   }
-  $('tabs').addEventListener('click', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-tab'); if (n) tab(n); });
+  /* four main tabs, each with its own pages; a main tab reopens on the page last used in it */
+  $('tabs').addEventListener('click', function (e) { var g = e.target.getAttribute && e.target.getAttribute('data-group'); if (g) tab(ls('r2m.sub.' + g) || GROUPS[g][0][0]); });
+  $('subtabs').addEventListener('click', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-tab'); if (n) tab(n); });
   $('roomFilter').innerHTML = '<option value="all">All rooms</option>' + Object.keys(ROOMS).map(function (k) { return '<option value="' + k + '">' + ROOMS[k].name + '</option>'; }).join('');
   $('roomFilter').onchange = renderList;
   $('rooms').addEventListener('click', function (e) {
