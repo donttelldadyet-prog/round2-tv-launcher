@@ -317,7 +317,9 @@ public class FoodAlerts extends Service {
 
         final TextView bang = new TextView(this);
         bang.setText(bangNow); bang.setGravity(Gravity.CENTER);
-        bang.setTextColor(ink); bang.setBackgroundColor(room);
+        final int iconRes = bangNow.startsWith("icon:") ? getResources().getIdentifier("msg_" + bangNow.substring(5), "drawable", getPackageName()) : 0;
+        if (iconRes != 0) bang.setText("");
+        paintBang(bang, iconRes, room, ink);
         bang.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(44));
         bang.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(px(76), px(76));
@@ -430,7 +432,7 @@ public class FoodAlerts extends Service {
                 @Override public void run() {
                     if (card != me) return;
                     lit = !lit;
-                    bang.setBackgroundColor(lit ? 0xFFF4F1FB : room); bang.setTextColor(lit ? 0xFF0B0914 : ink);
+                    paintBang(bang, iconRes, lit ? 0xFFF4F1FB : room, lit ? 0xFF0B0914 : ink);
                     main.postDelayed(this, 550);
                 }
             }, 3000);
@@ -438,6 +440,17 @@ public class FoodAlerts extends Service {
         } catch (Exception e) {
             try { Toast.makeText(this, title + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
         }
+    }
+
+    /** The square badge: the "!" of a food alert, or a message's drawn icon (cake, heart, star, envelope) in the ink colour. */
+    private void paintBang(TextView b, int iconRes, int bg, int fg) {
+        if (iconRes == 0) { b.setBackgroundColor(bg); b.setTextColor(fg); return; }
+        try {
+            android.graphics.drawable.Drawable ic = getDrawable(iconRes).mutate();
+            ic.setTint(fg);
+            b.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] {
+                    new android.graphics.drawable.ColorDrawable(bg), new android.graphics.drawable.InsetDrawable(ic, px(16)) }));
+        } catch (Exception e) { b.setBackgroundColor(bg); }
     }
 
     /** A button other than OK/Back: the card shakes and the OK label flashes, so first-timers see what to press. */
@@ -608,7 +621,7 @@ public class FoodAlerts extends Service {
                 + (d.optString("to").isEmpty() ? "" : " \u00B7 FOR " + d.optString("to").toUpperCase()) + (again && i == 0 ? " \u00B7 REMINDER" : "")
                 + (pg.size() > 1 ? " \u00B7 " + (i + 1) + "/" + pg.size() : "");
         String text = pg.get(i) + (last && !d.optString("from").isEmpty() ? "\n\u2014 " + d.optString("from") : "");
-        bangText = "birthday".equals(kind) || "celebrate".equals(kind) ? "\u2605" : "anniversary".equals(kind) ? "\u2665" : "!";
+        bangText = "icon:" + ("birthday".equals(kind) || "anniversary".equals(kind) || "celebrate".equals(kind) ? kind : "note");
         // ◀ ▶ turn the pages (guests can go back to re-read or take a photo); OK only closes it, on the last page
         okText = !last ? (i > 0 ? "\u25C0 \u25B6" : "\u25B6") + "  NEXT PAGE  " + (i + 1) + "/" + pg.size()
                 : (pg.size() > 1 ? "\u25C0   " : "") + (ack ? "[OK]  SEEN IT \u00B7 CLOSES THIS" : "[OK]  CLOSE");

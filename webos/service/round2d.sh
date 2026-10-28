@@ -177,6 +177,11 @@ msg_put() {     # $1 node (msgShown | msgAck), $2 id
   [ -n "$3" ] && [ -n "$4" ] && curl -s -m 15 $K -X PUT -H 'Content-Type: application/json' \
     -d "{\"id\":\"$2\",\"t\":{\".sv\":\"timestamp\"}}" "$FB/r2/$4/$3/$1.json" >/dev/null 2>&1
 }
+msg_acked() {   # $1 id: already acknowledged somewhere else (OK pressed on the menu's card)?
+  set -- "$1" $(cat "$CFG/food" 2>/dev/null)
+  [ -n "$2" ] && [ -n "$3" ] || return 1
+  { curl -s -m 10 "$FB/r2/$3/$2/msgAck.json" 2>/dev/null || curl -s -k -m 10 "$FB/r2/$3/$2/msgAck.json" 2>/dev/null; } | grep -q "\"id\":\"$1\""
+}
 msg_ack() {     # OK pressed on the LG pop-up
   id=$(cat "$CFG/msg.id" 2>/dev/null); [ -n "$id" ] || exit 0
   echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"
@@ -219,6 +224,7 @@ msg_tick() {    # every 20 s: is the message due, and is something other than Ro
     last=$(cat "$CFG/msg.last" 2>/dev/null || echo 0)
     [ $(( now - last )) -ge 300 ] || continue                                   # at most every 5 minutes
     [ "$(cat "$CFG/front" 2>/dev/null)" = "$APP" ] && continue                  # the menu shows it itself
+    if msg_acked "$id"; then echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"; continue; fi   # seen on the menu's card
     echo "$now" > "$CFG/msg.last"; echo "$id" > "$CFG/msg.id"
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }
     [ "$(printf '%s\n' "$line" | grep -c '"ack":true')" -gt 0 ] || echo "$id" > "$CFG/msg.done"

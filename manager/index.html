@@ -720,13 +720,13 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   var Msgs = (function () {
     var FB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app';
     var KINDS = {
-      birthday: { ic: '\u2605', tag: 'Birthday', title: function (n) { return 'Happy birthday' + (n ? ', ' + n : '') + '!'; },
+      birthday: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M7.5 7h1.6v4.5H7.5z M11.2 7h1.6v4.5h-1.6z M14.9 7h1.6v4.5h-1.6z M8.3 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M12 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M15.7 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M5 12.5h14a1.5 1.5 0 0 1 1.5 1.5v2.2c-1.2 0-1.9 1-2.8 1s-1.6-1-2.8-1-1.9 1-2.9 1-1.7-1-2.9-1-1.9 1-2.8 1-1.6-1-2.8-1V14A1.5 1.5 0 0 1 5 12.5z M3.5 18.2c1 0 1.6.9 2.8.9s1.8-.9 2.8-.9 1.8.9 2.9.9 1.8-.9 2.9-.9 1.7.9 2.8.9 1.8-.9 2.8-.9V21h-17z"/></svg>', tag: 'Birthday', title: function (n) { return 'Happy birthday' + (n ? ', ' + n : '') + '!'; },
         text: 'From all of us at Round2: have an epic birthday session. Here\u2019s to another year of good games!' },
-      anniversary: { ic: '\u2665', tag: 'Anniversary', title: function (n) { return 'Happy anniversary' + (n ? ', ' + n : ''); },
+      anniversary: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>', tag: 'Anniversary', title: function (n) { return 'Happy anniversary' + (n ? ', ' + n : ''); },
         text: 'Thank you for celebrating with us. From all of us at Round2, have a wonderful night together.' },
-      celebrate: { ic: '\u2605', tag: 'Celebration', title: function (n) { return 'Congratulations' + (n ? ', ' + n : '') + '!'; },
+      celebrate: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M12 1.8l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9l7.1-.6z"/></svg>', tag: 'Celebration', title: function (n) { return 'Congratulations' + (n ? ', ' + n : '') + '!'; },
         text: 'Something worth celebrating! Enjoy every round tonight, from all of us at Round2.' },
-      note: { ic: '!', tag: 'A message for you', title: function (n) { return n ? 'Hey ' + n + '!' : 'A message for you'; }, text: '' }
+      note: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M3 4.5h18a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z M4 7.4V17.5h16V7.4l-8 5.6z M5.6 6.5L12 11l6.4-4.5z"/></svg>', tag: 'A message for you', title: function (n) { return n ? 'Hey ' + n + '!' : 'A message for you'; }, text: '' }
     };
     var kind = 'birthday', when = 'now', rooms = [], titleEdited = false, timer = null;
     function key() { return ls('r2m.msgKey') || ''; }
@@ -792,13 +792,26 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       if (d.until < Date.now()) { msg.textContent = 'That time has already passed.'; return; }
       d.id = 'm' + Date.now().toString(36);
       d.t = { '.sv': 'timestamp' };
-      $('mSend').disabled = true; msg.textContent = 'Sending\u2026';
-      Promise.all(rooms.map(function (r) { return req('PUT', url(r, 'msg'), d); })).then(function () {
+      $('mSend').disabled = true; msg.textContent = 'Checking the TVs\u2026';
+      /* one message per TV: a new one replaces the one waiting there, so say so if that one hasn't been seen yet */
+      Promise.all(rooms.map(function (r) {
+        return Promise.all([fetch(url(r, 'msg'), { cache: 'no-store' }).then(function (x) { return x.json(); }), fetch(url(r, 'msgAck'), { cache: 'no-store' }).then(function (x) { return x.json(); })])
+          .then(function (a) { var m = a[0], ak = a[1]; return m && m.id && m.ack && (!ak || ak.id !== m.id) && (Number(m.until) || 0) > Date.now() ? ROOMS[r].name + ': \u201C' + (m.title || '') + '\u201D' : null; })
+          .catch(function () { return null; });
+      })).then(function (busy) {
+        busy = busy.filter(Boolean);
+        if (busy.length && !confirm('Still waiting on the TV, not seen yet:\n\n' + busy.join('\n') + '\n\nEach TV holds one message at a time, so sending this replaces it. Send anyway?')) {
+          msg.textContent = 'Not sent. Wait for the first one to be seen, or put both in one message.'; $('mSend').disabled = false; return;
+        }
+        msg.textContent = 'Sending\u2026';
+        go();
+      });
+      function go() { Promise.all(rooms.map(function (r) { return req('PUT', url(r, 'msg'), d); })).then(function () {
         msg.textContent = when === 'now' ? 'Sent. It pops up on the TV within a few seconds.' : 'Scheduled for ' + nice2(d.at) + '.';
         toast('Message sent to ' + rooms.map(function (r) { return ROOMS[r].name; }).join(', '));
         setTimeout(status, 1500);
       }).catch(function (e) { msg.textContent = 'Couldn\u2019t send: ' + e.message + '. Is the key right?'; })
-        .then(function () { $('mSend').disabled = false; });
+        .then(function () { $('mSend').disabled = false; }); }
     }
     function init() {
       renderRooms(); fillTitle(); preview();
