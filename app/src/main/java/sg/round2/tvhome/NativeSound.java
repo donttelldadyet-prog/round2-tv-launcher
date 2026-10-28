@@ -35,6 +35,8 @@ final class NativeSound {
     private final Handler main = new Handler(Looper.getMainLooper());
     private AudioTrack rain;
     private float rainVol = 0f, rainTarget = 0f, rainStep = 0f;
+    private byte[] loopPcm;          // kept so the rain loop can be rebuilt after standby (revive)
+    private int loopRate;
 
     NativeSound(Context ctx) {
         this.ctx = ctx.getApplicationContext();
@@ -80,6 +82,7 @@ final class NativeSound {
     /** The rain loop: 16-bit mono PCM, played on repeat. */
     synchronized void loadLoop(byte[] pcm, int sampleRate) {
         stopLoop();
+        loopPcm = pcm; loopRate = sampleRate;
         try {
             AudioAttributes a = new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -143,6 +146,12 @@ final class NativeSound {
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());
                     file.setDataSource(path);
                     file.setLooping(true);
+                    file.setOnErrorListener(new android.media.MediaPlayer.OnErrorListener() {   // e.g. the audio output went away
+                        @Override public boolean onError(android.media.MediaPlayer mp, int what, int extra) {
+                            Log.w(TAG, "ambience file error " + what + "/" + extra + ", rebuilding");
+                            revive(); return true;
+                        }
+                    });
                     file.setVolume(0f, 0f);
                     file.prepare();
                     filePath = path; fileVol = 0f;
@@ -174,6 +183,25 @@ final class NativeSound {
         main.removeCallbacks(fileFader);
         if (file != null) { try { file.release(); } catch (Exception ignored) { } file = null; }
         filePath = null;
+    }
+
+    /**
+     * After standby (or a long screensaver) some TVs switch off or re-route their audio output, e.g. Sony with a
+     * home theater on HDMI ARC: players made before then stay "playing" but are silent. Rebuild them, at the same
+     * volume they were heading for, so the menu's next fade-in is heard.
+     */
+    void revive() {
+        main.post(new Runnable() { @Override public void run() {
+            float rt = rainTarget, ft = fileTarget;
+            String fp = filePath;
+            synchronized (NativeSound.this) {
+                if (loopPcm != null) loadLoop(loopPcm, loopRate);
+            }
+            rainTarget = 0f;
+            if (rt > 0f) loopTo(rt, 600);
+            if (fp != null) { releaseFile(); fileTo(fp, ft, 600); }
+            Log.i(TAG, "ambience players rebuilt");
+        } });
     }
 
     void release() {

@@ -64,11 +64,13 @@ public class MainActivity extends Activity {
     private boolean pageReady;
     private static volatile MainActivity front;   // the menu while it is on screen (food alerts go to it)
     private long stoppedAt;   // when the screen was last hidden (an app, the screensaver, standby)
+    private boolean screenWasOff;   // standby since the menu was last shown: rebuild the ambience players
     private static final long RELOAD_AFTER_MS = 10 * 60 * 1000L;
 
     /* TV switched off (standby): guests' changes are forgotten, the house settings come back */
     private final android.content.BroadcastReceiver screenOff = new android.content.BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
+            screenWasOff = true;
             if (web != null) web.evaluateJavascript("window.r2Reset && window.r2Reset()", null);
             // Android 12+: a downloaded-ready update installs itself while the TV is off
             if (updater != null && updater.hasUpdate() && Updater.canInstallQuietly())
@@ -247,10 +249,14 @@ public class MainActivity extends Activity {
         FoodAlerts.menuInFront();
 
         if (bg != null) bg.resume();
+        long awayMs = stoppedAt > 0 ? System.currentTimeMillis() - stoppedAt : 0;
+        // after standby or a long time away (screensaver), the TV may have re-routed its audio: fresh players
+        if (sound != null && (screenWasOff || awayMs > 60_000)) sound.revive();
+        screenWasOff = false;
         if (web != null) {
             web.onResume();
             web.requestFocus();
-            long away = stoppedAt > 0 ? System.currentTimeMillis() - stoppedAt : 0;
+            long away = awayMs;
             stoppedAt = 0;
             if (away > RELOAD_AFTER_MS || !pageReady) {
                 // Back after a long time (screensaver, standby, a long film): start the menu fresh
