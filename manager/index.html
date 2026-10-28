@@ -260,7 +260,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   <section id="tab-messages" hidden>
     <h1>Messages</h1>
-    <p class="sub">Send a personal message to a room's TV: a birthday, an anniversary, a well done. It pops up over whatever they're watching or playing, at the time you choose, with confetti or hearts in the room's colour.</p>
+    <p class="sub">Send a personal message to a room's TV (a birthday, an anniversary, a well done), or a friendly house reminder (volume, 10 minutes left, time's up). It pops up over whatever they're watching or playing, at the time you choose, with confetti or hearts in the room's colour.</p>
     <div id="mKeyBox" class="banner warn" hidden>
       <div class="grow"><b>One-time setup on this computer.</b> Paste the TV messages key (the same private code the food alerts use). It stays in this browser only and is never published.</div>
       <input class="tok" id="mKey" placeholder="TV messages key" autocomplete="off" style="max-width:280px">
@@ -269,12 +269,18 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     <div class="msgs">
       <div class="card">
         <div class="f"><span class="f">Room</span><div class="roompick" id="mRooms"></div></div>
-        <div class="f"><span class="f">Occasion</span>
-          <div class="seg" id="mKind">
+        <div class="f" id="mKind"><span class="f">Occasion</span>
+          <div class="seg">
             <button type="button" data-k="birthday" aria-pressed="true">Birthday</button>
             <button type="button" data-k="anniversary" aria-pressed="false">Anniversary</button>
             <button type="button" data-k="celebrate" aria-pressed="false">Celebration</button>
             <button type="button" data-k="note" aria-pressed="false">Note</button>
+          </div>
+          <span class="f" style="margin-top:12px">House reminders</span>
+          <div class="seg">
+            <button type="button" data-k="volume" aria-pressed="false">Mind the volume</button>
+            <button type="button" data-k="wrapup" aria-pressed="false">10 minutes left</button>
+            <button type="button" data-k="timeup" aria-pressed="false">Time’s up</button>
           </div>
         </div>
         <div class="row" style="align-items:flex-start">
@@ -726,6 +732,13 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         text: 'Thank you for celebrating with us. From all of us at Round2, have a wonderful night together.' },
       celebrate: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M12 1.8l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9l7.1-.6z"/></svg>', tag: 'Celebration', title: function (n) { return 'Congratulations' + (n ? ', ' + n : '') + '!'; },
         text: 'Something worth celebrating! Enjoy every round tonight, from all of us at Round2.' },
+      /* house reminders: worded as a general, friendly reminder, so no guest feels singled out */
+      volume: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M3 9h4l5-4.5v15L7 15H3z M15.3 8.4a5 5 0 0 1 0 7.2l-1.2-1.1a3.4 3.4 0 0 0 0-5z M17.9 5.6a8.7 8.7 0 0 1 0 12.8l-1.2-1.1a7.1 7.1 0 0 0 0-10.6z"/></svg>', tag: 'A friendly reminder', admin: true, title: function () { return 'A little sound check'; },
+        text: 'Hi there! A friendly reminder from all of us at Round2 to keep the volume cosy, so every room can enjoy their session. Thank you, and have fun!' },
+      wrapup: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M6 2h12v2h-1v3.2a4 4 0 0 1-1.8 3.3L13.2 12l2 1.5a4 4 0 0 1 1.8 3.3V20h1v2H6v-2h1v-3.2a4 4 0 0 1 1.8-3.3l2-1.5-2-1.5A4 4 0 0 1 7 7.2V4H6z M9 4v3.2c0 .7.3 1.3.9 1.7L12 10.5l2.1-1.6c.6-.4.9-1 .9-1.7V4z M12 14.2l-2.1 1.5c-.6.4-.9 1-.9 1.7V20h6v-2.6c0-.7-.3-1.3-.9-1.7z"/></svg>', tag: 'Session reminder', admin: true, title: function () { return 'About 10 minutes to go'; },
+        text: 'Just a heads-up: this session wraps up in about 10 minutes. A good time to save your game and gather your things. Thanks for playing with us!' },
+      timeup: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M11 6.5h2v5.1l3.6 2.1-1 1.7-4.6-2.7z"/></svg>', tag: 'Session reminder', admin: true, title: function () { return 'That\u2019s a wrap!'; },
+        text: 'This session has come to an end. We hope you had a great time! Please save your game and gather your things, so we can get the room ready for the next guests. See you again soon!' },
       note: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M3 4.5h18a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z M4 7.4V17.5h16V7.4l-8 5.6z M5.6 6.5L12 11l6.4-4.5z"/></svg>', tag: 'A message for you', title: function (n) { return n ? 'Hey ' + n + '!' : 'A message for you'; }, text: '' }
     };
     var kind = 'birthday', when = 'now', rooms = [], titleEdited = false, timer = null;
@@ -824,7 +837,9 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         var k = e.target.getAttribute && e.target.getAttribute('data-k'); if (!k) return;
         var wasDefault = !$('mText').value.trim() || $('mText').value.trim() === KINDS[kind].text;
         kind = k; seg('#mKind', 'data-k', k); titleEdited = false; fillTitle();
-        if (wasDefault) $('mText').value = KINDS[k].text;
+        if (wasDefault || KINDS[k].admin) $('mText').value = KINDS[k].text;
+        $('mTo').closest('label').hidden = !!KINDS[k].admin; if (KINDS[k].admin) $('mTo').value = '';
+        if (KINDS[k].admin) $('mAck').checked = true;
         preview();
       });
       $('mWhen').addEventListener('click', function (e) {

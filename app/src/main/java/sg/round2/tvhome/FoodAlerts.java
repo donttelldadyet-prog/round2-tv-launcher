@@ -616,11 +616,12 @@ public class FoodAlerts extends Service {
         final String id = d.optString("id");
         final boolean ack = d.optBoolean("ack"), last = i >= pg.size() - 1;
         String kind = d.optString("kind", "note");
-        String tag = ("birthday".equals(kind) ? "BIRTHDAY" : "anniversary".equals(kind) ? "ANNIVERSARY" : "celebrate".equals(kind) ? "CELEBRATION" : "A MESSAGE")
+        String tag = ("birthday".equals(kind) ? "BIRTHDAY" : "anniversary".equals(kind) ? "ANNIVERSARY" : "celebrate".equals(kind) ? "CELEBRATION"
+                : "volume".equals(kind) ? "A FRIENDLY REMINDER" : "wrapup".equals(kind) || "timeup".equals(kind) ? "SESSION REMINDER" : "A MESSAGE")
                 + (d.optString("to").isEmpty() ? "" : " \u00B7 FOR " + d.optString("to").toUpperCase()) + (again && i == 0 ? " \u00B7 REMINDER" : "")
                 + (pg.size() > 1 ? " \u00B7 " + (i + 1) + "/" + pg.size() : "");
         String text = pg.get(i) + (last && !d.optString("from").isEmpty() ? "\n\u2014 " + d.optString("from") : "");
-        bangText = "icon:" + ("birthday".equals(kind) || "anniversary".equals(kind) || "celebrate".equals(kind) ? kind : "note");
+        bangText = "icon:" + (kind.matches("birthday|anniversary|celebrate|volume|wrapup|timeup") ? kind : "note");
         // ◀ ▶ turn the pages (guests can go back to re-read or take a photo); OK only closes it, on the last page
         okText = !last ? (i > 0 ? "\u25C0 \u25B6" : "\u25B6") + "  NEXT PAGE  " + (i + 1) + "/" + pg.size()
                 : (pg.size() > 1 ? "\u25C0   " : "") + (ack ? "[OK]  SEEN IT \u00B7 CLOSES THIS" : "[OK]  CLOSE");
