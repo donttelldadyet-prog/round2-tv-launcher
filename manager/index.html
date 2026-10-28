@@ -316,6 +316,18 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     <iframe id="menuFrame" title="Round2 menu editor" style="width:100%;height:calc(100vh - 190px);min-height:560px;border:1px solid var(--line);background:var(--bg)" loading="lazy"></iframe>
   </section>
 
+  <section id="tab-simorder" hidden>
+    <h1>Test an order</h1>
+    <p class="sub">The real guest menu in test mode: order like a guest would, with no payment. It goes through the whole chain: the kitchen Telegram group gets it marked <b>SIMULATED · DO NOT MAKE</b>, the room's TV shows <b>Order locked in</b>, and tapping <b>Food is at the pickup point</b> in Telegram sends <b>Loot dropped</b> to the TV.</p>
+    <div class="banner warn" id="simKeyBox" hidden><div class="grow"><b>One-time setup on this phone or computer.</b> Paste the menu's test code (it stays in this browser only).
+      <div class="row" style="margin-top:10px"><input id="simKey" type="password" autocomplete="off" placeholder="Menu test code" style="flex:1;min-width:0"><button class="btn primary" id="simKeyGo" type="button">Save</button></div></div></div>
+    <div id="simBody" hidden>
+      <div class="roompick" id="simRoomPick" style="margin-bottom:12px"></div>
+      <div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="hint" id="simNote"></span><a class="btn ghost" id="simOpen" target="_blank" rel="noopener">Open on its own</a></div>
+      <iframe id="simFrame" title="Round2 menu in test mode" style="width:100%;height:calc(100vh - 160px);min-height:600px;border:1px solid var(--line);background:#000"></iframe>
+    </div>
+  </section>
+
   <section id="tab-rooms" hidden>
     <h1>Rooms</h1>
     <p class="sub"><b>Default settings</b> sets what each room's TV shows every time it's switched on (background, ambience and its volume, sounds, transitions). What each room's TV can show today. ▶ marks what it switches to by itself. Built-in backgrounds come with the app; staff can always pick another one on the TV under Options › Background.</p>
@@ -841,6 +853,32 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     };
   }());
 
+  /* ---------- Test an order: the guest menu with ?sim=<code> (Make: [TEST] ROOM MENU SIMULATE ORDER) ---------- */
+  var Sim = (function () {
+    var MENU = 'https://donttelldadyet-prog.github.io/round2sg-home/menu/', room = ls('r2m.simRoom') || 'vale', ready = false;
+    function code() { return ls('r2m.simCode') || ''; }
+    function url() { return MENU + '?room=' + encodeURIComponent(room === 'maximillion' ? 'max' : room) + '&sim=' + encodeURIComponent(code()); }
+    function draw() {
+      $('simKeyBox').hidden = !!code(); $('simBody').hidden = !code();
+      if (!code()) return;
+      $('simRoomPick').innerHTML = Object.keys(ROOMS).map(function (k) { return '<button type="button" data-sr="' + k + '" aria-pressed="' + (k === room) + '" style="--rc:' + ROOMS[k].c + '">' + esc(ROOMS[k].name) + '</button>'; }).join('');
+      $('simNote').textContent = 'Ordering as ' + ROOMS[room].name + '. Nothing is charged.';
+      $('simOpen').href = url();
+      if ($('simFrame').getAttribute('src') !== url()) $('simFrame').setAttribute('src', url());
+    }
+    return {
+      open: function (r) {
+        if (r) { room = r; ls('r2m.simRoom', r); }
+        if (!ready) {
+          ready = true;
+          $('simKeyGo').onclick = function () { var v = $('simKey').value.trim(); if (!v) return; ls('r2m.simCode', v); $('simKey').value = ''; toast('Saved on this phone or computer.'); draw(); };
+          $('simRoomPick').addEventListener('click', function (e) { var k = e.target.getAttribute && e.target.getAttribute('data-sr'); if (k) { room = k; ls('r2m.simRoom', k); draw(); } });
+        }
+        draw();
+      }
+    };
+  }());
+
   /* ---------- TV tests: a test message or food alert to any room's TV, and what each TV last received ---------- */
   var Tests = (function () {
     var timer = null;
@@ -856,7 +894,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         var R = ROOMS[k];
         return '<article class="card tcard" style="--rc:' + R.c + '"><h3>' + esc(R.name) + '</h3>' +
           '<div class="btns"><button class="btn" data-t="msg" data-r="' + k + '">Test message</button><button class="btn" data-t="note" data-r="' + k + '">Long message</button>' +
-          '<button class="btn" data-t="received" data-r="' + k + '">Order locked in</button><button class="btn" data-t="ready" data-r="' + k + '">Loot dropped</button></div>' +
+          '<button class="btn" data-t="received" data-r="' + k + '">Order locked in</button><button class="btn" data-t="ready" data-r="' + k + '">Loot dropped</button>' +
+          '<button class="btn" data-t="sim" data-r="' + k + '" style="grid-column:1/-1">Full order test (menu + kitchen + TV)</button></div>' +
           '<div class="st" id="tst-' + k + '">' + (key() ? 'Checking\u2026' : '') + '</div></article>';
       }).join('');
       status();
@@ -878,6 +917,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       'On the home screen it shows as a big card, and over Netflix or the PlayStation as a small card the size of a food alert. ' +
       'OK does nothing until the last page, so nobody closes it by accident. On the last page, OK closes it and marks it as seen.';
     function send(t, r) {
+      if (t === 'sim') { ls('r2m.simRoom', r); tab('simorder'); Sim.open(r); return; }
       if (!key()) { toast('Add the TV messages key on the Messages tab first.'); return; }
       var now = Date.now(), p;
       if (t === 'msg' || t === 'note') {
@@ -901,11 +941,11 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['messages', 'tests', 'foodmenu', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['messages', 'tests', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   var GROUPS = {
     notif: [['messages', 'Send a message'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'Settings']],
-    menu: [['foodmenu', 'Food menu']],
+    menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     help: [['help', 'How it works'], ['stuck', 'If stuck']]
   };
   function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'notif'; }
@@ -924,6 +964,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (n === 'messages') Msgs.open(); else Msgs.close();
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'foodmenu') openMenuEditor();
+    if (n === 'simorder') Sim.open();
   }
   /* four main tabs, each with its own pages; a main tab reopens on the page last used in it */
   $('tabs').addEventListener('click', function (e) { var g = e.target.getAttribute && e.target.getAttribute('data-group'); if (g) tab(ls('r2m.sub.' + g) || GROUPS[g][0][0]); });
