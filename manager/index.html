@@ -263,8 +263,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
           <label class="f" style="flex:1;min-width:180px">From<input type="text" id="mFrom" maxlength="40" value="The Round2 team"></label>
         </div>
         <label class="f">Headline<input type="text" id="mTitle" maxlength="40"></label>
-        <label class="f">Message<textarea id="mText" maxlength="260"></textarea>
-          <span class="hint"><span id="mCount">0</span>/260 · <button type="button" class="btn ghost" id="mDefault" style="padding:2px 8px;font-size:11px">Use Round2's default message</button></span></label>
+        <label class="f">Message<textarea id="mText" maxlength="600"></textarea>
+          <span class="hint"><span id="mCount">0</span>/600 · <span id="mPages"></span> · <button type="button" class="btn ghost" id="mDefault" style="padding:2px 8px;font-size:11px">Use Round2's default message</button></span></label>
         <div class="f"><span class="f">When</span>
           <div class="seg" id="mWhen"><button type="button" data-w="now" aria-pressed="true">Now</button><button type="button" data-w="at" aria-pressed="false">At a set time</button></div>
           <label class="f" id="mAtBox" hidden>Show at<input type="datetime-local" id="mAt"><span class="hint">Tip: within the first hour of their booking. It shows for up to 3 hours after this time.</span></label>
@@ -691,6 +691,10 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     function preview() {
       var d = draft(), k = KINDS[kind], rc = rooms.length ? ROOMS[rooms[0]].c : '#F2C21B';
       $('mCount').textContent = $('mText').value.length;
+      /* long messages are read a page at a time on the TV (OK turns the page): the same split as the TVs */
+      function pagesOf(t, n) { t = t.replace(/\s+/g, ' ').trim(); var c = 0; while (t.length > n) { var cut = -1, i; for (i = n; i > n / 2; i--) if (/[.!?]/.test(t.charAt(i - 1)) && t.charAt(i) === ' ') { cut = i; break; } if (cut < 0) { cut = t.lastIndexOf(' ', n); if (cut < n / 3) cut = n; } t = t.slice(cut).trim(); c++; } return c + 1; }
+      var ph = pagesOf($('mText').value, 220), pa = pagesOf($('mText').value, 110);
+      $('mPages').textContent = (ph > 1 ? ph + ' pages on the home screen' : 'one page on the home screen') + ', ' + (pa > 1 ? pa + ' pages over Netflix or the PS4' : 'one over Netflix or the PS4');
       $('mPrev').style.setProperty('--rc', rc);
       $('mPrev').innerHTML = '<div class="box"><div class="ic">' + k.ic + '</div><div class="tg">' + esc(k.tag + (d.to ? ' \u00B7 for ' + d.to : '')) + '</div>' +
         '<h3>' + esc(d.title || '\u2026') + '</h3><p>' + esc(d.text) + '</p>' + (d.from ? '<div class="fr">\u2014 ' + esc(d.from) + '</div>' : '') +

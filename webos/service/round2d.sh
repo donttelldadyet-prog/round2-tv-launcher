@@ -182,6 +182,22 @@ msg_ack() {     # OK pressed on the LG pop-up
   echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"
   msg_put msgAck "$id"; log "message $id acknowledged"
 }
+msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows the next page, the last one SEEN IT / CLOSE
+  line=$(cat "$CFG/msg.cur" 2>/dev/null); [ -n "$line" ] || return 0
+  n=${1:-1}
+  title=$(printf '%s\n' "$line" | field title | clean); from=$(printf '%s\n' "$line" | field from | clean)
+  printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | { if command -v fold >/dev/null 2>&1; then fold -s -w 110; else cat; fi; } > "$CFG/msg.pages"
+  total=$(wc -l < "$CFG/msg.pages"); [ "$total" -ge 1 ] || total=1
+  text=$(sed -n "${n}p" "$CFG/msg.pages")
+  if [ "$n" -lt "$total" ]; then ok="NEXT $n/$total"; cmd="sh $CFG/round2d.sh msgpage $((n + 1))"
+  else
+    [ -n "$from" ] && text="$text\\n\u2014 $from"
+    if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="SEEN IT"; cmd="sh $CFG/round2d.sh msgack"; else ok="CLOSE"; cmd="true"; fi
+  fi
+  [ "$total" -gt 1 ] && title="$title ($n/$total)"
+  luna-send -n 1 luna://com.webos.notification/createAlert \
+    "{\"sourceId\":\"$APP\",\"title\":\"$title\",\"message\":\"$text\",\"modal\":false,\"buttons\":[{\"label\":\"$ok\",\"onclick\":\"luna://org.webosbrew.hbchannel.service/exec\",\"params\":{\"command\":\"$cmd\"}}]}" >/dev/null 2>&1
+}
 msg_tick() {    # every 20 s: is the message due, and is something other than Round2 Home in front?
   while :; do
     sleep 20
@@ -199,12 +215,8 @@ msg_tick() {    # every 20 s: is the message due, and is something other than Ro
     [ "$(cat "$CFG/front" 2>/dev/null)" = "$APP" ] && continue                  # the menu shows it itself
     echo "$now" > "$CFG/msg.last"; echo "$id" > "$CFG/msg.id"
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }
-    title=$(printf '%s\n' "$line" | field title | clean); text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | cut -c1-110); from=$(printf '%s\n' "$line" | field from | clean)
-    [ -n "$from" ] && text="$text\\n\u2014 $from"
-    if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="SEEN IT"; cmd="sh $CFG/round2d.sh msgack"
-    else ok="CLOSE"; cmd="true"; echo "$id" > "$CFG/msg.done"; fi
-    luna-send -n 1 luna://com.webos.notification/createAlert \
-      "{\"sourceId\":\"$APP\",\"title\":\"$title\",\"message\":\"$text\",\"modal\":false,\"buttons\":[{\"label\":\"$ok\",\"onclick\":\"luna://org.webosbrew.hbchannel.service/exec\",\"params\":{\"command\":\"$cmd\"}}]}" >/dev/null 2>&1
+    [ "$(printf '%s\n' "$line" | grep -c '"ack":true')" -gt 0 ] || echo "$id" > "$CFG/msg.done"
+    msg_alert 1
     log "message $id shown over $(cat "$CFG/front" 2>/dev/null)"
   done
 }
@@ -255,6 +267,7 @@ case "$1" in
   stop) stop; log "stopped"; exit 0 ;;
   ack) K=""; curl -s -m 10 -o /dev/null https://hook.eu1.make.com/ 2>/dev/null || K="-k"; food_ack; exit 0 ;;
   msgack) K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; msg_ack; exit 0 ;;
+  msgpage) msg_alert "$2"; exit 0 ;;   # NEXT pressed on a message pop-up
   ensure)                                   # Round2 Home calls this on every start: keep one up-to-date copy running
     cmp -s "$SELF" "$CFG/round2d.sh" 2>/dev/null || cp "$SELF" "$CFG/round2d.sh"
     if running && [ "$(cat "$CFG/sum" 2>/dev/null)" = "$(sum)" ]; then exit 0; fi ;;

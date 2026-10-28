@@ -288,6 +288,7 @@ public class FoodAlerts extends Service {
     private TextView okLabel;
     private Runnable onOk;                    // a message's own OK action (acknowledged)
     private String bangText = "!", okText = "[OK]  GOT IT";
+    private boolean pageTurn;
     private int px(float v) { return Math.round(v * u); }
 
     /** A card in the menu's style, top right, over whatever is playing: a room-coloured "!" that pops
@@ -329,6 +330,7 @@ public class FoodAlerts extends Service {
         t2.setText(title); t2.setTextColor(0xFFF4F1FB); t2.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(34));
         t2.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD)); t2.setLetterSpacing(0.05f);
         t2.setPadding(0, px(8), 0, px(4));
+        if (title == null || title.isEmpty()) t2.setVisibility(View.GONE);   // a message's later pages
         TextView t3 = new TextView(this);
         t3.setText(text); t3.setTextColor(0xFFD6D0E3); t3.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
         t3.setLineSpacing(0, 1.15f);
@@ -404,9 +406,10 @@ public class FoodAlerts extends Service {
             bang.setScaleX(0f); bang.setScaleY(0f); bang.setRotation(-30f);
             bang.animate().scaleX(1f).scaleY(1f).rotation(0f).setStartDelay(100).setDuration(450)
                     .setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
+            final boolean calm = pageTurn; pageTurn = false;   // turning a message's page: no wobble or flashing
             android.animation.ObjectAnimator wob = android.animation.ObjectAnimator.ofFloat(bang, "rotation", 0f, -14f, 12f, -8f, 4f, 0f);
-            wob.setDuration(700); wob.setStartDelay(700); wob.setRepeatCount(2); wob.start();
-            for (int i = 0; i < 8; i++) {
+            wob.setDuration(700); wob.setStartDelay(700); wob.setRepeatCount(calm ? 0 : 2); if (!calm) wob.start();
+            for (int i = 0; i < (calm ? 0 : 8); i++) {
                 final boolean on = i % 2 == 0;
                 main.postDelayed(new Runnable() { @Override public void run() { if (card == me) bgd.setColor(on ? room : panel); } }, 200 + i * 250L);
             }
@@ -557,27 +560,50 @@ public class FoodAlerts extends Service {
         }
     };
 
+    /** Splits a message into pages of about n characters, at sentence or word breaks, so it can be read one page at
+     *  a time (OK turns the page). The same rule is used by the menu and the LG helper. */
+    static java.util.List<String> pages(String text, int n) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        String t = text == null ? "" : text.replace('\n', ' ').replaceAll("\\s+", " ").trim();
+        while (t.length() > n) {
+            int cut = -1;
+            for (int i = n; i > n / 2; i--) { char ch = t.charAt(i - 1); if ((ch == '.' || ch == '!' || ch == '?') && t.charAt(i) == ' ') { cut = i; break; } }
+            if (cut < 0) { cut = t.lastIndexOf(' ', n); if (cut < n / 3) cut = n; }
+            out.add(t.substring(0, cut).trim());
+            t = t.substring(cut).trim();
+        }
+        if (t.length() > 0 || out.isEmpty()) out.add(t);
+        return out;
+    }
+
     private void showMsg(String json, boolean again) {
         if (MainActivity.showMsg(json)) return;                           // Round2 Home is in front: the menu shows it
         JSONObject d;
         try { d = new JSONObject(json); } catch (Exception e) { return; }
-        final String id = d.optString("id");
-        final boolean ack = d.optBoolean("ack");
-        String kind = d.optString("kind", "note");
-        String tag = ("birthday".equals(kind) ? "BIRTHDAY" : "anniversary".equals(kind) ? "ANNIVERSARY" : "celebrate".equals(kind) ? "CELEBRATION" : "A MESSAGE")
-                + (d.optString("to").isEmpty() ? "" : " · FOR " + d.optString("to").toUpperCase()) + (again ? " · REMINDER" : "");
-        // over another app: the food card's size, so it doesn't take over what they're watching (the full message is on the home screen)
-        String body = d.optString("text").replace('\n', ' ').trim();
-        if (body.length() > 110) body = body.substring(0, 107).trim() + "\u2026";
-        String text = body + (d.optString("from").isEmpty() ? "" : "\n\u2014 " + d.optString("from"));
         if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
-            try { Toast.makeText(this, d.optString("title") + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
+            try { Toast.makeText(this, d.optString("title") + "\n" + d.optString("text"), Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
             return;
         }
-        bangText = "birthday".equals(kind) || "celebrate".equals(kind) ? "★" : "anniversary".equals(kind) ? "♥" : "!";
-        okText = ack ? "[OK]  SEEN IT" : "[OK]  CLOSE";
-        onOk = new Runnable() { @Override public void run() { msgCardId = null; if (ack) msgAck(FoodAlerts.this, id); } };
-        showCard(tag, d.optString("title"), text, "", READY_SHOW_MS, "", false);   // like "Loot dropped": 45 s, back every 5 min until OK
+        // over another app: the food card's size, so it doesn't take over what they're watching. A long message is
+        // read a page at a time: [OK] NEXT 1/3 ... and the last page [OK] SEEN IT (or CLOSE)
+        showMsgPage(d, again, pages(d.optString("text"), 110), 0);
+    }
+
+    private void showMsgPage(final JSONObject d, final boolean again, final java.util.List<String> pg, final int i) {
+        final String id = d.optString("id");
+        final boolean ack = d.optBoolean("ack"), last = i >= pg.size() - 1;
+        String kind = d.optString("kind", "note");
+        String tag = ("birthday".equals(kind) ? "BIRTHDAY" : "anniversary".equals(kind) ? "ANNIVERSARY" : "celebrate".equals(kind) ? "CELEBRATION" : "A MESSAGE")
+                + (d.optString("to").isEmpty() ? "" : " \u00B7 FOR " + d.optString("to").toUpperCase()) + (again && i == 0 ? " \u00B7 REMINDER" : "")
+                + (pg.size() > 1 ? " \u00B7 " + (i + 1) + "/" + pg.size() : "");
+        String text = pg.get(i) + (last && !d.optString("from").isEmpty() ? "\n\u2014 " + d.optString("from") : "");
+        bangText = "birthday".equals(kind) || "celebrate".equals(kind) ? "\u2605" : "anniversary".equals(kind) ? "\u2665" : "!";
+        okText = !last ? "[OK]  NEXT  " + (i + 1) + "/" + pg.size() : ack ? "[OK]  SEEN IT" : "[OK]  CLOSE";
+        onOk = new Runnable() { @Override public void run() {
+            if (!last) { main.post(new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i + 1); } }); return; }
+            msgCardId = null; if (ack) msgAck(FoodAlerts.this, id);
+        } };
+        showCard(tag, i == 0 ? d.optString("title") : "", text, "", READY_SHOW_MS, "", false);   // like "Loot dropped": 45 s a page, back every 5 min until OK
         okText = "[OK]  GOT IT";
         msgCardId = id;
     }

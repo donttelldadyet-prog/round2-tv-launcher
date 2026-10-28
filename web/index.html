@@ -2442,15 +2442,35 @@ window.R2_TV = {
     }
     function pending() { try { return JSON.parse(store('r2.msg') || 'null'); } catch (e) { return null; } }
     function times(d) { var at = Number(d.at) || 0; return { at: at, until: Number(d.until) || at + 3 * 3600000 }; }
+    /* a long message is read a page at a time: [OK] NEXT 1/3 ... (the same rule as the app and the LG helper) */
+    function pages(text, n) {
+      var t = String(text || '').replace(/\s+/g, ' ').trim(), out = [];
+      while (t.length > n) {
+        var cut = -1, i;
+        for (i = n; i > n / 2; i--) if (/[.!?]/.test(t.charAt(i - 1)) && t.charAt(i) === ' ') { cut = i; break; }
+        if (cut < 0) { cut = t.lastIndexOf(' ', n); if (cut < n / 3) cut = n; }
+        out.push(t.slice(0, cut).trim()); t = t.slice(cut).trim();
+      }
+      if (t || !out.length) out.push(t);
+      return out;
+    }
+    var pg = [], pi = 0;
+    function page(i) {
+      var d = cur, last = i >= pg.length - 1, k = KIND[d.kind] || KIND.note;
+      pi = i;
+      $('msgTag').textContent = k[1] + (d.to ? ' \u00B7 FOR ' + String(d.to).toUpperCase() : '') + (pg.length > 1 ? ' \u00B7 ' + (i + 1) + '/' + pg.length : '');
+      $('msgText').textContent = pg[i];
+      $('msgFrom').textContent = last && d.from ? '\u2014 ' + d.from : '';
+      $('msgOkText').textContent = !last ? 'NEXT  ' + (i + 1) + '/' + pg.length : d.ack ? 'SEEN IT' : 'CLOSE';
+      var p = $('msgText'); p.style.animation = 'none'; void p.offsetWidth; p.style.animation = 'msgFade .35s ease-out both';
+    }
     function render(d, again) {
       var k = KIND[d.kind] || KIND.note, el = $('msg');
-      cur = d;
+      cur = d; pg = pages(d.text, 220); pi = 0;
       $('msgIcon').textContent = k[0];
-      $('msgTag').textContent = k[1] + (d.to ? ' \u00B7 FOR ' + String(d.to).toUpperCase() : '') + (again ? ' \u00B7 REMINDER' : '');
       $('msgTitle').textContent = d.title || '';
-      $('msgText').textContent = d.text || '';
-      $('msgFrom').textContent = d.from ? '\u2014 ' + d.from : '';
-      $('msgOkText').textContent = d.ack ? 'SEEN IT' : 'CLOSE';
+      page(0);
+      if (again) $('msgTag').textContent += ' \u00B7 REMINDER';
       var fx = '';
       if (d.kind !== 'note') for (var i = 0; i < 26; i++) fx += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;animation-duration:' + (3.5 + Math.random() * 3).toFixed(2) + 's;animation-delay:-' + (Math.random() * 6).toFixed(2) + 's"></i>';
       $('msgFx').innerHTML = fx;
@@ -2479,7 +2499,13 @@ window.R2_TV = {
     }
     function key(k) {
       if (!cur) return false;
-      if (k === 'ok') { Sfx.play('ok'); hide(true); return true; }
+      if (k === 'ok') {
+        Sfx.play('ok');
+        if (pi < pg.length - 1) { page(pi + 1); clearTimeout(hideTimer); if (!cur.ack) hideTimer = setTimeout(function () { hide(true); }, 60000); }
+        else hide(true);
+        return true;
+      }
+      if (k === 'left' && pi > 0) { Sfx.play('move'); page(pi - 1); return true; }   /* ◀ reads the page before again */
       if (k === 'back') { Sfx.play('back'); hide(!cur.ack); return true; }
       var el = $('msg'); el.className = el.className.replace(/ ?shake/g, ''); void el.offsetWidth; el.className += ' shake';
       clearTimeout(shakeT); shakeT = setTimeout(function () { el.className = el.className.replace(/ ?shake/g, ''); }, 500);
