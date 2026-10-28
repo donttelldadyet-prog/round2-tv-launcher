@@ -566,7 +566,10 @@ public class FoodAlerts extends Service {
         String kind = d.optString("kind", "note");
         String tag = ("birthday".equals(kind) ? "BIRTHDAY" : "anniversary".equals(kind) ? "ANNIVERSARY" : "celebrate".equals(kind) ? "CELEBRATION" : "A MESSAGE")
                 + (d.optString("to").isEmpty() ? "" : " · FOR " + d.optString("to").toUpperCase()) + (again ? " · REMINDER" : "");
-        String text = d.optString("text") + (d.optString("from").isEmpty() ? "" : "\n\u2014 " + d.optString("from"));
+        // over another app: the food card's size, so it doesn't take over what they're watching (the full message is on the home screen)
+        String body = d.optString("text").replace('\n', ' ').trim();
+        if (body.length() > 110) body = body.substring(0, 107).trim() + "\u2026";
+        String text = body + (d.optString("from").isEmpty() ? "" : "\n\u2014 " + d.optString("from"));
         if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
             try { Toast.makeText(this, d.optString("title") + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
             return;
@@ -574,7 +577,7 @@ public class FoodAlerts extends Service {
         bangText = "birthday".equals(kind) || "celebrate".equals(kind) ? "★" : "anniversary".equals(kind) ? "♥" : "!";
         okText = ack ? "[OK]  SEEN IT" : "[OK]  CLOSE";
         onOk = new Runnable() { @Override public void run() { msgCardId = null; if (ack) msgAck(FoodAlerts.this, id); } };
-        showCard(tag, d.optString("title"), text, "", ack ? 10 * 60_000L : 60_000L, "", false);
+        showCard(tag, d.optString("title"), text, "", READY_SHOW_MS, "", false);   // like "Loot dropped": 45 s, back every 5 min until OK
         okText = "[OK]  GOT IT";
         msgCardId = id;
     }

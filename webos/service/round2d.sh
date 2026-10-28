@@ -199,7 +199,7 @@ msg_tick() {    # every 20 s: is the message due, and is something other than Ro
     [ "$(cat "$CFG/front" 2>/dev/null)" = "$APP" ] && continue                  # the menu shows it itself
     echo "$now" > "$CFG/msg.last"; echo "$id" > "$CFG/msg.id"
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }
-    title=$(printf '%s\n' "$line" | field title | clean); text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean); from=$(printf '%s\n' "$line" | field from | clean)
+    title=$(printf '%s\n' "$line" | field title | clean); text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | cut -c1-110); from=$(printf '%s\n' "$line" | field from | clean)
     [ -n "$from" ] && text="$text\\n\u2014 $from"
     if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="SEEN IT"; cmd="sh $CFG/round2d.sh msgack"
     else ok="CLOSE"; cmd="true"; echo "$id" > "$CFG/msg.done"; fi
