@@ -2338,7 +2338,7 @@ window.R2_TV = {
     var shakeTimer;
     function key(k) {
       if (!cur) return false;
-      if (k === 'ok' || k === 'back') { Sfx.play(k === 'ok' ? 'ok' : 'back'); hide(true); return true; }
+      if (k === 'ok') { Sfx.play('ok'); hide(true); return true; }   /* only OK closes it: Back just shakes, so nobody thinks they closed it */
       /* any other button: shake the card and light up [OK] so first-timers see what to press */
       var el = $('food');
       el.className = el.className.replace(/ ?shake/g, ''); void el.offsetWidth; el.className += ' shake';
@@ -2515,7 +2515,6 @@ window.R2_TV = {
         clearTimeout(hideTimer); if (!cur.ack) hideTimer = setTimeout(function () { hide(true); }, 60000);
         return true;
       }
-      if (k === 'back') { Sfx.play('back'); hide(!cur.ack); return true; }
       var el = $('msg'); el.className = el.className.replace(/ ?shake/g, ''); void el.offsetWidth; el.className += ' shake';
       clearTimeout(shakeT); shakeT = setTimeout(function () { el.className = el.className.replace(/ ?shake/g, ''); }, 500);
       Sfx.play('back'); return true;
@@ -2698,7 +2697,7 @@ window.R2_TV = {
     if (leaving) return;
     if (Boot.isUp()) { Boot.hide(); return; }   /* a key during start-up just skips the boot screen */
     if (LogView.isOpen()) { LogView.key(k); return; }
-    if (Food.key(k)) return;                     /* a food alert on screen: OK / Back closes it */
+    if (Food.key(k)) return;                     /* a food alert on screen: only OK closes it */
     if (Msg.key(k)) return;                      /* a personal message on screen */
     if (Sfx.wake() && !ambStarted) { ambStarted = true; Amb.apply(); }   /* in case the TV held audio until the first key */
     if (/entering|settle|enter-/.test($('stage').className)) { addCls('snap'); clearAnim(); void $('stage').offsetWidth; dropCls('snap'); }   /* a key press skips the intro */

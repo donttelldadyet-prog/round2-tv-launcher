@@ -287,7 +287,7 @@ public class FoodAlerts extends Service {
     private float u = 1f;
     private TextView okLabel;
     private Runnable onOk;                    // a message's own OK action (acknowledged)
-    private Runnable onLeft, onRight, onBack; // a long message: ◀ ▶ turn its pages, Back puts it away for 5 minutes
+    private Runnable onLeft, onRight;         // a long message: ◀ ▶ turn its pages
     private boolean okLocked;                 // a long message before its last page: OK only points at ▶
     private String bangText = "!", okText = "[OK]  GOT IT";
     private boolean pageTurn;
@@ -295,15 +295,15 @@ public class FoodAlerts extends Service {
 
     /** A card in the menu's style, top right, over whatever is playing: a room-coloured "!" that pops
      *  and wobbles, and a card that flashes in the room colour.
-     *  While it is up it takes the remote: OK or Back closes it (on a "ready" card that counts as seen);
-     *  any other button just closes it (a "ready" card comes back once after 5 minutes).
+     *  While it is up it takes the remote: only OK closes it (on a "ready" card that counts as seen);
+     *  ◀ ▶ turn a message's pages; Back and any other button just shake it and point at OK.
      *  Netflix gets no presses until it is closed, so a guest can't skip past it by accident. */
     private void showCard(String tag, String title, String text, String items, long ms, final String no, final boolean ready) {
         // this card's own settings (set just before by a message page), then back to the food-alert defaults
         final String bangNow = bangText, okNow = okText;
-        final Runnable okAct = onOk, leftAct = onLeft, rightAct = onRight, backAct = onBack;
+        final Runnable okAct = onOk, leftAct = onLeft, rightAct = onRight;
         final boolean lockOk = okLocked;
-        onOk = null; onLeft = null; onRight = null; onBack = null; okLocked = false; okText = "[OK]  GOT IT";
+        onOk = null; onLeft = null; onRight = null; okLocked = false; okText = "[OK]  GOT IT";
         hideCard();
         u = getResources().getDisplayMetrics().widthPixels / 1920f;
         final int room = colour(prefs(this).getString("color", ""), 0xFFF2C21B);
@@ -398,9 +398,8 @@ public class FoodAlerts extends Service {
                                 || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER;
                         if (code == android.view.KeyEvent.KEYCODE_DPAD_LEFT && leftAct != null) { leftAct.run(); return true; }
                         if (code == android.view.KeyEvent.KEYCODE_DPAD_RIGHT && rightAct != null) { rightAct.run(); return true; }
-                        if (code == android.view.KeyEvent.KEYCODE_BACK && backAct != null) { hideCard(); backAct.run(); return true; }
                         if (okKey && lockOk) { nudge(v, room, ink); return true; }   // not the last page yet: point at ▶
-                        if (okKey || code == android.view.KeyEvent.KEYCODE_BACK) {
+                        if (okKey) {                                     // only OK closes it; Back just shakes like any other button
                             if (okAct != null) okAct.run(); else if (ready) seen(FoodAlerts.this, no);
                             hideCard();
                         } else nudge(v, room, ink);   // any other button: shake the card and point at OK
@@ -629,8 +628,6 @@ public class FoodAlerts extends Service {
         if (i > 0) onLeft = new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i - 1); } };
         if (!last) onRight = new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i + 1); } };
         onOk = new Runnable() { @Override public void run() { msgCardId = null; if (ack) msgAck(FoodAlerts.this, id); } };
-        // Back: put it away; one that needs OK comes back in 5 minutes, any other is done
-        onBack = new Runnable() { @Override public void run() { msgCardId = null; if (!ack) prefs(FoodAlerts.this).edit().putString("msgDone", id).remove("msg").apply(); } };
         showCard(tag, i == 0 ? d.optString("title") : "", text, "", READY_SHOW_MS, "", false);   // like "Loot dropped": 45 s a page, back every 5 min until OK
         msgCardId = id;
     }
