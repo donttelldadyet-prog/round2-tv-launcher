@@ -386,6 +386,9 @@ footer .keys { display: flex; gap: 30px; }
 #msg .ok { display: inline-flex; align-items: center; margin-top: 30px; padding: 10px 30px 10px 14px; background: var(--room); color: var(--room-ink);
   font: 700 16px var(--f-ui); letter-spacing: .12em; clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%); animation: okNudge 1.6s ease-in-out 1.6s infinite; }
 #msg .ok b { font-family: var(--f-pix); font-weight: 400; font-size: 10px; margin-right: 10px; }
+#msg .ok.turn { background: transparent; color: var(--room); box-shadow: inset 0 0 0 2px var(--room); clip-path: none; padding: 10px 22px; }
+#msg .ok.turn b { font: 700 18px var(--f-ui); letter-spacing: .2em; }
+#msg .ok i { font: 600 13px var(--f-ui); font-style: normal; letter-spacing: .12em; opacity: .7; margin-right: 22px; }
 #msg.shake .box { animation: foodShake .42s ease-in-out; }
 #msg .fx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 #msg .fx i { position: absolute; top: -30px; width: 12px; height: 18px; background: var(--room); opacity: .9; animation: msgFall linear infinite; }
@@ -539,7 +542,7 @@ footer .keys { display: flex; gap: 30px; }
   <div id="msg" role="alert" hidden><div class="fx" id="msgFx"></div><div class="box">
     <div class="icon" id="msgIcon">&#9733;</div><div class="tag" id="msgTag"></div>
     <h2 id="msgTitle"></h2><p id="msgText"></p><div class="from" id="msgFrom"></div>
-    <div class="ok" id="msgOk"><b>[OK]</b><span id="msgOkText">SEEN IT</span></div></div></div>
+    <div class="ok" id="msgOk"><i id="msgPrev" hidden>&#9664; PAGE BACK</i><b id="msgOkKey">[OK]</b><span id="msgOkText">SEEN IT</span></div></div></div>
   <div id="food" role="alert" hidden><i class="ring"></i><div class="bang">!</div><div class="card">
     <div class="tag"><span id="foodTag"></span><i id="foodWhen"></i></div>
     <h2 id="foodTitle"></h2><p id="foodText"></p><ul class="items" id="foodItems"></ul>
@@ -2461,7 +2464,11 @@ window.R2_TV = {
       $('msgTag').textContent = k[1] + (d.to ? ' \u00B7 FOR ' + String(d.to).toUpperCase() : '') + (pg.length > 1 ? ' \u00B7 ' + (i + 1) + '/' + pg.length : '');
       $('msgText').textContent = pg[i];
       $('msgFrom').textContent = last && d.from ? '\u2014 ' + d.from : '';
-      $('msgOkText').textContent = !last ? 'NEXT  ' + (i + 1) + '/' + pg.length : d.ack ? 'SEEN IT' : 'CLOSE';
+      /* ◀ ▶ turn the pages (to re-read, or take a photo); OK only closes it, on the last page */
+      $('msgOk').className = 'ok' + (last ? '' : ' turn');
+      $('msgOkKey').textContent = last ? '[OK]' : (i > 0 ? '\u25C0 \u25B6' : '\u25B6');
+      $('msgOkText').textContent = !last ? 'NEXT PAGE  ' + (i + 1) + '/' + pg.length : d.ack ? 'SEEN IT \u00B7 CLOSES THIS' : 'CLOSE';
+      $('msgPrev').hidden = !(last && pg.length > 1);
       var p = $('msgText'); p.style.animation = 'none'; void p.offsetWidth; p.style.animation = 'msgFade .35s ease-out both';
     }
     function render(d, again) {
@@ -2499,13 +2506,13 @@ window.R2_TV = {
     }
     function key(k) {
       if (!cur) return false;
-      if (k === 'ok') {
-        Sfx.play('ok');
-        if (pi < pg.length - 1) { page(pi + 1); clearTimeout(hideTimer); if (!cur.ack) hideTimer = setTimeout(function () { hide(true); }, 60000); }
-        else hide(true);
+      var lastPg = pi >= pg.length - 1;
+      if (k === 'ok' && lastPg) { Sfx.play('ok'); hide(true); return true; }
+      if (k === 'right' && !lastPg || k === 'left' && pi > 0) {
+        Sfx.play('move'); page(pi + (k === 'right' ? 1 : -1));
+        clearTimeout(hideTimer); if (!cur.ack) hideTimer = setTimeout(function () { hide(true); }, 60000);
         return true;
       }
-      if (k === 'left' && pi > 0) { Sfx.play('move'); page(pi - 1); return true; }   /* ◀ reads the page before again */
       if (k === 'back') { Sfx.play('back'); hide(!cur.ack); return true; }
       var el = $('msg'); el.className = el.className.replace(/ ?shake/g, ''); void el.offsetWidth; el.className += ' shake';
       clearTimeout(shakeT); shakeT = setTimeout(function () { el.className = el.className.replace(/ ?shake/g, ''); }, 500);

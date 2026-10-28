@@ -189,14 +189,20 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
   printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | { if command -v fold >/dev/null 2>&1; then fold -s -w 110; else cat; fi; } > "$CFG/msg.pages"
   total=$(wc -l < "$CFG/msg.pages"); [ "$total" -ge 1 ] || total=1
   text=$(sed -n "${n}p" "$CFG/msg.pages")
-  if [ "$n" -lt "$total" ]; then ok="NEXT $n/$total"; cmd="sh $CFG/round2d.sh msgpage $((n + 1))"
+  # ◀ ▶ move between the pop-up's buttons: PAGE BACK re-reads, NEXT PAGE turns; only the last page has the OK that closes it
+  hb="luna://org.webosbrew.hbchannel.service/exec"
+  btns=""
+  [ "$n" -gt 1 ] && btns="{\"label\":\"\u25C0 PAGE BACK\",\"onclick\":\"$hb\",\"params\":{\"command\":\"sh $CFG/round2d.sh msgpage $((n - 1))\"}},"
+  if [ "$n" -lt "$total" ]; then
+    btns="$btns{\"label\":\"NEXT PAGE \u25B6 $n/$total\",\"onclick\":\"$hb\",\"params\":{\"command\":\"sh $CFG/round2d.sh msgpage $((n + 1))\"}}"
   else
     [ -n "$from" ] && text="$text\\n\u2014 $from"
-    if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="SEEN IT"; cmd="sh $CFG/round2d.sh msgack"; else ok="CLOSE"; cmd="true"; fi
+    if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="OK \u00B7 SEEN IT (CLOSES THIS)"; cmd="sh $CFG/round2d.sh msgack"; else ok="OK \u00B7 CLOSE"; cmd="true"; fi
+    btns="$btns{\"label\":\"$ok\",\"onclick\":\"$hb\",\"params\":{\"command\":\"$cmd\"}}"
   fi
   [ "$total" -gt 1 ] && title="$title ($n/$total)"
   luna-send -n 1 luna://com.webos.notification/createAlert \
-    "{\"sourceId\":\"$APP\",\"title\":\"$title\",\"message\":\"$text\",\"modal\":false,\"buttons\":[{\"label\":\"$ok\",\"onclick\":\"luna://org.webosbrew.hbchannel.service/exec\",\"params\":{\"command\":\"$cmd\"}}]}" >/dev/null 2>&1
+    "{\"sourceId\":\"$APP\",\"title\":\"$title\",\"message\":\"$text\",\"modal\":false,\"buttons\":[$btns]}" >/dev/null 2>&1
 }
 msg_tick() {    # every 20 s: is the message due, and is something other than Round2 Home in front?
   while :; do

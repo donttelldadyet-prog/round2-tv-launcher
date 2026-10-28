@@ -287,6 +287,8 @@ public class FoodAlerts extends Service {
     private float u = 1f;
     private TextView okLabel;
     private Runnable onOk;                    // a message's own OK action (acknowledged)
+    private Runnable onLeft, onRight, onBack; // a long message: ◀ ▶ turn its pages, Back puts it away for 5 minutes
+    private boolean okLocked;                 // a long message before its last page: OK only points at ▶
     private String bangText = "!", okText = "[OK]  GOT IT";
     private boolean pageTurn;
     private int px(float v) { return Math.round(v * u); }
@@ -297,6 +299,11 @@ public class FoodAlerts extends Service {
      *  any other button just closes it (a "ready" card comes back once after 5 minutes).
      *  Netflix gets no presses until it is closed, so a guest can't skip past it by accident. */
     private void showCard(String tag, String title, String text, String items, long ms, final String no, final boolean ready) {
+        // this card's own settings (set just before by a message page), then back to the food-alert defaults
+        final String bangNow = bangText, okNow = okText;
+        final Runnable okAct = onOk, leftAct = onLeft, rightAct = onRight, backAct = onBack;
+        final boolean lockOk = okLocked;
+        onOk = null; onLeft = null; onRight = null; onBack = null; okLocked = false; okText = "[OK]  GOT IT";
         hideCard();
         u = getResources().getDisplayMetrics().widthPixels / 1920f;
         final int room = colour(prefs(this).getString("color", ""), 0xFFF2C21B);
@@ -309,7 +316,7 @@ public class FoodAlerts extends Service {
         box.setPadding(px(14), px(14), px(14), px(14));
 
         final TextView bang = new TextView(this);
-        bang.setText(bangText); bang.setGravity(Gravity.CENTER);
+        bang.setText(bangNow); bang.setGravity(Gravity.CENTER);
         bang.setTextColor(ink); bang.setBackgroundColor(room);
         bang.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(44));
         bang.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
@@ -362,7 +369,7 @@ public class FoodAlerts extends Service {
         {
             final TextView ok = new TextView(this);
             okLabel = ok;
-            ok.setText(okText); ok.setTextColor(ink); ok.setBackgroundColor(room);
+            ok.setText(okNow); ok.setTextColor(ink); ok.setBackgroundColor(room);
             ok.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15)); ok.setTypeface(Typeface.DEFAULT_BOLD); ok.setLetterSpacing(0.12f);
             ok.setPadding(px(12), px(7), px(22), px(7));
             LinearLayout.LayoutParams ol = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -385,10 +392,14 @@ public class FoodAlerts extends Service {
                 box.setOnKeyListener(new View.OnKeyListener() {
                     @Override public boolean onKey(View v, int code, android.view.KeyEvent e) {
                         if (e.getAction() != android.view.KeyEvent.ACTION_UP) return true;   // swallow the press
-                        if (code == android.view.KeyEvent.KEYCODE_DPAD_CENTER || code == android.view.KeyEvent.KEYCODE_ENTER
-                                || code == android.view.KeyEvent.KEYCODE_BACK || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER) {
-                            Runnable act = onOk; onOk = null;
-                            if (act != null) act.run(); else if (ready) seen(FoodAlerts.this, no);
+                        boolean okKey = code == android.view.KeyEvent.KEYCODE_DPAD_CENTER || code == android.view.KeyEvent.KEYCODE_ENTER
+                                || code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER;
+                        if (code == android.view.KeyEvent.KEYCODE_DPAD_LEFT && leftAct != null) { leftAct.run(); return true; }
+                        if (code == android.view.KeyEvent.KEYCODE_DPAD_RIGHT && rightAct != null) { rightAct.run(); return true; }
+                        if (code == android.view.KeyEvent.KEYCODE_BACK && backAct != null) { hideCard(); backAct.run(); return true; }
+                        if (okKey && lockOk) { nudge(v, room, ink); return true; }   // not the last page yet: point at ▶
+                        if (okKey || code == android.view.KeyEvent.KEYCODE_BACK) {
+                            if (okAct != null) okAct.run(); else if (ready) seen(FoodAlerts.this, no);
                             hideCard();
                         } else nudge(v, room, ink);   // any other button: shake the card and point at OK
                         return true;
@@ -598,13 +609,16 @@ public class FoodAlerts extends Service {
                 + (pg.size() > 1 ? " \u00B7 " + (i + 1) + "/" + pg.size() : "");
         String text = pg.get(i) + (last && !d.optString("from").isEmpty() ? "\n\u2014 " + d.optString("from") : "");
         bangText = "birthday".equals(kind) || "celebrate".equals(kind) ? "\u2605" : "anniversary".equals(kind) ? "\u2665" : "!";
-        okText = !last ? "[OK]  NEXT  " + (i + 1) + "/" + pg.size() : ack ? "[OK]  SEEN IT" : "[OK]  CLOSE";
-        onOk = new Runnable() { @Override public void run() {
-            if (!last) { main.post(new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i + 1); } }); return; }
-            msgCardId = null; if (ack) msgAck(FoodAlerts.this, id);
-        } };
+        // ◀ ▶ turn the pages (guests can go back to re-read or take a photo); OK only closes it, on the last page
+        okText = !last ? (i > 0 ? "\u25C0 \u25B6" : "\u25B6") + "  NEXT PAGE  " + (i + 1) + "/" + pg.size()
+                : (pg.size() > 1 ? "\u25C0   " : "") + (ack ? "[OK]  SEEN IT \u00B7 CLOSES THIS" : "[OK]  CLOSE");
+        okLocked = !last;
+        if (i > 0) onLeft = new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i - 1); } };
+        if (!last) onRight = new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i + 1); } };
+        onOk = new Runnable() { @Override public void run() { msgCardId = null; if (ack) msgAck(FoodAlerts.this, id); } };
+        // Back: put it away; one that needs OK comes back in 5 minutes, any other is done
+        onBack = new Runnable() { @Override public void run() { msgCardId = null; if (!ack) prefs(FoodAlerts.this).edit().putString("msgDone", id).remove("msg").apply(); } };
         showCard(tag, i == 0 ? d.optString("title") : "", text, "", READY_SHOW_MS, "", false);   // like "Loot dropped": 45 s a page, back every 5 min until OK
-        okText = "[OK]  GOT IT";
         msgCardId = id;
     }
 

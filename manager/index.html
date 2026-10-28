@@ -874,9 +874,9 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         });
       });
     }
-    var LONG = 'This is a longer test message, so you can check that it is read a page at a time. Press OK to turn the page. ' +
+    var LONG = 'This is a longer test message, so you can check that it is read a page at a time. Press \u25B6 (right) to turn the page, and \u25C0 (left) to go back and read it again. ' +
       'On the home screen it shows as a big card, and over Netflix or the PlayStation as a small card the size of a food alert. ' +
-      'If you can read this last page, paging works on this TV. Press OK once more to acknowledge it.';
+      'OK does nothing until the last page, so nobody closes it by accident. On the last page, OK closes it and marks it as seen.';
     function send(t, r) {
       if (!key()) { toast('Add the TV messages key on the Messages tab first.'); return; }
       var now = Date.now(), p;
