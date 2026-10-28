@@ -256,14 +256,6 @@
       ]
     },
     {
-      "id": "relaxing",
-      "name": "RELAXING",
-      "source": "sound-relaxing-mvma2hjt.mp3",
-      "rooms": [
-        "kai"
-      ]
-    },
-    {
       "id": "calm-atlas",
       "name": "CALM ATLAS",
       "source": "sound-calm-atlas-mvmaed1h.mp3",
