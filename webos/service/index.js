@@ -31,7 +31,13 @@ var STORE = null;
       if (!fs.existsSync(tries[i].dir)) fs.mkdirSync(tries[i].dir);
       var probe = path.join(tries[i].dir, '.w');
       fs.writeFileSync(probe, '1'); fs.unlinkSync(probe);
-      STORE = tries[i]; return;
+      STORE = tries[i];
+      /* the app's folder is writable now (on rooted TVs Round2 Home runs this service as root): bring over videos
+         an earlier start had to keep in the service's folder, which the menu can't play from on newer LG software */
+      if (i === 0) {
+        try { fs.readdirSync(tries[1].dir).forEach(function (f) { try { if (!fs.existsSync(path.join(STORE.dir, f))) fs.renameSync(path.join(tries[1].dir, f), path.join(STORE.dir, f)); } catch (e) {} }); } catch (e) {}
+      }
+      return;
     } catch (e) { /* not writable here */ }
   }
 }());
@@ -83,7 +89,7 @@ function sha256(file, cb) {
    slow to start, and it could stop after a minute or two (GitHub's download links expire). Hard links: no extra space. */
 var SPARE = null;
 (function pickSpare() {
-  var tries = ['/media/developer/round2-themes', path.join(__dirname, '..', '..', '..', '..', '..', 'round2-themes')];
+  var tries = ['/var/lib/webosbrew/round2/themes', '/media/developer/round2-themes'];
   for (var i = 0; i < tries.length; i++) {
     try {
       if (!fs.existsSync(tries[i])) fs.mkdirSync(tries[i]);
@@ -144,6 +150,7 @@ function describe(root) {
     var v = STORE && fs.existsSync(path.join(STORE.dir, id + '.mp4'));
     var j = STORE && fs.existsSync(path.join(STORE.dir, id + '.jpg'));
     t.localVideo = v ? STORE.url(id + '.mp4') : (t.video || '');
+    t.onlineVideo = t.video || '';   /* the menu falls back to this if the TV won't play the stored copy */
     t.localThumb = j ? STORE.url(id + '.jpg') : (t.thumb || '');
     t.ready = !!t.localVideo;
   }

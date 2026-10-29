@@ -764,10 +764,23 @@ window.R2_TV = {
         });
       });
     }
+    /* Run this app's service as root (Homebrew Channel's elevate-service, the usual way for homebrew apps), once per
+       version: newer LG software (Vale) doesn't let a normal service write into the app's folder, so the event
+       backgrounds were kept where the menu can't play them from (black background). Then restart the service. */
+    function elevate() {
+      var v = window.R2_VERSION || ''; if (!v) return;
+      var E = '/media/developer/apps/usr/palm/services/org.webosbrew.hbchannel.service/elevate-service';
+      exec('[ "$(cat ' + CFG + '/elevated 2>/dev/null)" = "' + v + '" ] && echo same || { [ -x ' + E + ' ] && ' + E + ' sg.round2.tvhome.service >/dev/null 2>&1; ' +
+        'echo "' + v + '" > ' + CFG + '/elevated; ' +
+        /* stop the service (not the helper, which lives in the same folder): it starts again, as root, on the next call */
+        'for d in /proc/[0-9]*; do c=$(tr "\\000" " " < $d/cmdline 2>/dev/null); case "$c" in *round2d.sh*|*elevate*|*"sh -c"*) ;; *sg.round2.tvhome.service*) kill ${d#/proc/} 2>/dev/null ;; esac; done; echo done; }', function (out) {
+        if (out && /done/.test(out)) setTimeout(function () { try { window.r2SyncThemes(true); } catch (e) {} }, 4000);
+      });
+    }
     function startHelper(cb) {
       exec(hook() + ' && (command -v setsid >/dev/null 2>&1 && setsid sh "' + svc + '/round2d.sh" ensure || sh "' + svc + '/round2d.sh" ensure) </dev/null >/dev/null 2>&1; ls ' + CFG, function (out) {
         if (out !== null) { st.poweron = !/poweron\.off/.test(out); st.home = !/home\.off/.test(out); }
-        if (out !== null) { homeKey(); setTimeout(syncPartners, 20000); }   /* after the menu has settled */
+        if (out !== null) { homeKey(); elevate(); setTimeout(syncPartners, 20000); }   /* after the menu has settled */
         if (cb) cb(out !== null);
       });
     }
@@ -1685,7 +1698,7 @@ window.R2_TV = {
       if (!t.ready || !/^[a-z0-9-]+$/.test(t.id || '')) continue;
       if (rooms.indexOf('all') < 0 && rooms.indexOf(roomKey) < 0) continue;
       if ((t.from && t.from > d) || (t.until && t.until < d)) continue;
-      out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: t.localVideo || 'theme/' + t.id + '.mp4', thumb: t.localThumb || 'https://r2.theme/' + t.id + '.jpg',
+      out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: t.localVideo || 'theme/' + t.id + '.mp4', online: t.onlineVideo || '', thumb: t.localThumb || 'https://r2.theme/' + t.id + '.jpg',
         layout: t.layout, cards: t.cards, focus: t.focus, ambience: t.ambience, takeover: !!t.takeover,
         event: t.kind ? t.kind !== 'background' : !!(t.from || t.until || t.takeover || rooms.indexOf('all') >= 0) });   /* a room's own background is not an event */
     }
@@ -2213,6 +2226,12 @@ window.R2_TV = {
       ['playing', 'error', 'stalled', 'emptied', 'waiting'].forEach(function (ev) { el.addEventListener(ev, function () {
         bgLog(ev + (ev === 'error' && el.error ? ' code ' + el.error.code + ' ' + (el.error.message || '') : '') + ' t=' + (el.currentTime || 0).toFixed(1) + ' rs=' + el.readyState + ' ns=' + el.networkState);
       }); });
+      /* the stored copy won't play (newer LG software blocks some folders): play the online copy instead */
+      el.addEventListener('error', function () {
+        if (w.online && w.video !== w.online && /^(file:|themes\/)/.test(w.video)) {
+          bgLog('stored copy refused: playing online'); w = Object.assign({}, w, { video: w.online }); el.src = w.video; try { el.play(); } catch (e) {}
+        }
+      });
       el.addEventListener('loadeddata', swap); el.src = w.video; try { el.play(); } catch (e) {} setTimeout(swap, 900);
       if (Device.kind() === 'webos') {   /* LG can take the video player away (another app, a sound): get the picture back */
         var reloadedAt = 0;
