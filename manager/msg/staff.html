@@ -239,13 +239,17 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
       (d.from ? '<div class="fr">— ' + esc(d.from) + '</div>' : '') + '<div class="at">Pops up at ' + esc(clock(d.at)) + ', stays until ' + esc(clock(d.end)) + ' or OK</div></div>';
     var btns = '';
     if (st === 'submitted') btns += '<button class="btn ok" data-a="approve" data-c="' + esc(x.key) + '">Approve</button>';
+    /* test build: show it on the TV straight away instead of waiting for the guest's time */
+    if (st === 'submitted' || st === 'approved') btns += '<button class="btn" data-a="now" data-c="' + esc(x.key) + '">' + (st === 'approved' ? 'Send to TV again now' : 'Send to TV now') + '</button>';
     if (st === 'open' || st === 'submitted' || st === 'approved') btns += '<button class="btn" data-a="copy" data-c="' + esc(x.key) + '">Copy link</button><button class="btn danger" data-a="cancel" data-c="' + esc(x.key) + '">Cancel</button>';
     if (btns) h += '<div class="row">' + btns + '</div>';
     if (confirmFor && confirmFor.code === x.key) {
-      h += '<div class="confirm">' + (confirmFor.a === 'approve'
+      var ca = confirmFor.a;
+      h += '<div class="confirm">' + (ca === 'approve'
         ? 'Put this on ' + esc(R[0]) + '’s TV for ' + esc(clock(d.at)) + '? It replaces any other message waiting on that TV.'
+        : ca === 'now' ? 'Show this on ' + esc(R[0]) + '’s TV right now? It approves it, pops up within a few seconds, and replaces any other message waiting on that TV.'
         : 'Cancel this link? The guest can’t use it any more' + (st === 'approved' ? ', and the message is taken off the TV.' : '.')) +
-        '<div class="row"><button class="btn ' + (confirmFor.a === 'approve' ? 'ok' : 'danger') + '" data-a="do" data-c="' + esc(x.key) + '">' + (confirmFor.a === 'approve' ? 'Yes, approve' : 'Yes, cancel link') + '</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+        '<div class="row"><button class="btn ' + (ca === 'cancel' ? 'danger' : 'ok') + '" data-a="do" data-c="' + esc(x.key) + '">' + (ca === 'approve' ? 'Yes, approve' : ca === 'now' ? 'Yes, show it now' : 'Yes, cancel link') + '</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
     }
     return h + '</article>';
   }
@@ -267,11 +271,12 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
     var b = e.target.closest('button[data-a]'); if (!b) return;
     var a = b.getAttribute('data-a'), c = b.getAttribute('data-c');
     if (a === 'copy') { var t = shareUrl(c); try { navigator.clipboard.writeText(t).then(function () { b.textContent = 'Copied'; }); } catch (er) {} return; }
-    if (a === 'approve' || a === 'cancel') { confirmFor = { a: a, code: c }; render(); return; }
+    if (a === 'approve' || a === 'cancel' || a === 'now') { confirmFor = { a: a, code: c }; render(); return; }
     if (a === 'no') { confirmFor = null; render(); return; }
     if (a === 'do' && confirmFor) {
       b.disabled = true;
-      call({ action: confirmFor.a, staff: key(), code: c }).then(function () { confirmFor = null; list(); })
+      var body = { action: confirmFor.a === 'now' ? 'approve' : confirmFor.a, staff: key(), code: c }; if (confirmFor.a === 'now') body.now = '1';
+      call(body).then(function () { confirmFor = null; list(); })
         .catch(function (er) { var m = $('cmsg'); if (m) { m.className = 'msg bad'; m.textContent = er.message; } b.disabled = false; });
     }
   });

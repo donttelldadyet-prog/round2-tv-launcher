@@ -38,7 +38,7 @@ One webhook, `action` decides the route. The pages POST form-encoded fields (no 
 | `get` | guest | `code` | returns the link record; refuses unknown, cancelled, ended |
 | `submit` | guest | `code`, `kind`, `to`, `from`, `title`, `text`, `at` | saves the message; refuses times outside the first hour, unknown occasion, empty headline, text over 600, names over 40, already approved |
 | `list` | staff | `staff` | links whose booking ended less than 2 days ago or later. Make answers plain `Accepted` when there are none. |
-| `approve` | staff | `staff`, `code` | only if submitted and not ended; writes to the TV |
+| `approve` | staff | `staff`, `code`, optional `now=1` | only if submitted and not ended; writes to the TV. With `now=1` (the staff page's "Send to TV now", for testing) the show time becomes now, and an approved message can be sent again |
 | `cancel` | staff | `staff`, `code` | closes the link; takes the message off the TV if it's still the one there |
 
 Records hold exactly the TV message fields (`id`, `kind`, `to`, `from`, `title`, `text`, `ack`, `at`, `until`) plus link fields (`room`, `start`, `end`, `status`, `label`, timestamps). Approve sends the whole record to the TV; the TV ignores fields it doesn't use.
