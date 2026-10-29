@@ -446,6 +446,14 @@
       "rooms": [
         "kai"
       ]
+    },
+    {
+      "id": "aegean-lullaby",
+      "name": "Aegean Lullaby",
+      "source": "sound-aegean-lullaby-mvt4w0ha.mp3",
+      "rooms": [
+        "atlas"
+      ]
     }
   ],
   "roomDefaults": {
