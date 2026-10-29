@@ -134,9 +134,10 @@ food_show() {   # $1 type, $2 order no, $3 items
     room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null)
     if [ "$1" = received ]; then txt="Madd Pizza is firing it up. We\u2019ll ping you when it lands."; else txt="It\u2019s at the drop zone, the rack right outside the entrance. Grab it while it\u2019s hot!"; fi
     ov_show "$ov" "{\"type\":\"$1\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\"}"
-    log "food $1 #$2 shown over $(cat "$CFG/front" 2>/dev/null)"
+    log "food $1 #$2 shown (Round2 card) over $(cat "$CFG/front" 2>/dev/null)"
     return
   fi
+  log "food: Round2 Alerts not installed, using LG's pop-up"
   if [ "$1" = received ]; then
     luna-send -n 1 luna://com.webos.notification/createToast \
       "{\"sourceId\":\"$APP\",\"message\":\"ORDER #$2 LOCKED IN \u00b7 Madd Pizza is firing it up. We\u2019ll ping you when it lands.\"}" >/dev/null 2>&1

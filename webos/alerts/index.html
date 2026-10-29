@@ -74,7 +74,11 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
     $('dText').innerHTML = 'Installed. Food alerts and messages now show as the Round2 card over Netflix, YouTube and HDMI.<br>' +
       'Try it: open Netflix, then on your phone: Control centre › Notifications › Test a TV › this room.<br>' +
       'Press <span class="k">OK</span> to close.';
-    exec('grep -E "alerts:|food|message" ' + CFG + '/log.txt | tail -n 14', function (r) {
+    /* make sure the helper running is the one from the installed Round2 Home (it uses this app), then show what it did */
+    var SVC = '/media/developer/apps/usr/palm/services/sg.round2.tvhome.service/round2d.sh';
+    exec('[ -f ' + SVC + ' ] && (command -v setsid >/dev/null 2>&1 && setsid sh ' + SVC + ' ensure || sh ' + SVC + ' ensure) </dev/null >/dev/null 2>&1; ' +
+      'echo "helper: $(grep -c ov_app ' + CFG + '/round2d.sh 2>/dev/null) $(grep -c menu_front ' + CFG + '/round2d.sh 2>/dev/null) app: $(ls -d /media/developer/apps/usr/palm/applications/sg.round2.alerts 2>&1)"; ' +
+      'grep -E "alerts:|food|message|helper started" ' + CFG + '/log.txt | tail -n 14', function (r) {
       $('dLog').textContent = 'Recent pop-ups on this TV:\n' + (r.stdoutString || r.errorText || '(none yet)');
     });
     mode = 'setup';

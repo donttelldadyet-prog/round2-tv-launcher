@@ -371,7 +371,7 @@ footer .keys { display: flex; gap: 30px; }
 @keyframes foodShake { 0%, 100% { transform: none } 20% { transform: translateX(-16px) } 40% { transform: translateX(14px) } 60% { transform: translateX(-10px) } 80% { transform: translateX(6px) } }
 @keyframes okLight { 0% { background: var(--ink); color: #0b0914; transform: scale(1.12) } 100% { transform: none } }
 /* a personal message from the owners (Theme manager > Messages): centre stage, the room colour, confetti or hearts */
-#msg { position: absolute; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; background: rgba(6,5,10,.55); }
+#msg { position: absolute; inset: 0; left: 0; top: 0; right: 0; bottom: 0; z-index: 45; display: flex; align-items: center; justify-content: center; background: rgba(6,5,10,.55); }
 #msg:not([hidden]) { animation: msgFade .5s ease-out both; }
 #msg.out { animation: msgFade .3s ease-in reverse both; }
 #msg .box { position: relative; width: 860px; max-width: calc(100% - 160px); background: #110E1A; padding: 44px 56px 40px; text-align: center;
@@ -390,7 +390,7 @@ footer .keys { display: flex; gap: 30px; }
 #msg .ok.turn b { font: 700 18px var(--f-ui); letter-spacing: .2em; }
 #msg .ok i { font: 600 13px var(--f-ui); font-style: normal; letter-spacing: .12em; opacity: .7; margin-right: 22px; }
 #msg.shake .box { animation: foodShake .42s ease-in-out; }
-#msg .fx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+#msg .fx { position: absolute; inset: 0; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; pointer-events: none; }
 #msg .fx i { position: absolute; top: -30px; width: 12px; height: 18px; background: var(--room); opacity: .9; animation: msgFall linear infinite; }
 #msg .fx i:nth-child(3n) { background: var(--ink); width: 10px; height: 10px; }
 #msg .fx i:nth-child(4n) { background: var(--accent); }
