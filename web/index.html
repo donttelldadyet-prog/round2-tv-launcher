@@ -2868,7 +2868,12 @@ window.R2_TV = {
     if (mode === 'grid') closeGrid();
     var keep = sel; buildItems(); sel = Math.min(keep, items.length - 1);
     if (mode === 'menu') renderMenu();
-    var v = $(front).firstChild; if (v && v.play) { try { v.play(); } catch (e) {} }
+    var v = $(front).firstChild;
+    /* LG: the app the guest just left (Netflix, YouTube) used the TV's video decoder, and the background's player can
+       come back black without saying so. Start the background again in a fresh player (it fades in) */
+    if (Device.kind() === 'webos' && v && v.tagName === 'VIDEO' && typeof currentWall === 'function') {
+      setTimeout(function () { var w = currentWall(); if (w && w.video) { shownWall = null; showWall(w); } }, 500);
+    } else if (v && v.play) { try { v.play(); } catch (e) {} }
   };
 
   /* the remote's Home button while the menu is open: close whatever is open, back to the main menu */
