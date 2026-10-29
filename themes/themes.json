@@ -418,6 +418,14 @@
       "rooms": [
         "vale"
       ]
+    },
+    {
+      "id": "pink-static-hearts",
+      "name": "Pink Static Hearts",
+      "source": "sound-pink-static-hearts-mvsznc9h.mp3",
+      "rooms": [
+        "vale"
+      ]
     }
   ],
   "roomDefaults": {
