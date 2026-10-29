@@ -131,8 +131,11 @@ ov_app() {
   [ -d /media/developer/apps/usr/palm/applications/sg.round2.alerts ] || return 1
   echo sg.round2.alerts
 }
-ov_show() {     # $1 app id, $2 params JSON
-  luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$1\",\"params\":$2}" >/dev/null 2>&1
+ov_show() {     # $1 app id, $2 params JSON. Fails (so the caller uses LG's pop-up) if webOS won't open it.
+  r=$(luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$1\",\"params\":$2}" 2>&1)
+  case "$r" in *'"returnValue":true'*|*'"returnValue": true'*) return 0 ;; esac
+  log "Round2 Alerts didn't open: $(echo "$r" | tr -d '\n' | cut -c1-120)"
+  return 1
 }
 # Is Round2 Home in front right now? (asked fresh: the menu shows alerts itself then)
 menu_front() {
@@ -144,11 +147,12 @@ food_show() {   # $1 type, $2 order no, $3 items
   if ov=$(ov_app); then
     room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null)
     if [ "$1" = received ]; then txt="Madd Pizza is firing it up. We\u2019ll ping you when it lands."; else txt="It\u2019s at the drop zone, the rack right outside the entrance. Grab it while it\u2019s hot!"; fi
-    ov_show "$ov" "{\"type\":\"$1\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\"}"
-    log "food $1 #$2 shown (Round2 card) over $(cat "$CFG/front" 2>/dev/null)"
-    return
+    if ov_show "$ov" "{\"type\":\"$1\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\"}"; then
+      log "food $1 #$2 shown (Round2 card) over $(cat "$CFG/front" 2>/dev/null)"
+      return
+    fi
   fi
-  log "food: Round2 Alerts not installed, using LG's pop-up"
+  log "food $1 #$2: LG's pop-up (Round2 Alerts not installed or didn't open)"
   if [ "$1" = received ]; then
     luna-send -n 1 luna://com.webos.notification/createToast \
       "{\"sourceId\":\"$APP\",\"message\":\"ORDER #$2 LOCKED IN \u00b7 Madd Pizza is firing it up. We\u2019ll ping you when it lands.\"}" >/dev/null 2>&1
@@ -231,8 +235,7 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
     text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean)
     ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
     case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; *) tag="A MESSAGE" ;; esac
-    ov_show "$ov" "{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"ack\":$ack,\"room\":\"$room\"}"
-    return 0
+    ov_show "$ov" "{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"ack\":$ack,\"room\":\"$room\"}" && return 0
   fi
   printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | { if command -v fold >/dev/null 2>&1; then fold -s -w 110; else cat; fi; } > "$CFG/msg.pages"
   total=$(wc -l < "$CFG/msg.pages"); [ "$total" -ge 1 ] || total=1
@@ -252,9 +255,9 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
   luna-send -n 1 luna://com.webos.notification/createAlert \
     "{\"sourceId\":\"$APP\",\"title\":\"$title\",\"message\":\"$text\",\"modal\":false,\"buttons\":[$btns]}" >/dev/null 2>&1
 }
-msg_tick() {    # every 20 s: is the message due, and is something other than Round2 Home in front?
+msg_tick() {    # every 3 s: is the message due, and is something other than Round2 Home in front?
   while :; do
-    sleep 20
+    sleep 3
     [ -f "$CFG/msg.cur" ] || continue
     line=$(cat "$CFG/msg.cur"); id=$(printf '%s\n' "$line" | field id)
     [ -n "$id" ] || continue
@@ -272,7 +275,7 @@ msg_tick() {    # every 20 s: is the message due, and is something other than Ro
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }
     [ "$(printf '%s\n' "$line" | grep -c '"ack":true')" -gt 0 ] || echo "$id" > "$CFG/msg.done"
     msg_alert 1
-    log "message $id shown over $(cat "$CFG/front" 2>/dev/null)"
+    log "message $id shown over $(cat "$CFG/front" 2>/dev/null)$( [ -n "$(ov_app)" ] && echo ' (Round2 card)')"
   done
 }
 watch_msg() {

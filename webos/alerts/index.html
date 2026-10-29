@@ -182,7 +182,9 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
     if (p && p.type) show(p); else setup();
   }
   document.addEventListener('webOSRelaunch', function (ev) {
-    var p = (ev && ev.detail) || params();
+    var p = params();                                     /* webOS updates launchParams on a relaunch */
+    if (!(p && p.type) && ev && ev.detail) { p = ev.detail; if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) {} } }
+    if (!(p && p.type)) log('relaunched without a card');
     
     if (p && p.type) { $('diag').style.display = 'none'; $('card').style.display = ''; show(p); }
   }, true);
