@@ -2,7 +2,7 @@
   round2tv.ps1 - reversible ADB toolkit for the Round2 shop TVs (Windows)
   Tested: TCL Google TV (Android 11), Sony KD-65X8500C (Android TV 8.0)
   Each TV gets its own folder (backups, screenshots, undo.ps1) under round2-tv\tvs\<ip>.
-  'connect <ip>' picks which TV the other commands work on.
+  'connect <ip>' picks which TV the other commands work on. 'connect usb' picks the TV on the USB cable.
 
   Run from the folder holding this file:
     powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command> [args]
@@ -253,10 +253,23 @@ function Cmd-Connect([string]$ip) {
     if (-not $ip) { Die "No TV address saved for $room. Add it in the Theme manager: Rooms > $room > Advanced > TV address (the TV shows it under Options > Staff mode > About this TV)." }
     Say "$room's TV is at $ip"
   }
+  $usb = $ip -eq 'usb'
+  if ($usb) {
+    # a TV on a USB cable (Atlas, the Prism+, when its network debugging is closed): the other commands use its serial number
+    & $script:Adb start-server 2>$null | Out-Null
+    $sn = ((& $script:Adb -d get-serialno 2>$null) -join '').Trim()
+    if (-not $sn -or $sn -match 'unknown|error') {
+      Die "No TV on the USB cable. Check: the cable carries data (not charge-only), it's in the TV's other USB port, and USB debugging is on. Then run: .\round2tv.ps1 connect usb"
+    }
+    Say "TV on the USB cable: $sn"
+    Set-Tv $sn
+    $out = 'connected to usb'
+  } else {
   if ($ip) { Set-Tv $(if ($ip -match ':') { $ip } else { "$($ip):5555" }) }
   & $script:Adb start-server 2>$null | Out-Null
   $out = (Run-Adb -A @('connect', $script:TV) -NoLogcat -NoSerial) -join "`n"
   Write-Host $out
+  }
   if ($out -match 'connected to') {
     # ok, continue to authorisation check
   }
@@ -717,6 +730,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   start [IP|room]        setup + connect + backup + draft cleanup list (changes nothing); IP picks the TV
   setup                  install adb from Google's official platform-tools if missing
   connect [IP|room]      connect to a TV by address, or by room name (kai, kaeden...) using the addresses saved in the Theme manager
+  connect usb            use the TV on the USB cable (for TVs whose network debugging closes, like Atlas)
   backup                 save package lists, all settings, home app, and create undo.ps1
   propose                draft cleanup list for review (changes nothing)
   cleanup [file]         disable (never uninstall) the approved list (default: cleanup.txt)
