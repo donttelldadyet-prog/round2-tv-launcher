@@ -2211,6 +2211,9 @@ window.R2_TV = {
 
   /* Two background slots cross-fade, so changing background never flashes black */
   var front = 'bgA', shownWall = null;
+  /* wallSeq: only the newest start may swap layers. lastStart: the player started most recently, so back-to-back
+     "start the background again" calls (leaving Netflix fires several) don't each start a new one */
+  var wallSeq = 0, lastStart = null;
   var CARD_CLS = { top: 'cards-top', middle: 'cards-mid', bottom: 'cards-bot' };
   function applyCards(w) {
     w = w || currentWall();
@@ -2236,6 +2239,12 @@ window.R2_TV = {
       if (w.video && (w.video.indexOf('media/') === 0 || w.video.indexOf('theme/') === 0)) { var path = w.video; bridge(function (b) { b.bgPlay(path); b.bgZoom(1, 1, 0, focusPt[0], focusPt[1], false); liftVeil(700); }); return; }
       bridge(function (b) { b.bgStop(); });
     }
+    /* LG: leaving Netflix or YouTube fires several restarts within a second or two (the helper, the page becoming
+       visible, the themes list). One fresh player is enough; starting more raced each other and could leave no
+       player at all (black background, Diagnostics "player: none") */
+    if (w.video && lastStart && lastStart.id === w.id && lastStart.video === w.video && Date.now() - lastStart.at < 3000 &&
+        lastStart.el.parentNode && lastStart.el.parentNode.parentNode) { bgLog('skip repeat start ' + (w.id || '')); return; }
+    var my = ++wallSeq;
     var back = front === 'bgA' ? 'bgB' : 'bgA', slot = $(back), old = $(front);
     if (!w.video && !w.image) { $(front).style.opacity = '0'; liftVeil(0); return; }
     var el;
@@ -2249,14 +2258,18 @@ window.R2_TV = {
     el.className = 'bg-media';
     var swapped = false;
     function swap() {
-      if (swapped) return; swapped = true;
+      if (swapped || my !== wallSeq) return; swapped = true;   /* a newer start took over: let that one swap */
       liftVeil(0);
       slot.style.opacity = '1'; old.style.opacity = '0';
       front = back;
-      setTimeout(function () { if (front !== old.id) { var m = old.firstChild; if (m && m.pause) m.pause(); old.innerHTML = ''; } }, 300);
+      /* remove only the player this swap replaced. Clearing the whole layer could wipe a newer player that was
+         put there in the meantime */
+      var gone = old.firstChild;
+      setTimeout(function () { if (gone && gone.parentNode === old && front !== old.id) { if (gone.pause) gone.pause(); old.removeChild(gone); } }, 300);
     }
     if (w.video) {
       bgLog('start ' + (w.id || '') + ' ' + w.video);
+      lastStart = { id: w.id, video: w.video, at: Date.now(), el: el };
       ['playing', 'error', 'stalled', 'emptied', 'waiting'].forEach(function (ev) { el.addEventListener(ev, function () {
         bgLog(ev + (ev === 'error' && el.error ? ' code ' + el.error.code + ' ' + (el.error.message || '') : '') + ' t=' + (el.currentTime || 0).toFixed(1) + ' rs=' + el.readyState + ' ns=' + el.networkState);
       }); });
@@ -2293,6 +2306,12 @@ window.R2_TV = {
     else { el.onload = swap; el.src = w.image; }
     slot.innerHTML = ''; slot.appendChild(el);
   }
+  /* LG safety net: the menu is showing but there's no background player at all: start it again */
+  if (Device.kind() === 'webos') setInterval(function () {
+    if (document.hidden || mode === 'walls' || typeof currentWall !== 'function') return;
+    var w = currentWall(), f = $(front); if (!w || !w.video || !f || f.firstChild) return;
+    bgLog('no background player: start again'); shownWall = null; lastStart = null; showWall(w);
+  }, 8000);
 
   /* LG: Home opens LG's own home bar; Back from an app returns here */
   var HOME_HINT = Device.kind() === 'webos' ? '[BACK] IN AN APP RETURNS HERE' : '[HOME] BACK TO THIS MENU';
