@@ -1,7 +1,7 @@
 # Website visitor stats (round2.sg game menu → Firebase → control centre)
 
 Branches: `site-stats` in **round2sg-home** (the tracker) and `site-stats` in **round2-tv-launcher** (the Website tab).
-Built 29 Oct 2026 by the other owner's Claude session. Nothing is live until both are merged to `main` **and** the Firebase rule below is in.
+Built 29 Oct 2026 by the other owner's Claude session. **Live since 29 Oct 2026, 11:30pm**: both merged to `main`, Firebase rule published (it's in the round2-tv project, which sits on the other owner's private Google account). The first day's numbers include one test visit.
 
 ## Why
 
