@@ -10,7 +10,8 @@ Guests write their own birthday, anniversary, celebration or note message for th
 2. **Staff paste the invite into whatever chat the guest booked in.** Link: `https://donttelldadyet-prog.github.io/round2-tv-launcher/msg/?c=CODE` (live once merged).
 3. **The guest writes the message.** The room can't be changed. The show time is a button: start, +15, +30, +45 or +60 min. Make re-checks all of this. After sending, the guest sees a confirmation screen with the card as it will look, and can change it until it pops up.
 4. **Approved automatically.** Staff don't approve anything. They can Cancel anything they don't like (this also takes it off the TV), or Change time.
-5. **Sent to the TV just before its time.** Each TV holds one message at a time (`/r2/<key>/<room>/msg`), so a message sent days early could be replaced by any other. The timer scenario checks every 5 minutes and sends each message that's due within the next 6 minutes, earliest first. A message due sooner than that, or one staff press **Send to TV now** on, goes straight away. Messages for the same TV less than ~6 minutes apart can still cover each other; the control centre warns about anything within 10 minutes.
+5. **Sent to the TV just before its time.** Each TV holds one message at a time (`/r2/<key>/<room>/msg`), so a message sent days early could be replaced by any other. The timer checks every 15 minutes from 10:30am to 5:15am (SG) and sends each message due within the next 16 minutes, earliest first. A message due sooner than that, or one staff press **Send to TV now** on, goes straight away.
+   **TV slot rule (the `push` action):** before writing, it reads what's on the TV. If an *earlier* message is still waiting there, it answers straight away, then waits (Make Repeater + Sleep) until a minute before its own time (and at least a minute after the earlier one shows), checks it wasn't cancelled or moved, and writes. If a *later* one is waiting, it writes and puts that one back in the queue (`onTv` = `no`). So Time's up + "10 minutes left" both show, and a guest message and a Round2 message close together don't wipe each other.
 6. **Cut-off.** Behind the scenes, `end` = start + 3 h. The link closes then, and the TV stops showing the message (`until`), so it can't pop up for the next group. Nobody types an end time.
 7. **Change time or room** (late, rescheduled or changing rooms): staff set a new room and start. The message's show time moves by the same amount and gets a new id, so the TV shows it again. If it had already been sent to the TV, it's taken off and re-sent at the new time.
 
@@ -31,7 +32,7 @@ The copies have the real staff code and TV messages key replaced with `STAFF_COD
 | Thing | ID / name |
 | --- | --- |
 | Main scenario | `[BACKEND] GUEST MESSAGE LINKS`, id 8249444 |
-| Timer | `[BACKEND] GUEST MESSAGE TIMER`, id 8251356, every 5 min (about 9k operations a month; restrict to opening hours in Make if that's too many) |
+| Timer | `[BACKEND] GUEST MESSAGE TIMER`, id 8251356, every 15 min, only 10:30–23:59 and 00:00–05:15 (SG). About 2,300 operations a month. The account has 10,000 a month, shared with the sound automation, so don't make it more frequent. |
 | Webhook | `GUEST MESSAGE LINKS`, id 4000032, `https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4` |
 | Data store | `GUEST_MSG_LINKS`, id 237603 (data structure 667731). Key = the code. |
 
@@ -73,4 +74,4 @@ The staff code is not in this repo. It's in the ROUND2 HOMESCREEN Project notes.
 - **Control centre, Messages:** the button is **Check and send…**. It opens a review (rooms, NOW or the time, wording, anything it replaces or clashes with) and only **Yes, send…** sends. Any change to the form closes the review. "Send again" on the TV list needs two taps.
 - **Control centre "At a set time" messages now go through the Make queue** (`r2` action) instead of straight to the TV, so they no longer overwrite guest messages. Needs the guest messages staff code on that computer (Calendar section).
 - **Time's up + optional "10 minutes left":** with Time's up and "At a set time", a tick box queues the 10-minute reminder 10 minutes earlier. Off by default.
-- Live Make scenarios were updated at the same time (timer every 5 min, 6-min window, `r2` route). The control centre's `r2` path couldn't be tested from Claude's workspace (no network to Make); first real use: schedule one far ahead, check it in Guest messages, cancel it.
+- Live Make scenarios were updated at the same time (`r2` route, TV slot rule in `push`, timer limited to opening hours). The control centre's `r2` path couldn't be tested from Claude's workspace (no network to Make); first real use: schedule one far ahead, check it in Guest messages, cancel it.

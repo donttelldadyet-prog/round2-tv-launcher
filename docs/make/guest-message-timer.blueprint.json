@@ -27,7 +27,7 @@
       {
        "a": "at",
        "o": "number:lessorequal",
-       "b": "{{timestamp * 1000 + 360000}}"
+       "b": "{{timestamp * 1000 + 960000}}"
       },
       {
        "a": "end",

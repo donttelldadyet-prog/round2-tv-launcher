@@ -432,7 +432,7 @@
               {
                "a": "{{2.at - 2.now}}",
                "o": "number:less",
-               "b": "360000"
+               "b": "960000"
               }
              ]
             ]
@@ -967,7 +967,7 @@
                   {
                    "a": "{{41.newAt - 2.now}}",
                    "o": "number:less",
-                   "b": "360000"
+                   "b": "960000"
                   }
                  ]
                 ]
@@ -1102,7 +1102,7 @@
            }
           },
           {
-           "id": 68,
+           "id": 75,
            "module": "http:MakeRequest",
            "version": 4,
            "parameters": {
@@ -1111,83 +1111,331 @@
            },
            "mapper": {
             "url": "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/TV_MESSAGES_KEY/{{40.room}}/msg.json",
-            "method": "put",
+            "method": "get",
             "timeout": 40,
             "shareCookies": false,
-            "parseResponse": false,
+            "parseResponse": true,
             "allowRedirects": true,
-            "stopOnHttpError": true,
-            "requestCompressedContent": true,
-            "contentType": "custom",
-            "contentTypeValue": "application/json",
-            "rawBodyContent": "{{67.json}}"
-           },
-           "onerror": [
-            {
-             "id": 70,
-             "module": "gateway:WebhookRespond",
-             "version": 1,
-             "parameters": {},
-             "mapper": {
-              "status": 502,
-              "body": "{\"error\":\"The TV database didn't accept it.\"}",
-              "headers": [
-               {
-                "key": "Content-Type",
-                "value": "application/json"
-               },
-               {
-                "key": "Access-Control-Allow-Origin",
-                "value": "*"
-               }
-              ]
-             }
-            },
-            {
-             "id": 71,
-             "module": "builtin:Ignore",
-             "version": 1,
-             "parameters": {},
-             "mapper": {}
-            }
-           ]
-          },
-          {
-           "id": 69,
-           "module": "datastore:UpdateRecord",
-           "version": 1,
-           "parameters": {
-            "datastore": 237603
-           },
-           "mapper": {
-            "key": "{{2.code}}",
-            "upsert": false,
-            "overwriteArrays": false,
-            "data": {
-             "pushed": "{{2.now}}",
-             "onTv": "yes"
-            }
+            "stopOnHttpError": false,
+            "requestCompressedContent": true
            }
           },
           {
-           "id": 72,
-           "module": "gateway:WebhookRespond",
+           "id": 76,
+           "module": "util:SetVariables",
            "version": 1,
            "parameters": {},
            "mapper": {
-            "status": 200,
-            "body": "{\"ok\":true}",
-            "headers": [
+            "scope": "roundtrip",
+            "variables": [
              {
-              "key": "Content-Type",
-              "value": "application/json"
+              "name": "wait",
+              "value": "{{if(ifempty(75.data.at; 0) > 2.now; if(75.data.id != 40.id; if(75.data.at <= 40.at; max(75.data.at + 60000; 40.at - 60000) - 2.now; 0); 0); 0)}}"
              },
              {
-              "key": "Access-Control-Allow-Origin",
-              "value": "*"
+              "name": "bump",
+              "value": "{{if(ifempty(75.data.at; 0) > 2.now; if(75.data.id != 40.id; if(75.data.at > 40.at; if(contains(split(\"g,q\"; \",\"); substring(ifempty(75.data.id; \"x\"); 0; 1)); \"yes\"; \"no\"); \"no\"); \"no\"); \"no\")}}"
+             },
+             {
+              "name": "bumpKey",
+              "value": "{{upper(substring(ifempty(75.data.id; \"xxxxxxxxxx\"); 1; 9))}}"
              }
             ]
            }
+          },
+          {
+           "id": 77,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "parameters": {},
+           "mapper": null,
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 68,
+               "module": "http:MakeRequest",
+               "version": 4,
+               "parameters": {
+                "tlsType": "",
+                "authenticationType": "noAuth"
+               },
+               "mapper": {
+                "url": "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/TV_MESSAGES_KEY/{{40.room}}/msg.json",
+                "method": "put",
+                "timeout": 40,
+                "shareCookies": false,
+                "parseResponse": false,
+                "allowRedirects": true,
+                "stopOnHttpError": true,
+                "requestCompressedContent": true,
+                "contentType": "custom",
+                "contentTypeValue": "application/json",
+                "rawBodyContent": "{{67.json}}"
+               },
+               "filter": {
+                "name": "TV SLOT FREE",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{76.wait}}",
+                   "o": "number:lessorequal",
+                   "b": "0"
+                  }
+                 ]
+                ]
+               },
+               "onerror": [
+                {
+                 "id": 70,
+                 "module": "gateway:WebhookRespond",
+                 "version": 1,
+                 "parameters": {},
+                 "mapper": {
+                  "status": 502,
+                  "body": "{\"error\":\"The TV database didn't accept it.\"}",
+                  "headers": [
+                   {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                   },
+                   {
+                    "key": "Access-Control-Allow-Origin",
+                    "value": "*"
+                   }
+                  ]
+                 }
+                },
+                {
+                 "id": 71,
+                 "module": "builtin:Ignore",
+                 "version": 1,
+                 "parameters": {},
+                 "mapper": {}
+                }
+               ]
+              },
+              {
+               "id": 69,
+               "module": "datastore:UpdateRecord",
+               "version": 1,
+               "parameters": {
+                "datastore": 237603
+               },
+               "mapper": {
+                "key": "{{2.code}}",
+                "upsert": false,
+                "overwriteArrays": false,
+                "data": {
+                 "pushed": "{{2.now}}",
+                 "onTv": "yes"
+                }
+               }
+              },
+              {
+               "id": 72,
+               "module": "gateway:WebhookRespond",
+               "version": 1,
+               "parameters": {},
+               "mapper": {
+                "status": 200,
+                "body": "{\"ok\":true}",
+                "headers": [
+                 {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                 },
+                 {
+                  "key": "Access-Control-Allow-Origin",
+                  "value": "*"
+                 }
+                ]
+               }
+              },
+              {
+               "id": 78,
+               "module": "datastore:UpdateRecord",
+               "version": 1,
+               "parameters": {
+                "datastore": 237603
+               },
+               "mapper": {
+                "key": "{{76.bumpKey}}",
+                "upsert": false,
+                "overwriteArrays": false,
+                "data": {
+                 "onTv": "no"
+                }
+               },
+               "filter": {
+                "name": "A LATER MESSAGE WAS WAITING: back in the queue",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{76.bump}}",
+                   "o": "text:equal",
+                   "b": "yes"
+                  }
+                 ]
+                ]
+               },
+               "onerror": [
+                {
+                 "id": 79,
+                 "module": "builtin:Ignore",
+                 "version": 1,
+                 "parameters": {},
+                 "mapper": {}
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 100,
+               "module": "gateway:WebhookRespond",
+               "version": 1,
+               "parameters": {},
+               "mapper": {
+                "status": 200,
+                "body": "{\"ok\":true,\"after\":{{75.data.at}}}",
+                "headers": [
+                 {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                 },
+                 {
+                  "key": "Access-Control-Allow-Origin",
+                  "value": "*"
+                 }
+                ]
+               },
+               "filter": {
+                "name": "EARLIER MESSAGE WAITING ON THE TV",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{76.wait}}",
+                   "o": "number:greater",
+                   "b": "0"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 101,
+               "module": "datastore:UpdateRecord",
+               "version": 1,
+               "parameters": {
+                "datastore": 237603
+               },
+               "mapper": {
+                "key": "{{2.code}}",
+                "upsert": false,
+                "overwriteArrays": false,
+                "data": {
+                 "pushed": "{{2.now}}",
+                 "onTv": "yes"
+                }
+               }
+              },
+              {
+               "id": 102,
+               "module": "builtin:BasicRepeater",
+               "version": 1,
+               "parameters": {},
+               "mapper": {
+                "start": 1,
+                "repeats": "{{ceil(76.wait / 300000)}}",
+                "step": 1
+               }
+              },
+              {
+               "id": 103,
+               "module": "util:FunctionSleep",
+               "version": 1,
+               "parameters": {},
+               "mapper": {
+                "duration": "{{min(300; max(1; ceil(76.wait / 1000) - 300 * (102.i - 1)))}}"
+               }
+              },
+              {
+               "id": 104,
+               "module": "builtin:BasicAggregator",
+               "version": 1,
+               "parameters": {
+                "feeder": 102
+               },
+               "mapper": {
+                "i": "{{102.i}}"
+               }
+              },
+              {
+               "id": 105,
+               "module": "datastore:GetRecord",
+               "version": 1,
+               "parameters": {
+                "datastore": 237603
+               },
+               "mapper": {
+                "key": "{{2.code}}",
+                "returnWrapped": true
+               }
+              },
+              {
+               "id": 106,
+               "module": "json:TransformToJSON",
+               "version": 1,
+               "parameters": {},
+               "mapper": {
+                "object": "{{105.data}}"
+               },
+               "filter": {
+                "name": "STILL THE SAME MESSAGE (not cancelled or moved)",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{105.data.status}}",
+                   "o": "text:equal",
+                   "b": "approved"
+                  },
+                  {
+                   "a": "{{105.data.id}}",
+                   "o": "text:equal",
+                   "b": "{{40.id}}"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 107,
+               "module": "http:MakeRequest",
+               "version": 4,
+               "parameters": {
+                "tlsType": "",
+                "authenticationType": "noAuth"
+               },
+               "mapper": {
+                "url": "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/TV_MESSAGES_KEY/{{40.room}}/msg.json",
+                "method": "put",
+                "timeout": 40,
+                "shareCookies": false,
+                "parseResponse": false,
+                "allowRedirects": true,
+                "stopOnHttpError": false,
+                "requestCompressedContent": true,
+                "contentType": "custom",
+                "contentTypeValue": "application/json",
+                "rawBodyContent": "{{106.json}}"
+               }
+              }
+             ]
+            }
+           ]
           }
          ]
         },
@@ -1455,7 +1703,7 @@
               {
                "a": "{{2.at - 2.now}}",
                "o": "number:less",
-               "b": "360000"
+               "b": "960000"
               }
              ]
             ]
