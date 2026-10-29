@@ -777,7 +777,7 @@ window.R2_TV = {
         if (out && /done/.test(out)) {
           setTimeout(function () { try { window.r2SyncThemes(true); } catch (e) {} }, 4000);
           /* the service restart cut off the background and the ambience sound loading from it: start both again */
-          setTimeout(function () { try { var w = currentWall(); if (w && w.video) { shownWall = null; showWall(w); } Amb.apply(); } catch (e) {} }, 12000);
+          setTimeout(function () { try { refreshLocal(); var w = currentWall(); if (w && w.video) { shownWall = null; showWall(w); } Amb.apply(); } catch (e) {} }, 12000);
         }
       });
     }
@@ -1704,7 +1704,10 @@ window.R2_TV = {
       if (!t.ready || !/^[a-z0-9-]+$/.test(t.id || '')) continue;
       if (rooms.indexOf('all') < 0 && rooms.indexOf(roomKey) < 0) continue;
       if ((t.from && t.from > d) || (t.until && t.until < d)) continue;
-      out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: t.localVideo || 'theme/' + t.id + '.mp4', online: t.onlineVideo || '', thumb: t.localThumb || 'https://r2.theme/' + t.id + '.jpg',
+      /* rooted LG: a copy in the app's own folder (LOCAL, checked through Homebrew Channel) always plays; a copy the
+         service kept in its own folder doesn't on some LG software, so then the online copy */
+      var vid = LOCAL && LOCAL[t.id + '.mp4'] ? 'themes/' + t.id + '.mp4' : (/\/services\//.test(t.localVideo || '') && t.onlineVideo) ? t.onlineVideo : (t.localVideo || 'theme/' + t.id + '.mp4');
+      out.push({ id: 'theme-' + t.id, name: t.name || t.id, video: vid, online: t.onlineVideo || '', thumb: t.localThumb || 'https://r2.theme/' + t.id + '.jpg',
         layout: t.layout, cards: t.cards, focus: t.focus, ambience: t.ambience, takeover: !!t.takeover,
         event: t.kind ? t.kind !== 'background' : !!(t.from || t.until || t.takeover || rooms.indexOf('all') >= 0) });   /* a room's own background is not an event */
     }
@@ -1724,7 +1727,28 @@ window.R2_TV = {
     var done = false, once = function () { if (!done) { done = true; fn(); } };
     themesWaiting.push(once); setTimeout(once, maxMs);
   }
+  /* Rooted LG: make sure every background the TV has (spare copies, or ones the service kept in its own folder) is in
+     the app's folder, where the menu can always play it, and note which are there */
+  var LOCAL = {}, localBusy = false;
+  function refreshLocal() {
+    if (localBusy || Device.kind() !== 'webos') return;
+    localBusy = true;
+    LGRoot.whenChecked(function (on) {
+      if (!on) { localBusy = false; return; }
+      var A = decodeURIComponent(location.pathname || '').replace(/\/[^\/]*$/, '') + '/themes';
+      LGRoot.exec('mkdir -p "' + A + '"; for f in /var/lib/webosbrew/round2/themes/*.mp4 /media/developer/apps/usr/palm/services/sg.round2.tvhome.service/themes/*.mp4; do ' +
+        '[ -s "$f" ] || continue; b=${f##*/}; [ -s "' + A + '/$b" ] || ln "$f" "' + A + '/$b" 2>/dev/null || cp "$f" "' + A + '/$b"; done; ls "' + A + '"', function (out) {
+        localBusy = false;
+        if (out === null) return;
+        var m = {}; out.split(/\s+/).forEach(function (f) { if (/^[a-z0-9-]+\.mp4$/.test(f)) m[f] = 1; });
+        LOCAL = m;
+        var w = currentWall();
+        if (mode !== 'walls' && w && w.video && (!shownWall || shownWall.video !== w.video)) showWall(w);   /* now playing from the TV */
+      });
+    });
+  }
   window.r2Themes = function (json) {
+    setTimeout(refreshLocal, 500);
     var root; try { root = JSON.parse(json); THEMES = root.themes || []; SOUNDS_UP = root.sounds || []; } catch (e) { themesArrived(); return; }
     if (ambStarted) setTimeout(function () { Amb.apply(); }, 0);
     ROOM_DEFS = root.roomDefaults || {};
@@ -1739,7 +1763,7 @@ window.R2_TV = {
     var req = root.app && root.app.updateRequested;
     if (req && req !== store('r2.updReq')) { store('r2.updReq', req); bgUpdateCheck(); }
     var w = currentWall();
-    if (mode !== 'walls' && (!shownWall || shownWall.id !== w.id)) showWall(w);   /* a new event starts, or one ended */
+    if (mode !== 'walls' && (!shownWall || shownWall.id !== w.id || shownWall.video !== w.video)) showWall(w);   /* a new event starts, or one ended, or it's now stored on the TV */
     themesArrived();
   };
   window.r2SyncThemes = function (now) {
@@ -2200,8 +2224,8 @@ window.R2_TV = {
   /* the background player's last events, for Staff tools > Diagnostics */
   function bgLog(m) { var d = new Date(); window.r2BgLog = (window.r2BgLog || []).concat(('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2) + ' ' + m).slice(-14); }
   function showWall(w) {
-    if (!w || (shownWall && shownWall.id === w.id && shownWall.room === roomKey)) return;
-    shownWall = { id: w.id, room: roomKey };
+    if (!w || (shownWall && shownWall.id === w.id && shownWall.room === roomKey && shownWall.video === w.video)) return;
+    shownWall = { id: w.id, room: roomKey, video: w.video };
     applyCards(w);
     if (typeof ambStarted !== 'undefined' && ambStarted) setTimeout(function () { Amb.apply(); }, 0);   /* a theme may bring its own ambience */
     $('world').style.transformOrigin = w.focus || '50% 50%';
@@ -2241,7 +2265,7 @@ window.R2_TV = {
         if (w.online && w.video !== w.online && /^(file:|themes\/)/.test(w.video)) {
           bgLog('stored copy refused: playing online'); var local = w.video; w = Object.assign({}, w, { video: w.online }); el.src = w.video; try { el.play(); } catch (e) {}
           /* right after an update the stored copy is put back a moment later: switch back to it once it's there */
-          setTimeout(function () { if (el.parentNode && $(front) === el.parentNode) { var cw = currentWall(); if (cw && cw.video === local) { bgLog('back to the stored copy'); shownWall = null; showWall(cw); } } }, 30000);
+          refreshLocal();   /* puts it in the app's folder if the TV has it anywhere; the background then switches over by itself */
         }
       });
       el.addEventListener('loadeddata', swap); el.src = w.video; try { el.play(); } catch (e) {} setTimeout(swap, 900);

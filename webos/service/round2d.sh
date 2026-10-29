@@ -355,6 +355,12 @@ case "$1" in
   boot|start|"") ;;
 esac
 
+# only one start at a time: Round2 Home can open twice in a second (after an update), and two starts at once
+# each left half a helper running (every alert and message handled twice)
+if ! mkdir "$CFG/starting" 2>/dev/null; then
+  if [ -n "$(find "$CFG/starting" -maxdepth 0 -mmin -1 2>/dev/null)" ]; then exit 0; fi   # another start is under way
+  rm -rf "$CFG/starting"; mkdir "$CFG/starting" 2>/dev/null
+fi
 stop
 sum > "$CFG/sum"
 [ "$SELF" = "$CFG/round2d.sh" ] || cp "$SELF" "$CFG/round2d.sh"   # a fixed path for the Home button setting
@@ -370,6 +376,7 @@ M=$!
 ( K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; msg_tick ) </dev/null >/dev/null 2>&1 &
 T=$!
 printf '%s\n%s\n%s\n%s\n%s\n' "$A" "$P" "$F" "$M" "$T" > "$CFG/pids"
+rm -rf "$CFG/starting"
 [ "$1" = "boot" ] && first_open </dev/null >/dev/null 2>&1 &
 # keep the log short
 [ -f "$CFG/log.txt" ] && [ "$(wc -l < "$CFG/log.txt")" -gt 300 ] && { tail -n 100 "$CFG/log.txt" > "$CFG/log.tmp"; mv "$CFG/log.tmp" "$CFG/log.txt"; }
