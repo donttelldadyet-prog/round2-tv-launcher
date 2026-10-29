@@ -10,7 +10,7 @@ Guests write their own birthday, anniversary, celebration or note message for th
 2. **Staff paste the invite into whatever chat the guest booked in.** Link: `https://donttelldadyet-prog.github.io/round2-tv-launcher/msg/?c=CODE` (live once merged).
 3. **The guest writes the message.** The room can't be changed. The show time is a button: start, +15, +30, +45 or +60 min. Make re-checks all of this. After sending, the guest sees a confirmation screen with the card as it will look, and can change it until it pops up.
 4. **Approved automatically.** Staff don't approve anything. They can Cancel anything they don't like (this also takes it off the TV), or Change time.
-5. **Sent to the TV just before its time.** Each TV holds one message at a time (`/r2/<key>/<room>/msg`), so a message sent days early could be replaced by any other. The timer scenario checks every 15 minutes and sends each message that's due within the next 16 minutes. A message due sooner than that, or one staff press **Send to TV now** on, goes straight away.
+5. **Sent to the TV just before its time.** Each TV holds one message at a time (`/r2/<key>/<room>/msg`), so a message sent days early could be replaced by any other. The timer scenario checks every 5 minutes and sends each message that's due within the next 6 minutes, earliest first. A message due sooner than that, or one staff press **Send to TV now** on, goes straight away. Messages for the same TV less than ~6 minutes apart can still cover each other; the control centre warns about anything within 10 minutes.
 6. **Cut-off.** Behind the scenes, `end` = start + 3 h. The link closes then, and the TV stops showing the message (`until`), so it can't pop up for the next group. Nobody types an end time.
 7. **Change time or room** (late, rescheduled or changing rooms): staff set a new room and start. The message's show time moves by the same amount and gets a new id, so the TV shows it again. If it had already been sent to the TV, it's taken off and re-sent at the new time.
 
@@ -31,7 +31,7 @@ The copies have the real staff code and TV messages key replaced with `STAFF_COD
 | Thing | ID / name |
 | --- | --- |
 | Main scenario | `[BACKEND] GUEST MESSAGE LINKS`, id 8249444 |
-| Timer | `[BACKEND] GUEST MESSAGE TIMER`, id 8251356, every 15 min |
+| Timer | `[BACKEND] GUEST MESSAGE TIMER`, id 8251356, every 5 min (about 9k operations a month; restrict to opening hours in Make if that's too many) |
 | Webhook | `GUEST MESSAGE LINKS`, id 4000032, `https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4` |
 | Data store | `GUEST_MSG_LINKS`, id 237603 (data structure 667731). Key = the code. |
 
@@ -46,6 +46,7 @@ One webhook; `action` decides the route. The pages POST form-encoded fields, so 
 | `move` | staff | `staff`, `code`, `start`, `room` | new start and room (upgrades, room swaps); the show time keeps the same gap after the start, and the message is taken off the old room's TV if it was there |
 | `now` | staff | `staff`, `code` | show time = now, send to the TV |
 | `cancel` | staff | `staff`, `code` | closes the link; takes the message off the TV if it's still the one there |
+| `r2` | control centre | `staff`, `room`, `kind`, `to`, `from`, `title`, `text`, `ack` (`yes`/`no`), `at` | queues a Round2 "At a set time" message. Key `R2` + 6 characters, `label` = `Round2`, `id` starts `q`. Any of the 7 kinds (incl. `volume`, `wrapup`, `timeup`). Cancel, move and now work on it like a guest link. |
 | `push` | internal | `staff`, `code` | writes the record to the room's TV, sets `onTv` = `yes`. Called by the scenario itself and by the timer. |
 
 Records hold exactly the TV message fields (`id`, `kind`, `to`, `from`, `title`, `text`, `ack`, `at`, `until`) plus link fields (`room`, `start`, `end`, `status`, `label`, `onTv`, timestamps). Sending to the TV sends the whole record; the TV ignores fields it doesn't use.
@@ -65,4 +66,11 @@ The staff code is not in this repo. It's in the ROUND2 HOMESCREEN Project notes.
 
 - SimplyBook: when a booking is paid, Make creates the link and puts it in the confirmation.
 - Telegram ping to staff when a guest sends a message.
-- Send the control centre's own "At a set time" messages through the same queue, so they can't overwrite (or be overwritten by) a guest message on the same TV.
+
+## Failsafes (29 Oct, branch `failsafes-and-queue`)
+
+- **Staff page, make a link:** one button, **Make link & copy message**. It creates the link and copies the invite in the same tap (ClipboardItem with a promise, so iPhone Safari allows it after the wait for Make). Changing room, date, time or name hides the last link, so an old one can't be copied by mistake. The box says which booking the link is for. A second live link for the same room and start needs a second press (it warns first).
+- **Control centre, Messages:** the button is **Check and send…**. It opens a review (rooms, NOW or the time, wording, anything it replaces or clashes with) and only **Yes, send…** sends. Any change to the form closes the review. "Send again" on the TV list needs two taps.
+- **Control centre "At a set time" messages now go through the Make queue** (`r2` action) instead of straight to the TV, so they no longer overwrite guest messages. Needs the guest messages staff code on that computer (Calendar section).
+- **Time's up + optional "10 minutes left":** with Time's up and "At a set time", a tick box queues the 10-minute reminder 10 minutes earlier. Off by default.
+- Live Make scenarios were updated at the same time (timer every 5 min, 6-min window, `r2` route). The control centre's `r2` path couldn't be tested from Claude's workspace (no network to Make); first real use: schedule one far ahead, check it in Guest messages, cancel it.
