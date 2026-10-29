@@ -80,6 +80,10 @@ watch_apps() {
       [ -z "$id" ] && continue
       case "$id" in sg.round2.alerts*) continue ;; esac   # our pop-up card floats over the app; that app is still in front
       [ "$id" != "$prev" ] && { log "front $id"; echo "$id" > "$CFG/front"; }   # for Staff tools > Home helper check, and food alerts
+      if [ "$id" = "$APP" ] && [ "$id" != "$prev" ]; then   # the guest is back on the menu: anything still waiting for OK
+        rm -f "$CFG/msg.last"                                  # an unread message: shown again within seconds
+        [ -f "$CFG/food.pending" ] && ( sleep 2; menu_card "$(cat "$CFG/food.pending")" ) &
+      fi
       if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then          # Round2 Home just updated itself
         rm -f "$CFG/relaunch"; sleep 1; launch update; prev=$APP; continue
       fi
@@ -143,12 +147,20 @@ menu_front() {
   case "$id" in sg.round2.alerts*|"") id=$(cat "$CFG/front" 2>/dev/null) ;; esac
   [ "$id" = "$APP" ]
 }
-food_show() {   # $1 type, $2 order no, $3 items, $4 the alert's time (the menu reads food.over / food.acked)
-  [ -n "$4" ] && echo "$4" > "$CFG/food.over"
+# The helper is the one place that decides where an alert or message appears (one route, so nothing shows twice):
+# Round2 Home in front: the menu's own big card (the helper hands it over); any other app: Round2 Alerts over it;
+# no Round2 Alerts: LG's pop-up. OK anywhere comes back here (round2d.sh ack / msgack <id>).
+menu_card() {   # $1 card JSON: Round2 Home shows it (it's in front)
+  luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$APP\",\"params\":{\"r2\":\"card\",\"card\":$1}}" >/dev/null 2>&1
+}
+food_show() {   # $1 type, $2 order no, $3 items, $4 "reminder" (shown again on the menu)
+  room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null)
+  if [ "$1" = received ]; then txt="Madd Pizza is firing it up. We\u2019ll ping you when it lands."; else txt="It\u2019s at the drop zone, the rack right outside the entrance. Grab it while it\u2019s hot!"; fi
+  card="{\"type\":\"$1\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\",\"reminder\":$([ "$4" = reminder ] && echo true || echo false)}"
+  [ "$1" = ready ] && echo "{\"type\":\"ready\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\",\"reminder\":true}" > "$CFG/food.pending"
+  if menu_front; then menu_card "$card"; log "food $1 #$2 shown on the menu"; return; fi
   if ov=$(ov_app); then
-    room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null)
-    if [ "$1" = received ]; then txt="Madd Pizza is firing it up. We\u2019ll ping you when it lands."; else txt="It\u2019s at the drop zone, the rack right outside the entrance. Grab it while it\u2019s hot!"; fi
-    if ov_show "$ov" "{\"type\":\"$1\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\"}"; then
+    if ov_show "$ov" "$card"; then
       log "food $1 #$2 shown (Round2 card) over $(cat "$CFG/front" 2>/dev/null)"
       return
     fi
@@ -165,7 +177,7 @@ food_show() {   # $1 type, $2 order no, $3 items, $4 the alert's time (the menu 
 }
 food_ack() {    # GOT IT pressed: tell Make.com about every order waiting at the pickup point
   set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
-  cp "$CFG/food.over" "$CFG/food.acked" 2>/dev/null   # the menu won't show this one again when the guest goes back to it
+  rm -f "$CFG/food.pending"   # OK pressed (on the menu or over an app): no more reminders
   [ -f "$CFG/food.unacked" ] || exit 0
   mv "$CFG/food.unacked" "$CFG/food.acking"
   while read -r ref; do
@@ -197,8 +209,7 @@ watch_food() {
                    ref=$(echo "$line" | field ref); [ -n "$ref" ] && echo "$ref" >> "$CFG/food.unacked" ;;
             *) continue ;;
           esac
-          menu_front && continue   # Round2 Home is in front: the menu shows it
-          food_show "$type" "$no" "$(echo "$line" | field items | clean)" "$t" ;;
+          food_show "$type" "$no" "$(echo "$line" | field items | clean)" ;;
       esac
     done
     # an old TV that can't check Firebase's certificate: carry on without checking (alerts only, nothing private)
@@ -235,13 +246,13 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
   line=$(cat "$CFG/msg.cur" 2>/dev/null); [ -n "$line" ] || return 0
   n=${1:-1}
   title=$(printf '%s\n' "$line" | field title | clean); from=$(printf '%s\n' "$line" | field from | clean)
-  if ov=$(ov_app); then   # our own card pages the message itself
-    room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null); kind=$(printf '%s\n' "$line" | field kind | clean)
-    text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean)
-    ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
-    case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; *) tag="A MESSAGE" ;; esac
-    ov_show "$ov" "{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"room\":\"$room\"}" && return 0
-  fi
+  room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null); kind=$(printf '%s\n' "$line" | field kind | clean)
+  text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean); to=$(printf '%s\n' "$line" | field to | clean)
+  ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
+  case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; *) tag="A MESSAGE" ;; esac
+  card="{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"to\":\"$to\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"room\":\"$room\"}"
+  if menu_front; then menu_card "$card"; return 0; fi   # the menu's big card
+  if ov=$(ov_app); then ov_show "$ov" "$card" && return 0; fi   # our own card pages the message itself
   printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | { if command -v fold >/dev/null 2>&1; then fold -s -w 110; else cat; fi; } > "$CFG/msg.pages"
   total=$(wc -l < "$CFG/msg.pages"); [ "$total" -ge 1 ] || total=1
   text=$(sed -n "${n}p" "$CFG/msg.pages")
@@ -274,7 +285,6 @@ msg_tick() {    # every 3 s: is the message due, and is something other than Rou
     [ "$now" -le "$until" ] || { rm -f "$CFG/msg.cur"; continue; }
     last=$(cat "$CFG/msg.last" 2>/dev/null || echo 0)
     [ $(( now - last )) -ge 300 ] || continue                                   # at most every 5 minutes
-    menu_front && continue                                                      # the menu shows it itself
     if msg_acked "$id"; then echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"; continue; fi   # seen on the menu's card
     echo "$now" > "$CFG/msg.last"; echo "$id" > "$CFG/msg.id"
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }

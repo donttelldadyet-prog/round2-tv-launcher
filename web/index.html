@@ -831,7 +831,12 @@ window.R2_TV = {
         });
       }
     };
-    return { check: check, setFlag: setFlag, state: st, updater: updater, exec: exec };
+    /* cb(true) once it's known this is a rooted TV with the helper running (it then shows every alert and message) */
+    function whenChecked(cb) {
+      if (st.checked) { cb(st.ok); return; }
+      var n = 0, iv = setInterval(function () { if (st.checked || ++n > 40) { clearInterval(iv); cb(st.checked && st.ok); } }, 500);
+    }
+    return { check: check, setFlag: setFlag, state: st, updater: updater, exec: exec, whenChecked: whenChecked };
   }());
   /* ---- AirPlay lab (rooted LG, webOS 5+): installs a test app from the airplay-lab release through
      Homebrew Channel, runs it for 20 s from a root shell, then reopens Round2 Home with the result ---- */
@@ -2317,6 +2322,7 @@ window.R2_TV = {
      Netflix or the PlayStation is on) and hands the alert here when the menu is on screen; elsewhere
      (LG, the browser preview) this page listens itself. The topic key comes from the build (GitHub secret). */
   var Food = (function () {
+    var viaHelper = false;
     var KEY = '__FOOD_ALERT_KEY__';
     var cur = null, hideTimer, remindTimer, es = null, esTopic = '';
     var TEXT = {
@@ -2353,7 +2359,9 @@ window.R2_TV = {
       var el = $('food'), p = cur;
       if (!p) return;
       cur = null; clearTimeout(hideTimer);
-      if (seen && p.type === 'ready') {
+      if (p.helper) {   /* rooted LG: the helper handed this card over; OK goes back to it (it tells Make.com) */
+        if (seen && p.type === 'ready') { try { LGRoot.exec('sh /var/lib/webosbrew/round2/round2d.sh ack'); } catch (e) {} }
+      } else if (seen && p.type === 'ready') {
         clearTimeout(remindTimer); store('r2.foodReady', '');
         if (nativeOn()) { try { window.R2Android.foodSeen(String(p.no)); } catch (e) {} }   /* the app reports it to the Telegram group */
         else sendAcks();
@@ -2397,15 +2405,8 @@ window.R2_TV = {
         var age = (Date.now() - d.t) / 1000;
         if ((p.type === 'received' && age > 180) || (p.type === 'ready' && age > 3600)) return;
         if (p.type !== 'received' && p.type !== 'ready') return;
-        p.t = d.t;
-        /* rooted LG: Round2 Home keeps running behind Netflix. If another app is in front, the helper shows this
-           alert there (and OK there counts), so the menu only keeps a 'loot dropped' for when the guest comes back */
-        whoIsFront(function (front) {
-          if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); addUnacked(p.ref); }
-          if (front && front !== 'sg.round2.tvhome') return;
-          if (p.type === 'ready') remindLater(p);
-          show(p, false);
-        });
+        if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); remindLater(p); addUnacked(p.ref); }
+        show(p, false);
       });
     }
     /* LG / preview: OK on a "ready" alert tells Make.com, which replies under each waiting order in Telegram */
@@ -2434,40 +2435,25 @@ window.R2_TV = {
         if (still && still.indexOf('"no":"' + p.no + '"') > -1 && !cur) show(p, true);
       }, 5 * 60000);
     }
-    /* LG with the helper: which app is in front (the helper keeps it in a file); '' if unknown */
-    function whoIsFront(cb) {
-      if (nativeOn() || Device.kind() !== 'webos') { cb(''); return; }
-      var done = false, t = setTimeout(function () { if (!done) { done = true; cb(''); } }, 4000);
-      try { LGRoot.exec('cat /var/lib/webosbrew/round2/front 2>/dev/null', function (out) { if (done) return; done = true; clearTimeout(t); cb((out || '').replace(/\s+/g, '')); }); }
-      catch (e) { clearTimeout(t); done = true; cb(''); }
-    }
-    /* a ready order nobody has said OK to yet comes back when the guest returns to the menu
-       (unless OK was pressed on the card over another app: the helper notes that in food.acked) */
+    /* a ready order nobody has said OK to yet comes back when the guest returns to the menu */
     function resume() {
-      if (cur) return;
+      if (cur || viaHelper) return;   /* rooted LG: the helper brings back a waiting order itself */
       var j = '';
       try { j = nativeOn() ? window.R2Android.foodPending() : (store('r2.foodReady') || ''); } catch (e) {}
-      if (!j) return;
-      var p; try { p = JSON.parse(j); } catch (e) { return; }
-      if (nativeOn() || Device.kind() !== 'webos' || !p.t) { show(p, true); return; }
-      var done = false, t = setTimeout(function () { if (!done) { done = true; if (!cur) show(p, true); } }, 6000);
-      try {
-        LGRoot.exec('cat /var/lib/webosbrew/round2/food.acked 2>/dev/null', function (out) {
-          if (done) return; done = true; clearTimeout(t);
-          if (Number((out || '').replace(/\s+/g, '')) >= p.t) {
-            store('r2.foodReady', '');
-            var a = []; try { a = JSON.parse(store('r2.foodAcks') || '[]'); } catch (e) {}
-            store('r2.foodAcks', JSON.stringify(a.filter(function (o) { return o.ref !== p.ref; })));
-            return;
-          }
-          if (!cur) show(p, true);
-        });
-      } catch (e) { clearTimeout(t); done = true; show(p, true); }
+      if (j) { try { show(JSON.parse(j), true); } catch (e) {} }
     }
     function setRoom(key) {
       var r = topicRoom(key), info = ROOMS[key];
       if (nativeOn()) { try { window.R2Android.foodRoom(r, info.color, info.ink); } catch (e) {} }
-      else listen(r);
+      else if (Device.kind() !== 'webos') listen(r);
+      /* LG: rooted with the helper = one route only: the helper decides where every alert appears and hands the menu
+         its card when the menu is in front. Without it (not rooted), this page listens itself. */
+      else LGRoot.whenChecked(function (on) {
+        viaHelper = on;
+        if (!on) { listen(r); return; }
+        if (es) { es.close(); es = null; esTopic = ''; }
+        store('r2.foodReady', ''); store('r2.foodAcks', '[]');
+      });
       /* rooted LG: the background helper (webos/service/round2d.sh) shows the alerts over other apps; it needs the room */
       if (Device.kind() === 'webos' && keyOk()) setTimeout(function () {
         var line = r + ' ' + KEY, f = '/var/lib/webosbrew/round2/food';
@@ -2475,6 +2461,7 @@ window.R2_TV = {
       }, 4000);
     }
     return { show: show, key: key, resume: resume, setRoom: setRoom,
+      fromHelper: function (c) { c.helper = true; show(c, !!c.reminder); },
       link: function () { return keyOk() ? { fb: FB_URL, key: KEY, room: topicRoom(roomKey), native: nativeOn() } : null; } };
   }());
   window.r2Food = function (p) { Food.show(p, false); };
@@ -2551,8 +2538,11 @@ window.R2_TV = {
       var l = link(); if (!l || l.native || !/^[A-Za-z0-9_-]+$/.test(id)) return;
       try { LGRoot.exec('[ -d /var/lib/webosbrew/round2 ] && echo ' + id + ' > /var/lib/webosbrew/round2/msg.done'); } catch (e) {}
     }
+    var viaHelper = false;   /* rooted LG: the helper decides when and where a message shows, and hands the menu its card */
     function show(d, again) {
-      if (!d || !d.id || done(d.id) || (cur && cur.id === d.id)) return;
+      if (!d || !d.id || (cur && cur.id === d.id)) return;
+      if (d.helper) { render(d, again); return; }
+      if (done(d.id)) return;
       if (!d.ack) tellHelper(d.id);                       /* no OK needed: seen once is enough */
       if (store('r2.msgShown') !== d.id) { store('r2.msgShown', d.id); report('msgShown', d.id); }
       render(d, again);
@@ -2560,7 +2550,9 @@ window.R2_TV = {
     function hide(finished) {
       var d = cur; if (!d) return;
       cur = null; clearTimeout(hideTimer);
-      if (finished) {
+      if (d.helper) {   /* OK goes back to the helper, which tells the control centre */
+        if (finished && d.ack) { try { LGRoot.exec("sh /var/lib/webosbrew/round2/round2d.sh msgack '" + String(d.id).replace(/[^A-Za-z0-9_-]/g, '') + "'"); } catch (e) {} }
+      } else if (finished) {
         store('r2.msgDone', d.id); store('r2.msg', ''); tellHelper(d.id);
         if (d.ack) {
           var l = link();
@@ -2631,11 +2623,22 @@ window.R2_TV = {
     }
     /* back in the menu: a message still waiting for OK (Android asks the app) */
     function resume() {
+      if (viaHelper) return;
       var l = link();
       if (l && l.native) { var j = ''; try { j = window.R2Android.msgDue(); } catch (e) {} if (j) { try { show(JSON.parse(j), true); } catch (e) {} } return; }
       tick();
     }
-    return { show: function (d) { show(d, store('r2.msgShown') === (d && d.id)); }, key: key, resume: resume, setRoom: function () { setTimeout(listen, 1500); } };
+    return { show: function (d) { show(d, store('r2.msgShown') === (d && d.id)); }, key: key, resume: resume,
+      fromHelper: function (c) { c.helper = true; show(c, false); },
+      setRoom: function () {
+        if (Device.kind() !== 'webos') { setTimeout(listen, 1500); return; }
+        LGRoot.whenChecked(function (on) {
+          viaHelper = on;
+          if (!on) { listen(); return; }
+          if (es) { es.close(); es = null; esTopic = ''; }
+          clearTimeout(timer); store('r2.msg', '');
+        });
+      } };
   }());
   window.r2Msg = function (d) { Msg.show(d); };
 
@@ -2920,6 +2923,11 @@ window.R2_TV = {
       /* handlesRelaunch: webOS leaves bringing the app to the front to the app itself. Older LG software did it anyway;
          newer software (Scarlett) doesn't, so Home from YouTube reached the menu but it stayed behind (nothing, or black). */
       try { if (window.PalmSystem && window.PalmSystem.activate) window.PalmSystem.activate(); } catch (e) {}
+      if (p.r2 === 'card' && p.card) {   /* the helper hands over an alert or message while the menu is in front */
+        var c = p.card; if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) { return; } }
+        if (c.type === 'msg') Msg.fromHelper(c); else Food.fromHelper(c);
+        return;
+      }
       if (p.r2 === 'poweron' || p.r2 === 'boot') { lgHiddenAt = 0; window.r2Reset(); }   /* the TV was switched on: back to the house settings */
       window.r2Home();
     });
