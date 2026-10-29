@@ -2669,6 +2669,14 @@ window.R2_TV = {
      any key skips it. */
   var Boot = (function () {
     var el = $('boot'), log = $('bootLog'), gone = false, t0 = Date.now();
+    /* LG: the partner app Round2 Alerts' version, if it's installed (it follows Round2 Home's version) */
+    var alertsVer = null;
+    try {
+      if (Device.kind() === 'webos') LGRoot.exec('cat /media/developer/apps/usr/palm/applications/sg.round2.alerts/appinfo.json 2>/dev/null', function (out) {
+        var v = ''; try { v = out ? JSON.parse(out).version || '' : ''; } catch (e) {}
+        alertsVer = v;
+      }); else alertsVer = '';
+    } catch (e) { alertsVer = ''; }
     function dots(label) { var d = ' '; for (var i = label.length; i < 20; i++) d += '.'; return '&gt; ' + label + d + ' '; }
     function line(label, value) {
       if (gone || !log) return;
@@ -2692,8 +2700,13 @@ window.R2_TV = {
         line('SOUND', ({ n: 'SPEAKERS', d: 'SOUND BAR + SUBWOOFER', v: 'HOME THEATER + SUBWOOFER' })[room && room.t] || 'SPEAKERS');   /* each tier's sound setup */
         var v = ''; try { v = window.R2Android && window.R2Android.version ? window.R2Android.version() : (window.R2_VERSION || ''); } catch (e) {}
         line('VERSION', v ? 'V' + v : 'PREVIEW');
-        setTimeout(function () { line('READY', 'PRESS OK'); }, 250);
-        setTimeout(hide, Math.max(700, 1600 - (Date.now() - t0)));
+        var waited = 0;
+        (function alerts() {   /* wait up to a second for the Round2 Alerts check */
+          if (alertsVer === null && waited < 1000) { waited += 100; setTimeout(alerts, 100); return; }
+          if (alertsVer) line('ALERTS', 'V' + alertsVer + (v && alertsVer !== v ? ' \u00B7 UPDATING' : ''));
+          setTimeout(function () { line('READY', 'PRESS OK'); }, 250);
+          setTimeout(hide, Math.max(700, 1600 - (Date.now() - t0)));
+        }());
       }
     };
   }());
