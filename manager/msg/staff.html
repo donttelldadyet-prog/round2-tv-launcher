@@ -358,7 +358,7 @@ details.past .list { margin-top: 10px; }
         (fDay !== 'all' && dayKeys.indexOf(fDay) < 0 ? dayKeys.concat([fDay]).sort() : dayKeys).map(function (k) { return '<button type="button" data-fday="' + k + '" aria-pressed="' + (fDay === k) + '">' + esc(dayName(k).replace(/ · .*$/, function (m) { return /Today|Tomorrow/.test(dayName(k)) ? '' : m; })) + '<span class="n">' + (days[k] || 0) + '</span></button>'; }).join('') + '</div>' +
       '<div class="chips rf" role="group" aria-label="Room"><button type="button" data-froom="all" aria-pressed="' + (fRoom === 'all') + '">All rooms</button>' +
         Object.keys(ROOMS).map(function (k) { return '<button type="button" data-froom="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (fRoom === k) + '">' + ROOMS[k][0] + (rooms[k] ? '<span class="n">' + rooms[k] + '</span>' : '') + '</button>'; }).join('') + '</div></div>';
-    if (!shown.length) html += '<div class="empty">' + (live.length ? 'No links for this date and room.' : 'No upcoming links. Make one on the left after a booking is paid.') + '</div>';
+    if (!shown.length) html += '<div class="empty">' + (live.length ? 'No links for this date and room.' : 'No upcoming links. Make one in \u201CMake a guest link\u201D after a booking is paid.') + '</div>';
     /* by date, then by room (in the usual room order), then by start time */
     var byDay = {};
     shown.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || {}); (byDay[k][x.data.room] = byDay[k][x.data.room] || []).push(x); });
