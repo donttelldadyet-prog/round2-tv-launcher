@@ -478,7 +478,7 @@ public class FoodAlerts extends Service {
             if (best == null) return;
             final android.media.MediaPlayer mp = new android.media.MediaPlayer();
             mp.setAudioAttributes(new android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                    .setUsage(android.media.AudioAttributes.USAGE_GAME)   // the menu's own sound channel: some TVs (Atlas) mute notification sounds
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
             mp.setDataSource(best.getPath());
             mp.setOnCompletionListener(new android.media.MediaPlayer.OnCompletionListener() { @Override public void onCompletion(android.media.MediaPlayer m) { m.release(); } });
