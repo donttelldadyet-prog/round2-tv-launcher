@@ -87,6 +87,26 @@ label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 
 .confirm { border: 1px solid var(--line2); padding: 10px; display: grid; gap: 10px; font-size: 14px; }
 .confirm .rooms { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .confirm .two input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 15px; border-radius: 0; }
+.cal { background: var(--panel); border: 1px solid var(--line); padding: 12px; display: grid; gap: 8px; }
+.cal .ch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal .ch b { letter-spacing: .12em; text-transform: uppercase; font-size: 14px; }
+.cal .ch button { background: var(--bg); border: 1px solid var(--line2); width: 34px; height: 30px; font-size: 16px; line-height: 1; }
+.cal .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal .dow { font-size: 10px; letter-spacing: .14em; color: var(--mute); text-align: center; text-transform: uppercase; padding-bottom: 2px; }
+.cal .d { position: relative; min-height: 46px; background: var(--bg); border: 1px solid var(--line); padding: 4px 4px 6px; display: grid; align-content: space-between; gap: 4px; text-align: left; font-variant-numeric: tabular-nums; font-size: 13px; }
+.cal .d.out { opacity: .3; }
+.cal .d.past { color: var(--mute); }
+.cal .d.today { border-color: var(--ink); }
+.cal .d.has { background: #1d1730; border-color: var(--accent); }
+.cal .d.has .num { color: var(--accent); font-weight: 700; }
+.cal .d[aria-pressed="true"] { outline: 2px solid var(--focus); outline-offset: -2px; }
+.cal .dots { display: flex; flex-wrap: wrap; gap: 3px; }
+.cal .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rc); }
+.cal .dot.wait { background: none; box-shadow: inset 0 0 0 1.5px var(--rc); }
+.cal .key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--mute); }
+.cal .key span { display: inline-flex; align-items: center; gap: 6px; }
+.cal .key .dot { --rc: var(--ink); }
+@media (max-width: 420px) { .cal .d { min-height: 40px; font-size: 12px; } .cal .dot { width: 6px; height: 6px; } }
 .filters { display: grid; gap: 8px; }
 .filters .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .filters .chips::-webkit-scrollbar { display: none; }
@@ -173,7 +193,7 @@ details.past .list { margin-top: 10px; }
     kai: ['Kai', '#24B49A'], atlas: ['Atlas', '#E9E7EF'], max: ['Maximillion', '#E0402F'] };
   var TAGS = { birthday: 'Birthday', anniversary: 'Anniversary', celebrate: 'Celebration', note: 'A message for you' };
   var $ = function (id) { return document.getElementById(id); };
-  var room = 'vale', lastList = [], open = null, fDay = 'all', fRoom = 'all';   /* open: { a: 'move'|'now'|'cancel', code, room } */
+  var room = 'vale', lastList = [], open = null, fDay = 'all', fRoom = 'all', calMonth = null;   /* open: { a: 'move'|'now'|'cancel', code, room } */
 
   var lg = new Image(); lg.alt = 'Round2'; lg.onload = function () { $('brand').innerHTML = ''; $('brand').appendChild(lg); }; lg.src = LOGO;
 
@@ -276,6 +296,32 @@ details.past .list { margin-top: 10px; }
     var d = fmt(ms, { weekday: 'short', day: 'numeric', month: 'short' });
     return k === today ? 'Today · ' + d : k === tmr ? 'Tomorrow · ' + d : d;
   }
+  /* Month calendar: days with a message queued for a TV are highlighted, one dot per link in that room's colour
+     (filled = message waiting to pop up or on the TV, ring = link sent, guest hasn't written yet). Tap a day to filter. */
+  function calendarHtml(live) {
+    var now = Date.now(), tp = sgParts(now), today = dayKey(now);
+    if (!calMonth) calMonth = tp.year + '-' + tp.month;
+    var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7);
+    var first = new Date(Date.UTC(y, m - 1, 1)), lead = (first.getUTCDay() + 6) % 7, dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    var byDay = {};
+    live.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || []).push(x); });
+    var h = '<div class="cal"><div class="ch"><button type="button" data-cal="-1" aria-label="Previous month">‹</button><b>' +
+      esc(new Intl.DateTimeFormat('en-SG', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(first)) +
+      '</b><button type="button" data-cal="1" aria-label="Next month">›</button></div><div class="grid">' +
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dow">' + d + '</div>'; }).join('');
+    var cells = Math.ceil((lead + dim) / 7) * 7;
+    for (var i = 0; i < cells; i++) {
+      var dt = new Date(Date.UTC(y, m - 1, 1 + i - lead)), k = dt.toISOString().slice(0, 10), xs = byDay[k] || [];
+      var queued = xs.filter(function (x) { var st = state(x); return st === 'scheduled' || st === 'ontv'; }).length;
+      var cls = 'd' + (dt.getUTCMonth() !== m - 1 ? ' out' : '') + (k < today ? ' past' : '') + (k === today ? ' today' : '') + (queued ? ' has' : '');
+      xs.sort(function (a, b) { return a.data.start - b.data.start; });
+      h += '<button type="button" class="' + cls + '" data-calday="' + k + '" aria-pressed="' + (fDay === k) + '" aria-label="' + esc(k + (xs.length ? ', ' + xs.length + ' link(s), ' + queued + ' message(s) queued' : '')) + '">' +
+        '<span class="num">' + dt.getUTCDate() + '</span><span class="dots">' + xs.map(function (x) {
+          var st = state(x), R = ROOMS[x.data.room]; return '<i class="dot' + (st === 'open' ? ' wait' : '') + '" style="--rc:' + (R ? R[1] : '#F2C21B') + '"></i>';
+        }).join('') + '</span></button>';
+    }
+    return h + '</div><div class="key"><span><i class="dot"></i>Message queued</span><span><i class="dot wait"></i>Waiting for the guest</span><span>Tap a day to see its links</span></div></div>';
+  }
   var ORDER = { ontv: 0, scheduled: 1, open: 2 };
   function render() {
     var live = [], past = [];
@@ -284,11 +330,12 @@ details.past .list { margin-top: 10px; }
     var days = {}, rooms = {};
     live.forEach(function (x) { var k = dayKey(x.data.start); days[k] = (days[k] || 0) + 1; rooms[x.data.room] = (rooms[x.data.room] || 0) + 1; });
     var dayKeys = Object.keys(days).sort();
-    if (fDay !== 'all' && !days[fDay]) fDay = 'all';
+    var dayHasPast = lastList.some(function (x) { return dayKey(x.data.start) === fDay; });
+    if (fDay !== 'all' && !days[fDay] && !/^\d{4}-\d{2}-\d{2}$/.test(fDay) && !dayHasPast) fDay = 'all';
     var shown = live.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
-    var html = '<div class="filters">' +
+    var html = calendarHtml(live) + '<div class="filters">' +
       '<div class="chips" role="group" aria-label="Date"><button type="button" data-fday="all" aria-pressed="' + (fDay === 'all') + '">All dates<span class="n">' + live.length + '</span></button>' +
-        dayKeys.map(function (k) { return '<button type="button" data-fday="' + k + '" aria-pressed="' + (fDay === k) + '">' + esc(dayName(k).replace(/ · .*$/, function (m) { return /Today|Tomorrow/.test(dayName(k)) ? '' : m; })) + '<span class="n">' + days[k] + '</span></button>'; }).join('') + '</div>' +
+        (fDay !== 'all' && dayKeys.indexOf(fDay) < 0 ? dayKeys.concat([fDay]).sort() : dayKeys).map(function (k) { return '<button type="button" data-fday="' + k + '" aria-pressed="' + (fDay === k) + '">' + esc(dayName(k).replace(/ · .*$/, function (m) { return /Today|Tomorrow/.test(dayName(k)) ? '' : m; })) + '<span class="n">' + (days[k] || 0) + '</span></button>'; }).join('') + '</div>' +
       '<div class="chips rf" role="group" aria-label="Room"><button type="button" data-froom="all" aria-pressed="' + (fRoom === 'all') + '">All rooms</button>' +
         Object.keys(ROOMS).map(function (k) { return '<button type="button" data-froom="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (fRoom === k) + '">' + ROOMS[k][0] + (rooms[k] ? '<span class="n">' + rooms[k] + '</span>' : '') + '</button>'; }).join('') + '</div></div>';
     if (!shown.length) html += '<div class="empty">' + (live.length ? 'No links for this date and room.' : 'No upcoming links. Make one on the left after a booking is paid.') + '</div>';
@@ -319,6 +366,12 @@ details.past .list { margin-top: 10px; }
       .catch(function (e) { $('groups').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; if (/staff code/i.test(e.message)) { memKey = ''; ls('r2.guestStaff', null); $('keyBox').hidden = false; } });
   }
   $('groups').addEventListener('click', function (e) {
+    var cb = e.target.closest('button[data-cal], button[data-calday]');
+    if (cb) {
+      if (cb.hasAttribute('data-cal')) { var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7) + Number(cb.getAttribute('data-cal')); if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } calMonth = y + '-' + ('0' + m).slice(-2); }
+      else { var k = cb.getAttribute('data-calday'); fDay = fDay === k ? 'all' : k; }
+      render(); return;
+    }
     var f = e.target.closest('button[data-fday], button[data-froom]');
     if (f) { if (f.hasAttribute('data-fday')) fDay = f.getAttribute('data-fday'); else fRoom = f.getAttribute('data-froom'); render(); return; }
     var b = e.target.closest('button[data-a]'); if (!b) return;
