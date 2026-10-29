@@ -1130,7 +1130,7 @@
             "variables": [
              {
               "name": "wait",
-              "value": "{{if(ifempty(75.data.at; 0) > 2.now; if(75.data.id != 40.id; if(75.data.at <= 40.at; max(75.data.at + 60000; 40.at - 60000) - 2.now; 0); 0); 0)}}"
+              "value": "{{if(ifempty(75.data.until; 0) > 2.now; if(75.data.id != 40.id; if(75.data.at <= 40.at; max(75.data.at + 60000; 40.at - 60000) - 2.now; 0); 0); 0)}}"
              },
              {
               "name": "bump",
