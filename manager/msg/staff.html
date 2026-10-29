@@ -87,6 +87,23 @@ label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 
 .confirm { border: 1px solid var(--line2); padding: 10px; display: grid; gap: 10px; font-size: 14px; }
 .confirm .rooms { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .confirm .two input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 15px; border-radius: 0; }
+.filters { display: grid; gap: 8px; }
+.filters .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.filters .chips::-webkit-scrollbar { display: none; }
+.filters button { flex: none; background: var(--bg); border: 1px solid var(--line2); padding: 6px 12px; font-size: 13px; letter-spacing: .04em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.filters button .n { color: var(--mute); margin-left: 6px; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: #0b0914; border-color: var(--ink); font-weight: 700; }
+.filters button[aria-pressed="true"] .n { color: #0b0914; }
+.filters .rf button { box-shadow: inset 0 -3px 0 var(--rc, transparent); }
+.day { display: grid; gap: 12px; scroll-margin-top: 70px; }
+.day > h2 { font-size: 15px; color: var(--ink); border-bottom: 1px solid var(--line2); padding-bottom: 6px; }
+.day > h2 .dim { color: var(--mute); font-weight: 500; }
+.rgroup { display: grid; gap: 8px; }
+.rgroup > .rh { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: var(--rc); display: flex; gap: 8px; align-items: center; }
+.rgroup > .rh::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+details.past { border-top: 1px solid var(--line); padding-top: 12px; }
+details.past summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; }
+details.past .list { margin-top: 10px; }
 .empty { color: var(--mute); border: 1px dashed var(--line2); padding: 14px; font-size: 14px; }
 </style>
 
@@ -156,7 +173,7 @@ label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 
     kai: ['Kai', '#24B49A'], atlas: ['Atlas', '#E9E7EF'], max: ['Maximillion', '#E0402F'] };
   var TAGS = { birthday: 'Birthday', anniversary: 'Anniversary', celebrate: 'Celebration', note: 'A message for you' };
   var $ = function (id) { return document.getElementById(id); };
-  var room = 'vale', lastList = [], open = null;   /* open: { a: 'move'|'now'|'cancel', code, room } */
+  var room = 'vale', lastList = [], open = null, fDay = 'all', fRoom = 'all';   /* open: { a: 'move'|'now'|'cancel', code, room } */
 
   var lg = new Image(); lg.alt = 'Round2'; lg.onload = function () { $('brand').innerHTML = ''; $('brand').appendChild(lg); }; lg.src = LOGO;
 
@@ -222,12 +239,6 @@ label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 
     if (d.status !== 'approved') return 'open';
     return d.onTv === 'yes' || (d.at && d.at <= now) ? 'ontv' : 'scheduled';
   }
-  var GROUPS = [
-    { id: 'scheduled', name: 'Scheduled for the TV', empty: 'No messages waiting to pop up.' },
-    { id: 'ontv', name: 'On the TV', empty: 'Nothing on a TV right now.' },
-    { id: 'open', name: 'Waiting for the guest', empty: 'No links waiting on a guest.' },
-    { id: 'done', name: 'Ended or cancelled', empty: '' }
-  ];
   var CHIP = { open: 'Waiting for guest', scheduled: 'Scheduled', ontv: 'On the TV', cancelled: 'Cancelled', ended: 'Ended' };
 
   function itemHtml(x) {
@@ -259,15 +270,46 @@ label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 
     }
     return h + '</article>';
   }
+  function dayKey(ms) { var p = sgParts(ms); return p.year + '-' + p.month + '-' + p.day; }
+  function dayName(k) {
+    var today = dayKey(Date.now()), tmr = dayKey(Date.now() + 86400000), ms = Date.parse(k + 'T12:00:00+08:00');
+    var d = fmt(ms, { weekday: 'short', day: 'numeric', month: 'short' });
+    return k === today ? 'Today · ' + d : k === tmr ? 'Tomorrow · ' + d : d;
+  }
+  var ORDER = { ontv: 0, scheduled: 1, open: 2 };
   function render() {
-    var by = { scheduled: [], ontv: [], open: [], done: [] };
-    lastList.forEach(function (x) { var s = state(x); (by[s] || by.done).push(x); });
-    by.scheduled.sort(function (a, b) { return (a.data.at || 0) - (b.data.at || 0); });
-    $('groups').innerHTML = GROUPS.map(function (g) {
-      var xs = by[g.id]; if (!xs.length && !g.empty) return '';
-      return '<div class="group"><h2>' + g.name + ' <span class="n">' + xs.length + '</span></h2><div class="list">' +
-        (xs.length ? xs.map(itemHtml).join('') : '<div class="empty">' + g.empty + '</div>') + '</div></div>';
-    }).join('<div style="height:18px"></div>');
+    var live = [], past = [];
+    lastList.forEach(function (x) { var s = state(x); (s === 'cancelled' || s === 'ended' ? past : live).push(x); });
+    /* filters: one chip per date that has links, and one per room */
+    var days = {}, rooms = {};
+    live.forEach(function (x) { var k = dayKey(x.data.start); days[k] = (days[k] || 0) + 1; rooms[x.data.room] = (rooms[x.data.room] || 0) + 1; });
+    var dayKeys = Object.keys(days).sort();
+    if (fDay !== 'all' && !days[fDay]) fDay = 'all';
+    var shown = live.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
+    var html = '<div class="filters">' +
+      '<div class="chips" role="group" aria-label="Date"><button type="button" data-fday="all" aria-pressed="' + (fDay === 'all') + '">All dates<span class="n">' + live.length + '</span></button>' +
+        dayKeys.map(function (k) { return '<button type="button" data-fday="' + k + '" aria-pressed="' + (fDay === k) + '">' + esc(dayName(k).replace(/ · .*$/, function (m) { return /Today|Tomorrow/.test(dayName(k)) ? '' : m; })) + '<span class="n">' + days[k] + '</span></button>'; }).join('') + '</div>' +
+      '<div class="chips rf" role="group" aria-label="Room"><button type="button" data-froom="all" aria-pressed="' + (fRoom === 'all') + '">All rooms</button>' +
+        Object.keys(ROOMS).map(function (k) { return '<button type="button" data-froom="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (fRoom === k) + '">' + ROOMS[k][0] + (rooms[k] ? '<span class="n">' + rooms[k] + '</span>' : '') + '</button>'; }).join('') + '</div></div>';
+    if (!shown.length) html += '<div class="empty">' + (live.length ? 'No links for this date and room.' : 'No upcoming links. Make one on the left after a booking is paid.') + '</div>';
+    /* by date, then by room (in the usual room order), then by start time */
+    var byDay = {};
+    shown.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || {}); (byDay[k][x.data.room] = byDay[k][x.data.room] || []).push(x); });
+    Object.keys(byDay).sort().forEach(function (k) {
+      var n = 0; Object.keys(byDay[k]).forEach(function (r) { n += byDay[k][r].length; });
+      html += '<section class="day" id="day-' + k + '"><h2>' + esc(dayName(k)) + ' <span class="n">' + n + '</span></h2>';
+      Object.keys(ROOMS).concat(Object.keys(byDay[k]).filter(function (r) { return !ROOMS[r]; })).forEach(function (r) {
+        var xs = byDay[k][r]; if (!xs) return;
+        xs.sort(function (a, b) { return a.data.start - b.data.start || ORDER[state(a)] - ORDER[state(b)]; });
+        html += '<div class="rgroup" style="--rc:' + (ROOMS[r] ? ROOMS[r][1] : '#F2C21B') + '"><div class="rh">' + esc(ROOMS[r] ? ROOMS[r][0] : r) + '</div><div class="list">' + xs.map(itemHtml).join('') + '</div></div>';
+      });
+      html += '</section>';
+    });
+    if (past.length) {
+      past.sort(function (a, b) { return b.data.start - a.data.start; });
+      html += '<details class="past"' + (open && past.some(function (x) { return x.key === open.code; }) ? ' open' : '') + '><summary>Ended or cancelled (' + past.length + ')</summary><div class="list">' + past.map(itemHtml).join('') + '</div></details>';
+    }
+    $('groups').innerHTML = html;
   }
   function list() {
     if (!key()) { $('groups').innerHTML = '<div class="empty">Add the staff code to see links.</div>'; return; }
@@ -276,6 +318,8 @@ label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 
       .catch(function (e) { $('groups').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; if (/staff code/i.test(e.message)) { memKey = ''; ls('r2.guestStaff', null); $('keyBox').hidden = false; } });
   }
   $('groups').addEventListener('click', function (e) {
+    var f = e.target.closest('button[data-fday], button[data-froom]');
+    if (f) { if (f.hasAttribute('data-fday')) fDay = f.getAttribute('data-fday'); else fRoom = f.getAttribute('data-froom'); render(); return; }
     var b = e.target.closest('button[data-a]'); if (!b) return;
     var a = b.getAttribute('data-a'), c = b.getAttribute('data-c');
     if (a === 'copy') { copy(shareUrl(c), b); return; }
