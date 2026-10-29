@@ -5,6 +5,13 @@
 <title>Guest Message Links</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="robots" content="noindex">
+<link rel="apple-touch-icon" href="../icon-192.png">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Guest link">
+<meta name="theme-color" content="#06050A">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -32,10 +39,16 @@ header.top .wrap { display: flex; gap: 14px; align-items: center; flex-wrap: wra
 .brand img { height: 100%; width: auto; display: block; }
 .brand .txt { font-weight: 700; letter-spacing: .22em; font-size: 18px; padding: 1px 10px; border-left: 2px solid var(--ink); border-right: 2px solid var(--ink); }
 .brand small { letter-spacing: .14em; font-weight: 500; color: var(--mute); font-size: 12px; text-transform: uppercase; }
-.test { margin-left: auto; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--warn); border: 1px solid var(--warn); padding: 3px 8px; }
+.test { margin-left: auto; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--line2); padding: 5px 9px; text-decoration: none; }
+html:not(.v-make) .test { display: none; }
 
 main.wrap { padding-block: 22px 72px; display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 28px; align-items: start; }
 @media (max-width: 860px) { main.wrap { grid-template-columns: minmax(0, 1fr); } }
+html.v-make main.wrap, html.v-list main.wrap { grid-template-columns: minmax(0, 1fr); }
+html.v-make main.wrap { max-width: 520px; }
+html.v-make #listCol, html.v-list #makeCol, html.embed header.top { display: none; }
+html.embed main.wrap { padding: 0 0 24px; max-width: none; }
+html.embed body::before { display: none; }
 h1 { font-size: 24px; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 4px; }
 h2 { font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); margin: 0; font-weight: 600; display: flex; gap: 8px; align-items: center; }
 h2 .n { color: var(--ink); background: var(--panel2); border: 1px solid var(--line2); padding: 0 7px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
@@ -130,11 +143,11 @@ details.past .list { margin-top: 10px; }
 <header class="top"><div class="wrap">
   <div class="brand" id="brand"><span class="txt">ROUND2</span></div>
   <span class="brand"><small>Guest messages</small></span>
-  <span class="test">Test build</span>
+  <a class="test" id="toList" href="staff.html">All guest messages</a>
 </div></header>
 
 <main class="wrap">
-  <section class="col">
+  <section class="col" id="makeCol">
     <div>
       <h1>Make a link</h1>
       <p class="sub">Only after the booking is paid. The guest can only write for this room, and pick a time in the first hour.</p>
@@ -172,7 +185,7 @@ details.past .list { margin-top: 10px; }
     </div>
   </section>
 
-  <section class="col" aria-live="polite">
+  <section class="col" id="listCol" aria-live="polite">
     <div class="row" style="justify-content:space-between">
       <h1 style="margin:0">Links</h1>
       <button class="btn" id="refresh" type="button">Refresh</button>
@@ -182,6 +195,13 @@ details.past .list { margin-top: 10px; }
 </main>
 
 <script>
+/* which part to show, set before the page draws: ?view=make (the iPhone shortcut), ?view=list, &embed=1 inside the control centre */
+(function () {
+  var q = new URLSearchParams(location.search), v = q.get('view'), el = document.documentElement;
+  if (v === 'make' || v === 'list') el.classList.add('v-' + v);
+  if (q.get('embed') === '1') el.classList.add('embed');
+  if (v === 'make') document.title = 'New guest link';
+}());
 (function () {
   'use strict';
   var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4';
@@ -403,6 +423,12 @@ details.past .list { margin-top: 10px; }
   $('date').value = p.year + '-' + p.month + '-' + p.day; $('time').value = p.hour + ':' + p.minute;
   drawRooms(); sum();
   $('keyBox').hidden = !!key();
-  list(); setInterval(list, 30000);
+  var listOn = !document.documentElement.classList.contains('v-make');
+  if (listOn) { list(); setInterval(list, 30000); }
+  /* inside the control centre: tell it how tall this page is, so there's no inner scrollbar */
+  if (document.documentElement.classList.contains('embed') && window.parent !== window) {
+    var lastH = 0, report = function () { var h = document.documentElement.scrollHeight; if (h !== lastH) { lastH = h; try { window.parent.postMessage({ r2frame: location.search, h: h }, location.origin); } catch (e) {} } };
+    setInterval(report, 400); report();
+  }
 }());
 </script>

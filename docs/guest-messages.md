@@ -1,6 +1,6 @@
-# Guest messages (test build)
+# Guest messages
 
-Branch: `feature/guest-messages`. Not merged into `main`, so the guest and staff pages aren't on GitHub Pages yet. The Make scenarios are live, but labelled `[TEST]`.
+Merged into `main` on 29 Oct 2026 (it was built on the `feature/guest-messages` branch). Live on GitHub Pages with the control centre.
 
 Guests write their own birthday, anniversary, celebration or note message for the room TV. It works for bookings from any channel (WhatsApp, Telegram, TikTok, SimplyBook, walk-in), because staff send a link instead of the guest messaging a bot.
 
@@ -18,8 +18,9 @@ Guests write their own birthday, anniversary, celebration or note message for th
 
 | Path | What it is |
 | --- | --- |
-| `manager/msg/index.html` | Guest page. Published at `…/round2-tv-launcher/msg/` once merged (Pages publishes `manager/`). |
-| `manager/msg/staff.html` | Staff page: make links, change time, send now, cancel. Separate from `manager/index.html` so this branch doesn't clash with work on the main control centre. Fold it into the control centre's Notifications tab when merging. |
+| `manager/msg/index.html` | Guest page, at `…/round2-tv-launcher/msg/?c=CODE`. |
+| `manager/msg/staff.html` | Staff page: make links, change time or room, send now, cancel; calendar and date/room filters. `?view=make` shows only the link form (the iPhone home-screen shortcut), `?view=list` only the links, `&embed=1` hides its header. The control centre's Notifications › Guest messages and Make a guest link tabs show it in an iframe. |
+| `manager/link/index.html` | Short address for the shortcut: `…/round2-tv-launcher/link/` opens the link form. |
 | `docs/make/guest-message-links.blueprint.json` | Copy of the main Make scenario. |
 | `docs/make/guest-message-timer.blueprint.json` | Copy of the 15-minute timer. |
 
@@ -29,8 +30,8 @@ The copies have the real staff code and TV messages key replaced with `STAFF_COD
 
 | Thing | ID / name |
 | --- | --- |
-| Main scenario | `[TEST] GUEST MESSAGE LINKS`, id 8249444 |
-| Timer | `[TEST] GUEST MESSAGE TIMER`, id 8251356, every 15 min |
+| Main scenario | `[BACKEND] GUEST MESSAGE LINKS`, id 8249444 |
+| Timer | `[BACKEND] GUEST MESSAGE TIMER`, id 8251356, every 15 min |
 | Webhook | `GUEST MESSAGE LINKS`, id 4000032, `https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4` |
 | Data store | `GUEST_MSG_LINKS`, id 237603 (data structure 667731). Key = the code. |
 
@@ -64,4 +65,4 @@ The staff code is not in this repo. It's in the ROUND2 HOMESCREEN Project notes.
 
 - SimplyBook: when a booking is paid, Make creates the link and puts it in the confirmation.
 - Telegram ping to staff when a guest sends a message.
-- Fold the staff page into the control centre's Notifications tab.
+- Send the control centre's own "At a set time" messages through the same queue, so they can't overwrite (or be overwritten by) a guest message on the same TV.
