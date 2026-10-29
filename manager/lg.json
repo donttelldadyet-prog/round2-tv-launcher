@@ -8,15 +8,15 @@
       "manifest": {
         "id": "sg.round2.tvhome",
         "title": "Round2 Home",
-        "version": "1.0.135",
+        "version": "1.0.136",
         "type": "web",
         "appDescription": "The Round2 room menu: inputs, streaming apps and event backgrounds, driven by the remote.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.135/round2-home.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.136/round2-home.ipk",
         "ipkHash": {
-          "sha256": "77215c5406f5e82e670639ce3a70de6933c06d678e5440d4fe50c665817233a6"
+          "sha256": "280854398fbd3e2d29c567cf814767eee71814b83827e86a78f0b4579f5255d8"
         }
       }
     },
@@ -121,62 +121,22 @@
       }
     },
     {
-      "id": "sg.round2.alerts.a",
-      "title": "Round2 pop-up test A (overlay)",
+      "id": "sg.round2.alerts",
+      "title": "Round2 Alerts",
       "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
-      "shortDescription": "TEST A: Round2 pop-ups drawn as a webOS \"overlay\" window. Open it once to use it for the test.",
+      "shortDescription": "Food alerts and messages as the Round2 card over Netflix, YouTube and HDMI (instead of LG's pop-ups). Needs Round2 Home.",
       "manifest": {
-        "id": "sg.round2.alerts.a",
-        "title": "Round2 pop-up test A (overlay)",
-        "version": "1.0.135",
+        "id": "sg.round2.alerts",
+        "title": "Round2 Alerts",
+        "version": "1.0.136",
         "type": "web",
-        "appDescription": "TEST A: Round2 pop-ups drawn as a webOS \"overlay\" window. Open it once to use it for the test.",
+        "appDescription": "Food alerts and messages as the Round2 card over Netflix, YouTube and HDMI (instead of LG's pop-ups). Needs Round2 Home.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.135/sg.round2.alerts.a.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.136/sg.round2.alerts.ipk",
         "ipkHash": {
-          "sha256": "be326ee14ea76715be7bf4a9e62c9d68e1d5ae6187b1e5d979839bdb6791e391"
-        }
-      }
-    },
-    {
-      "id": "sg.round2.alerts.b",
-      "title": "Round2 pop-up test B (popup)",
-      "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
-      "shortDescription": "TEST B: Round2 pop-ups drawn as a webOS \"popup\" window. Open it once to use it for the test.",
-      "manifest": {
-        "id": "sg.round2.alerts.b",
-        "title": "Round2 pop-up test B (popup)",
-        "version": "1.0.135",
-        "type": "web",
-        "appDescription": "TEST B: Round2 pop-ups drawn as a webOS \"popup\" window. Open it once to use it for the test.",
-        "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
-        "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
-        "rootRequired": true,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.135/sg.round2.alerts.b.ipk",
-        "ipkHash": {
-          "sha256": "41b83c09d72f1fd9087a22399146808c44587d285031b478faa9f3de7c0f7a63"
-        }
-      }
-    },
-    {
-      "id": "sg.round2.alerts.c",
-      "title": "Round2 pop-up test C (floating)",
-      "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
-      "shortDescription": "TEST C: Round2 pop-ups drawn as a webOS \"floating\" window. Open it once to use it for the test.",
-      "manifest": {
-        "id": "sg.round2.alerts.c",
-        "title": "Round2 pop-up test C (floating)",
-        "version": "1.0.135",
-        "type": "web",
-        "appDescription": "TEST C: Round2 pop-ups drawn as a webOS \"floating\" window. Open it once to use it for the test.",
-        "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
-        "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
-        "rootRequired": true,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.135/sg.round2.alerts.c.ipk",
-        "ipkHash": {
-          "sha256": "4fc8fd6a522114fa64640bc6ac95aa39b41f5166c7fa3be1c502a70698a9f093"
+          "sha256": "c7a6d28723a37f51dec42a339f36da9f0e872b6d54eb8a907c64e5fad4f9f44c"
         }
       }
     }
