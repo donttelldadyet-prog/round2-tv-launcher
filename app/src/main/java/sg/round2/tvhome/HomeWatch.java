@@ -62,10 +62,20 @@ public class HomeWatch extends Service {
         } catch (Exception ex) { return false; }
     }
 
+    /** The Accessibility helper is really running (not just switched on in the settings list: on Atlas, the
+     *  Prism+, it can be listed there while Android never starts it, and then this watch must keep going). */
     public static boolean guardOn(Context c) {
         try {
             String s = Settings.Secure.getString(c.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-            return s != null && s.contains(c.getPackageName() + "/") && s.contains("HomeGuard");
+            if (s == null || !s.contains(c.getPackageName() + "/") || !s.contains("HomeGuard")) return false;
+            android.view.accessibility.AccessibilityManager am =
+                    (android.view.accessibility.AccessibilityManager) c.getSystemService(Context.ACCESSIBILITY_SERVICE);
+            if (am == null) return true;
+            for (android.accessibilityservice.AccessibilityServiceInfo i
+                    : am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)) {
+                if (i.getId() != null && i.getId().startsWith(c.getPackageName() + "/") && i.getId().contains("HomeGuard")) return true;
+            }
+            return false;
         } catch (Exception ex) { return false; }
     }
 
