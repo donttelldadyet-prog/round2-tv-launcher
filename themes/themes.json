@@ -264,6 +264,18 @@
       "takeover": false,
       "loop": "blend",
       "cards": "bottom"
+    },
+    {
+      "id": "moonlit-muse-2026",
+      "name": "Moonlit Muse",
+      "source": "moonlit-muse-2026-mvt6yg6f.mp4",
+      "rooms": [
+        "atlas"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "low"
     }
   ],
   "sounds": [
