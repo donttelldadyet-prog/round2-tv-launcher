@@ -78,6 +78,33 @@ function sha256(file, cb) {
   s.on('error', function () { cb(''); });
 }
 
+/* A spare copy of every download OUTSIDE the app's folder: an app update replaces that folder (and the videos in
+   it), and without the spare copy the TV streamed the background from GitHub until it had downloaded it again:
+   slow to start, and it could stop after a minute or two (GitHub's download links expire). Hard links: no extra space. */
+var SPARE = null;
+(function pickSpare() {
+  var tries = ['/media/developer/round2-themes', path.join(__dirname, '..', '..', '..', '..', '..', 'round2-themes')];
+  for (var i = 0; i < tries.length; i++) {
+    try {
+      if (!fs.existsSync(tries[i])) fs.mkdirSync(tries[i]);
+      var probe = path.join(tries[i], '.w'); fs.writeFileSync(probe, '1'); fs.unlinkSync(probe);
+      SPARE = tries[i]; return;
+    } catch (e) {}
+  }
+}());
+function keepSpare(dest, name) {
+  if (!SPARE || !STORE || SPARE === STORE.dir) return;
+  var s = path.join(SPARE, name);
+  try { if (fs.existsSync(s)) fs.unlinkSync(s); } catch (e) {}
+  try { fs.linkSync(dest, s); } catch (e) { try { fs.writeFileSync(s, fs.readFileSync(dest)); } catch (e2) {} }
+}
+function fromSpare(name, dest, cb) {   /* cb(true) if the spare copy was put back */
+  var s = SPARE && path.join(SPARE, name);
+  if (!s || !fs.existsSync(s)) { cb(false); return; }
+  try { if (fs.existsSync(dest)) fs.unlinkSync(dest); fs.linkSync(s, dest); cb(true); return; } catch (e) {}
+  try { fs.writeFileSync(dest, fs.readFileSync(s)); cb(true); } catch (e) { cb(false); }
+}
+
 /* download one file unless it's already here and intact */
 function fetchFile(url, name, sha, cb) {
   if (!STORE || !url || url.indexOf('https://') !== 0) { cb(); return; }
@@ -92,10 +119,21 @@ function fetchFile(url, name, sha, cb) {
       });
     });
   }
-  function finish() { try { if (fs.existsSync(dest)) fs.unlinkSync(dest); fs.renameSync(part, dest); } catch (e) {} cb(); }
-  if (!fs.existsSync(dest)) { download(); return; }
-  if (!sha) { cb(); return; }
-  sha256(dest, function (h) { if (h.toLowerCase() === String(sha).toLowerCase()) cb(); else download(); });
+  function finish() { try { if (fs.existsSync(dest)) fs.unlinkSync(dest); fs.renameSync(part, dest); keepSpare(dest, name); } catch (e) {} cb(); }
+  function ok(h) { return !sha || h.toLowerCase() === String(sha).toLowerCase(); }
+  function check() {   /* here and intact: done (and make sure the spare copy exists) */
+    sha256(dest, function (h) {
+      if (ok(h)) { if (SPARE && !fs.existsSync(path.join(SPARE, name))) keepSpare(dest, name); cb(); return; }
+      download();
+    });
+  }
+  if (fs.existsSync(dest)) { if (!sha) { cb(); return; } check(); return; }
+  /* not here (an app update emptied the folder): the spare copy first, the download only if that's missing or damaged */
+  fromSpare(name, dest, function (back) {
+    if (!back) { download(); return; }
+    if (!sha) { cb(); return; }
+    sha256(dest, function (h) { if (ok(h)) cb(); else { try { fs.unlinkSync(dest); } catch (e) {} download(); } });
+  });
 }
 
 /* the list for the menu: each theme marked ready, pointing at the copy on the TV (or the online copy) */
@@ -159,6 +197,7 @@ function sync(room, cb) {
       if (STORE) {
         try {
           fs.readdirSync(STORE.dir).forEach(function (f) { if (!keep[f]) { try { fs.unlinkSync(path.join(STORE.dir, f)); } catch (e) {} } });
+          if (SPARE && SPARE !== STORE.dir) fs.readdirSync(SPARE).forEach(function (f) { if (!keep[f]) { try { fs.unlinkSync(path.join(SPARE, f)); } catch (e) {} } });
         } catch (e) {}
       }
       done(describe(root));

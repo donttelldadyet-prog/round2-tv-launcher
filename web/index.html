@@ -2210,6 +2210,15 @@ window.R2_TV = {
           try { var pr = el.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
         };
         ['pause', 'emptied', 'error', 'stalled', 'suspend'].forEach(function (ev) { el.addEventListener(ev, function () { setTimeout(revive, 400); }); });
+        /* stuck without an error (a dropped connection while streaming): the picture froze or went dark. Every 10 s:
+           if the video hasn't moved, load it again from the start (a fresh download link if it's online) */
+        var lastT = -1, dog = setInterval(function () {
+          if (!el.parentNode) { clearInterval(dog); return; }
+          if (document.hidden || $(front) !== el.parentNode) { lastT = -1; return; }
+          var t = el.currentTime;
+          if (t === lastT && Date.now() - reloadedAt > 10000) { reloadedAt = Date.now(); el.src = w.video; try { el.load(); var pr = el.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {} }
+          lastT = t;
+        }, 10000);
       }
     }
     else { el.onload = swap; el.src = w.image; }
