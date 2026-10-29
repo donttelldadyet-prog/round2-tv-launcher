@@ -57,7 +57,7 @@ h2 .n { color: var(--ink); background: var(--panel2); border: 1px solid var(--li
 .card { background: var(--panel); border: 1px solid var(--line); padding: 16px; display: grid; gap: 14px; }
 
 label.f { display: grid; gap: 6px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); font-weight: 600; min-width: 0; }
-label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 16px; border-radius: 0; }
+label.f input, label.f select { width: 100%; -webkit-appearance: none; appearance: none; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 16px; border-radius: 0; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rooms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .rooms button { background: var(--bg); border: 1px solid var(--line2); padding: 9px 4px; font-size: 13px; letter-spacing: .04em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: inset 0 -3px 0 var(--rc); }
@@ -103,7 +103,7 @@ label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 
 .mini .at { color: var(--mute); font-size: 12px; font-variant-numeric: tabular-nums; }
 .confirm { border: 1px solid var(--line2); padding: 10px; display: grid; gap: 10px; font-size: 14px; }
 .confirm .rooms { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.confirm .two input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 15px; border-radius: 0; }
+.confirm .two input, .confirm .two select { width: 100%; -webkit-appearance: none; appearance: none; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 15px; border-radius: 0; }
 .cal { background: var(--panel); border: 1px solid var(--line); padding: 12px; display: grid; gap: 8px; }
 .cal .ch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cal .ch b { letter-spacing: .12em; text-transform: uppercase; font-size: 14px; }
@@ -169,7 +169,7 @@ details.past .list { margin-top: 10px; }
       </div>
       <div class="two">
         <label class="f">Date<input type="date" id="date"></label>
-        <label class="f">Starts<input type="time" id="time" step="900"></label>
+        <label class="f">Starts<select id="time"></select></label>
       </div>
       <label class="f">Booking name (staff only)<input type="text" id="label" maxlength="60" autocomplete="off" placeholder="e.g. Jay · WhatsApp"></label>
       <div class="sum" id="sum"></div>
@@ -232,6 +232,18 @@ details.past .list { margin-top: 10px; }
   function clock(ms) { return fmt(ms, { hour: 'numeric', minute: '2-digit' }).replace(' ', ' ').toLowerCase(); }
   function day(ms) { return fmt(ms, { weekday: 'short', day: 'numeric', month: 'short' }); }
   function sgParts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
+  /* Start times come in 15-minute steps, like the bookings: a picker (a wheel on iPhone) instead of a free time box.
+     Listed from 10am, through midnight, to 9:45am, so evening and late-night times are a short scroll. */
+  function timeOpts(sel) {
+    var h = '', found = false;
+    for (var i = 0; i < 96; i++) {
+      var m = (40 + i) * 15 % 1440, v = ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + m % 60).slice(-2);
+      var hh = Math.floor(m / 60), lab = ((hh + 11) % 12 + 1) + ':' + ('0' + m % 60).slice(-2) + (hh < 12 ? ' am' : ' pm');
+      if (v === sel) found = true;
+      h += '<option value="' + v + '"' + (v === sel ? ' selected' : '') + '>' + lab + '</option>';
+    }
+    return (found || !sel ? '' : '<option value="' + sel + '" selected>' + sel + '</option>') + h;
+  }
   function sgMs(d, t) { var s = Date.parse(d + 'T' + t + ':00+08:00'); return isNaN(s) ? null : s; }
   function guestUrl(code) { return /github\.io$/.test(location.hostname) ? PUBLIC + '?c=' + code : 'index.html#' + code; }
   function shareUrl(code) { return PUBLIC + '?c=' + code; }
@@ -252,7 +264,7 @@ details.past .list { margin-top: 10px; }
   function startMs() { return $('date').value && $('time').value ? sgMs($('date').value, $('time').value) : null; }
   function sum() { var s = startMs(); $('sum').textContent = s ? ROOMS[room][0] + ' · ' + day(s) + ' · starts ' + clock(s) + ' · message can show ' + clock(s) + '–' + clock(s + 3600000) : 'Pick the date and start time.'; }
   $('rooms').addEventListener('click', function (e) { var b = e.target.closest('button[data-r]'); if (b) { room = b.getAttribute('data-r'); drawRooms(); sum(); } });
-  ['date', 'time'].forEach(function (id) { $(id).addEventListener('input', sum); });
+  ['date', 'time'].forEach(function (id) { $(id).addEventListener('input', sum); $(id).addEventListener('change', sum); });
 
   /* Failsafe: making and copying is one step, so the clipboard always gets the link that was just made.
      Any change to room, date, time or name hides the last link, so an old one can't be copied by mistake. */
@@ -260,7 +272,7 @@ details.past .list { margin-top: 10px; }
   function slotSig() { return room + '|' + (startMs() || '') + '|' + $('label').value.trim(); }
   function stale() { if (!$('made').hidden) { $('made').hidden = true; $('mkMsg').className = 'msg'; $('mkMsg').textContent = 'Booking details changed. Make a new link for this booking.'; } $('dup').hidden = true; dupOk = ''; if (madeLock) { madeLock = false; $('mkGo').disabled = false; $('mkGo').textContent = 'Make link & copy message'; } }
   $('rooms').addEventListener('click', function (e) { if (e.target.closest('button[data-r]')) stale(); });
-  ['date', 'time', 'label'].forEach(function (id) { $(id).addEventListener('input', stale); });
+  ['date', 'time', 'label'].forEach(function (id) { $(id).addEventListener('input', stale); $(id).addEventListener('change', stale); });
   function inviteText(code, s, r) {
     return 'Celebrating something during your Round2 session? 🎉\n' +
       'You can leave a surprise message that pops up on your room’s TV (' + ROOMS[r][0] + ', ' + day(s) + ', from ' + clock(s) + '). Write it here:\n' + shareUrl(code);
@@ -350,7 +362,7 @@ details.past .list { margin-top: 10px; }
         var nr = open.room || d.room;
         h += '<div class="confirm">Late, rescheduled or changing rooms? Set the new room and start. ' + (d.title ? 'The message moves with it, keeping the same gap after the start.' : '') +
           '<div class="rooms" id="mvRooms">' + Object.keys(ROOMS).map(function (k) { return '<button type="button" data-a="mvroom" data-r="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (k === nr) + '">' + ROOMS[k][0] + '</button>'; }).join('') + '</div>' +
-          '<div class="two"><input type="date" id="mvDate" value="' + p.year + '-' + p.month + '-' + p.day + '" aria-label="New date"><input type="time" id="mvTime" step="900" value="' + p.hour + ':' + p.minute + '" aria-label="New start time"></div>' +
+          '<div class="two"><input type="date" id="mvDate" value="' + p.year + '-' + p.month + '-' + p.day + '" aria-label="New date"><select id="mvTime" aria-label="New start time">' + timeOpts(p.hour + ':' + p.minute) + '</select></div>' +
           '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Save changes</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
       } else {
         h += '<div class="confirm">' + (a === 'now'
@@ -471,7 +483,7 @@ details.past .list { margin-top: 10px; }
 
   /* start: the next half hour, in Singapore time */
   var nx = Date.now() + 30 * 60000; nx -= nx % (30 * 60000); var p = sgParts(nx);
-  $('date').value = p.year + '-' + p.month + '-' + p.day; $('time').value = p.hour + ':' + p.minute;
+  $('date').value = p.year + '-' + p.month + '-' + p.day; $('time').innerHTML = timeOpts(p.hour + ':' + p.minute);
   drawRooms(); sum();
   $('keyBox').hidden = !!key();
   var listOn = !document.documentElement.classList.contains('v-make');
