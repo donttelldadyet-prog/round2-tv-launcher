@@ -228,6 +228,18 @@
       "takeover": false,
       "loop": "blend",
       "cards": "right"
+    },
+    {
+      "id": "vale-after-dark-2026",
+      "name": "VALE AFTER DARK",
+      "source": "vale-after-dark-2026-mvsz1pun.mp4",
+      "rooms": [
+        "vale"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "right"
     }
   ],
   "sounds": [
