@@ -110,6 +110,34 @@ label.f input[type=text], label.f input[type=url], label.f input[type=date], lab
 .msgs { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 18px; align-items: start; }
 @media (max-width: 900px) { .msgs { grid-template-columns: 1fr; } }
 .msgs .card { display: grid; gap: 16px; }
+.mcal { margin-top: 26px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .mcal { grid-template-columns: 1fr; } }
+.mcal .cal { display: grid; gap: 8px; }
+.mcal .ch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mcal .ch b { letter-spacing: .12em; text-transform: uppercase; }
+.mcal .ch button { background: var(--bg); border: 1px solid var(--line2); width: 36px; height: 32px; font-size: 18px; line-height: 1; }
+.mcal .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.mcal .dow { font-size: 10px; letter-spacing: .14em; color: var(--mute); text-align: center; text-transform: uppercase; }
+.mcal .d { min-height: 52px; background: var(--bg); border: 1px solid var(--line); padding: 4px 5px 6px; display: grid; align-content: space-between; gap: 4px; text-align: left; font-variant-numeric: tabular-nums; font-size: 13px; }
+.mcal .d.out { opacity: .3; }
+.mcal .d.past { color: var(--mute); }
+.mcal .d.today { border-color: var(--ink); }
+.mcal .d.has { background: #1d1730; border-color: var(--accent); }
+.mcal .d.has .num { color: var(--accent); font-weight: 700; }
+.mcal .d[aria-pressed="true"] { outline: 2px solid var(--focus); outline-offset: -2px; }
+.mcal .dots { display: flex; flex-wrap: wrap; gap: 3px; }
+.mcal .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rc); }
+.mcal .dot.r2 { border-radius: 1px; }
+.mcal .dot.wait { background: none; box-shadow: inset 0 0 0 1.5px var(--rc); }
+.mcal .key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--mute); }
+.mcal .key span { display: inline-flex; align-items: center; gap: 6px; }
+.mcal .key .dot { --rc: var(--ink); }
+.mcal .agenda { display: grid; gap: 8px; }
+.mcal .ag { border: 1px solid var(--line); background: var(--panel2); padding: 10px 12px; display: grid; gap: 4px; box-shadow: inset 3px 0 0 var(--rc); }
+.mcal .ag .top { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 13px; }
+.mcal .ag .tm { font-weight: 700; font-variant-numeric: tabular-nums; }
+.mcal .ag .t { font-weight: 600; overflow-wrap: anywhere; }
+@media (max-width: 420px) { .mcal .d { min-height: 42px; font-size: 12px; } .mcal .dot { width: 6px; height: 6px; } }
 label.f textarea, label.f input[type=datetime-local] { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); text-transform: none; letter-spacing: 0; font: 15px/1.45 var(--f); }
 label.f textarea { min-height: 96px; resize: vertical; }
 .mprev { position: relative; background: #0b0914; border: 1px solid var(--line); padding: 22px 18px; text-align: center; overflow: hidden; }
@@ -312,6 +340,17 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         <div><div class="row" style="justify-content:space-between"><h2 style="margin:0">On the TVs now</h2><button class="btn ghost" id="mRefresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
           <div class="mstat" id="mStat" style="margin-top:10px"></div></div>
       </div>
+    </div>
+    <h2 style="margin-top:30px">Calendar</h2>
+    <p class="sub" style="margin:0">Every message scheduled for a TV: Round2's own (square) and guests' (round), in the room's colour. Days with something queued are highlighted. Tap a day to see what's on it.</p>
+    <div id="cKeyBox" class="banner warn" hidden>
+      <div class="grow"><b>Show guest messages here too.</b> Paste the guest messages staff code (from the Project notes). It stays in this browser only.</div>
+      <input class="tok" id="cKey" placeholder="Guest messages staff code" autocomplete="off" style="max-width:240px">
+      <button class="btn primary" id="cKeySave">Save</button>
+    </div>
+    <div class="mcal">
+      <div class="card"><div class="cal" id="cCal"></div></div>
+      <div class="agenda" id="cDay"></div>
     </div>
   </section>
 
@@ -832,6 +871,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       function go() { Promise.all(rooms.map(function (r) { return req('PUT', url(r, 'msg'), d); })).then(function () {
         msg.textContent = when === 'now' ? 'Sent. It pops up on the TV within a few seconds.' : 'Scheduled for ' + nice2(d.at) + '.';
         toast('Message sent to ' + rooms.map(function (r) { return ROOMS[r].name; }).join(', '));
+        setTimeout(function () { try { Cal.open(); } catch (e) {} }, 1500);
         setTimeout(status, 1500);
       }).catch(function (e) { msg.textContent = 'Couldn\u2019t send: ' + e.message + '. Is the key right?'; })
         .then(function () { $('mSend').disabled = false; }); }
@@ -886,12 +926,92 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         if (!ready) { ready = true; init(); }
         $('mKeyBox').hidden = !!key();
         status(); clearInterval(timer); timer = setInterval(status, 20000);
+        try { Cal.open(); } catch (e) {}
       },
       close: function () { clearInterval(timer); }
     };
   }());
 
   /* ---------- Test an order: the guest menu with ?sim=<code> (Make: [TEST] ROOM MENU SIMULATE ORDER) ---------- */
+
+  /* ---------- Calendar on the Messages tab ----------
+     Round2's own messages: whatever each TV's message slot holds right now (/r2/<key>/<room>/msg; one per TV).
+     Guest messages: the links in the guest messages system (Make: [TEST] GUEST MESSAGE LINKS, needs its staff code). */
+  var Cal = (function () {
+    var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4';
+    var STAFF_PAGE = 'https://raw.githack.com/donttelldadyet-prog/round2-tv-launcher/feature/guest-messages/manager/msg/staff.html';
+    var FB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app';
+    var TZ = 'Asia/Singapore', month = null, pick = null, items = [], ready = false, guestErr = '', seq = 0;
+    function topic(r) { return r === 'maximillion' ? 'max' : r; }
+    function roomOf(t) { return t === 'max' ? 'maximillion' : t; }
+    function parts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
+    function dayKey(ms) { var p = parts(ms); return p.year + '-' + p.month + '-' + p.day; }
+    function clock(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).toLowerCase(); }
+    function gKey() { return ls('r2.guestStaff') || ''; }
+    function load() {
+      var key = ls('r2m.msgKey') || '', jobs = [], my = ++seq, got = [], gErr = '';
+      if (key) Object.keys(ROOMS).forEach(function (r) {
+        jobs.push(fetch(FB + '/r2/' + key + '/' + topic(r) + '/msg.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).then(function (m) {
+          if (!m || !m.at || /^g[0-9a-z]{8}/.test(m.id || '')) return;   /* guest messages come from their own list below */
+          got.push({ src: 'r2', room: r, at: m.at, title: m.title || '', who: m.to || '', st: m.until && m.until < Date.now() ? 'ended' : m.at > Date.now() ? 'queued' : 'shown' });
+        }).catch(function () {}));
+      });
+      $('cKeyBox').hidden = !!gKey();
+      if (gKey()) jobs.push(fetch(HOOK, { method: 'POST', body: new URLSearchParams({ action: 'list', staff: gKey() }) }).then(function (x) { return x.text(); }).then(function (t) {
+        if (t.trim() === 'Accepted') return;
+        var j = JSON.parse(t); if (j.error) { gErr = j.error; if (/staff code/i.test(j.error)) { ls('r2.guestStaff', null); $('cKeyBox').hidden = false; } return; }
+        (j.links || []).forEach(function (x) {
+          var d = x.data, r = roomOf(d.room); if (!ROOMS[r] || d.status === 'cancelled') return;
+          var st = d.end < Date.now() ? 'ended' : d.status !== 'approved' ? 'waiting' : (d.onTv === 'yes' || d.at <= Date.now()) ? 'shown' : 'queued';
+          got.push({ src: 'guest', room: r, at: d.status === 'approved' ? d.at : d.start, title: d.title || '', who: d.to || '', label: d.label || '', code: x.key, st: st });
+        });
+      }).catch(function () { gErr = 'Couldn’t reach the guest messages list.'; }));
+      Promise.all(jobs).then(function () { if (my !== seq) return; items = got; guestErr = gErr; draw(); });   /* only the newest load counts */
+    }
+    function draw() {
+      var now = Date.now(), tp = parts(now), today = dayKey(now);
+      if (!month) month = tp.year + '-' + tp.month;
+      var y = +month.slice(0, 4), m = +month.slice(5, 7), first = new Date(Date.UTC(y, m - 1, 1)), lead = (first.getUTCDay() + 6) % 7, dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      var by = {}; items.forEach(function (x) { var k = dayKey(x.at); (by[k] = by[k] || []).push(x); });
+      var h = '<div class="ch"><button type="button" data-cm="-1" aria-label="Previous month">‹</button><b>' + esc(new Intl.DateTimeFormat('en-SG', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(first)) +
+        '</b><button type="button" data-cm="1" aria-label="Next month">›</button></div><div class="grid">' +
+        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dow">' + d + '</div>'; }).join('');
+      for (var i = 0, n = Math.ceil((lead + dim) / 7) * 7; i < n; i++) {
+        var dt = new Date(Date.UTC(y, m - 1, 1 + i - lead)), k = dt.toISOString().slice(0, 10), xs = (by[k] || []).sort(function (a, b) { return a.at - b.at; });
+        var queued = xs.some(function (x) { return x.st === 'queued'; });
+        h += '<button type="button" class="d' + (dt.getUTCMonth() !== m - 1 ? ' out' : '') + (k < today ? ' past' : '') + (k === today ? ' today' : '') + (queued ? ' has' : '') + '" data-cd="' + k + '" aria-pressed="' + (pick === k) + '">' +
+          '<span class="num">' + dt.getUTCDate() + '</span><span class="dots">' + xs.map(function (x) { return '<i class="dot' + (x.src === 'r2' ? ' r2' : '') + (x.st === 'waiting' ? ' wait' : '') + '" style="--rc:' + ROOMS[x.room].c + '"></i>'; }).join('') + '</span></button>';
+      }
+      h += '</div><div class="key"><span><i class="dot r2"></i>Round2 message</span><span><i class="dot"></i>Guest message</span><span><i class="dot wait"></i>Guest hasn’t written yet</span></div>';
+      $('cCal').innerHTML = h;
+      drawDay(by);
+    }
+    function drawDay(by) {
+      var k = pick || dayKey(Date.now()), xs = (by[k] || []).sort(function (a, b) { return a.at - b.at; });
+      var title = new Intl.DateTimeFormat('en-SG', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(k + 'T00:00:00Z'));
+      var ST = { queued: 'Queued', shown: 'On the TV / shown', ended: 'Ended', waiting: 'Waiting for the guest' };
+      var h = '<h2 style="margin:0">' + esc(title) + '</h2>';
+      if (guestErr) h += '<p class="hint">' + esc(guestErr) + '</p>';
+      h += xs.length ? xs.map(function (x) {
+        var R = ROOMS[x.room];
+        return '<div class="ag" style="--rc:' + R.c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span>' +
+          '<span class="chip">' + (x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="hint">' + ST[x.st] + '</span></div>' +
+          '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
+      }).join('') : '<p class="hint">Nothing scheduled for this day.</p>';
+      h += '<p class="hint">Round2 messages: each TV holds one at a time, so only the one waiting on each TV shows here. <a href="' + STAFF_PAGE + '" target="_blank" rel="noopener">Manage guest messages</a></p>';
+      $('cDay').innerHTML = h;
+    }
+    function init() {
+      $('cCal').addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('button'); if (!b) return;
+        if (b.hasAttribute('data-cm')) { var y = +month.slice(0, 4), m = +month.slice(5, 7) + Number(b.getAttribute('data-cm')); if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } month = y + '-' + ('0' + m).slice(-2); draw(); }
+        else if (b.hasAttribute('data-cd')) { pick = b.getAttribute('data-cd'); draw(); }
+      });
+      $('cKeySave').onclick = function () { var v = $('cKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('cKey').value = ''; load(); };
+    }
+    return { open: function () { if (!ready) { ready = true; init(); } load(); } };
+  }());
+
   var Sim = (function () {
     var MENU = 'https://donttelldadyet-prog.github.io/round2sg-home/menu/', room = ls('r2m.simRoom') || 'vale', ready = false;
     function code() { return ls('r2m.simCode') || ''; }
