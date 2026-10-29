@@ -240,6 +240,18 @@
       "takeover": false,
       "loop": "blend",
       "cards": "right"
+    },
+    {
+      "id": "sunset-over-santorini-2026",
+      "name": "Sunset Over Santorini",
+      "source": "sunset-over-santorini-2026-mvt4gjir.mp4",
+      "rooms": [
+        "atlas"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "right"
     }
   ],
   "sounds": [
