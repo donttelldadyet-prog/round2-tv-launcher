@@ -2489,8 +2489,14 @@ window.R2_TV = {
       clearTimeout(hideTimer);
       if (!d.ack) hideTimer = setTimeout(function () { hide(true); }, 60000);
     }
+    /* rooted LG: tell the helper straight away (it shows messages over other apps), so it never shows this one again */
+    function tellHelper(id) {
+      var l = link(); if (!l || l.native || !/^[A-Za-z0-9_-]+$/.test(id)) return;
+      try { LGRoot.exec('[ -d /var/lib/webosbrew/round2 ] && echo ' + id + ' > /var/lib/webosbrew/round2/msg.done'); } catch (e) {}
+    }
     function show(d, again) {
       if (!d || !d.id || done(d.id) || (cur && cur.id === d.id)) return;
+      if (!d.ack) tellHelper(d.id);                       /* no OK needed: seen once is enough */
       if (store('r2.msgShown') !== d.id) { store('r2.msgShown', d.id); report('msgShown', d.id); }
       render(d, again);
     }
@@ -2498,7 +2504,7 @@ window.R2_TV = {
       var d = cur; if (!d) return;
       cur = null; clearTimeout(hideTimer);
       if (finished) {
-        store('r2.msgDone', d.id); store('r2.msg', '');
+        store('r2.msgDone', d.id); store('r2.msg', ''); tellHelper(d.id);
         if (d.ack) {
           var l = link();
           if (l && l.native) { try { window.R2Android.msgAck(d.id); } catch (e) {} } else report('msgAck', d.id);
