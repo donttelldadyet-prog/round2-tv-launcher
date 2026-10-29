@@ -252,6 +252,18 @@
       "takeover": false,
       "loop": "blend",
       "cards": "bottom"
+    },
+    {
+      "id": "kai-s-sanctuary-2026",
+      "name": "KAI'S SANCTUARY",
+      "source": "kai-s-sanctuary-2026-mvt9xfsu.mp4",
+      "rooms": [
+        "kai"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "low"
     }
   ],
   "sounds": [
