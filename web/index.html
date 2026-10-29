@@ -737,10 +737,37 @@ window.R2_TV = {
         'D="' + svc + '"\n[ -f "$D/round2d.sh" ] && sh "$D/round2d.sh" boot </dev/null >/dev/null 2>&1\nexit 0\nR2EOF\n' +
         'chmod 755 ' + HOOK;
     }
+    /* Partner apps follow Round2 Home: each one installed on this TV (Round2 Alerts) is brought to the same version
+       as Round2 Home, from the same GitHub release, whenever Round2 Home starts (after an update from the menu or from
+       Homebrew Channel). Homebrew Channel checks each file's SHA-256 before installing. Apps not installed are left alone. */
+    var PARTNERS = [{ id: 'sg.round2.alerts', file: 'sg.round2.alerts.ipk' }], partnersDone = false;
+    function syncPartners() {
+      var v = window.R2_VERSION;
+      if (partnersDone || !v) return;
+      partnersDone = true;
+      PARTNERS.forEach(function (p) {
+        var dir = '/media/developer/apps/usr/palm/applications/' + p.id;
+        exec('[ -f ' + dir + '/appinfo.json ] && cat ' + dir + '/appinfo.json', function (out) {
+          if (!out) return;                                            /* not installed here */
+          var have = ''; try { have = JSON.parse(out).version || ''; } catch (e) { return; }
+          if (have === v) return;
+          var x = new XMLHttpRequest();
+          x.open('GET', 'https://api.github.com/repos/donttelldadyet-prog/round2-tv-launcher/releases/tags/v' + v);
+          x.timeout = 20000;
+          x.onload = function () {
+            var a = null; try { (JSON.parse(x.responseText).assets || []).forEach(function (as) { if (as.name === p.file) a = as; }); } catch (e) {}
+            if (!a || !/^sha256:[0-9a-f]{64}$/.test(a.digest || '')) return;
+            exec('echo "$(date "+%m-%d %H:%M:%S") partner ' + p.id + ' ' + have + ' -> ' + v + '" >> ' + CFG + '/log.txt');
+            WebOS.call(HB + 'install', { ipkUrl: a.browser_download_url, ipkHash: a.digest.slice(7), id: p.id, subscribe: true }, function () {}, true);
+          };
+          x.send();
+        });
+      });
+    }
     function startHelper(cb) {
       exec(hook() + ' && (command -v setsid >/dev/null 2>&1 && setsid sh "' + svc + '/round2d.sh" ensure || sh "' + svc + '/round2d.sh" ensure) </dev/null >/dev/null 2>&1; ls ' + CFG, function (out) {
         if (out !== null) { st.poweron = !/poweron\.off/.test(out); st.home = !/home\.off/.test(out); }
-        if (out !== null) homeKey();
+        if (out !== null) { homeKey(); setTimeout(syncPartners, 20000); }   /* after the menu has settled */
         if (cb) cb(out !== null);
       });
     }
