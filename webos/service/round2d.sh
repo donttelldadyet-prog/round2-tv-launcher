@@ -74,15 +74,23 @@ stop() {
 # --- what each event does ---
 watch_apps() {
   while :; do
-    prev=""; hits=0; hlast=""
+    prev=""; hits=0; hlast=""; last_app=""
     luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo '{"subscribe":true}' 2>/dev/null | while read -r line; do
       id=$(echo "$line" | field appId)
       [ -z "$id" ] && continue
       case "$id" in sg.round2.alerts*) continue ;; esac   # our pop-up card floats over the app; that app is still in front
       [ "$id" != "$prev" ] && { log "front $id"; echo "$id" > "$CFG/front"; }   # for Staff tools > Home helper check, and food alerts
+      case "$id" in "$APP"|com.webos.app.home|com.webos.app.launcher|com.webos.surfacemanager*|"") ;; *) last_app=$id ;; esac
       if [ "$id" = "$APP" ] && [ "$id" != "$prev" ]; then   # the guest is back on the menu: anything still waiting for OK
         rm -f "$CFG/msg.last"                                  # an unread message: shown again within seconds
         [ -f "$CFG/food.pending" ] && ( sleep 2; menu_card "$(cat "$CFG/food.pending")" ) &
+        # Close the app they came from (Netflix, YouTube...): LG keeps it running in the background, still holding the
+        # TV's video player, and the menu's moving background then stays black. Then the menu restarts its background.
+        if [ -n "$last_app" ]; then
+          luna-send -n 1 luna://com.webos.applicationManager/closeByAppId "{\"id\":\"$last_app\"}" >/dev/null 2>&1
+          log "closed $last_app (back on the menu)"; last_app=""
+          ( sleep 1; luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$APP\",\"params\":{\"r2\":\"back\"}}" >/dev/null 2>&1 ) &
+        fi
       fi
       if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then          # Round2 Home just updated itself
         rm -f "$CFG/relaunch"; sleep 1; launch update; prev=$APP; continue

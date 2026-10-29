@@ -2937,6 +2937,10 @@ window.R2_TV = {
       /* handlesRelaunch: webOS leaves bringing the app to the front to the app itself. Older LG software did it anyway;
          newer software (Scarlett) doesn't, so Home from YouTube reached the menu but it stayed behind (nothing, or black). */
       try { if (window.PalmSystem && window.PalmSystem.activate) window.PalmSystem.activate(); } catch (e) {}
+      if (p.r2 === 'back') {   /* the helper closed the app the guest came from: start the background again */
+        var w0 = typeof currentWall === 'function' && currentWall(); if (w0 && w0.video) { shownWall = null; showWall(w0); }
+        return;
+      }
       if (p.r2 === 'card' && p.card) {   /* the helper hands over an alert or message while the menu is in front */
         var c = p.card; if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) { return; } }
         if (c.type === 'msg') Msg.fromHelper(c); else Food.fromHelper(c);
