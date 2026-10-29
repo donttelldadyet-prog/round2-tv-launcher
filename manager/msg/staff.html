@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* Layout: the control centre's dark game-menu look. Left: make a link for a paid booking. Right (stacks below on phones): every link, grouped by what needs doing. */
+/* Layout: the control centre's dark game-menu look. Left: make a link for a paid booking. Right (stacks below on phones): every link, grouped by where it's at. */
 :root {
   --bg: #06050A; --panel: #110E1A; --panel2: #191527; --line: rgba(244,241,251,.12); --line2: rgba(244,241,251,.22);
   --ink: #F4F1FB; --mute: #9C94B3; --accent: #F2C21B; --ok: #4DB848; --warn: #F2A21B; --bad: #E8436A; --focus: #8EC5FF;
@@ -27,9 +27,11 @@ a { color: var(--focus); }
 .wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: rgba(6,5,10,.94); border-bottom: 1px solid var(--line); }
-header.top .wrap { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding-block: 12px; }
-.brand { font-weight: 700; letter-spacing: .22em; font-size: 18px; padding: 1px 10px; border-left: 2px solid var(--ink); border-right: 2px solid var(--ink); }
-.brand small { letter-spacing: .14em; font-weight: 500; color: var(--mute); margin-left: 8px; font-size: 12px; }
+header.top .wrap { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding-block: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; height: 30px; }
+.brand img { height: 100%; width: auto; display: block; }
+.brand .txt { font-weight: 700; letter-spacing: .22em; font-size: 18px; padding: 1px 10px; border-left: 2px solid var(--ink); border-right: 2px solid var(--ink); }
+.brand small { letter-spacing: .14em; font-weight: 500; color: var(--mute); font-size: 12px; text-transform: uppercase; }
 .test { margin-left: auto; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--warn); border: 1px solid var(--warn); padding: 3px 8px; }
 
 main.wrap { padding-block: 22px 72px; display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 28px; align-items: start; }
@@ -42,18 +44,15 @@ h2 .n { color: var(--ink); background: var(--panel2); border: 1px solid var(--li
 .card { background: var(--panel); border: 1px solid var(--line); padding: 16px; display: grid; gap: 14px; }
 
 label.f { display: grid; gap: 6px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); font-weight: 600; min-width: 0; }
-label.f input, label.f select { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 16px; border-radius: 0; }
+label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 16px; border-radius: 0; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rooms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.rooms button, .lens button { background: var(--bg); border: 1px solid var(--line2); padding: 9px 4px; font-size: 13px; letter-spacing: .04em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rooms button { box-shadow: inset 0 -3px 0 var(--rc); }
+.rooms button { background: var(--bg); border: 1px solid var(--line2); padding: 9px 4px; font-size: 13px; letter-spacing: .04em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: inset 0 -3px 0 var(--rc); }
 .rooms button[aria-pressed="true"] { background: var(--rc); color: #0b0914; font-weight: 700; border-color: var(--rc); }
-.lens { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
-.lens button[aria-pressed="true"] { background: var(--ink); color: #0b0914; font-weight: 700; }
 .lbl { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); font-weight: 600; }
 .sum { font-variant-numeric: tabular-nums; color: var(--ink); font-size: 14px; }
 
-.btn { border: 1px solid var(--line2); background: var(--panel2); padding: 9px 14px; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; font-weight: 600; }
+.btn { border: 1px solid var(--line2); background: var(--panel2); padding: 9px 14px; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; font-weight: 600; text-decoration: none; color: var(--ink); display: inline-block; }
 .btn:hover { border-color: var(--ink); }
 .btn.primary { background: var(--accent); color: #0b0914; border-color: var(--accent); font-size: 14px; padding: 12px 16px; }
 .btn.ok { background: var(--ok); border-color: var(--ok); color: #0b0914; }
@@ -73,8 +72,8 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
 .item .top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .chip { border: 1px solid var(--line2); padding: 1px 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; white-space: nowrap; }
 .chip.room { color: var(--rc); border-color: var(--rc); }
-.chip.st-submitted { color: var(--accent); border-color: var(--accent); }
-.chip.st-approved { color: var(--ok); border-color: var(--ok); }
+.chip.st-scheduled { color: var(--accent); border-color: var(--accent); }
+.chip.st-ontv { color: var(--ok); border-color: var(--ok); }
 .chip.st-cancelled, .chip.st-ended { color: var(--mute); }
 .when { font-variant-numeric: tabular-nums; font-weight: 600; }
 .code { margin-left: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--mute); }
@@ -85,13 +84,14 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
 .mini p { margin: 0; color: #e4def0; overflow-wrap: anywhere; font-size: 14px; }
 .mini .fr { color: var(--rc); font-weight: 600; font-size: 13px; }
 .mini .at { color: var(--mute); font-size: 12px; font-variant-numeric: tabular-nums; }
-.confirm { border: 1px solid var(--line2); padding: 10px; display: grid; gap: 8px; font-size: 14px; }
+.confirm { border: 1px solid var(--line2); padding: 10px; display: grid; gap: 10px; font-size: 14px; }
+.confirm .two input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 15px; border-radius: 0; }
 .empty { color: var(--mute); border: 1px dashed var(--line2); padding: 14px; font-size: 14px; }
-.keybox[hidden] { display: none; }
 </style>
 
 <header class="top"><div class="wrap">
-  <div class="brand">ROUND2<small>GUEST MESSAGES</small></div>
+  <div class="brand" id="brand"><span class="txt">ROUND2</span></div>
+  <span class="brand"><small>Guest messages</small></span>
   <span class="test">Test build</span>
 </div></header>
 
@@ -99,26 +99,22 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
   <section class="col">
     <div>
       <h1>Make a link</h1>
-      <p class="sub">Only after the booking is paid. The guest can only write for this room and this slot.</p>
+      <p class="sub">Only after the booking is paid. The guest can only write for this room, and pick a time in the first hour.</p>
     </div>
 
-    <div class="card keybox" id="keyBox">
-      <label class="f">Staff code<input type="password" id="staffKey" autocomplete="off" placeholder="From the handoff note"></label>
-      <div class="row"><button class="btn" id="keySave">Save on this device</button><span class="msg" id="keyMsg"></span></div>
+    <div class="card" id="keyBox">
+      <label class="f">Staff code<input type="password" id="staffKey" autocomplete="off" placeholder="From the Project notes"></label>
+      <div class="row"><button class="btn" id="keySave" type="button">Save on this device</button><span class="msg" id="keyMsg"></span></div>
     </div>
 
     <form class="card" id="mk" novalidate>
-      <div class="grid" style="display:grid;gap:6px">
+      <div style="display:grid;gap:6px">
         <span class="lbl">Room</span>
         <div class="rooms" id="rooms"></div>
       </div>
       <div class="two">
         <label class="f">Date<input type="date" id="date"></label>
         <label class="f">Starts<input type="time" id="time" step="900"></label>
-      </div>
-      <div style="display:grid;gap:6px">
-        <span class="lbl">Length</span>
-        <div class="lens" id="lens"></div>
       </div>
       <label class="f">Booking name (staff only)<input type="text" id="label" maxlength="60" autocomplete="off" placeholder="e.g. Jay · WhatsApp"></label>
       <div class="sum" id="sum"></div>
@@ -151,6 +147,7 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
 (function () {
   'use strict';
   var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4';
+  var LOGO = 'https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp';
   /* Where guests open their link once this branch is merged and GitHub Pages publishes manager/msg/. */
   var PUBLIC = 'https://donttelldadyet-prog.github.io/round2-tv-launcher/msg/';
   var TZ = 'Asia/Singapore';
@@ -158,7 +155,9 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
     kai: ['Kai', '#24B49A'], atlas: ['Atlas', '#E9E7EF'], max: ['Maximillion', '#E0402F'] };
   var TAGS = { birthday: 'Birthday', anniversary: 'Anniversary', celebrate: 'Celebration', note: 'A message for you' };
   var $ = function (id) { return document.getElementById(id); };
-  var room = 'vale', hours = 2, lastList = [], confirmFor = null;
+  var room = 'vale', lastList = [], open = null;   /* open: { a: 'move'|'now'|'cancel', code } */
+
+  var lg = new Image(); lg.alt = 'Round2'; lg.onload = function () { $('brand').innerHTML = ''; $('brand').appendChild(lg); }; lg.src = LOGO;
 
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
   var memKey = '';
@@ -168,6 +167,7 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
   function clock(ms) { return fmt(ms, { hour: 'numeric', minute: '2-digit' }).replace(' ', ' ').toLowerCase(); }
   function day(ms) { return fmt(ms, { weekday: 'short', day: 'numeric', month: 'short' }); }
   function sgParts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
+  function sgMs(d, t) { var s = Date.parse(d + 'T' + t + ':00+08:00'); return isNaN(s) ? null : s; }
   function guestUrl(code) { return /github\.io$/.test(location.hostname) ? PUBLIC + '?c=' + code : 'index.html#' + code; }
   function shareUrl(code) { return PUBLIC + '?c=' + code; }
 
@@ -184,78 +184,82 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
 
   /* ---------- make a link ---------- */
   function drawRooms() { $('rooms').innerHTML = Object.keys(ROOMS).map(function (k) { return '<button type="button" data-r="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (k === room) + '">' + ROOMS[k][0] + '</button>'; }).join(''); }
-  function drawLens() { $('lens').innerHTML = [1, 2, 3, 4, 5, 6].map(function (h) { return '<button type="button" data-h="' + h + '" aria-pressed="' + (h === hours) + '">' + h + 'h</button>'; }).join(''); }
-  function slot() {
-    var d = $('date').value, t = $('time').value; if (!d || !t) return null;
-    var s = Date.parse(d + 'T' + t + ':00+08:00'); return isNaN(s) ? null : { start: s, end: s + hours * 3600000 };
-  }
-  function sum() { var s = slot(); $('sum').textContent = s ? ROOMS[room][0] + ' · ' + day(s.start) + ' · ' + clock(s.start) + '–' + clock(s.end) + ' · messages can show ' + clock(s.start) + '–' + clock(s.start + 3600000) : 'Pick the date and start time.'; }
-
+  function startMs() { return $('date').value && $('time').value ? sgMs($('date').value, $('time').value) : null; }
+  function sum() { var s = startMs(); $('sum').textContent = s ? ROOMS[room][0] + ' · ' + day(s) + ' · starts ' + clock(s) + ' · message can show ' + clock(s) + '–' + clock(s + 3600000) : 'Pick the date and start time.'; }
   $('rooms').addEventListener('click', function (e) { var b = e.target.closest('button[data-r]'); if (b) { room = b.getAttribute('data-r'); drawRooms(); sum(); } });
-  $('lens').addEventListener('click', function (e) { var b = e.target.closest('button[data-h]'); if (b) { hours = Number(b.getAttribute('data-h')); drawLens(); sum(); } });
   ['date', 'time'].forEach(function (id) { $(id).addEventListener('input', sum); });
 
   $('mk').addEventListener('submit', function (e) {
     e.preventDefault();
-    var s = slot(), m = $('mkMsg'); m.className = 'msg';
+    var s = startMs(), m = $('mkMsg'); m.className = 'msg';
     if (!key()) { m.className = 'msg bad'; m.textContent = 'Add the staff code first.'; return; }
     if (!s) { m.className = 'msg bad'; m.textContent = 'Pick the date and start time.'; return; }
     $('mkGo').disabled = true; m.textContent = 'Making the link…';
-    call({ action: 'create', staff: key(), room: room, start: s.start, end: s.end, label: $('label').value.trim() }).then(function (j) {
-      m.textContent = 'Link made for ' + ROOMS[room][0] + ', ' + day(s.start) + ' ' + clock(s.start) + '.';
+    call({ action: 'create', staff: key(), room: room, start: s, label: $('label').value.trim() }).then(function (j) {
+      m.textContent = 'Link made for ' + ROOMS[room][0] + ', ' + day(s) + ' ' + clock(s) + '.';
       showMade(j.code, s); list();
     }).catch(function (er) { m.className = 'msg bad'; m.textContent = er.message; }).then(function () { $('mkGo').disabled = false; });
   });
-
   function showMade(code, s) {
     var url = shareUrl(code);
     $('invite').value = 'Celebrating something during your Round2 session? 🎉\n' +
-      'You can leave a surprise message that pops up on your room’s TV (' + ROOMS[room][0] + ', ' + day(s.start) + ', ' + clock(s.start) + '). Write it here:\n' + url;
+      'You can leave a surprise message that pops up on your room’s TV (' + ROOMS[room][0] + ', ' + day(s) + ', from ' + clock(s) + '). Write it here:\n' + url;
     $('linkText').textContent = url; $('openGuest').href = guestUrl(code); $('made').hidden = false;
   }
-  function copy(text, btn) {
+  function copy(text, btn, fallbackEl) {
     var done = function () { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1400); };
-    try { navigator.clipboard.writeText(text).then(done, function () { $('invite').select(); }); } catch (e) { $('invite').select(); }
+    try { navigator.clipboard.writeText(text).then(done, function () { if (fallbackEl) fallbackEl.select(); }); } catch (e) { if (fallbackEl) fallbackEl.select(); }
   }
-  $('copyInvite').addEventListener('click', function () { copy($('invite').value, this); });
+  $('copyInvite').addEventListener('click', function () { copy($('invite').value, this, $('invite')); });
   $('copyLink').addEventListener('click', function () { copy($('linkText').textContent, this); });
 
   /* ---------- the list ---------- */
-  function state(x) { var d = x.data; if (d.status !== 'cancelled' && d.end < Date.now()) return 'ended'; return d.status; }
+  function state(x) {
+    var d = x.data, now = Date.now();
+    if (d.status === 'cancelled') return 'cancelled';
+    if (d.end < now) return 'ended';
+    if (d.status !== 'approved') return 'open';
+    return d.onTv === 'yes' || (d.at && d.at <= now) ? 'ontv' : 'scheduled';
+  }
   var GROUPS = [
-    { id: 'submitted', name: 'Check and approve', empty: 'Nothing waiting for approval.' },
+    { id: 'scheduled', name: 'Scheduled for the TV', empty: 'No messages waiting to pop up.' },
+    { id: 'ontv', name: 'On the TV', empty: 'Nothing on a TV right now.' },
     { id: 'open', name: 'Waiting for the guest', empty: 'No links waiting on a guest.' },
-    { id: 'approved', name: 'Approved, on the TV schedule', empty: 'Nothing approved yet.' },
     { id: 'done', name: 'Ended or cancelled', empty: '' }
   ];
-  var CHIP = { open: 'Waiting for guest', submitted: 'Needs approval', approved: 'Approved', cancelled: 'Cancelled', ended: 'Ended' };
+  var CHIP = { open: 'Waiting for guest', scheduled: 'Scheduled', ontv: 'On the TV', cancelled: 'Cancelled', ended: 'Ended' };
 
   function itemHtml(x) {
-    var d = x.data, st = state(x), R = ROOMS[d.room] || [d.room, '#F2C21B'];
+    var d = x.data, st = state(x), R = ROOMS[d.room] || [d.room, '#F2C21B'], c = esc(x.key);
     var h = '<article class="item" style="--rc:' + R[1] + '"><div class="top"><span class="chip room">' + esc(R[0]) + '</span><span class="chip st-' + st + '">' + CHIP[st] + '</span>' +
-      '<span class="when">' + esc(day(d.start)) + ' · ' + esc(clock(d.start)) + '–' + esc(clock(d.end)) + '</span><span class="code">' + esc(x.key) + '</span></div>';
+      '<span class="when">' + esc(day(d.start)) + ' · starts ' + esc(clock(d.start)) + '</span><span class="code">' + c + '</span></div>';
     if (d.label) h += '<div class="label">' + esc(d.label) + '</div>';
     if (d.title) h += '<div class="mini"><div class="tg">' + esc((TAGS[d.kind] || '') + (d.to ? ' · for ' + d.to : '')) + '</div><div class="t">' + esc(d.title) + '</div><p>' + esc(d.text) + '</p>' +
-      (d.from ? '<div class="fr">— ' + esc(d.from) + '</div>' : '') + '<div class="at">Pops up at ' + esc(clock(d.at)) + ', stays until ' + esc(clock(d.end)) + ' or OK</div></div>';
-    var btns = '';
-    if (st === 'submitted') btns += '<button class="btn ok" data-a="approve" data-c="' + esc(x.key) + '">Approve</button>';
-    /* test build: show it on the TV straight away instead of waiting for the guest's time */
-    if (st === 'submitted' || st === 'approved') btns += '<button class="btn" data-a="now" data-c="' + esc(x.key) + '">' + (st === 'approved' ? 'Send to TV again now' : 'Send to TV now') + '</button>';
-    if (st === 'open' || st === 'submitted' || st === 'approved') btns += '<button class="btn" data-a="copy" data-c="' + esc(x.key) + '">Copy link</button><button class="btn danger" data-a="cancel" data-c="' + esc(x.key) + '">Cancel</button>';
+      (d.from ? '<div class="fr">— ' + esc(d.from) + '</div>' : '') + '<div class="at">Pops up ' + esc(day(d.at)) + ' at ' + esc(clock(d.at)) + '</div></div>';
+    var live = st === 'open' || st === 'scheduled' || st === 'ontv', btns = '';
+    if (st === 'scheduled' || st === 'ontv') btns += '<button class="btn" data-a="now" data-c="' + c + '">' + (st === 'ontv' ? 'Send to TV again now' : 'Send to TV now') + '</button>';
+    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change time</button><button class="btn" data-a="copy" data-c="' + c + '">Copy link</button><button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
     if (btns) h += '<div class="row">' + btns + '</div>';
-    if (confirmFor && confirmFor.code === x.key) {
-      var ca = confirmFor.a;
-      h += '<div class="confirm">' + (ca === 'approve'
-        ? 'Put this on ' + esc(R[0]) + '’s TV for ' + esc(clock(d.at)) + '? It replaces any other message waiting on that TV.'
-        : ca === 'now' ? 'Show this on ' + esc(R[0]) + '’s TV right now? It approves it, pops up within a few seconds, and replaces any other message waiting on that TV.'
-        : 'Cancel this link? The guest can’t use it any more' + (st === 'approved' ? ', and the message is taken off the TV.' : '.')) +
-        '<div class="row"><button class="btn ' + (ca === 'cancel' ? 'danger' : 'ok') + '" data-a="do" data-c="' + esc(x.key) + '">' + (ca === 'approve' ? 'Yes, approve' : ca === 'now' ? 'Yes, show it now' : 'Yes, cancel link') + '</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+    if (open && open.code === x.key) {
+      var a = open.a;
+      if (a === 'move') {
+        var p = sgParts(d.start);
+        h += '<div class="confirm">Guests running late or rescheduled? Set the new start. ' + (d.title ? 'The message moves with it, keeping the same gap after the start.' : '') +
+          '<div class="two"><input type="date" id="mvDate" value="' + p.year + '-' + p.month + '-' + p.day + '" aria-label="New date"><input type="time" id="mvTime" step="900" value="' + p.hour + ':' + p.minute + '" aria-label="New start time"></div>' +
+          '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Save new time</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+      } else {
+        h += '<div class="confirm">' + (a === 'now'
+          ? 'Show this on ' + esc(R[0]) + '’s TV right now? It pops up within a few seconds and replaces any other message waiting on that TV.'
+          : 'Cancel this link? The guest can’t use it any more' + (d.title ? ', and the message won’t show (it’s taken off the TV if it’s there).' : '.')) +
+          '<div class="row"><button class="btn ' + (a === 'cancel' ? 'danger' : 'ok') + '" data-a="do" data-c="' + c + '">' + (a === 'now' ? 'Yes, show it now' : 'Yes, cancel link') + '</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+      }
     }
     return h + '</article>';
   }
   function render() {
-    var by = { submitted: [], open: [], approved: [], done: [] };
+    var by = { scheduled: [], ontv: [], open: [], done: [] };
     lastList.forEach(function (x) { var s = state(x); (by[s] || by.done).push(x); });
+    by.scheduled.sort(function (a, b) { return (a.data.at || 0) - (b.data.at || 0); });
     $('groups').innerHTML = GROUPS.map(function (g) {
       var xs = by[g.id]; if (!xs.length && !g.empty) return '';
       return '<div class="group"><h2>' + g.name + ' <span class="n">' + xs.length + '</span></h2><div class="list">' +
@@ -264,23 +268,25 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
   }
   function list() {
     if (!key()) { $('groups').innerHTML = '<div class="empty">Add the staff code to see links.</div>'; return; }
+    if (open) return;   /* don't redraw under staff while they're choosing a time or confirming */
     call({ action: 'list', staff: key() }).then(function (j) { lastList = j.links || []; render(); })
       .catch(function (e) { $('groups').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; if (/staff code/i.test(e.message)) { memKey = ''; ls('r2.guestStaff', null); $('keyBox').hidden = false; } });
   }
   $('groups').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-a]'); if (!b) return;
     var a = b.getAttribute('data-a'), c = b.getAttribute('data-c');
-    if (a === 'copy') { var t = shareUrl(c); try { navigator.clipboard.writeText(t).then(function () { b.textContent = 'Copied'; }); } catch (er) {} return; }
-    if (a === 'approve' || a === 'cancel' || a === 'now') { confirmFor = { a: a, code: c }; render(); return; }
-    if (a === 'no') { confirmFor = null; render(); return; }
-    if (a === 'do' && confirmFor) {
+    if (a === 'copy') { copy(shareUrl(c), b); return; }
+    if (a === 'move' || a === 'cancel' || a === 'now') { open = { a: a, code: c }; render(); return; }
+    if (a === 'no') { open = null; render(); return; }
+    if (a === 'do' && open) {
+      var body = { action: open.a, staff: key(), code: c };
+      if (open.a === 'move') { var s = sgMs($('mvDate').value, $('mvTime').value); if (!s) { $('cmsg').className = 'msg bad'; $('cmsg').textContent = 'Pick the new date and time.'; return; } body.start = s; }
       b.disabled = true;
-      var body = { action: confirmFor.a === 'now' ? 'approve' : confirmFor.a, staff: key(), code: c }; if (confirmFor.a === 'now') body.now = '1';
-      call(body).then(function () { confirmFor = null; list(); })
+      call(body).then(function () { open = null; list(); })
         .catch(function (er) { var m = $('cmsg'); if (m) { m.className = 'msg bad'; m.textContent = er.message; } b.disabled = false; });
     }
   });
-  $('refresh').addEventListener('click', list);
+  $('refresh').addEventListener('click', function () { open = null; list(); });
 
   /* ---------- staff code ---------- */
   $('keySave').addEventListener('click', function () {
@@ -288,12 +294,10 @@ label.f input, label.f select { width: 100%; padding: 10px 12px; background: var
     memKey = v; ls('r2.guestStaff', v); $('keyBox').hidden = true; $('staffKey').value = ''; list();
   });
 
-  /* start: tonight's next half hour, in Singapore time */
-  var p = sgParts(Date.now() + 30 * 60000);
-  $('date').value = p.year + '-' + p.month + '-' + p.day;
-  $('time').value = p.hour + ':' + (Number(p.minute) < 30 ? '30' : '00');
-  if (Number(p.minute) >= 30) { var q = sgParts(Date.now() + 60 * 60000); $('time').value = q.hour + ':00'; $('date').value = q.year + '-' + q.month + '-' + q.day; }
-  drawRooms(); drawLens(); sum();
+  /* start: the next half hour, in Singapore time */
+  var nx = Date.now() + 30 * 60000; nx -= nx % (30 * 60000); var p = sgParts(nx);
+  $('date').value = p.year + '-' + p.month + '-' + p.day; $('time').value = p.hour + ':' + p.minute;
+  drawRooms(); sum();
   $('keyBox').hidden = !!key();
   list(); setInterval(list, 30000);
 }());
