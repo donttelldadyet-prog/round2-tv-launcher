@@ -774,7 +774,11 @@ window.R2_TV = {
         'echo "' + v + '" > ' + CFG + '/elevated; ' +
         /* stop the service (not the helper, which lives in the same folder): it starts again, as root, on the next call */
         'for d in /proc/[0-9]*; do c=$(tr "\\000" " " < $d/cmdline 2>/dev/null); case "$c" in *round2d.sh*|*elevate*|*"sh -c"*) ;; *sg.round2.tvhome.service*) kill ${d#/proc/} 2>/dev/null ;; esac; done; echo done; }', function (out) {
-        if (out && /done/.test(out)) setTimeout(function () { try { window.r2SyncThemes(true); } catch (e) {} }, 4000);
+        if (out && /done/.test(out)) {
+          setTimeout(function () { try { window.r2SyncThemes(true); } catch (e) {} }, 4000);
+          /* the service restart cut off the background and the ambience sound loading from it: start both again */
+          setTimeout(function () { try { var w = currentWall(); if (w && w.video) { shownWall = null; showWall(w); } Amb.apply(); } catch (e) {} }, 12000);
+        }
       });
     }
     function startHelper(cb) {
@@ -1382,6 +1386,7 @@ window.R2_TV = {
         if (b) keep(b); else viaDecoder();
       });
     }
+    var lgLoadAt = 0;
     function lgFile(sndObj, v, ms) {
       var c = Sfx.ctx(); if (!c) return;
       if (!lgGain) { lgGain = c.createGain(); lgGain.gain.value = 0.0001; lgGain.connect(c.destination); Meter.tap(c, lgGain); }
@@ -1392,10 +1397,11 @@ window.R2_TV = {
         var s = lgSrc; lgSrc = null; if (s) setTimeout(function () { try { s.stop(); } catch (e) {} }, ms + 60);
         return;
       }
-      if (lgCur === sndObj.id) { if (lgSrc) lgRamp(c, v, ms); else if (fileEl && !fileEl.paused) fileEl.volume = Math.min(1, v); return; }   /* same sound: volume only (or still loading) */
+      /* same sound: volume only (or still loading; a load stuck for 15 s, e.g. the service restarted, starts again) */
+      if (lgCur === sndObj.id && (lgSrc || (fileEl && !fileEl.paused) || Date.now() - lgLoadAt < 15000)) { if (lgSrc) lgRamp(c, v, ms); else if (fileEl && !fileEl.paused) fileEl.volume = Math.min(1, v); return; }
       if (lgSrc) { try { lgSrc.stop(); } catch (e) {} lgSrc = null; }
       elTo(null, 0);
-      lgCur = sndObj.id;
+      lgCur = sndObj.id; lgLoadAt = Date.now();
       lgLoad(sndObj, function (buf) {
         if (lgCur !== sndObj.id || lgSrc) return;
         if (!buf) {
@@ -2012,7 +2018,7 @@ window.R2_TV = {
         'IH=$(ls -d /media/developer/apps/usr/palm/*/*inputhook* 2>/dev/null | head -n 1); echo "LG Input Hook: ${IH:-NOT installed}"; ' +
         'echo "Home key: $(tr -d \'\\n \' < /home/root/.config/lginputhook/keybinds.json 2>/dev/null | grep -o \'"773":{[^}]*}\' | cut -c1-90)"; ' +
         /* every helper copy running (there should be one main copy; its number is in [ ] on each log line) */
-        'echo "helper copies: $(for d in /proc/[0-9]*; do c=$(tr "\\000" " " < $d/cmdline 2>/dev/null); case "$c" in *"sh -c"*) ;; *round2d.sh*) echo "${d#/proc/}:${c##*round2d.sh}";; esac; done | tr "\\n" " ")"; ' +
+        'echo "helper copies: $(for d in /proc/[0-9]*; do c=$(tr "\\000" " " 2>/dev/null < $d/cmdline); case "$c" in *"sh -c"*) ;; *round2d.sh*) echo "${d#/proc/}:${c##*round2d.sh}";; esac; done | tr "\\n" " ")"; ' +
         /* did LG close Round2 Home by itself (memory, a crash)? */
         'echo "LG closed the menu: $(grep -i "sg.round2.tvhome" /var/log/messages 2>/dev/null | grep -i -E "kill|crash|oom|memory|terminat|relaunch" | tail -n 3 | cut -c1-150)"; ' +
         'tail -n 12 $C/log.txt 2>/dev/null';
@@ -2233,7 +2239,9 @@ window.R2_TV = {
       /* the stored copy won't play (newer LG software blocks some folders): play the online copy instead */
       el.addEventListener('error', function () {
         if (w.online && w.video !== w.online && /^(file:|themes\/)/.test(w.video)) {
-          bgLog('stored copy refused: playing online'); w = Object.assign({}, w, { video: w.online }); el.src = w.video; try { el.play(); } catch (e) {}
+          bgLog('stored copy refused: playing online'); var local = w.video; w = Object.assign({}, w, { video: w.online }); el.src = w.video; try { el.play(); } catch (e) {}
+          /* right after an update the stored copy is put back a moment later: switch back to it once it's there */
+          setTimeout(function () { if (el.parentNode && $(front) === el.parentNode) { var cw = currentWall(); if (cw && cw.video === local) { bgLog('back to the stored copy'); shownWall = null; showWall(cw); } } }, 30000);
         }
       });
       el.addEventListener('loadeddata', swap); el.src = w.video; try { el.play(); } catch (e) {} setTimeout(swap, 900);
