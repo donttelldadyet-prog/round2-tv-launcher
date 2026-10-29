@@ -523,6 +523,9 @@
     "defaults": {
       "timeup": {
         "text": "This session has come to an end. We hope you had a great time! Please gather your things, so we can get the room ready for the next guests. See you again soon!"
+      },
+      "birthday": {
+        "text": "From all of us at Round2: have an epic birthday session. Here’s to another year of good games!"
       }
     },
     "saved": [
