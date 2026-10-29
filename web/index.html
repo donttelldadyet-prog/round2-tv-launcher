@@ -2055,7 +2055,7 @@ window.R2_TV = {
         'hidden=' + document.hidden + '  front app log: ' + (window.r2FrontLog || []).join(' > ') + '\n' + (window.r2BgLog || []).join('\n') + '\n';
       var appDir = decodeURIComponent(location.pathname || '').replace(/\/[^\/]*$/, '');
       var bc = 'echo "files here: $(ls -la ' + appDir + '/themes 2>&1 | grep -c mp4) videos"; ls -la ' + appDir + '/themes 2>&1 | grep -E "mp4|part" | awk \'{print $5, $NF}\' | head -n 12; ' +
-        'echo "spare copies: $(ls /media/developer/round2-themes 2>&1 | grep -c mp4)"';
+        'echo "spare copies: $(ls /var/lib/webosbrew/round2/themes /media/developer/round2-themes 2>/dev/null | grep -c mp4)"';
       LGRoot.exec('(' + bc + ') 2>&1; (' + hc + ') 2>&1; (' + ac + ') 2>&1; (' + yc + ') 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
         LogView.show(bg + txt);
