@@ -941,7 +941,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4';
     var STAFF_PAGE = 'https://raw.githack.com/donttelldadyet-prog/round2-tv-launcher/feature/guest-messages/manager/msg/staff.html';
     var FB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app';
-    var TZ = 'Asia/Singapore', month = null, pick = null, items = [], ready = false, guestErr = '';
+    var TZ = 'Asia/Singapore', month = null, pick = null, items = [], ready = false, guestErr = '', seq = 0;
     function topic(r) { return r === 'maximillion' ? 'max' : r; }
     function roomOf(t) { return t === 'max' ? 'maximillion' : t; }
     function parts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
@@ -949,26 +949,24 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     function clock(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).toLowerCase(); }
     function gKey() { return ls('r2.guestStaff') || ''; }
     function load() {
-      var key = ls('r2m.msgKey') || '', jobs = [];
-      items = [];
+      var key = ls('r2m.msgKey') || '', jobs = [], my = ++seq, got = [], gErr = '';
       if (key) Object.keys(ROOMS).forEach(function (r) {
         jobs.push(fetch(FB + '/r2/' + key + '/' + topic(r) + '/msg.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).then(function (m) {
           if (!m || !m.at || /^g[0-9a-z]{8}/.test(m.id || '')) return;   /* guest messages come from their own list below */
-          items.push({ src: 'r2', room: r, at: m.at, title: m.title || '', who: m.to || '', st: m.until && m.until < Date.now() ? 'ended' : m.at > Date.now() ? 'queued' : 'shown' });
+          got.push({ src: 'r2', room: r, at: m.at, title: m.title || '', who: m.to || '', st: m.until && m.until < Date.now() ? 'ended' : m.at > Date.now() ? 'queued' : 'shown' });
         }).catch(function () {}));
       });
       $('cKeyBox').hidden = !!gKey();
       if (gKey()) jobs.push(fetch(HOOK, { method: 'POST', body: new URLSearchParams({ action: 'list', staff: gKey() }) }).then(function (x) { return x.text(); }).then(function (t) {
-        guestErr = '';
         if (t.trim() === 'Accepted') return;
-        var j = JSON.parse(t); if (j.error) { guestErr = j.error; if (/staff code/i.test(j.error)) { ls('r2.guestStaff', null); $('cKeyBox').hidden = false; } return; }
+        var j = JSON.parse(t); if (j.error) { gErr = j.error; if (/staff code/i.test(j.error)) { ls('r2.guestStaff', null); $('cKeyBox').hidden = false; } return; }
         (j.links || []).forEach(function (x) {
           var d = x.data, r = roomOf(d.room); if (!ROOMS[r] || d.status === 'cancelled') return;
           var st = d.end < Date.now() ? 'ended' : d.status !== 'approved' ? 'waiting' : (d.onTv === 'yes' || d.at <= Date.now()) ? 'shown' : 'queued';
-          items.push({ src: 'guest', room: r, at: d.status === 'approved' ? d.at : d.start, title: d.title || '', who: d.to || '', label: d.label || '', code: x.key, st: st });
+          got.push({ src: 'guest', room: r, at: d.status === 'approved' ? d.at : d.start, title: d.title || '', who: d.to || '', label: d.label || '', code: x.key, st: st });
         });
-      }).catch(function () { guestErr = 'Couldn’t reach the guest messages list.'; }));
-      Promise.all(jobs).then(draw);
+      }).catch(function () { gErr = 'Couldn’t reach the guest messages list.'; }));
+      Promise.all(jobs).then(function () { if (my !== seq) return; items = got; guestErr = gErr; draw(); });   /* only the newest load counts */
     }
     function draw() {
       var now = Date.now(), tp = parts(now), today = dayKey(now);
