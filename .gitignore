@@ -7,3 +7,5 @@ local.properties
 .idea/
 build-webos/
 round2-home.ipk
+build-alerts/
+sg.round2.alerts.*.ipk

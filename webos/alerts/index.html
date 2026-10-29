@@ -1,0 +1,192 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>Round2 Alerts</title>
+<style>
+/* Round2 Alerts (LG): our pop-up card over Netflix, YouTube, HDMI. Same look as the Android card.
+   TEST build: one copy per window type (A overlay, B popup, C floating) to find what each webOS version allows. */
+html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; overflow: hidden;
+  font-family: "LG Smart UI", "Museo Sans", Roboto, Arial, sans-serif; color: #F4F1FB; }
+#card { position: absolute; top: 56px; right: 70px; display: flex; align-items: flex-start; gap: 10px; opacity: 0;
+  transform: translateX(160px); transition: opacity .5s ease-out, transform .55s cubic-bezier(.2,.9,.3,1); }
+#card.in { opacity: 1; transform: none; }
+#bang { width: 76px; height: 76px; flex: none; display: flex; align-items: center; justify-content: center;
+  background: var(--rc); color: var(--ink); font: 700 44px/1 monospace; }
+#bang.pop { animation: pop .45s cubic-bezier(.2,1.8,.4,1) .1s both, wob .7s ease-in-out .7s 2; }
+#bang.lit { background: #F4F1FB; color: #0B0914; }
+@keyframes pop { from { transform: scale(0) rotate(-30deg); } to { transform: none; } }
+@keyframes wob { 20% { transform: rotate(-14deg); } 45% { transform: rotate(12deg); } 70% { transform: rotate(-8deg); } 90% { transform: rotate(4deg); } }
+#box { width: 410px; box-sizing: border-box; padding: 16px 22px 18px 20px; background: #110E1A; border: 2px solid var(--rc); transition: background .12s; }
+#box.flash { background: var(--rc); }
+#tag { font: 700 13px monospace; letter-spacing: .14em; color: var(--rc); text-transform: uppercase; }
+#title { font: 700 34px/1.1 "Roboto Condensed", Arial Narrow, sans-serif; letter-spacing: .05em; padding: 8px 0 4px; }
+#title:empty { display: none; }
+#text { font-size: 19px; line-height: 1.35; color: #D6D0E3; white-space: pre-line; }
+#text.turn { animation: fade .35s ease-out both; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#items { margin-top: 10px; border-top: 1px solid rgba(244,241,251,.14); padding-top: 6px; }
+#items div { font: 700 18px/1.4 Arial, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#items b { color: var(--rc); margin-right: 8px; }
+#ok { display: inline-block; margin-top: 12px; padding: 7px 22px 7px 12px; background: var(--rc); color: var(--ink);
+  font: 700 15px Arial, sans-serif; letter-spacing: .12em; transition: transform .14s; }
+#ok.turn { background: transparent; color: var(--rc); box-shadow: inset 0 0 0 2px var(--rc); }
+#ok.nudge { background: #F4F1FB; color: #0B0914; transform: scale(1.12); }
+#card.shake { animation: shake .42s ease-in-out; }
+@keyframes shake { 20% { transform: translateX(-16px); } 45% { transform: translateX(14px); } 70% { transform: translateX(-10px); } 90% { transform: translateX(6px); } }
+#diag { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: #06050A; padding: 70px 110px; box-sizing: border-box; display: none; }
+#diag h1 { margin: 0 0 6px; font-size: 44px; letter-spacing: .08em; }
+#diag p { font-size: 24px; line-height: 1.5; color: #D6D0E3; max-width: 1500px; }
+#diag pre { font: 18px/1.4 monospace; color: #9C94B3; white-space: pre-wrap; max-height: 420px; overflow: hidden; }
+#diag .k { display: inline-block; border: 2px solid #F2C21B; color: #F2C21B; padding: 2px 10px; margin: 0 4px; }
+</style></head>
+<body>
+<div id="card"><div id="bang">!</div><div id="box"><div id="tag"></div><div id="title"></div><div id="text"></div><div id="items"></div><div id="ok"></div></div></div>
+<div id="diag"><h1 id="dTitle"></h1><p id="dText"></p><pre id="dLog"></pre></div>
+<script>
+(function () {
+  var VARIANT = '__VARIANT__', WINTYPE = '__WINTYPE__', APPID = '__APPID__';
+  var CFG = '/var/lib/webosbrew/round2';
+  var ICON = {"birthday": "M7.5 7h1.6v4.5H7.5z M11.2 7h1.6v4.5h-1.6z M14.9 7h1.6v4.5h-1.6z M8.3 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M12 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M15.7 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M5 12.5h14a1.5 1.5 0 0 1 1.5 1.5v2.2c-1.2 0-1.9 1-2.8 1s-1.6-1-2.8-1-1.9 1-2.9 1-1.7-1-2.9-1-1.9 1-2.8 1-1.6-1-2.8-1V14A1.5 1.5 0 0 1 5 12.5z M3.5 18.2c1 0 1.6.9 2.8.9s1.8-.9 2.8-.9 1.8.9 2.9.9 1.8-.9 2.9-.9 1.7.9 2.8.9 1.8-.9 2.8-.9V21h-17z", "anniversary": "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z", "celebrate": "M12 1.8l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9l7.1-.6z", "note": "M3 4.5h18a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z M4 7.4V17.5h16V7.4l-8 5.6z M5.6 6.5L12 11l6.4-4.5z", "volume": "M3 9h4l5-4.5v15L7 15H3z M15.3 8.4a5 5 0 0 1 0 7.2l-1.2-1.1a3.4 3.4 0 0 0 0-5z M17.9 5.6a8.7 8.7 0 0 1 0 12.8l-1.2-1.1a7.1 7.1 0 0 0 0-10.6z", "wrapup": "M6 2h12v2h-1v3.2a4 4 0 0 1-1.8 3.3L13.2 12l2 1.5a4 4 0 0 1 1.8 3.3V20h1v2H6v-2h1v-3.2a4 4 0 0 1 1.8-3.3l2-1.5-2-1.5A4 4 0 0 1 7 7.2V4H6z M9 4v3.2c0 .7.3 1.3.9 1.7L12 10.5l2.1-1.6c.6-.4.9-1 .9-1.7V4z M12 14.2l-2.1 1.5c-.6.4-.9 1-.9 1.7V20h6v-2.6c0-.7-.3-1.3-.9-1.7z", "timeup": "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M11 6.5h2v5.1l3.6 2.1-1 1.7-4.6-2.7z"};
+  var ROOMS = { vale: ['#E8436A', '#0B0914'], kaeden: ['#4DB848', '#0B0914'], scarlett: ['#F2C21B', '#0B0914'], bella: ['#7A5BE0', '#FFFFFF'],
+    kai: ['#24B49A', '#0B0914'], atlas: ['#E9E7EF', '#0B0914'], max: ['#E0402F', '#FFFFFF'], maximillion: ['#E0402F', '#FFFFFF'] };
+  function $(id) { return document.getElementById(id); }
+
+  /* root commands through Homebrew Channel (the same way Round2 Home does it) */
+  function exec(cmd, cb) {
+    try {
+      var b = new PalmServiceBridge();
+      b.onservicecallback = function (r) { var j = {}; try { j = JSON.parse(r); } catch (e) {} if (cb) cb(j); };
+      b.call('luna://org.webosbrew.hbchannel.service/exec', JSON.stringify({ command: cmd }));
+    } catch (e) { if (cb) cb({ error: String(e) }); }
+  }
+  function q(s) { return "'" + String(s).replace(/'/g, '') + "'"; }
+  function log(m) { exec('echo "$(date +%H:%M:%S) ' + VARIANT + ' ' + String(m).replace(/["`$\\]/g, '') + '" >> ' + CFG + '/ovtest.log'); }
+
+  function params() {
+    try { var p = (window.PalmSystem && PalmSystem.launchParams) || '{}'; return typeof p === 'string' ? JSON.parse(p || '{}') : p; } catch (e) { return {}; }
+  }
+
+  /* ---------- opened by hand (from Homebrew Channel or the app list): make this the test pop-up ---------- */
+  function setup() {
+    $('card').style.display = 'none'; $('diag').style.display = 'block';
+    $('dTitle').textContent = 'ROUND2 POP-UP TEST ' + VARIANT + ' · ' + WINTYPE.toUpperCase();
+    exec('echo ' + APPID + ' > ' + CFG + '/ovtest');
+    $('dText').innerHTML = 'This TV now shows Round2 pop-ups with test <b>' + VARIANT + '</b>.<br>' +
+      '1. Open Netflix and play something.<br>2. On your phone: Control centre › Notifications › Test a TV › this room › <b>Loot dropped</b>, then <b>Long message</b>.<br>' +
+      '3. Note: does Netflix keep playing underneath? Does <span class="k">OK</span> work on the card? Does the remote go back to Netflix after?<br>' +
+      'Press <span class="k">OK</span> here to close. To stop testing and go back to LG’s pop-ups, open this test again and press <span class="k">◀</span>.';
+    exec('tail -n 25 ' + CFG + '/ovtest.log 2>/dev/null; echo ---; grep -E "front|food|message" ' + CFG + '/log.txt | tail -n 12', function (r) {
+      $('dLog').textContent = 'Last test results on this TV:\n' + (r.stdoutString || r.errorText || JSON.stringify(r));
+    });
+    mode = 'setup';
+  }
+
+  /* ---------- the card ---------- */
+  var mode = '', card = null, pages = [], pi = 0, hideT = null, blinkT = null;
+  function split(t, n) {
+    t = String(t || '').replace(/\s+/g, ' ').trim(); var out = [];
+    while (t.length > n) {
+      var cut = -1, i;
+      for (i = n; i > n / 2; i--) if (/[.!?]/.test(t.charAt(i - 1)) && t.charAt(i) === ' ') { cut = i; break; }
+      if (cut < 0) { cut = t.lastIndexOf(' ', n); if (cut < n / 3) cut = n; }
+      out.push(t.slice(0, cut).trim()); t = t.slice(cut).trim();
+    }
+    if (t || !out.length) out.push(t);
+    return out;
+  }
+  function show(p) {
+    mode = 'card'; card = p; pi = 0;
+    var rc = ROOMS[String(p.room || '').toLowerCase()] || ['#F2C21B', '#0B0914'];
+    document.documentElement.style.setProperty('--rc', rc[0]); document.documentElement.style.setProperty('--ink', rc[1]);
+    pages = p.type === 'msg' ? split(p.text, 110) : [p.text || ''];
+    var ic = p.type === 'msg' ? (ICON[p.kind] ? p.kind : 'note') : '';
+    $('bang').innerHTML = ic ? '<svg viewBox="0 0 24 24" width="44" height="44"><path fill="currentColor" fill-rule="evenodd" d="' + ICON[ic] + '"/></svg>' : '!';
+    $('items').innerHTML = (p.items || '').split(/\s*·\s*|\n/).filter(function (x) { return x.trim(); }).slice(0, 5).map(function (x) {
+      var m = /^(\d+)\s*x\s+(.*)$/i.exec(x.trim()); return '<div>' + (m ? '<b>' + m[1] + '×</b>' + esc(m[2]) : esc(x)) + '</div>';
+    }).join('');
+    $('items').style.display = $('items').innerHTML ? '' : 'none';
+    page(0, false);
+    var c = $('card'); c.className = ''; void c.offsetWidth; c.className = 'in';
+    var b = $('bang'); b.className = ''; void b.offsetWidth; b.className = 'pop';
+    for (var i = 0; i < 8; i++) (function (i) { setTimeout(function () { $('box').className = i % 2 ? '' : 'flash'; }, 200 + i * 250); })(i);
+    clearInterval(blinkT); setTimeout(function () { blinkT = setInterval(function () { b.classList.toggle('lit'); }, 550); }, 3000);
+    chime();
+    clearTimeout(hideT); hideT = setTimeout(function () { log('timed out'); close(); }, p.type === 'received' ? 15000 : 45000);
+    log('shown ' + p.type + ' (' + WINTYPE + ') focus=' + document.hasFocus() + ' visible=' + document.visibilityState);
+  }
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  function page(i, turn) {
+    var p = card, last = i >= pages.length - 1;
+    pi = i;
+    var tag = p.type === 'msg' ? (p.tag || 'A MESSAGE') : p.type === 'ready' ? 'LOOT DROPPED · ORDER #' + (p.no || '') : 'ORDER #' + (p.no || '') + ' LOCKED IN';
+    $('tag').textContent = 'TEST ' + VARIANT + ' · ' + tag + (pages.length > 1 ? ' · ' + (i + 1) + '/' + pages.length : '');
+    $('title').textContent = i === 0 ? (p.title || '') : '';
+    $('text').textContent = pages[i] + (last && p.from ? '\n— ' + p.from : '');
+    if (turn) { var t = $('text'); t.className = ''; void t.offsetWidth; t.className = 'turn'; }
+    var ok = $('ok');
+    ok.className = last ? '' : 'turn';
+    ok.textContent = !last ? (i > 0 ? '◀ ▶' : '▶') + '  NEXT PAGE  ' + (i + 1) + '/' + pages.length
+      : (pages.length > 1 ? '◀   ' : '') + (p.type === 'msg' ? (p.ack ? '[OK]  SEEN IT · CLOSES THIS' : '[OK]  CLOSE') : '[OK]  GOT IT');
+  }
+  function nudge() {
+    var c = $('card'); c.className = 'in'; void c.offsetWidth; c.className = 'in shake';
+    var ok = $('ok'); ok.classList.add('nudge'); setTimeout(function () { ok.classList.remove('nudge'); }, 450);
+  }
+  var actx = null;
+  function chime() {   /* the menu's OK sound: two quick notes */
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      [[880, 0], [1320, .09]].forEach(function (n) {
+        var o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + n[1];
+        o.type = 'triangle'; o.frequency.value = n[0]; g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.25, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + .18);
+        o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + .2);
+      });
+    } catch (e) {}
+  }
+  function close() {
+    clearTimeout(hideT); clearInterval(blinkT);
+    $('card').className = '';
+    setTimeout(function () {
+      try { window.close(); } catch (e) {}
+      setTimeout(function () { exec('luna-send -n 1 luna://com.webos.applicationManager/closeByAppId ' + q(JSON.stringify({ id: APPID }))); }, 400);
+    }, 350);
+  }
+  function key(e) {
+    var k = e.keyCode;
+    if (mode === 'setup') {
+      if (k === 37) { exec('rm -f ' + CFG + '/ovtest'); $('dText').innerHTML = 'Testing stopped: this TV uses LG’s pop-ups again. Press <span class="k">OK</span> to close.'; mode = 'setupdone'; e.preventDefault(); return; }
+      if (k === 13) { close(); e.preventDefault(); }
+      return;
+    }
+    if (mode === 'setupdone') { if (k === 13) close(); e.preventDefault(); return; }
+    if (mode !== 'card') return;
+    e.preventDefault(); e.stopPropagation();
+    log('key ' + k);
+    var last = pi >= pages.length - 1;
+    if (k === 39 && !last) { page(pi + 1, true); return; }
+    if (k === 37 && pi > 0) { page(pi - 1, true); return; }
+    if (k === 13 && last) {
+      chime();
+      if (card.type === 'ready') exec('sh ' + CFG + '/round2d.sh ack');
+      if (card.type === 'msg' && card.ack) exec('sh ' + CFG + '/round2d.sh msgack');
+      log('OK on ' + card.type + ': closing');
+      close(); return;
+    }
+    nudge();   /* Back and everything else: shake and point at OK */
+  }
+  document.addEventListener('keydown', key, true);
+
+  function start() {
+    var p = params();
+    if (p && p.type) show(p); else setup();
+  }
+  document.addEventListener('webOSRelaunch', function (ev) {
+    var p = (ev && ev.detail) || params();
+    log('relaunch ' + JSON.stringify(p).slice(0, 80));
+    if (p && p.type) { $('diag').style.display = 'none'; $('card').style.display = ''; show(p); }
+  }, true);
+  window.addEventListener('blur', function () { if (mode === 'card') log('lost focus'); });
+  window.addEventListener('focus', function () { if (mode === 'card') log('got focus'); });
+  start();
+}());
+</script>
+</body></html>

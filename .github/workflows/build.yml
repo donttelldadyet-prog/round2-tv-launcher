@@ -58,6 +58,7 @@ jobs:
         run: |
           npm install -g @webos-tools/cli
           ARES_PACKAGE=ares-package bash tools/build-webos.sh 1.0.${{ github.run_number }}
+          ARES_PACKAGE=ares-package bash tools/build-alerts.sh 1.0.${{ github.run_number }}
       # Builds of other branches (run by hand from the Actions tab) are test builds: published as a
       # pre-release, which the TVs' auto-update ignores. Install one with round2tv.ps1 on a single TV.
       - name: Publish a test pre-release
@@ -85,6 +86,7 @@ jobs:
           files: |
             round2-home.apk
             round2-home.ipk
+            sg.round2.alerts.*.ipk
           make_latest: true
       - name: List the new version for rooted LG TVs (Homebrew Channel)
         if: github.ref_name == 'main'

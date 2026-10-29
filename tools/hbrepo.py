@@ -86,6 +86,17 @@ extras = [{
         'ipkHash': {'sha256': 'c56c4e4a1a72dddc6a12f0adb8a81b70dbeecc1dde04a68228a8483b0b590ab4'},
     },
 }]
+# Round2 pop-up TESTS (built with this version, tools/build-alerts.sh): our card in three window types.
+# Install all three on an LG; opening one makes it the TV's pop-up. Removed once the real Round2 Alerts is chosen.
+import os
+for L, T in (('A', 'overlay'), ('B', 'popup'), ('C', 'floating')):
+    f = f'sg.round2.alerts.{L.lower()}.ipk'
+    if not os.path.exists(f): continue
+    d = f'TEST {L}: Round2 pop-ups drawn as a webOS "{T}" window. Open it once to use it for the test.'
+    extras.append({'id': f'sg.round2.alerts.{L.lower()}', 'title': f'Round2 pop-up test {L} ({T})', 'iconUri': ICON, 'shortDescription': d,
+        'manifest': {'id': f'sg.round2.alerts.{L.lower()}', 'title': f'Round2 pop-up test {L} ({T})', 'version': version, 'type': 'web',
+            'appDescription': d, 'iconUri': ICON, 'sourceUrl': f'{REPO}/tree/main/webos/alerts', 'rootRequired': True,
+            'ipkUrl': f'{REPO}/releases/download/v{version}/{f}', 'ipkHash': {'sha256': hashlib.sha256(open(f, 'rb').read()).hexdigest()}}})
 print(json.dumps({'packages': [{
     'id': 'sg.round2.tvhome', 'title': 'Round2 Home', 'iconUri': ICON,
     'shortDescription': desc, 'manifest': manifest,

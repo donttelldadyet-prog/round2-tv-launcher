@@ -113,7 +113,24 @@ FB=https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app
 ACK=https://hook.eu1.make.com/ks522ziapwremxa35kdtan6h6l1oxe17
 num() { sed -n "s/.*\"$1\" *: *\([0-9][0-9]*\).*/\1/p"; }
 clean() { tr -d "\\\\\"'"; }   # no quotes or backslashes: safe inside the luna-send JSON below
+# --- Round2 Alerts (TEST): our own pop-up card instead of LG's, while $CFG/ovtest names an installed test app ---
+ov_app() {
+  id=$(cat "$CFG/ovtest" 2>/dev/null); [ -n "$id" ] || return 1
+  [ -d "/media/developer/apps/usr/palm/applications/$id" ] || return 1
+  echo "$id"
+}
+ov_show() {     # $1 app id, $2 params JSON
+  log "pop-up test: $1 $(echo "$2" | cut -c1-60)"
+  luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$1\",\"params\":$2}" >/dev/null 2>&1
+}
 food_show() {   # $1 type, $2 order no, $3 items
+  if ov=$(ov_app); then
+    room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null)
+    if [ "$1" = received ]; then txt="Madd Pizza is firing it up. We\u2019ll ping you when it lands."; else txt="It\u2019s at the drop zone, the rack right outside the entrance. Grab it while it\u2019s hot!"; fi
+    ov_show "$ov" "{\"type\":\"$1\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\"}"
+    log "food $1 #$2 shown over $(cat "$CFG/front" 2>/dev/null)"
+    return
+  fi
   if [ "$1" = received ]; then
     luna-send -n 1 luna://com.webos.notification/createToast \
       "{\"sourceId\":\"$APP\",\"message\":\"ORDER #$2 LOCKED IN \u00b7 Madd Pizza is firing it up. We\u2019ll ping you when it lands.\"}" >/dev/null 2>&1
@@ -191,6 +208,14 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
   line=$(cat "$CFG/msg.cur" 2>/dev/null); [ -n "$line" ] || return 0
   n=${1:-1}
   title=$(printf '%s\n' "$line" | field title | clean); from=$(printf '%s\n' "$line" | field from | clean)
+  if ov=$(ov_app); then   # our own card pages the message itself
+    room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null); kind=$(printf '%s\n' "$line" | field kind | clean)
+    text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean)
+    ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
+    case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; *) tag="A MESSAGE" ;; esac
+    ov_show "$ov" "{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"ack\":$ack,\"room\":\"$room\"}"
+    return 0
+  fi
   printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | { if command -v fold >/dev/null 2>&1; then fold -s -w 110; else cat; fi; } > "$CFG/msg.pages"
   total=$(wc -l < "$CFG/msg.pages"); [ "$total" -ge 1 ] || total=1
   text=$(sed -n "${n}p" "$CFG/msg.pages")
