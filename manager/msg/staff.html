@@ -305,6 +305,7 @@ details.past .list { margin-top: 10px; }
       });
       html += '</section>';
     });
+    past = past.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
     if (past.length) {
       past.sort(function (a, b) { return b.data.start - a.data.start; });
       html += '<details class="past"' + (open && past.some(function (x) { return x.key === open.code; }) ? ' open' : '') + '><summary>Ended or cancelled (' + past.length + ')</summary><div class="list">' + past.map(itemHtml).join('') + '</div></details>';
