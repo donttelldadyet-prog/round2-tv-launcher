@@ -70,6 +70,17 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .tpls .tp button { background: none; border: 0; color: var(--ink); padding: 6px 10px; cursor: pointer; font-size: 13px; }
 .tpls .tp button.x { color: var(--mute); padding: 6px 8px; border-left: 1px solid var(--line2); }
 .tpls .tp small { color: var(--mute); margin-left: 6px; }
+.wlive { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; border: 1px solid var(--line2); background: var(--panel2); padding: 16px 20px; }
+.wbig { font-size: 48px; font-weight: 700; line-height: 1; color: var(--ok); font-variant-numeric: tabular-nums; }
+.wdoing { display: flex; flex-wrap: wrap; gap: 6px; }
+.wgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.wrow { display: grid; grid-template-columns: minmax(110px, 40%) 1fr 64px; gap: 8px; align-items: center; font-size: 13px; margin: 5px 0; }
+.wrow .bar { height: 10px; background: var(--accent); min-width: 2px; }
+.wrow .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--mute); }
+.wbars { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; align-items: end; height: 110px; }
+.wbars i { display: block; background: var(--accent); min-height: 2px; }
+.wbars i.lo { opacity: .45; }
+.whr { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; font-size: 9px; color: var(--mute); text-align: center; margin-top: 4px; }
 .review ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .spin { width: 14px; height: 14px; border: 2px solid var(--line2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -255,6 +266,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     <button role="tab" aria-selected="true" data-group="notif">Notifications</button>
     <button role="tab" aria-selected="false" data-group="themes">Themes</button>
     <button role="tab" aria-selected="false" data-group="menu">Food menu</button>
+    <button role="tab" aria-selected="false" data-group="web">Website</button>
     <button role="tab" aria-selected="false" data-group="help">Help</button>
   </nav>
   <div class="who" id="who" hidden></div>
@@ -390,6 +402,24 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     <h1>Make a guest link</h1>
     <p class="sub">After a booking is paid: pick the room and start time, then send the guest the message it gives you. For your phone's home screen, open <a href="link/" target="_blank" rel="noopener">this page</a> and choose Share › Add to Home Screen.</p>
     <iframe class="gframe" title="Make a guest link" data-src="msg/staff.html?view=make&amp;embed=1"></iframe>
+  </section>
+
+  <section id="tab-website" hidden>
+    <h1>Website visitors</h1>
+    <p class="sub">What people do on round2.sg's game menu: who's on it now, busy hours, and how far they get towards booking. Counted by the menu page itself (numbers only, no names or contact details).</p>
+    <div class="banner warn" id="wErr" hidden></div>
+    <div class="wlive">
+      <div><div class="wbig" id="wNow">–</div><div class="hint">on the site right now</div></div>
+      <div class="wdoing" id="wDoing"></div>
+    </div>
+    <div class="seg" id="wRange" style="margin:22px 0 6px"><button type="button" data-r="1" aria-pressed="true">Today</button><button type="button" data-r="7" aria-pressed="false">Last 7 days</button><button type="button" data-r="28" aria-pressed="false">Last 28 days</button></div>
+    <div class="wgrid">
+      <div class="card"><h2 style="margin-top:0">Towards a booking</h2><div id="wFunnel"></div><p class="hint">Each step counts visits that reached it at least once. The booking form steps come from SimplyBook; the last one people reach is usually the finished booking.</p></div>
+      <div class="card"><h2 style="margin-top:0">Busiest hours</h2><div class="wbars" id="wHours"></div><div class="whr" id="wHr"></div><h2>Busiest days</h2><div id="wDays"></div></div>
+      <div class="card"><h2 style="margin-top:0">Rooms looked at</h2><div id="wRooms"></div></div>
+      <div class="card"><h2 style="margin-top:0">Contact &amp; other</h2><div id="wOther"></div></div>
+    </div>
+    <p class="hint" id="wNote"></p>
   </section>
 
   <section id="tab-tests" hidden>
@@ -1167,6 +1197,70 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     return { open: function () { if (!ready) { ready = true; init(); } load(); }, items: function () { return items.slice(); } };
   }());
 
+  /* ---------- Website visitors: read from Firebase /web, written by the round2sg-home page (docs/site-stats.md) ---------- */
+  var Web = (function () {
+    var DB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/web';
+    var range = 1, timer = null, ready = false, ROOMN = { vale: 'Vale', kaeden: 'Kaeden', scarlett: 'Scarlett', bella: 'Bella', kai: 'Kai', atlas: 'Atlas', maximillion: 'Maximillion' };
+    var SCREEN = { home: 'Main menu', rooms: 'Rooms', loadout: 'Loadout', how: 'How to play', find: 'Find us', info: 'FAQ / rules', booking: 'Booking form' };
+    var OUT = { out_wa: 'WhatsApp', out_tg: 'Telegram', out_ig: 'Instagram', out_tiktok: 'TikTok', out_maps: 'Google Maps', out_email: 'Email', out_phone: 'Phone call', out_simplybook: 'SimplyBook (new tab)',
+      gallery: 'Opened a room gallery', loadout: 'Loadout', how: 'How to play', find: 'Find us', info_faq: 'FAQ', info_rules: 'House rules', info_about: 'About', info_privacy: 'Privacy', dev_m: 'On a phone', dev_d: 'On a computer' };
+    function sgDay(ms) { return new Date(ms + 8 * 3600e3).toISOString().slice(0, 10); }
+    function pretty(step) { step = step.replace(/_/g, ' '); return step.charAt(0).toUpperCase() + step.slice(1); }
+    function rows(list, max) {
+      max = max || Math.max.apply(null, list.map(function (x) { return x[1]; }).concat([1]));
+      return list.map(function (x) { return '<div class="wrow"><span>' + esc(x[0]) + '</span><span class="bar" style="width:' + Math.round(100 * x[1] / max) + '%"></span><span class="n">' + x[1] + (x[2] != null ? ' · ' + x[2] : '') + '</span></div>'; }).join('') || '<p class="hint">Nothing yet.</p>';
+    }
+    function liveNow() {
+      fetch(DB + '/live.json', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (l) {
+        var now = Date.now(), on = [], by = {};
+        Object.keys(l || {}).forEach(function (k) {
+          var x = l[k] || {};
+          if (now - (x.t || 0) < 75000) { on.push(x); var p = String(x.p || 'home'), g = /^booking/.test(p) ? 'booking' : p; by[g] = (by[g] || 0) + 1; }
+          else if (now - (x.t || 0) > 600000) fetch(DB + '/live/' + k + '.json', { method: 'DELETE' }).catch(function () {});   /* tidy visitors who left without saying */
+        });
+        $('wNow').textContent = on.length;
+        $('wDoing').innerHTML = Object.keys(by).map(function (k) { return '<span class="chip">' + esc(SCREEN[k] || k) + ': ' + by[k] + '</span>'; }).join('') || '<span class="hint">Nobody at the moment.</span>';
+        $('wErr').hidden = true;
+      }).catch(function (e) { $('wErr').hidden = false; $('wErr').textContent = 'Couldn’t read the visitor numbers (' + e.message + '). If this says 401, the Firebase rule for /web isn’t in yet (docs/site-stats.md).'; });
+    }
+    function stats() {
+      var from = sgDay(Date.now() - (range - 1) * 864e5);
+      fetch(DB + '/days.json?orderBy=%22$key%22&startAt=%22' + from + '%22', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) {
+        var sum = {}, perDay = {};
+        Object.keys(d || {}).forEach(function (day) { var x = d[day] || {}; perDay[day] = x.visit || 0; Object.keys(x).forEach(function (k) { sum[k] = (sum[k] || 0) + (Number(x[k]) || 0); }); });
+        var v = sum.visit || 0, pc = function (n) { return v ? Math.round(100 * n / v) + '%' : ''; };
+        /* funnel: visits, rooms, booking, then the SimplyBook steps in the order most people reach them */
+        var f = [['Visited the menu', v, pc(v)], ['Looked at rooms', sum.rooms || 0, pc(sum.rooms || 0)], ['Opened booking', sum.book || 0, pc(sum.book || 0)]];
+        Object.keys(sum).filter(function (k) { return /^sb_/.test(k); }).sort(function (a, b) { return sum[b] - sum[a]; })
+          .forEach(function (k) { f.push(['Booking form: ' + pretty(k.slice(3)), sum[k], pc(sum[k])]); });
+        $('wFunnel').innerHTML = rows(f, v || 1);
+        /* hours */
+        var hrs = [], mx = 1; for (var h = 0; h < 24; h++) { var n = sum['h' + ('0' + h).slice(-2)] || 0; hrs.push(n); if (n > mx) mx = n; }
+        $('wHours').innerHTML = hrs.map(function (n, h) { return '<i title="' + h + ':00 · ' + n + ' visits" class="' + (n < mx * .5 ? 'lo' : '') + '" style="height:' + Math.round(100 * n / mx) + '%"></i>'; }).join('');
+        $('wHr').innerHTML = hrs.map(function (n, h) { return h % 3 ? '<span></span>' : '<span>' + ((h + 11) % 12 + 1) + (h < 12 ? 'a' : 'p') + '</span>'; }).join('');
+        /* days of the week */
+        var wk = [0, 0, 0, 0, 0, 0, 0], WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        Object.keys(perDay).forEach(function (day) { wk[new Date(day + 'T12:00:00Z').getUTCDay()] += perDay[day]; });
+        $('wDays').innerHTML = range < 7 ? '<p class="hint">Pick 7 or 28 days to compare days.</p>' : rows([1, 2, 3, 4, 5, 6, 0].map(function (i) { return [WD[i], wk[i]]; }));
+        $('wRooms').innerHTML = rows(Object.keys(ROOMN).map(function (k) { return [ROOMN[k], sum['room_' + k] || 0]; }).sort(function (a, b) { return b[1] - a[1]; }));
+        $('wOther').innerHTML = rows(Object.keys(OUT).filter(function (k) { return sum[k]; }).map(function (k) { return [OUT[k], sum[k]]; }).sort(function (a, b) { return b[1] - a[1]; }));
+        var days = Object.keys(d || {}).sort();
+        $('wNote').textContent = days.length ? 'Counting since ' + days[0] + '. Visits on Wix’s other pages (like the room pages) aren’t included here.' : 'No visits counted yet for this period.';
+      }).catch(function () {});
+    }
+    function refresh() { liveNow(); stats(); }
+    return {
+      open: function () {
+        if (!ready) {
+          ready = true;
+          $('wRange').addEventListener('click', function (e) { var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return; range = +r; Array.prototype.forEach.call(document.querySelectorAll('#wRange button'), function (b) { b.setAttribute('aria-pressed', b === e.target); }); stats(); });
+        }
+        refresh(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) { liveNow(); } }, 15000);
+      },
+      close: function () { clearInterval(timer); }
+    };
+  }());
+
   var Sim = (function () {
     var MENU = 'https://donttelldadyet-prog.github.io/round2sg-home/menu/', room = ls('r2m.simRoom') || 'vale', ready = false;
     function code() { return ls('r2m.simCode') || ''; }
@@ -1292,11 +1386,12 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['messages', 'guestmsgs', 'guestlink', 'tests', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   var GROUPS = {
     notif: [['messages', 'Round2 messages'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'Settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
+    web: [['website', 'Visitors']],
     help: [['help', 'How it works'], ['stuck', 'If stuck']]
   };
   function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'notif'; }
@@ -1314,6 +1409,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (n === 'settings') renderSettings();
     if (n === 'messages') Msgs.open(); else Msgs.close();
     if (n === 'tests') Tests.open(); else Tests.close();
+    if (n === 'website') Web.open(); else Web.close();
     if (n === 'foodmenu') openMenuEditor();
     if (n === 'simorder') Sim.open();
     if (n === 'guestmsgs' || n === 'guestlink') {   /* the guest messages pages, shown inside this tab (loaded the first time it's opened) */
