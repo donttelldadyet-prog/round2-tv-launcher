@@ -221,9 +221,12 @@ msg_acked() {   # $1 id: already acknowledged somewhere else (OK pressed on the 
   [ -n "$2" ] && [ -n "$3" ] || return 1
   { curl -s -m 10 "$FB/r2/$3/$2/msgAck.json" 2>/dev/null || curl -s -k -m 10 "$FB/r2/$3/$2/msgAck.json" 2>/dev/null; } | grep -q "\"id\":\"$1\""
 }
-msg_ack() {     # OK pressed on the LG pop-up
-  id=$(cat "$CFG/msg.id" 2>/dev/null); [ -n "$id" ] || exit 0
-  echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"
+msg_ack() {     # $1 the message's id (from the Round2 card; LG's pop-up: the one last shown). OK pressed.
+  id=${1:-$(cat "$CFG/msg.id" 2>/dev/null)}; [ -n "$id" ] || exit 0
+  echo "$id" > "$CFG/msg.done"
+  # only forget the waiting message if it's still this one: a new message may have arrived a moment ago
+  grep -q "\"id\":\"$id\"" "$CFG/msg.cur" 2>/dev/null && rm -f "$CFG/msg.cur"
+  K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"
   msg_put msgAck "$id"; log "message $id acknowledged"
 }
 msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows the next page, the last one SEEN IT / CLOSE
@@ -235,7 +238,7 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
     text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean)
     ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
     case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; *) tag="A MESSAGE" ;; esac
-    ov_show "$ov" "{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"ack\":$ack,\"room\":\"$room\"}" && return 0
+    ov_show "$ov" "{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"room\":\"$room\"}" && return 0
   fi
   printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | { if command -v fold >/dev/null 2>&1; then fold -s -w 110; else cat; fi; } > "$CFG/msg.pages"
   total=$(wc -l < "$CFG/msg.pages"); [ "$total" -ge 1 ] || total=1
@@ -248,7 +251,7 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
     btns="$btns{\"label\":\"NEXT PAGE \u25B6 $n/$total\",\"onclick\":\"$hb\",\"params\":{\"command\":\"sh $CFG/round2d.sh msgpage $((n + 1))\"}}"
   else
     [ -n "$from" ] && text="$text\\n\u2014 $from"
-    if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="OK \u00B7 SEEN IT (CLOSES THIS)"; cmd="sh $CFG/round2d.sh msgack"; else ok="OK \u00B7 CLOSE"; cmd="true"; fi
+    if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="OK \u00B7 SEEN IT (CLOSES THIS)"; cmd="sh $CFG/round2d.sh msgack $(printf '%s\n' "$line" | field id)"; else ok="OK \u00B7 CLOSE"; cmd="true"; fi
     btns="$btns{\"label\":\"$ok\",\"onclick\":\"$hb\",\"params\":{\"command\":\"$cmd\"}}"
   fi
   [ "$total" -gt 1 ] && title="$title ($n/$total)"
@@ -324,7 +327,7 @@ case "$1" in
     exit 0 ;;
   stop) stop; log "stopped"; exit 0 ;;
   ack) K=""; curl -s -m 10 -o /dev/null https://hook.eu1.make.com/ 2>/dev/null || K="-k"; food_ack; exit 0 ;;
-  msgack) K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; msg_ack; exit 0 ;;
+  msgack) msg_ack "$2"; exit 0 ;;
   msgpage) msg_alert "$2"; exit 0 ;;   # NEXT pressed on a message pop-up
   ensure)                                   # Round2 Home calls this on every start: keep one up-to-date copy running
     cmp -s "$SELF" "$CFG/round2d.sh" 2>/dev/null || cp "$SELF" "$CFG/round2d.sh"

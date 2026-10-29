@@ -169,7 +169,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
     if (k === 13 && last) {
       chime();
       if (card.type === 'ready') exec('sh ' + CFG + '/round2d.sh ack');
-      if (card.type === 'msg' && card.ack) exec('sh ' + CFG + '/round2d.sh msgack');
+      if (card.type === 'msg' && card.ack) exec('sh ' + CFG + '/round2d.sh msgack ' + q(card.id || ''));
       log('OK on ' + card.type);
       close(); return;
     }
