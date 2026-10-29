@@ -518,5 +518,13 @@
     "kaeden": "192.168.88.24",
     "maximillion": "192.168.88.4",
     "atlas": "192.168.88.22"
+  },
+  "msgTemplates": {
+    "defaults": {
+      "timeup": {
+        "text": "This session has come to an end. We hope you had a great time! Please gather your things, so we can get the room ready for the next guests. See you again soon!"
+      }
+    },
+    "saved": []
   }
 }
