@@ -28,7 +28,7 @@ SELF="$0"
 mkdir -p "$CFG"
 
 log() {
-  echo "$(date '+%m-%d %H:%M:%S') $*" >> "$CFG/log.txt"
+  echo "$(date '+%m-%d %H:%M:%S') [$$] $*" >> "$CFG/log.txt"
   [ "$(wc -l < "$CFG/log.txt")" -gt 400 ] && { tail -n 200 "$CFG/log.txt" > "$CFG/log.tmp"; mv "$CFG/log.tmp" "$CFG/log.txt"; }
 }
 on() { [ ! -f "$CFG/$1.off" ]; }

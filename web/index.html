@@ -2011,6 +2011,10 @@ window.R2_TV = {
         'echo "boot hook: $([ -f /var/lib/webosbrew/init.d/round2 ] && echo yes || echo NO)"; ' +
         'IH=$(ls -d /media/developer/apps/usr/palm/*/*inputhook* 2>/dev/null | head -n 1); echo "LG Input Hook: ${IH:-NOT installed}"; ' +
         'echo "Home key: $(tr -d \'\\n \' < /home/root/.config/lginputhook/keybinds.json 2>/dev/null | grep -o \'"773":{[^}]*}\' | cut -c1-90)"; ' +
+        /* every helper copy running (there should be one main copy; its number is in [ ] on each log line) */
+        'echo "helper copies: $(for d in /proc/[0-9]*; do c=$(tr "\\000" " " < $d/cmdline 2>/dev/null); case "$c" in *"sh -c"*) ;; *round2d.sh*) echo "${d#/proc/}:${c##*round2d.sh}";; esac; done | tr "\\n" " ")"; ' +
+        /* did LG close Round2 Home by itself (memory, a crash)? */
+        'echo "LG closed the menu: $(grep -i "sg.round2.tvhome" /var/log/messages 2>/dev/null | grep -i -E "kill|crash|oom|memory|terminat|relaunch" | tail -n 3 | cut -c1-150)"; ' +
         'tail -n 12 $C/log.txt 2>/dev/null';
       var ac = 'D=/media/developer/apps/usr/palm/applications; echo "===== AIRPLAY RECEIVER $(sed -n \'s/.*"version" *: *"\\([^"]*\\)".*/\\1/p\' $D/sg.round2.airplay/appinfo.json 2>/dev/null || echo "not installed")"; ' +
         'for f in $(find $D/sg.round2.airplay /tmp/sg.round2.airplay /var/palm/jail /home /media/developer/temp -maxdepth 5 -name uxair.log 2>/dev/null | head -n 1); do ' +
