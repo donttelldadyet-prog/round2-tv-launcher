@@ -256,9 +256,9 @@ details.past .list { margin-top: 10px; }
 
   /* Failsafe: making and copying is one step, so the clipboard always gets the link that was just made.
      Any change to room, date, time or name hides the last link, so an old one can't be copied by mistake. */
-  var madeFor = '', dupOk = '';
+  var madeFor = '', dupOk = '', madeLock = false, busy = false;
   function slotSig() { return room + '|' + (startMs() || '') + '|' + $('label').value.trim(); }
-  function stale() { if (!$('made').hidden) { $('made').hidden = true; $('mkMsg').className = 'msg'; $('mkMsg').textContent = 'Booking details changed. Make a new link for this booking.'; } $('dup').hidden = true; dupOk = ''; }
+  function stale() { if (!$('made').hidden) { $('made').hidden = true; $('mkMsg').className = 'msg'; $('mkMsg').textContent = 'Booking details changed. Make a new link for this booking.'; } $('dup').hidden = true; dupOk = ''; if (madeLock) { madeLock = false; $('mkGo').disabled = false; $('mkGo').textContent = 'Make link & copy message'; } }
   $('rooms').addEventListener('click', function (e) { if (e.target.closest('button[data-r]')) stale(); });
   ['date', 'time', 'label'].forEach(function (id) { $(id).addEventListener('input', stale); });
   function inviteText(code, s, r) {
@@ -271,6 +271,7 @@ details.past .list { margin-top: 10px; }
 
   $('mk').addEventListener('submit', function (e) {
     e.preventDefault();
+    if (busy || madeLock) return;   /* one link per tap: ignore extra taps while it's making, and after it's made */
     var s = startMs(), m = $('mkMsg'), r = room; m.className = 'msg';
     if (!key()) { m.className = 'msg bad'; m.textContent = 'Add the staff code first.'; return; }
     if (!s) { m.className = 'msg bad'; m.textContent = 'Pick the date and start time.'; return; }
@@ -283,7 +284,7 @@ details.past .list { margin-top: 10px; }
         '<span>If it’s the same guest, copy that link from the list instead. If it’s a new booking, press the button again.</span>';
       $('dup').hidden = false; $('mkGo').textContent = 'Make another link & copy'; return;
     }
-    $('dup').hidden = true; $('made').hidden = true; $('mkGo').disabled = true; m.textContent = 'Making the link…';
+    busy = true; $('dup').hidden = true; $('made').hidden = true; $('mkGo').disabled = true; m.textContent = 'Making the link…';
     var sig = slotSig(), job = call({ action: 'create', staff: key(), room: r, start: s, label: $('label').value.trim() });
     var textP = job.then(function (j) { return inviteText(j.code, s, r); });
     /* Start the copy inside the tap (iPhone Safari only allows that), with the text arriving once Make answers. */
@@ -297,13 +298,17 @@ details.past .list { margin-top: 10px; }
     job.then(function (j) {
       if (sig !== slotSig()) { m.className = 'msg bad'; m.textContent = 'Details changed while making it. The link was made for ' + ROOMS[r][0] + ', ' + day(s) + ' ' + clock(s) + '. Check the list.'; list(); return; }
       showMade(j.code, s, r);
+      lastList.push({ key: j.code, data: { room: r, start: s, end: s + 10800000, status: 'open', label: $('label').value.trim() } });   /* counts for the duplicate check straight away */
+      madeLock = true;
       list();
       return copyP.then(function () {
         $('copiedNote').textContent = '✓ Copied. Paste it into the guest’s chat.'; m.textContent = '';
       }, function () {
         $('copiedNote').textContent = ''; m.className = 'msg bad'; m.textContent = 'Link made, but it couldn’t copy automatically. Tap “Copy message again”.';
       });
-    }).catch(function (er) { m.className = 'msg bad'; m.textContent = er.message; }).then(function () { $('mkGo').disabled = false; $('mkGo').textContent = 'Make link & copy message'; dupOk = ''; });
+    }).catch(function (er) { m.className = 'msg bad'; m.textContent = er.message; }).then(function () { busy = false; dupOk = '';
+      if (madeLock) { $('mkGo').disabled = true; $('mkGo').textContent = 'Link made ✓ · change the booking to make another'; }
+      else { $('mkGo').disabled = false; $('mkGo').textContent = 'Make link & copy message'; } });
   });
   function showMade(code, s, r) {
     $('madeFor').textContent = ROOMS[r][0] + ' · ' + day(s) + ' · starts ' + clock(s) + ($('label').value.trim() ? ' · ' + $('label').value.trim() : '');
