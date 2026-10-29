@@ -2035,9 +2035,17 @@ window.R2_TV = {
         'echo "== last YouTube session (network and cache noise left out)"; N=$(grep -n "Using webOS UI locale" $C | tail -n 1 | cut -d: -f1); ' +
         'tail -n +${N:-1} $C | grep -v -E "quic_versions|resource_cache|http_cache|crash handler|selector|addedNodes is not iterable|format_support_query_metrics|navigator.cc|css_declared_style|rule_matching|savegame|YTAF storage|watchdog|lounge/bc/bind|log_event|quic_connection|Created QUIC" | tail -n 600; ' +
         'else echo "log: ${L:-none}"; [ -n "$L" ] && grep -i -E "youtube|leanback|cobalt|starfish|attest|sabr|went wrong|player.*err|err.*player" "$L" | grep -v -i "round2" | tail -n 24 | cut -c1-170; fi';
-      LGRoot.exec('(' + hc + ') 2>&1; (' + ac + ') 2>&1; (' + yc + ') 2>&1', function (out, r) {
+      var bv = $(front) && $(front).firstChild, cw = typeof currentWall === 'function' ? currentWall() : null;
+      var bg = '===== BACKGROUND\nshowing: ' + (cw ? (cw.name || cw.id) + ' ' + (cw.video || cw.image || '') : 'none') + '\n' +
+        (bv && bv.tagName === 'VIDEO' ? 'player: t=' + (bv.currentTime || 0).toFixed(1) + ' readyState=' + bv.readyState + ' network=' + bv.networkState +
+          ' paused=' + bv.paused + ' error=' + (bv.error ? bv.error.code : 'none') + ' size=' + bv.videoWidth + 'x' + bv.videoHeight + ' src=' + (bv.currentSrc || '').slice(-60) : 'player: ' + (bv ? bv.tagName : 'none')) + '\n' +
+        'hidden=' + document.hidden + '  front app log: ' + (window.r2FrontLog || []).join(' > ') + '\n' + (window.r2BgLog || []).join('\n') + '\n';
+      var appDir = decodeURIComponent(location.pathname || '').replace(/\/[^\/]*$/, '');
+      var bc = 'echo "files here: $(ls -la ' + appDir + '/themes 2>&1 | grep -c mp4) videos"; ls -la ' + appDir + '/themes 2>&1 | grep -E "mp4|part" | awk \'{print $5, $NF}\' | head -n 12; ' +
+        'echo "spare copies: $(ls /media/developer/round2-themes 2>&1 | grep -c mp4)"';
+      LGRoot.exec('(' + bc + ') 2>&1; (' + hc + ') 2>&1; (' + ac + ') 2>&1; (' + yc + ') 2>&1', function (out, r) {
         var txt = out !== null ? out : (r && (r.stdoutString || r.stderrString || r.errorText)) || 'no answer';
-        LogView.show(txt);
+        LogView.show(bg + txt);
       });
     } else if (k === 'ok' && act === 'aHome') {
       if (!window.r2HomeHelperWatch) {   /* back from Accessibility: show the new ON/OFF */
@@ -2166,6 +2174,8 @@ window.R2_TV = {
   var veilDone = false;
   function liftVeil(ms) { if (veilDone) return; veilDone = true; setTimeout(function () { var v = $('veil'); if (v) v.className = 'layer off'; }, ms || 0); }
   setTimeout(function () { liftVeil(0); }, 6000);   /* never stay dark */
+  /* the background player's last events, for Staff tools > Diagnostics */
+  function bgLog(m) { var d = new Date(); window.r2BgLog = (window.r2BgLog || []).concat(('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2) + ' ' + m).slice(-14); }
   function showWall(w) {
     if (!w || (shownWall && shownWall.id === w.id && shownWall.room === roomKey)) return;
     shownWall = { id: w.id, room: roomKey };
@@ -2199,13 +2209,17 @@ window.R2_TV = {
       setTimeout(function () { if (front !== old.id) { var m = old.firstChild; if (m && m.pause) m.pause(); old.innerHTML = ''; } }, 300);
     }
     if (w.video) {
+      bgLog('start ' + (w.id || '') + ' ' + w.video);
+      ['playing', 'error', 'stalled', 'emptied', 'waiting'].forEach(function (ev) { el.addEventListener(ev, function () {
+        bgLog(ev + (ev === 'error' && el.error ? ' code ' + el.error.code + ' ' + (el.error.message || '') : '') + ' t=' + (el.currentTime || 0).toFixed(1) + ' rs=' + el.readyState + ' ns=' + el.networkState);
+      }); });
       el.addEventListener('loadeddata', swap); el.src = w.video; try { el.play(); } catch (e) {} setTimeout(swap, 900);
       if (Device.kind() === 'webos') {   /* LG can take the video player away (another app, a sound): get the picture back */
         var reloadedAt = 0;
         var revive = function () {
           if (document.hidden || !el.parentNode || $(front) !== el.parentNode) return;
           if ((el.error || (el.readyState === 0 && el.networkState === 3)) && Date.now() - reloadedAt > 5000) {
-            reloadedAt = Date.now(); el.src = w.video; try { el.load(); } catch (e) {}
+            bgLog('reload after error'); reloadedAt = Date.now(); el.src = w.video; try { el.load(); } catch (e) {}
           }
           try { var pr = el.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
         };
@@ -2216,7 +2230,7 @@ window.R2_TV = {
           if (!el.parentNode) { clearInterval(dog); return; }
           if (document.hidden || $(front) !== el.parentNode) { lastT = -1; return; }
           var t = el.currentTime;
-          if (t === lastT && Date.now() - reloadedAt > 10000) { reloadedAt = Date.now(); el.src = w.video; try { el.load(); var pr = el.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {} }
+          if (t === lastT && Date.now() - reloadedAt > 10000) { bgLog('frozen at ' + t.toFixed(1) + ': reload'); reloadedAt = Date.now(); el.src = w.video; try { el.load(); var pr = el.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {} }
           lastT = t;
         }, 10000);
       }
