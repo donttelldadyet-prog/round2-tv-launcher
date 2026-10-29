@@ -1,0 +1,64 @@
+{
+ "name": "[BACKEND] GUEST MESSAGE TIMER",
+ "metadata": {
+  "version": 1
+ },
+ "flow": [
+  {
+   "id": 1,
+   "module": "datastore:SearchRecord",
+   "version": 1,
+   "parameters": {
+    "datastore": 237603
+   },
+   "mapper": {
+    "filter": [
+     [
+      {
+       "a": "status",
+       "o": "text:equal",
+       "b": "approved"
+      },
+      {
+       "a": "onTv",
+       "o": "text:equal",
+       "b": "no"
+      },
+      {
+       "a": "at",
+       "o": "number:lessorequal",
+       "b": "{{timestamp * 1000 + 960000}}"
+      },
+      {
+       "a": "end",
+       "o": "number:greater",
+       "b": "{{timestamp * 1000}}"
+      }
+     ]
+    ]
+   }
+  },
+  {
+   "id": 2,
+   "module": "http:MakeRequest",
+   "version": 4,
+   "parameters": {
+    "tlsType": "",
+    "authenticationType": "noAuth"
+   },
+   "mapper": {
+    "url": "https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4",
+    "method": "post",
+    "timeout": 40,
+    "shareCookies": false,
+    "parseResponse": false,
+    "allowRedirects": true,
+    "stopOnHttpError": false,
+    "requestCompressedContent": true,
+    "contentType": "custom",
+    "contentTypeValue": "application/x-www-form-urlencoded",
+    "rawBodyContent": "action=push&staff=STAFF_CODE&code={{1.key}}"
+   }
+  }
+ ]
+}

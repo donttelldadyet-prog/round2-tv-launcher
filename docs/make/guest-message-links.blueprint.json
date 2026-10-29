@@ -1,0 +1,1326 @@
+{
+ "name": "[BACKEND] GUEST MESSAGE LINKS",
+ "metadata": {
+  "version": 1,
+  "instant": true,
+  "scenario": {
+   "roundtrips": 1,
+   "maxErrors": 3,
+   "autoCommit": true,
+   "autoCommitTriggerLast": true,
+   "sequential": false,
+   "confidential": false,
+   "dataloss": false,
+   "dlq": false,
+   "freshVariables": false
+  }
+ },
+ "flow": [
+  {
+   "id": 1,
+   "module": "gateway:CustomWebHook",
+   "version": 1,
+   "parameters": {
+    "hook": 4000032,
+    "maxResults": 1
+   },
+   "mapper": {}
+  },
+  {
+   "id": 2,
+   "module": "util:SetVariables",
+   "version": 1,
+   "parameters": {},
+   "mapper": {
+    "scope": "roundtrip",
+    "variables": [
+     {
+      "name": "now",
+      "value": "{{timestamp * 1000}}"
+     },
+     {
+      "name": "act",
+      "value": "{{lower(trim(ifempty(1.action; \"\")))}}"
+     },
+     {
+      "name": "staffOk",
+      "value": "{{if(1.staff = \"STAFF_CODE\"; \"yes\"; \"no\")}}"
+     },
+     {
+      "name": "room",
+      "value": "{{replace(lower(trim(ifempty(1.room; \"\"))); \"maximillion\"; \"max\")}}"
+     },
+     {
+      "name": "roomOk",
+      "value": "{{if(contains(split(\"vale,kaeden,scarlett,bella,kai,atlas,max\"; \",\"); replace(lower(trim(ifempty(1.room; \"\"))); \"maximillion\"; \"max\")); \"yes\"; \"no\")}}"
+     },
+     {
+      "name": "start",
+      "value": "{{parseNumber(ifempty(1.start; \"0\"); \".\")}}"
+     },
+     {
+      "name": "at",
+      "value": "{{parseNumber(ifempty(1.at; \"0\"); \".\")}}"
+     },
+     {
+      "name": "code",
+      "value": "{{upper(trim(ifempty(1.code; \"\")))}}"
+     }
+    ]
+   }
+  },
+  {
+   "id": 3,
+   "module": "util:SetVariables",
+   "version": 1,
+   "parameters": {},
+   "mapper": {
+    "scope": "roundtrip",
+    "variables": [
+     {
+      "name": "createErr",
+      "value": "{{if(2.staffOk = \"no\"; \"Wrong staff code.\"; if(2.roomOk = \"no\"; \"Pick a room.\"; if(2.start <= 0; \"Set the booking start.\"; if(2.start + 10800000 < 2.now; \"That booking has already finished.\"; \"ok\"))))}}"
+     }
+    ]
+   }
+  },
+  {
+   "id": 4,
+   "module": "builtin:BasicRouter",
+   "version": 1,
+   "parameters": {},
+   "mapper": null,
+   "routes": [
+    {
+     "flow": [
+      {
+       "id": 10,
+       "module": "util:SetVariables",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "scope": "roundtrip",
+        "variables": [
+         {
+          "name": "newcode",
+          "value": "{{upper(substring(md5(random + \"|\" + 2.now + \"|\" + 2.room); 0; 8))}}"
+         }
+        ]
+       },
+       "filter": {
+        "name": "CREATE (staff, valid)",
+        "conditions": [
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "create"
+          },
+          {
+           "a": "{{3.createErr}}",
+           "o": "text:equal",
+           "b": "ok"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 11,
+       "module": "datastore:AddRecord",
+       "version": 1,
+       "parameters": {
+        "datastore": 237603
+       },
+       "mapper": {
+        "key": "{{10.newcode}}",
+        "overwrite": false,
+        "data": {
+         "room": "{{2.room}}",
+         "label": "{{substring(trim(ifempty(1.label; \"\")); 0; 60)}}",
+         "start": "{{2.start}}",
+         "end": "{{2.start + 10800000}}",
+         "until": "{{2.start + 10800000}}",
+         "status": "open",
+         "id": "g{{lower(10.newcode)}}",
+         "kind": "birthday",
+         "ack": true,
+         "onTv": "no",
+         "t": "{{2.now}}",
+         "created": "{{2.now}}"
+        }
+       }
+      },
+      {
+       "id": 12,
+       "module": "gateway:WebhookRespond",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "status": 200,
+        "body": "{\"ok\":true,\"code\":\"{{10.newcode}}\"}",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         },
+         {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 13,
+       "module": "gateway:WebhookRespond",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "status": 400,
+        "body": "{\"error\":\"{{3.createErr}}\"}",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         },
+         {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+         }
+        ]
+       },
+       "filter": {
+        "name": "CREATE (not valid)",
+        "conditions": [
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "create"
+          },
+          {
+           "a": "{{3.createErr}}",
+           "o": "text:notequal",
+           "b": "ok"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 20,
+       "module": "datastore:GetRecord",
+       "version": 1,
+       "parameters": {
+        "datastore": 237603
+       },
+       "mapper": {
+        "key": "{{ifempty(2.code; \"NONE\")}}",
+        "returnWrapped": true
+       },
+       "filter": {
+        "name": "GUEST: get or submit",
+        "conditions": [
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "get"
+          }
+         ],
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "submit"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 21,
+       "module": "util:SetVariables",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "scope": "roundtrip",
+        "variables": [
+         {
+          "name": "guestErr",
+          "value": "{{if(ifempty(20.data.room; \"\") = \"\"; \"This link isn't valid. Check you copied all of it, or message us.\"; if(20.data.status = \"cancelled\"; \"This link was cancelled. Please message us.\"; if(20.data.end < 2.now; \"This booking has finished, so the link has closed.\"; \"ok\")))}}"
+         },
+         {
+          "name": "locked",
+          "value": "{{if(20.data.status = \"approved\"; if(2.now >= ifempty(20.data.at; 0); \"yes\"; \"no\"); \"no\")}}"
+         }
+        ]
+       }
+      },
+      {
+       "id": 22,
+       "module": "util:SetVariables",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "scope": "roundtrip",
+        "variables": [
+         {
+          "name": "submitErr",
+          "value": "{{if(21.guestErr != \"ok\"; 21.guestErr; if(21.locked = \"yes\"; \"Your message is already on the TV. Message us if you need a change.\"; if(contains(split(\"birthday,anniversary,celebrate,note\"; \",\"); ifempty(1.kind; \"x\")); if(length(trim(ifempty(1.title; \"\"))) = 0; \"Add a headline.\"; if(length(ifempty(1.title; \"\")) > 80; \"Keep the headline under 80 characters.\"; if(length(ifempty(1.text; \"\")) > 600; \"Keep the message under 600 characters.\"; if(length(ifempty(1.to; \"\")) > 40; \"Keep the names short.\"; if(length(ifempty(1.from; \"\")) > 40; \"Keep the names short.\"; if(2.at < 20.data.start; \"Pick a time within the first hour of your booking.\"; if(2.at > 20.data.start + 3600000; \"Pick a time within the first hour of your booking.\"; \"ok\"))))))); \"Pick an occasion.\")))}}"
+         }
+        ]
+       }
+      },
+      {
+       "id": 23,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "parameters": {},
+       "mapper": null,
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 24,
+           "module": "json:TransformToJSON",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "object": "{{20.data}}"
+           },
+           "filter": {
+            "name": "GET ok",
+            "conditions": [
+             [
+              {
+               "a": "{{2.act}}",
+               "o": "text:equal",
+               "b": "get"
+              },
+              {
+               "a": "{{21.guestErr}}",
+               "o": "text:equal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 25,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 200,
+            "body": "{\"ok\":true,\"now\":{{2.now}},\"link\":{{24.json}}}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 26,
+           "module": "datastore:UpdateRecord",
+           "version": 1,
+           "parameters": {
+            "datastore": 237603
+           },
+           "mapper": {
+            "key": "{{2.code}}",
+            "upsert": false,
+            "overwriteArrays": false,
+            "data": {
+             "kind": "{{1.kind}}",
+             "to": "{{trim(replace(ifempty(1.to; \"\"); newline; \" \"))}}",
+             "from": "{{trim(replace(ifempty(1.from; \"\"); newline; \" \"))}}",
+             "title": "{{trim(replace(1.title; newline; \" \"))}}",
+             "text": "{{trim(replace(ifempty(1.text; \"\"); newline; \" \"))}}",
+             "at": "{{2.at}}",
+             "status": "approved",
+             "submitted": "{{2.now}}",
+             "approved": "{{2.now}}",
+             "t": "{{2.now}}",
+             "onTv": "no",
+             "id": "{{\"g\" + lower(2.code) + \"-\" + formatDate(now; \"MMDDHHmmss\")}}"
+            }
+           },
+           "filter": {
+            "name": "SUBMIT ok",
+            "conditions": [
+             [
+              {
+               "a": "{{2.act}}",
+               "o": "text:equal",
+               "b": "submit"
+              },
+              {
+               "a": "{{22.submitErr}}",
+               "o": "text:equal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 27,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 200,
+            "body": "{\"ok\":true,\"at\":{{2.at}}}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           }
+          },
+          {
+           "id": 29,
+           "module": "http:MakeRequest",
+           "version": 4,
+           "parameters": {
+            "tlsType": "",
+            "authenticationType": "noAuth"
+           },
+           "mapper": {
+            "url": "https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4",
+            "method": "post",
+            "timeout": 40,
+            "shareCookies": false,
+            "parseResponse": false,
+            "allowRedirects": true,
+            "stopOnHttpError": false,
+            "requestCompressedContent": true,
+            "contentType": "custom",
+            "contentTypeValue": "application/x-www-form-urlencoded",
+            "rawBodyContent": "action=push&staff=STAFF_CODE&code={{2.code}}"
+           },
+           "filter": {
+            "name": "DUE SOON: send to the TV now",
+            "conditions": [
+             [
+              {
+               "a": "{{2.at - 2.now}}",
+               "o": "number:less",
+               "b": "960000"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 28,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 409,
+            "body": "{\"error\":\"{{if(2.act = \"get\"; 21.guestErr; 22.submitErr)}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           },
+           "filter": {
+            "name": "GUEST error",
+            "conditions": [
+             [
+              {
+               "a": "{{2.act}}",
+               "o": "text:equal",
+               "b": "get"
+              },
+              {
+               "a": "{{21.guestErr}}",
+               "o": "text:notequal",
+               "b": "ok"
+              }
+             ],
+             [
+              {
+               "a": "{{2.act}}",
+               "o": "text:equal",
+               "b": "submit"
+              },
+              {
+               "a": "{{22.submitErr}}",
+               "o": "text:notequal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 30,
+       "module": "datastore:SearchRecord",
+       "version": 1,
+       "parameters": {
+        "datastore": 237603
+       },
+       "filter": {
+        "name": "STAFF: list",
+        "conditions": [
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "list"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "yes"
+          }
+         ]
+        ]
+       },
+       "mapper": {
+        "filter": [
+         [
+          {
+           "a": "end",
+           "o": "number:greater",
+           "b": "{{2.now - 172800000}}"
+          }
+         ]
+        ],
+        "sort": [
+         {
+          "key": "start",
+          "order": 1
+         }
+        ]
+       }
+      },
+      {
+       "id": 31,
+       "module": "builtin:BasicAggregator",
+       "version": 1,
+       "parameters": {
+        "feeder": 30
+       },
+       "mapper": {
+        "key": "{{30.key}}",
+        "data": "{{30.data}}"
+       }
+      },
+      {
+       "id": 32,
+       "module": "json:TransformToJSON",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "object": "{{31.array}}"
+       }
+      },
+      {
+       "id": 33,
+       "module": "gateway:WebhookRespond",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "status": 200,
+        "body": "{\"ok\":true,\"now\":{{2.now}},\"links\":{{32.json}}}",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         },
+         {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 40,
+       "module": "datastore:GetRecord",
+       "version": 1,
+       "parameters": {
+        "datastore": 237603
+       },
+       "mapper": {
+        "key": "{{ifempty(2.code; \"NONE\")}}",
+        "returnWrapped": false
+       },
+       "filter": {
+        "name": "STAFF: cancel, move, now, push",
+        "conditions": [
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "cancel"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "yes"
+          }
+         ],
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "move"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "yes"
+          }
+         ],
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "now"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "yes"
+          }
+         ],
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "push"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "yes"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 41,
+       "module": "util:SetVariables",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "scope": "roundtrip",
+        "variables": [
+         {
+          "name": "staffErr",
+          "value": "{{if(ifempty(40.room; \"\") = \"\"; \"No such link.\"; if(2.act = \"cancel\"; if(40.status = \"cancelled\"; \"Already cancelled.\"; \"ok\"); if(40.status = \"cancelled\"; \"That link was cancelled.\"; if(2.act = \"move\"; if(2.start <= 0; \"Pick the new start time.\"; if(2.start + 10800000 < 2.now; \"That time has already passed.\"; if(2.roomOk = \"no\"; \"Pick a room.\"; \"ok\"))); if(40.status != \"approved\"; \"The guest hasn't sent a message yet.\"; if(40.end < 2.now; \"That booking has finished.\"; \"ok\"))))))}}"
+         },
+         {
+          "name": "newAt",
+          "value": "{{if(ifempty(40.at; 0) > 0; 40.at + 2.start - 40.start; 0)}}"
+         }
+        ]
+       }
+      },
+      {
+       "id": 42,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "parameters": {},
+       "mapper": null,
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 50,
+           "module": "datastore:UpdateRecord",
+           "version": 1,
+           "parameters": {
+            "datastore": 237603
+           },
+           "mapper": {
+            "key": "{{2.code}}",
+            "upsert": false,
+            "overwriteArrays": false,
+            "data": {
+             "status": "cancelled",
+             "t": "{{2.now}}"
+            }
+           },
+           "filter": {
+            "name": "CANCEL ok",
+            "conditions": [
+             [
+              {
+               "a": "{{2.act}}",
+               "o": "text:equal",
+               "b": "cancel"
+              },
+              {
+               "a": "{{41.staffErr}}",
+               "o": "text:equal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 51,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 200,
+            "body": "{\"ok\":true}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           }
+          },
+          {
+           "id": 52,
+           "module": "http:MakeRequest",
+           "version": 4,
+           "parameters": {
+            "tlsType": "",
+            "authenticationType": "noAuth"
+           },
+           "mapper": {
+            "url": "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/TV_MESSAGES_KEY/{{40.room}}/msg.json",
+            "method": "get",
+            "timeout": 40,
+            "shareCookies": false,
+            "parseResponse": true,
+            "allowRedirects": true,
+            "stopOnHttpError": false,
+            "requestCompressedContent": true
+           },
+           "filter": {
+            "name": "WAS SENT TO THE TV",
+            "conditions": [
+             [
+              {
+               "a": "{{40.onTv}}",
+               "o": "text:equal",
+               "b": "yes"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 53,
+           "module": "http:MakeRequest",
+           "version": 4,
+           "parameters": {
+            "tlsType": "",
+            "authenticationType": "noAuth"
+           },
+           "mapper": {
+            "url": "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/TV_MESSAGES_KEY/{{40.room}}/msg.json",
+            "method": "delete",
+            "timeout": 40,
+            "shareCookies": false,
+            "parseResponse": false,
+            "allowRedirects": true,
+            "stopOnHttpError": false,
+            "requestCompressedContent": true
+           },
+           "filter": {
+            "name": "STILL OURS ON THE TV",
+            "conditions": [
+             [
+              {
+               "a": "{{52.data.id}}",
+               "o": "text:equal",
+               "b": "{{40.id}}"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 55,
+           "module": "datastore:UpdateRecord",
+           "version": 1,
+           "parameters": {
+            "datastore": 237603
+           },
+           "mapper": {
+            "key": "{{2.code}}",
+            "upsert": false,
+            "overwriteArrays": false,
+            "data": {
+             "room": "{{2.room}}",
+             "start": "{{2.start}}",
+             "end": "{{2.start + 10800000}}",
+             "until": "{{2.start + 10800000}}",
+             "at": "{{41.newAt}}",
+             "id": "{{\"g\" + lower(2.code) + \"-\" + formatDate(now; \"MMDDHHmmss\")}}",
+             "onTv": "no",
+             "t": "{{2.now}}"
+            }
+           },
+           "filter": {
+            "name": "MOVE ok",
+            "conditions": [
+             [
+              {
+               "a": "{{2.act}}",
+               "o": "text:equal",
+               "b": "move"
+              },
+              {
+               "a": "{{41.staffErr}}",
+               "o": "text:equal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 56,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 200,
+            "body": "{\"ok\":true}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           }
+          },
+          {
+           "id": 57,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "parameters": {},
+           "mapper": null,
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 58,
+               "module": "http:MakeRequest",
+               "version": 4,
+               "parameters": {
+                "tlsType": "",
+                "authenticationType": "noAuth"
+               },
+               "mapper": {
+                "url": "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/TV_MESSAGES_KEY/{{40.room}}/msg.json",
+                "method": "get",
+                "timeout": 40,
+                "shareCookies": false,
+                "parseResponse": true,
+                "allowRedirects": true,
+                "stopOnHttpError": false,
+                "requestCompressedContent": true
+               },
+               "filter": {
+                "name": "WAS SENT TO THE TV",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{40.onTv}}",
+                   "o": "text:equal",
+                   "b": "yes"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 59,
+               "module": "http:MakeRequest",
+               "version": 4,
+               "parameters": {
+                "tlsType": "",
+                "authenticationType": "noAuth"
+               },
+               "mapper": {
+                "url": "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/TV_MESSAGES_KEY/{{40.room}}/msg.json",
+                "method": "delete",
+                "timeout": 40,
+                "shareCookies": false,
+                "parseResponse": false,
+                "allowRedirects": true,
+                "stopOnHttpError": false,
+                "requestCompressedContent": true
+               },
+               "filter": {
+                "name": "STILL OURS ON THE TV",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{58.data.id}}",
+                   "o": "text:equal",
+                   "b": "{{40.id}}"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 60,
+               "module": "http:MakeRequest",
+               "version": 4,
+               "parameters": {
+                "tlsType": "",
+                "authenticationType": "noAuth"
+               },
+               "mapper": {
+                "url": "https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4",
+                "method": "post",
+                "timeout": 40,
+                "shareCookies": false,
+                "parseResponse": false,
+                "allowRedirects": true,
+                "stopOnHttpError": false,
+                "requestCompressedContent": true,
+                "contentType": "custom",
+                "contentTypeValue": "application/x-www-form-urlencoded",
+                "rawBodyContent": "action=push&staff=STAFF_CODE&code={{2.code}}"
+               },
+               "filter": {
+                "name": "APPROVED AND DUE SOON",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{40.status}}",
+                   "o": "text:equal",
+                   "b": "approved"
+                  },
+                  {
+                   "a": "{{41.newAt - 2.now}}",
+                   "o": "number:less",
+                   "b": "960000"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 62,
+           "module": "datastore:UpdateRecord",
+           "version": 1,
+           "parameters": {
+            "datastore": 237603
+           },
+           "mapper": {
+            "key": "{{2.code}}",
+            "upsert": false,
+            "overwriteArrays": false,
+            "data": {
+             "at": "{{2.now}}",
+             "id": "{{\"g\" + lower(2.code) + \"-\" + formatDate(now; \"MMDDHHmmss\")}}",
+             "onTv": "no",
+             "t": "{{2.now}}"
+            }
+           },
+           "filter": {
+            "name": "SEND NOW ok",
+            "conditions": [
+             [
+              {
+               "a": "{{2.act}}",
+               "o": "text:equal",
+               "b": "now"
+              },
+              {
+               "a": "{{41.staffErr}}",
+               "o": "text:equal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 63,
+           "module": "http:MakeRequest",
+           "version": 4,
+           "parameters": {
+            "tlsType": "",
+            "authenticationType": "noAuth"
+           },
+           "mapper": {
+            "url": "https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4",
+            "method": "post",
+            "timeout": 40,
+            "shareCookies": false,
+            "parseResponse": false,
+            "allowRedirects": true,
+            "stopOnHttpError": false,
+            "requestCompressedContent": true,
+            "contentType": "custom",
+            "contentTypeValue": "application/x-www-form-urlencoded",
+            "rawBodyContent": "action=push&staff=STAFF_CODE&code={{2.code}}"
+           }
+          },
+          {
+           "id": 64,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 200,
+            "body": "{\"ok\":true}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 66,
+           "module": "datastore:GetRecord",
+           "version": 1,
+           "parameters": {
+            "datastore": 237603
+           },
+           "mapper": {
+            "key": "{{2.code}}",
+            "returnWrapped": true
+           },
+           "filter": {
+            "name": "PUSH ok",
+            "conditions": [
+             [
+              {
+               "a": "{{2.act}}",
+               "o": "text:equal",
+               "b": "push"
+              },
+              {
+               "a": "{{41.staffErr}}",
+               "o": "text:equal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 67,
+           "module": "json:TransformToJSON",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "object": "{{66.data}}"
+           }
+          },
+          {
+           "id": 68,
+           "module": "http:MakeRequest",
+           "version": 4,
+           "parameters": {
+            "tlsType": "",
+            "authenticationType": "noAuth"
+           },
+           "mapper": {
+            "url": "https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/TV_MESSAGES_KEY/{{40.room}}/msg.json",
+            "method": "put",
+            "timeout": 40,
+            "shareCookies": false,
+            "parseResponse": false,
+            "allowRedirects": true,
+            "stopOnHttpError": true,
+            "requestCompressedContent": true,
+            "contentType": "custom",
+            "contentTypeValue": "application/json",
+            "rawBodyContent": "{{67.json}}"
+           },
+           "onerror": [
+            {
+             "id": 70,
+             "module": "gateway:WebhookRespond",
+             "version": 1,
+             "parameters": {},
+             "mapper": {
+              "status": 502,
+              "body": "{\"error\":\"The TV database didn't accept it.\"}",
+              "headers": [
+               {
+                "key": "Content-Type",
+                "value": "application/json"
+               },
+               {
+                "key": "Access-Control-Allow-Origin",
+                "value": "*"
+               }
+              ]
+             }
+            },
+            {
+             "id": 71,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "parameters": {},
+             "mapper": {}
+            }
+           ]
+          },
+          {
+           "id": 69,
+           "module": "datastore:UpdateRecord",
+           "version": 1,
+           "parameters": {
+            "datastore": 237603
+           },
+           "mapper": {
+            "key": "{{2.code}}",
+            "upsert": false,
+            "overwriteArrays": false,
+            "data": {
+             "pushed": "{{2.now}}",
+             "onTv": "yes"
+            }
+           }
+          },
+          {
+           "id": 72,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 200,
+            "body": "{\"ok\":true}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 74,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 409,
+            "body": "{\"error\":\"{{41.staffErr}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           },
+           "filter": {
+            "name": "STAFF error",
+            "conditions": [
+             [
+              {
+               "a": "{{41.staffErr}}",
+               "o": "text:notequal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 80,
+       "module": "gateway:WebhookRespond",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "status": 403,
+        "body": "{\"error\":\"Wrong staff code.\"}",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         },
+         {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+         }
+        ]
+       },
+       "filter": {
+        "name": "STAFF: wrong code",
+        "conditions": [
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "list"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "no"
+          }
+         ],
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "cancel"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "no"
+          }
+         ],
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "move"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "no"
+          }
+         ],
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "now"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "no"
+          }
+         ],
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "push"
+          },
+          {
+           "a": "{{2.staffOk}}",
+           "o": "text:equal",
+           "b": "no"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

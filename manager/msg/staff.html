@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guest Message Links</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="robots" content="noindex">
+<link rel="apple-touch-icon" href="../icon-192.png">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Guest link">
+<meta name="theme-color" content="#06050A">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: the control centre's dark game-menu look. Left: make a link for a paid booking. Right (stacks below on phones): every link, grouped by where it's at. */
+:root {
+  --bg: #06050A; --panel: #110E1A; --panel2: #191527; --line: rgba(244,241,251,.12); --line2: rgba(244,241,251,.22);
+  --ink: #F4F1FB; --mute: #9C94B3; --accent: #F2C21B; --ok: #4DB848; --warn: #F2A21B; --bad: #E8436A; --focus: #8EC5FF;
+  --f: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); }
+body { margin: 0; font: 15px/1.45 var(--f); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--focus); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: rgba(6,5,10,.94); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding-block: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; height: 30px; }
+.brand img { height: 100%; width: auto; display: block; }
+.brand .txt { font-weight: 700; letter-spacing: .22em; font-size: 18px; padding: 1px 10px; border-left: 2px solid var(--ink); border-right: 2px solid var(--ink); }
+.brand small { letter-spacing: .14em; font-weight: 500; color: var(--mute); font-size: 12px; text-transform: uppercase; }
+.test { margin-left: auto; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--line2); padding: 5px 9px; text-decoration: none; }
+html:not(.v-make) .test { display: none; }
+
+main.wrap { padding-block: 22px 72px; display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 860px) { main.wrap { grid-template-columns: minmax(0, 1fr); } }
+html.v-make main.wrap, html.v-list main.wrap { grid-template-columns: minmax(0, 1fr); }
+html.v-make main.wrap { max-width: 520px; }
+html.v-make #listCol, html.v-list #makeCol, html.embed header.top { display: none; }
+html.embed main.wrap { padding: 0 0 24px; max-width: none; }
+html.embed body::before { display: none; }
+h1 { font-size: 24px; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 4px; }
+h2 { font-size: 13px; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); margin: 0; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+h2 .n { color: var(--ink); background: var(--panel2); border: 1px solid var(--line2); padding: 0 7px; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.sub { color: var(--mute); margin: 0; }
+.col { display: grid; gap: 16px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); padding: 16px; display: grid; gap: 14px; }
+
+label.f { display: grid; gap: 6px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); font-weight: 600; min-width: 0; }
+label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 16px; border-radius: 0; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rooms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.rooms button { background: var(--bg); border: 1px solid var(--line2); padding: 9px 4px; font-size: 13px; letter-spacing: .04em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: inset 0 -3px 0 var(--rc); }
+.rooms button[aria-pressed="true"] { background: var(--rc); color: #0b0914; font-weight: 700; border-color: var(--rc); }
+.lbl { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); font-weight: 600; }
+.sum { font-variant-numeric: tabular-nums; color: var(--ink); font-size: 14px; }
+
+.btn { border: 1px solid var(--line2); background: var(--panel2); padding: 9px 14px; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; font-weight: 600; text-decoration: none; color: var(--ink); display: inline-block; }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--accent); color: #0b0914; border-color: var(--accent); font-size: 14px; padding: 12px 16px; }
+.btn.ok { background: var(--ok); border-color: var(--ok); color: #0b0914; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: wait; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.msg { font-size: 14px; min-height: 1.4em; }
+.msg.bad { color: var(--bad); }
+
+.made { border: 1px solid var(--accent); background: var(--panel2); padding: 14px; display: grid; gap: 10px; }
+.made .linkline { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; background: var(--bg); border: 1px solid var(--line2); padding: 8px 10px; overflow-wrap: anywhere; user-select: all; }
+.made textarea { width: 100%; min-height: 104px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font: 14px/1.45 var(--f); resize: vertical; }
+
+.group { display: grid; gap: 10px; }
+.list { display: grid; gap: 10px; }
+.item { background: var(--panel); border: 1px solid var(--line); box-shadow: inset 3px 0 0 var(--rc); padding: 12px 14px 12px 16px; display: grid; gap: 10px; min-width: 0; }
+.item .top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line2); padding: 1px 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; white-space: nowrap; }
+.chip.room { color: var(--rc); border-color: var(--rc); }
+.chip.st-scheduled { color: var(--accent); border-color: var(--accent); }
+.chip.st-ontv { color: var(--ok); border-color: var(--ok); }
+.chip.st-cancelled, .chip.st-ended { color: var(--mute); }
+.when { font-variant-numeric: tabular-nums; font-weight: 600; }
+.code { margin-left: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--mute); }
+.label { color: var(--mute); font-size: 13px; }
+.mini { background: #0b0914; border: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 4px; }
+.mini .tg { font-size: 10px; letter-spacing: .18em; color: var(--rc); text-transform: uppercase; }
+.mini .t { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; }
+.mini p { margin: 0; color: #e4def0; overflow-wrap: anywhere; font-size: 14px; }
+.mini .fr { color: var(--rc); font-weight: 600; font-size: 13px; }
+.mini .at { color: var(--mute); font-size: 12px; font-variant-numeric: tabular-nums; }
+.confirm { border: 1px solid var(--line2); padding: 10px; display: grid; gap: 10px; font-size: 14px; }
+.confirm .rooms { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.confirm .two input { width: 100%; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font-size: 15px; border-radius: 0; }
+.cal { background: var(--panel); border: 1px solid var(--line); padding: 12px; display: grid; gap: 8px; }
+.cal .ch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal .ch b { letter-spacing: .12em; text-transform: uppercase; font-size: 14px; }
+.cal .ch button { background: var(--bg); border: 1px solid var(--line2); width: 34px; height: 30px; font-size: 16px; line-height: 1; }
+.cal .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal .dow { font-size: 10px; letter-spacing: .14em; color: var(--mute); text-align: center; text-transform: uppercase; padding-bottom: 2px; }
+.cal .d { position: relative; min-height: 46px; background: var(--bg); border: 1px solid var(--line); padding: 4px 4px 6px; display: grid; align-content: space-between; gap: 4px; text-align: left; font-variant-numeric: tabular-nums; font-size: 13px; }
+.cal .d.out { opacity: .3; }
+.cal .d.past { color: var(--mute); }
+.cal .d.today { border-color: var(--ink); }
+.cal .d.has { background: #1d1730; border-color: var(--accent); }
+.cal .d.has .num { color: var(--accent); font-weight: 700; }
+.cal .d[aria-pressed="true"] { outline: 2px solid var(--focus); outline-offset: -2px; }
+.cal .dots { display: flex; flex-wrap: wrap; gap: 3px; }
+.cal .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rc); }
+.cal .dot.wait { background: none; box-shadow: inset 0 0 0 1.5px var(--rc); }
+.cal .key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--mute); }
+.cal .key span { display: inline-flex; align-items: center; gap: 6px; }
+.cal .key .dot { --rc: var(--ink); }
+@media (max-width: 420px) { .cal .d { min-height: 40px; font-size: 12px; } .cal .dot { width: 6px; height: 6px; } }
+.filters { display: grid; gap: 8px; }
+.filters .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.filters .chips::-webkit-scrollbar { display: none; }
+.filters button { flex: none; background: var(--bg); border: 1px solid var(--line2); padding: 6px 12px; font-size: 13px; letter-spacing: .04em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.filters button .n { color: var(--mute); margin-left: 6px; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: #0b0914; border-color: var(--ink); font-weight: 700; }
+.filters button[aria-pressed="true"] .n { color: #0b0914; }
+.filters .rf button { box-shadow: inset 0 -3px 0 var(--rc, transparent); }
+.day { display: grid; gap: 12px; scroll-margin-top: 70px; }
+.day > h2 { font-size: 15px; color: var(--ink); border-bottom: 1px solid var(--line2); padding-bottom: 6px; }
+.day > h2 .dim { color: var(--mute); font-weight: 500; }
+.rgroup { display: grid; gap: 8px; }
+.rgroup > .rh { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: var(--rc); display: flex; gap: 8px; align-items: center; }
+.rgroup > .rh::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+details.past { border-top: 1px solid var(--line); padding-top: 12px; }
+details.past summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; }
+details.past .list { margin-top: 10px; }
+.empty { color: var(--mute); border: 1px dashed var(--line2); padding: 14px; font-size: 14px; }
+</style>
+
+<header class="top"><div class="wrap">
+  <div class="brand" id="brand"><span class="txt">ROUND2</span></div>
+  <span class="brand"><small>Guest messages</small></span>
+  <a class="test" id="toList" href="staff.html">All guest messages</a>
+</div></header>
+
+<main class="wrap">
+  <section class="col" id="makeCol">
+    <div>
+      <h1>Make a link</h1>
+      <p class="sub">Only after the booking is paid. The guest can only write for this room, and pick a time in the first hour.</p>
+    </div>
+
+    <div class="card" id="keyBox">
+      <label class="f">Staff code<input type="password" id="staffKey" autocomplete="off" placeholder="From the Project notes"></label>
+      <div class="row"><button class="btn" id="keySave" type="button">Save on this device</button><span class="msg" id="keyMsg"></span></div>
+    </div>
+
+    <form class="card" id="mk" novalidate>
+      <div style="display:grid;gap:6px">
+        <span class="lbl">Room</span>
+        <div class="rooms" id="rooms"></div>
+      </div>
+      <div class="two">
+        <label class="f">Date<input type="date" id="date"></label>
+        <label class="f">Starts<input type="time" id="time" step="900"></label>
+      </div>
+      <label class="f">Booking name (staff only)<input type="text" id="label" maxlength="60" autocomplete="off" placeholder="e.g. Jay · WhatsApp"></label>
+      <div class="sum" id="sum"></div>
+      <button class="btn primary" id="mkGo" type="submit">Make guest link</button>
+      <div class="msg" id="mkMsg"></div>
+    </form>
+
+    <div class="made" id="made" hidden>
+      <span class="lbl">Send this to the guest</span>
+      <textarea id="invite" aria-label="Message to send"></textarea>
+      <div class="row">
+        <button class="btn primary" id="copyInvite" type="button">Copy message</button>
+        <button class="btn" id="copyLink" type="button">Copy link only</button>
+        <a class="btn" id="openGuest" href="#" target="_blank" rel="noopener">Open guest page</a>
+      </div>
+      <div class="linkline" id="linkText"></div>
+    </div>
+  </section>
+
+  <section class="col" id="listCol" aria-live="polite">
+    <div class="row" style="justify-content:space-between">
+      <h1 style="margin:0">Links</h1>
+      <button class="btn" id="refresh" type="button">Refresh</button>
+    </div>
+    <div id="groups"><div class="empty">Add the staff code to see links.</div></div>
+  </section>
+</main>
+
+<script>
+/* which part to show, set before the page draws: ?view=make (the iPhone shortcut), ?view=list, &embed=1 inside the control centre */
+(function () {
+  var q = new URLSearchParams(location.search), v = q.get('view'), el = document.documentElement;
+  if (v === 'make' || v === 'list') el.classList.add('v-' + v);
+  if (q.get('embed') === '1') el.classList.add('embed');
+  if (v === 'make') document.title = 'New guest link';
+}());
+(function () {
+  'use strict';
+  var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4';
+  var LOGO = 'https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp';
+  /* Where guests open their link once this branch is merged and GitHub Pages publishes manager/msg/. */
+  var PUBLIC = 'https://donttelldadyet-prog.github.io/round2-tv-launcher/msg/';
+  var TZ = 'Asia/Singapore';
+  var ROOMS = { vale: ['Vale', '#E8436A'], kaeden: ['Kaeden', '#4DB848'], scarlett: ['Scarlett', '#F2C21B'], bella: ['Bella', '#7A5BE0'],
+    kai: ['Kai', '#24B49A'], atlas: ['Atlas', '#E9E7EF'], max: ['Maximillion', '#E0402F'] };
+  var TAGS = { birthday: 'Birthday', anniversary: 'Anniversary', celebrate: 'Celebration', note: 'A message for you' };
+  var $ = function (id) { return document.getElementById(id); };
+  var room = 'vale', lastList = [], open = null, fDay = 'all', fRoom = 'all', calMonth = null;   /* open: { a: 'move'|'now'|'cancel', code, room } */
+
+  var lg = new Image(); lg.alt = 'Round2'; lg.onload = function () { $('brand').innerHTML = ''; $('brand').appendChild(lg); }; lg.src = LOGO;
+
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+  var memKey = '';
+  function key() { return memKey || ls('r2.guestStaff') || ''; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function fmt(ms, o) { return new Intl.DateTimeFormat('en-SG', Object.assign({ timeZone: TZ }, o)).format(new Date(ms)); }
+  function clock(ms) { return fmt(ms, { hour: 'numeric', minute: '2-digit' }).replace(' ', ' ').toLowerCase(); }
+  function day(ms) { return fmt(ms, { weekday: 'short', day: 'numeric', month: 'short' }); }
+  function sgParts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
+  function sgMs(d, t) { var s = Date.parse(d + 'T' + t + ':00+08:00'); return isNaN(s) ? null : s; }
+  function guestUrl(code) { return /github\.io$/.test(location.hostname) ? PUBLIC + '?c=' + code : 'index.html#' + code; }
+  function shareUrl(code) { return PUBLIC + '?c=' + code; }
+
+  function call(body) {
+    return fetch(HOOK, { method: 'POST', body: new URLSearchParams(body) }).then(function (r) {
+      return r.text().then(function (t) {
+        if (t.trim() === 'Accepted') return { ok: true, links: [] }; /* Make answers this when a list comes back empty */
+        var j = null; try { j = JSON.parse(t); } catch (e) {}
+        if (!j) throw new Error('Make didn’t answer properly. Try again.');
+        if (j.error) throw new Error(j.error); return j;
+      });
+    });
+  }
+
+  /* ---------- make a link ---------- */
+  function drawRooms() { $('rooms').innerHTML = Object.keys(ROOMS).map(function (k) { return '<button type="button" data-r="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (k === room) + '">' + ROOMS[k][0] + '</button>'; }).join(''); }
+  function startMs() { return $('date').value && $('time').value ? sgMs($('date').value, $('time').value) : null; }
+  function sum() { var s = startMs(); $('sum').textContent = s ? ROOMS[room][0] + ' · ' + day(s) + ' · starts ' + clock(s) + ' · message can show ' + clock(s) + '–' + clock(s + 3600000) : 'Pick the date and start time.'; }
+  $('rooms').addEventListener('click', function (e) { var b = e.target.closest('button[data-r]'); if (b) { room = b.getAttribute('data-r'); drawRooms(); sum(); } });
+  ['date', 'time'].forEach(function (id) { $(id).addEventListener('input', sum); });
+
+  $('mk').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var s = startMs(), m = $('mkMsg'); m.className = 'msg';
+    if (!key()) { m.className = 'msg bad'; m.textContent = 'Add the staff code first.'; return; }
+    if (!s) { m.className = 'msg bad'; m.textContent = 'Pick the date and start time.'; return; }
+    $('mkGo').disabled = true; m.textContent = 'Making the link…';
+    call({ action: 'create', staff: key(), room: room, start: s, label: $('label').value.trim() }).then(function (j) {
+      m.textContent = 'Link made for ' + ROOMS[room][0] + ', ' + day(s) + ' ' + clock(s) + '.';
+      showMade(j.code, s); list();
+    }).catch(function (er) { m.className = 'msg bad'; m.textContent = er.message; }).then(function () { $('mkGo').disabled = false; });
+  });
+  function showMade(code, s) {
+    var url = shareUrl(code);
+    $('invite').value = 'Celebrating something during your Round2 session? 🎉\n' +
+      'You can leave a surprise message that pops up on your room’s TV (' + ROOMS[room][0] + ', ' + day(s) + ', from ' + clock(s) + '). Write it here:\n' + url;
+    $('linkText').textContent = url; $('openGuest').href = guestUrl(code); $('made').hidden = false;
+  }
+  function copy(text, btn, fallbackEl) {
+    var done = function () { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1400); };
+    try { navigator.clipboard.writeText(text).then(done, function () { if (fallbackEl) fallbackEl.select(); }); } catch (e) { if (fallbackEl) fallbackEl.select(); }
+  }
+  $('copyInvite').addEventListener('click', function () { copy($('invite').value, this, $('invite')); });
+  $('copyLink').addEventListener('click', function () { copy($('linkText').textContent, this); });
+
+  /* ---------- the list ---------- */
+  function state(x) {
+    var d = x.data, now = Date.now();
+    if (d.status === 'cancelled') return 'cancelled';
+    if (d.end < now) return 'ended';
+    if (d.status !== 'approved') return 'open';
+    return d.onTv === 'yes' || (d.at && d.at <= now) ? 'ontv' : 'scheduled';
+  }
+  var CHIP = { open: 'Waiting for guest', scheduled: 'Scheduled', ontv: 'On the TV', cancelled: 'Cancelled', ended: 'Ended' };
+
+  function itemHtml(x) {
+    var d = x.data, st = state(x), R = ROOMS[d.room] || [d.room, '#F2C21B'], c = esc(x.key);
+    var h = '<article class="item" style="--rc:' + R[1] + '"><div class="top"><span class="chip room">' + esc(R[0]) + '</span><span class="chip st-' + st + '">' + CHIP[st] + '</span>' +
+      '<span class="when">' + esc(day(d.start)) + ' · starts ' + esc(clock(d.start)) + '</span><span class="code">' + c + '</span></div>';
+    if (d.label) h += '<div class="label">' + esc(d.label) + '</div>';
+    if (d.title) h += '<div class="mini"><div class="tg">' + esc((TAGS[d.kind] || '') + (d.to ? ' · for ' + d.to : '')) + '</div><div class="t">' + esc(d.title) + '</div><p>' + esc(d.text) + '</p>' +
+      (d.from ? '<div class="fr">— ' + esc(d.from) + '</div>' : '') + '<div class="at">Pops up ' + esc(day(d.at)) + ' at ' + esc(clock(d.at)) + '</div></div>';
+    var live = st === 'open' || st === 'scheduled' || st === 'ontv', btns = '';
+    if (st === 'scheduled' || st === 'ontv') btns += '<button class="btn" data-a="now" data-c="' + c + '">' + (st === 'ontv' ? 'Send to TV again now' : 'Send to TV now') + '</button>';
+    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change time or room</button><button class="btn" data-a="copy" data-c="' + c + '">Copy link</button><button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
+    if (btns) h += '<div class="row">' + btns + '</div>';
+    if (open && open.code === x.key) {
+      var a = open.a;
+      if (a === 'move') {
+        var p = sgParts(d.start);
+        var nr = open.room || d.room;
+        h += '<div class="confirm">Late, rescheduled or changing rooms? Set the new room and start. ' + (d.title ? 'The message moves with it, keeping the same gap after the start.' : '') +
+          '<div class="rooms" id="mvRooms">' + Object.keys(ROOMS).map(function (k) { return '<button type="button" data-a="mvroom" data-r="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (k === nr) + '">' + ROOMS[k][0] + '</button>'; }).join('') + '</div>' +
+          '<div class="two"><input type="date" id="mvDate" value="' + p.year + '-' + p.month + '-' + p.day + '" aria-label="New date"><input type="time" id="mvTime" step="900" value="' + p.hour + ':' + p.minute + '" aria-label="New start time"></div>' +
+          '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Save changes</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+      } else {
+        h += '<div class="confirm">' + (a === 'now'
+          ? 'Show this on ' + esc(R[0]) + '’s TV right now? It pops up within a few seconds and replaces any other message waiting on that TV.'
+          : 'Cancel this link? The guest can’t use it any more' + (d.title ? ', and the message won’t show (it’s taken off the TV if it’s there).' : '.')) +
+          '<div class="row"><button class="btn ' + (a === 'cancel' ? 'danger' : 'ok') + '" data-a="do" data-c="' + c + '">' + (a === 'now' ? 'Yes, show it now' : 'Yes, cancel link') + '</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+      }
+    }
+    return h + '</article>';
+  }
+  function dayKey(ms) { var p = sgParts(ms); return p.year + '-' + p.month + '-' + p.day; }
+  function dayName(k) {
+    var today = dayKey(Date.now()), tmr = dayKey(Date.now() + 86400000), ms = Date.parse(k + 'T12:00:00+08:00');
+    var d = fmt(ms, { weekday: 'short', day: 'numeric', month: 'short' });
+    return k === today ? 'Today · ' + d : k === tmr ? 'Tomorrow · ' + d : d;
+  }
+  /* Month calendar: days with a message queued for a TV are highlighted, one dot per link in that room's colour
+     (filled = message waiting to pop up or on the TV, ring = link sent, guest hasn't written yet). Tap a day to filter. */
+  function calendarHtml(live) {
+    var now = Date.now(), tp = sgParts(now), today = dayKey(now);
+    if (!calMonth) calMonth = tp.year + '-' + tp.month;
+    var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7);
+    var first = new Date(Date.UTC(y, m - 1, 1)), lead = (first.getUTCDay() + 6) % 7, dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    var byDay = {};
+    live.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || []).push(x); });
+    var h = '<div class="cal"><div class="ch"><button type="button" data-cal="-1" aria-label="Previous month">‹</button><b>' +
+      esc(new Intl.DateTimeFormat('en-SG', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(first)) +
+      '</b><button type="button" data-cal="1" aria-label="Next month">›</button></div><div class="grid">' +
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dow">' + d + '</div>'; }).join('');
+    var cells = Math.ceil((lead + dim) / 7) * 7;
+    for (var i = 0; i < cells; i++) {
+      var dt = new Date(Date.UTC(y, m - 1, 1 + i - lead)), k = dt.toISOString().slice(0, 10), xs = byDay[k] || [];
+      var queued = xs.filter(function (x) { var st = state(x); return st === 'scheduled' || st === 'ontv'; }).length;
+      var cls = 'd' + (dt.getUTCMonth() !== m - 1 ? ' out' : '') + (k < today ? ' past' : '') + (k === today ? ' today' : '') + (queued ? ' has' : '');
+      xs.sort(function (a, b) { return a.data.start - b.data.start; });
+      h += '<button type="button" class="' + cls + '" data-calday="' + k + '" aria-pressed="' + (fDay === k) + '" aria-label="' + esc(k + (xs.length ? ', ' + xs.length + ' link(s), ' + queued + ' message(s) queued' : '')) + '">' +
+        '<span class="num">' + dt.getUTCDate() + '</span><span class="dots">' + xs.map(function (x) {
+          var st = state(x), R = ROOMS[x.data.room]; return '<i class="dot' + (st === 'open' ? ' wait' : '') + '" style="--rc:' + (R ? R[1] : '#F2C21B') + '"></i>';
+        }).join('') + '</span></button>';
+    }
+    return h + '</div><div class="key"><span><i class="dot"></i>Message queued</span><span><i class="dot wait"></i>Waiting for the guest</span><span>Tap a day to see its links</span></div></div>';
+  }
+  var ORDER = { ontv: 0, scheduled: 1, open: 2 };
+  function render() {
+    var live = [], past = [];
+    lastList.forEach(function (x) { var s = state(x); (s === 'cancelled' || s === 'ended' ? past : live).push(x); });
+    /* filters: one chip per date that has links, and one per room */
+    var days = {}, rooms = {};
+    live.forEach(function (x) { var k = dayKey(x.data.start); days[k] = (days[k] || 0) + 1; rooms[x.data.room] = (rooms[x.data.room] || 0) + 1; });
+    var dayKeys = Object.keys(days).sort();
+    var dayHasPast = lastList.some(function (x) { return dayKey(x.data.start) === fDay; });
+    if (fDay !== 'all' && !days[fDay] && !/^\d{4}-\d{2}-\d{2}$/.test(fDay) && !dayHasPast) fDay = 'all';
+    var shown = live.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
+    var html = calendarHtml(live) + '<div class="filters">' +
+      '<div class="chips" role="group" aria-label="Date"><button type="button" data-fday="all" aria-pressed="' + (fDay === 'all') + '">All dates<span class="n">' + live.length + '</span></button>' +
+        (fDay !== 'all' && dayKeys.indexOf(fDay) < 0 ? dayKeys.concat([fDay]).sort() : dayKeys).map(function (k) { return '<button type="button" data-fday="' + k + '" aria-pressed="' + (fDay === k) + '">' + esc(dayName(k).replace(/ · .*$/, function (m) { return /Today|Tomorrow/.test(dayName(k)) ? '' : m; })) + '<span class="n">' + (days[k] || 0) + '</span></button>'; }).join('') + '</div>' +
+      '<div class="chips rf" role="group" aria-label="Room"><button type="button" data-froom="all" aria-pressed="' + (fRoom === 'all') + '">All rooms</button>' +
+        Object.keys(ROOMS).map(function (k) { return '<button type="button" data-froom="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (fRoom === k) + '">' + ROOMS[k][0] + (rooms[k] ? '<span class="n">' + rooms[k] + '</span>' : '') + '</button>'; }).join('') + '</div></div>';
+    if (!shown.length) html += '<div class="empty">' + (live.length ? 'No links for this date and room.' : 'No upcoming links. Make one in \u201CMake a guest link\u201D after a booking is paid.') + '</div>';
+    /* by date, then by room (in the usual room order), then by start time */
+    var byDay = {};
+    shown.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || {}); (byDay[k][x.data.room] = byDay[k][x.data.room] || []).push(x); });
+    Object.keys(byDay).sort().forEach(function (k) {
+      var n = 0; Object.keys(byDay[k]).forEach(function (r) { n += byDay[k][r].length; });
+      html += '<section class="day" id="day-' + k + '"><h2>' + esc(dayName(k)) + ' <span class="n">' + n + '</span></h2>';
+      Object.keys(ROOMS).concat(Object.keys(byDay[k]).filter(function (r) { return !ROOMS[r]; })).forEach(function (r) {
+        var xs = byDay[k][r]; if (!xs) return;
+        xs.sort(function (a, b) { return a.data.start - b.data.start || ORDER[state(a)] - ORDER[state(b)]; });
+        html += '<div class="rgroup" style="--rc:' + (ROOMS[r] ? ROOMS[r][1] : '#F2C21B') + '"><div class="rh">' + esc(ROOMS[r] ? ROOMS[r][0] : r) + '</div><div class="list">' + xs.map(itemHtml).join('') + '</div></div>';
+      });
+      html += '</section>';
+    });
+    past = past.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
+    if (past.length) {
+      past.sort(function (a, b) { return b.data.start - a.data.start; });
+      html += '<details class="past"' + (open && past.some(function (x) { return x.key === open.code; }) ? ' open' : '') + '><summary>Ended or cancelled (' + past.length + ')</summary><div class="list">' + past.map(itemHtml).join('') + '</div></details>';
+    }
+    $('groups').innerHTML = html;
+  }
+  function list() {
+    if (!key()) { $('groups').innerHTML = '<div class="empty">Add the staff code to see links.</div>'; return; }
+    if (open) return;   /* don't redraw under staff while they're choosing a time or confirming */
+    call({ action: 'list', staff: key() }).then(function (j) { lastList = j.links || []; render(); })
+      .catch(function (e) { $('groups').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; if (/staff code/i.test(e.message)) { memKey = ''; ls('r2.guestStaff', null); $('keyBox').hidden = false; } });
+  }
+  $('groups').addEventListener('click', function (e) {
+    var cb = e.target.closest('button[data-cal], button[data-calday]');
+    if (cb) {
+      if (cb.hasAttribute('data-cal')) { var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7) + Number(cb.getAttribute('data-cal')); if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } calMonth = y + '-' + ('0' + m).slice(-2); }
+      else { var k = cb.getAttribute('data-calday'); fDay = fDay === k ? 'all' : k; }
+      render(); return;
+    }
+    var f = e.target.closest('button[data-fday], button[data-froom]');
+    if (f) { if (f.hasAttribute('data-fday')) fDay = f.getAttribute('data-fday'); else fRoom = f.getAttribute('data-froom'); render(); return; }
+    var b = e.target.closest('button[data-a]'); if (!b) return;
+    var a = b.getAttribute('data-a'), c = b.getAttribute('data-c');
+    if (a === 'copy') { copy(shareUrl(c), b); return; }
+    if (a === 'move' || a === 'cancel' || a === 'now') { open = { a: a, code: c }; render(); return; }
+    if (a === 'mvroom' && open) {   /* keep the date and time typed so far while switching rooms */
+      var dv = $('mvDate').value, tv = $('mvTime').value; open.room = b.getAttribute('data-r'); render(); $('mvDate').value = dv; $('mvTime').value = tv; return;
+    }
+    if (a === 'no') { open = null; render(); return; }
+    if (a === 'do' && open) {
+      var body = { action: open.a, staff: key(), code: c };
+      if (open.a === 'move') { var s = sgMs($('mvDate').value, $('mvTime').value); if (!s) { $('cmsg').className = 'msg bad'; $('cmsg').textContent = 'Pick the new date and time.'; return; } body.start = s; var cur = lastList.filter(function (x) { return x.key === c; })[0]; body.room = open.room || (cur && cur.data.room); }
+      b.disabled = true;
+      call(body).then(function () { open = null; list(); })
+        .catch(function (er) { var m = $('cmsg'); if (m) { m.className = 'msg bad'; m.textContent = er.message; } b.disabled = false; });
+    }
+  });
+  $('refresh').addEventListener('click', function () { open = null; list(); });
+
+  /* ---------- staff code ---------- */
+  $('keySave').addEventListener('click', function () {
+    var v = $('staffKey').value.trim(); if (v.length < 8) { $('keyMsg').textContent = 'That code looks too short.'; return; }
+    memKey = v; ls('r2.guestStaff', v); $('keyBox').hidden = true; $('staffKey').value = ''; list();
+  });
+
+  /* start: the next half hour, in Singapore time */
+  var nx = Date.now() + 30 * 60000; nx -= nx % (30 * 60000); var p = sgParts(nx);
+  $('date').value = p.year + '-' + p.month + '-' + p.day; $('time').value = p.hour + ':' + p.minute;
+  drawRooms(); sum();
+  $('keyBox').hidden = !!key();
+  var listOn = !document.documentElement.classList.contains('v-make');
+  if (listOn) { list(); setInterval(list, 30000); }
+  /* inside the control centre: tell it how tall this page is, so there's no inner scrollbar */
+  if (document.documentElement.classList.contains('embed') && window.parent !== window) {
+    var lastH = 0, report = function () { var h = document.documentElement.scrollHeight; if (h !== lastH) { lastH = h; try { window.parent.postMessage({ r2frame: location.search, h: h }, location.origin); } catch (e) {} } };
+    setInterval(report, 400); report();
+  }
+}());
+</script>

@@ -110,6 +110,7 @@ label.f input[type=text], label.f input[type=url], label.f input[type=date], lab
 .msgs { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 18px; align-items: start; }
 @media (max-width: 900px) { .msgs { grid-template-columns: 1fr; } }
 .msgs .card { display: grid; gap: 16px; }
+.gframe { width: 100%; border: 0; display: block; min-height: 420px; background: transparent; margin-top: 8px; }
 .mcal { margin-top: 26px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 18px; align-items: start; }
 @media (max-width: 900px) { .mcal { grid-template-columns: 1fr; } }
 .mcal .cal { display: grid; gap: 8px; }
@@ -352,6 +353,18 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       <div class="card"><div class="cal" id="cCal"></div></div>
       <div class="agenda" id="cDay"></div>
     </div>
+  </section>
+
+  <section id="tab-guestmsgs" hidden>
+    <h1>Guest messages</h1>
+    <p class="sub">Messages guests wrote from their link, by date and room. They go to the TV by themselves at the time the guest picked. Change the time or room if a booking moves, or cancel anything you don't want shown.</p>
+    <iframe class="gframe" title="Guest messages" data-src="msg/staff.html?view=list&amp;embed=1"></iframe>
+  </section>
+
+  <section id="tab-guestlink" hidden>
+    <h1>Make a guest link</h1>
+    <p class="sub">After a booking is paid: pick the room and start time, then send the guest the message it gives you. For your phone's home screen, open <a href="link/" target="_blank" rel="noopener">this page</a> and choose Share › Add to Home Screen.</p>
+    <iframe class="gframe" title="Make a guest link" data-src="msg/staff.html?view=make&amp;embed=1"></iframe>
   </section>
 
   <section id="tab-tests" hidden>
@@ -939,7 +952,6 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
      Guest messages: the links in the guest messages system (Make: [TEST] GUEST MESSAGE LINKS, needs its staff code). */
   var Cal = (function () {
     var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4';
-    var STAFF_PAGE = 'https://raw.githack.com/donttelldadyet-prog/round2-tv-launcher/feature/guest-messages/manager/msg/staff.html';
     var FB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app';
     var TZ = 'Asia/Singapore', month = null, pick = null, items = [], ready = false, guestErr = '', seq = 0;
     function topic(r) { return r === 'maximillion' ? 'max' : r; }
@@ -998,7 +1010,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
           '<span class="chip">' + (x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="hint">' + ST[x.st] + '</span></div>' +
           '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
       }).join('') : '<p class="hint">Nothing scheduled for this day.</p>';
-      h += '<p class="hint">Round2 messages: each TV holds one at a time, so only the one waiting on each TV shows here. <a href="' + STAFF_PAGE + '" target="_blank" rel="noopener">Manage guest messages</a></p>';
+      h += '<p class="hint">Round2 messages: each TV holds one at a time, so only the one waiting on each TV shows here. <a href="#" data-goguest="1">Manage guest messages</a></p>';
       $('cDay').innerHTML = h;
     }
     function init() {
@@ -1007,6 +1019,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         if (b.hasAttribute('data-cm')) { var y = +month.slice(0, 4), m = +month.slice(5, 7) + Number(b.getAttribute('data-cm')); if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } month = y + '-' + ('0' + m).slice(-2); draw(); }
         else if (b.hasAttribute('data-cd')) { pick = b.getAttribute('data-cd'); draw(); }
       });
+      $('cDay').addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('[data-goguest]'); if (a) { e.preventDefault(); tab('guestmsgs'); window.scrollTo(0, 0); } });
       $('cKeySave').onclick = function () { var v = $('cKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('cKey').value = ''; load(); };
     }
     return { open: function () { if (!ready) { ready = true; init(); } load(); } };
@@ -1137,9 +1150,9 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['messages', 'tests', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['messages', 'guestmsgs', 'guestlink', 'tests', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   var GROUPS = {
-    notif: [['messages', 'Send a message'], ['tests', 'Test a TV']],
+    notif: [['messages', 'Round2 messages'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'Settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     help: [['help', 'How it works'], ['stuck', 'If stuck']]
@@ -1161,7 +1174,17 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'foodmenu') openMenuEditor();
     if (n === 'simorder') Sim.open();
+    if (n === 'guestmsgs' || n === 'guestlink') {   /* the guest messages pages, shown inside this tab (loaded the first time it's opened) */
+      var fr = $('tab-' + n).querySelector('iframe');
+      if (!fr.getAttribute('src')) fr.setAttribute('src', fr.getAttribute('data-src'));
+      else if (n === 'guestmsgs') try { fr.contentWindow.document.getElementById('refresh').click(); } catch (e) {}
+    }
   }
+  /* the guest pages report their height, so they sit in the tab without a scrollbar of their own */
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data || !e.data.r2frame) return;
+    Array.prototype.forEach.call(document.querySelectorAll('iframe.gframe'), function (f) { if (f.contentWindow === e.source) f.style.height = (e.data.h + 8) + 'px'; });
+  });
   /* four main tabs, each with its own pages; a main tab reopens on the page last used in it */
   $('tabs').addEventListener('click', function (e) { var g = e.target.getAttribute && e.target.getAttribute('data-group'); if (g) tab(ls('r2m.sub.' + g) || GROUPS[g][0][0]); });
   $('subtabs').addEventListener('click', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-tab'); if (n) tab(n); });
