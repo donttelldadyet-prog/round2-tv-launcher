@@ -426,6 +426,14 @@
       "rooms": [
         "vale"
       ]
+    },
+    {
+      "id": "midnight-teahouse-cruise",
+      "name": "Midnight Teahouse Cruise",
+      "source": "sound-midnight-teahouse-cruise-mvszodqx.mp3",
+      "rooms": [
+        "kai"
+      ]
     }
   ],
   "roomDefaults": {
