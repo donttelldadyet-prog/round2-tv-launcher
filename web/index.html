@@ -2397,8 +2397,15 @@ window.R2_TV = {
         var age = (Date.now() - d.t) / 1000;
         if ((p.type === 'received' && age > 180) || (p.type === 'ready' && age > 3600)) return;
         if (p.type !== 'received' && p.type !== 'ready') return;
-        if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); remindLater(p); addUnacked(p.ref); }
-        show(p, false);
+        p.t = d.t;
+        /* rooted LG: Round2 Home keeps running behind Netflix. If another app is in front, the helper shows this
+           alert there (and OK there counts), so the menu only keeps a 'loot dropped' for when the guest comes back */
+        whoIsFront(function (front) {
+          if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); addUnacked(p.ref); }
+          if (front && front !== 'sg.round2.tvhome') return;
+          if (p.type === 'ready') remindLater(p);
+          show(p, false);
+        });
       });
     }
     /* LG / preview: OK on a "ready" alert tells Make.com, which replies under each waiting order in Telegram */
@@ -2427,12 +2434,35 @@ window.R2_TV = {
         if (still && still.indexOf('"no":"' + p.no + '"') > -1 && !cur) show(p, true);
       }, 5 * 60000);
     }
-    /* a ready order nobody has said OK to yet comes back when the guest returns to the menu */
+    /* LG with the helper: which app is in front (the helper keeps it in a file); '' if unknown */
+    function whoIsFront(cb) {
+      if (nativeOn() || Device.kind() !== 'webos') { cb(''); return; }
+      var done = false, t = setTimeout(function () { if (!done) { done = true; cb(''); } }, 4000);
+      try { LGRoot.exec('cat /var/lib/webosbrew/round2/front 2>/dev/null', function (out) { if (done) return; done = true; clearTimeout(t); cb((out || '').replace(/\s+/g, '')); }); }
+      catch (e) { clearTimeout(t); done = true; cb(''); }
+    }
+    /* a ready order nobody has said OK to yet comes back when the guest returns to the menu
+       (unless OK was pressed on the card over another app: the helper notes that in food.acked) */
     function resume() {
       if (cur) return;
       var j = '';
       try { j = nativeOn() ? window.R2Android.foodPending() : (store('r2.foodReady') || ''); } catch (e) {}
-      if (j) { try { show(JSON.parse(j), true); } catch (e) {} }
+      if (!j) return;
+      var p; try { p = JSON.parse(j); } catch (e) { return; }
+      if (nativeOn() || Device.kind() !== 'webos' || !p.t) { show(p, true); return; }
+      var done = false, t = setTimeout(function () { if (!done) { done = true; if (!cur) show(p, true); } }, 6000);
+      try {
+        LGRoot.exec('cat /var/lib/webosbrew/round2/food.acked 2>/dev/null', function (out) {
+          if (done) return; done = true; clearTimeout(t);
+          if (Number((out || '').replace(/\s+/g, '')) >= p.t) {
+            store('r2.foodReady', '');
+            var a = []; try { a = JSON.parse(store('r2.foodAcks') || '[]'); } catch (e) {}
+            store('r2.foodAcks', JSON.stringify(a.filter(function (o) { return o.ref !== p.ref; })));
+            return;
+          }
+          if (!cur) show(p, true);
+        });
+      } catch (e) { clearTimeout(t); done = true; show(p, true); }
     }
     function setRoom(key) {
       var r = topicRoom(key), info = ROOMS[key];

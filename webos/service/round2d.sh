@@ -143,7 +143,8 @@ menu_front() {
   case "$id" in sg.round2.alerts*|"") id=$(cat "$CFG/front" 2>/dev/null) ;; esac
   [ "$id" = "$APP" ]
 }
-food_show() {   # $1 type, $2 order no, $3 items
+food_show() {   # $1 type, $2 order no, $3 items, $4 the alert's time (the menu reads food.over / food.acked)
+  [ -n "$4" ] && echo "$4" > "$CFG/food.over"
   if ov=$(ov_app); then
     room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null)
     if [ "$1" = received ]; then txt="Madd Pizza is firing it up. We\u2019ll ping you when it lands."; else txt="It\u2019s at the drop zone, the rack right outside the entrance. Grab it while it\u2019s hot!"; fi
@@ -164,6 +165,7 @@ food_show() {   # $1 type, $2 order no, $3 items
 }
 food_ack() {    # GOT IT pressed: tell Make.com about every order waiting at the pickup point
   set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
+  cp "$CFG/food.over" "$CFG/food.acked" 2>/dev/null   # the menu won't show this one again when the guest goes back to it
   [ -f "$CFG/food.unacked" ] || exit 0
   mv "$CFG/food.unacked" "$CFG/food.acking"
   while read -r ref; do
@@ -196,7 +198,7 @@ watch_food() {
             *) continue ;;
           esac
           menu_front && continue   # Round2 Home is in front: the menu shows it
-          food_show "$type" "$no" "$(echo "$line" | field items | clean)" ;;
+          food_show "$type" "$no" "$(echo "$line" | field items | clean)" "$t" ;;
       esac
     done
     # an old TV that can't check Firebase's certificate: carry on without checking (alerts only, nothing private)
