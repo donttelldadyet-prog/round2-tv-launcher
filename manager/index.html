@@ -31,6 +31,8 @@ header.top { position: sticky; top: 0; z-index: 5; background: rgba(6,5,10,.92);
 header.top .wrap { display: flex; align-items: center; gap: 16px; padding-top: 12px; padding-bottom: 12px; flex-wrap: wrap; }
 .brand { font-weight: 700; letter-spacing: .22em; font-size: 20px; padding: 2px 10px; border-left: 2px solid var(--ink); border-right: 2px solid var(--ink); }
 .brand small { letter-spacing: .14em; font-weight: 500; color: var(--mute); margin-left: 8px; font-size: 12px; }
+.brand.logo { border: 0; padding: 0; display: flex; align-items: center; gap: 10px; }
+.brand.logo img { height: 30px; width: auto; display: block; }
 nav.tabs { display: flex; gap: 4px; margin-left: auto; }
 nav.tabs button { background: none; border: 1px solid transparent; padding: 8px 14px; letter-spacing: .12em; font-size: 13px; text-transform: uppercase; color: var(--mute); }
 nav.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--line2); background: var(--panel); }
@@ -180,6 +182,13 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 .tcard .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tcard .btns .btn { padding: 12px 8px; }
 .tcard .st { font-size: 13px; color: var(--mute); display: grid; gap: 2px; }
+.tcard.off { opacity: .38; }
+.tcard.off .btn { pointer-events: none; }
+.tlock { border: 1px solid var(--warn); background: var(--panel2); padding: 14px 16px; margin: 16px 0; display: grid; gap: 10px; }
+.tlock.on { border-color: var(--ok); }
+.tlock .pick { display: flex; gap: 6px; flex-wrap: wrap; }
+.tlock .pick button { background: var(--bg); border: 1px solid var(--line2); padding: 7px 12px; font-size: 13px; letter-spacing: .04em; box-shadow: inset 0 -3px 0 var(--rc); }
+.tlock .pick button[aria-pressed="true"] { background: var(--rc); border-color: var(--rc); color: #0b0914; font-weight: 700; }
 @media (max-width: 860px) {
   header.top .wrap { gap: 8px; }
   nav.tabs { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
@@ -202,7 +211,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div class="brand">ROUND2 <small>CONTROL CENTRE</small></div>
+  <div class="brand" id="brand">ROUND2 <small>CONTROL CENTRE</small></div>
   <nav class="tabs" role="tablist" id="tabs">
     <button role="tab" aria-selected="true" data-group="notif">Notifications</button>
     <button role="tab" aria-selected="false" data-group="themes">Themes</button>
@@ -310,6 +319,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     <h1>TV tests</h1>
     <p class="sub">Check any room's TV from here: send a test message or a test food alert and watch it arrive. Nothing reaches the kitchen, and the test order isn't real.</p>
     <div class="banner warn" data-needkey hidden><div class="grow">Add the <b>TV messages key</b> on the Messages tab first (once per phone or computer).</div></div>
+    <div class="tlock" id="tLock"></div>
     <div class="rooms" id="tRooms"></div>
   </section>
 
@@ -916,11 +926,33 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     function put(r, node, body) { return fetch(url(r, node), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (x) { if (!x.ok) throw new Error('the TV database said ' + x.status); }); }
     function get(r, node) { return fetch(url(r, node), { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }); }
     function when(t) { if (!t) return 'never'; var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : new Date(t).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
+    /* Safety lock: nothing can be sent until one TV is picked and locked in, and then only to that TV.
+       Stops a test popping up on a guest's TV by a mis-tap. Unlocks itself after 20 minutes or when leaving this tab. */
+    var pick = null, lock = null, lockTimer = null;
+    function drawLock() {
+      var el = $('tLock');
+      if (lock) {
+        el.className = 'tlock on';
+        el.innerHTML = '<div class="row" style="justify-content:space-between"><div>Testing <b style="color:' + ROOMS[lock].c + '">' + esc(ROOMS[lock].name) + '</b> only. The other TVs can\u2019t be sent anything until you unlock.</div>' +
+          '<button class="btn" type="button" data-unlock="1">Unlock</button></div>';
+        return;
+      }
+      el.className = 'tlock';
+      el.innerHTML = '<div><b>Lock in the TV you\u2019re testing first.</b> Tests can only go to that one TV, so a mis-tap can\u2019t reach a room with guests in it.</div>' +
+        '<div class="pick">' + Object.keys(ROOMS).map(function (k) { return '<button type="button" data-pick="' + k + '" style="--rc:' + ROOMS[k].c + '" aria-pressed="' + (k === pick) + '">' + esc(ROOMS[k].name) + '</button>'; }).join('') + '</div>' +
+        '<div><button class="btn primary" type="button" data-lockin="1"' + (pick ? '' : ' disabled') + '>' + (pick ? 'Lock in ' + esc(ROOMS[pick].name) : 'Pick a TV above') + '</button></div>';
+    }
+    function setLock(k) {
+      lock = k; pick = null; clearTimeout(lockTimer);
+      if (k) lockTimer = setTimeout(function () { setLock(null); toast('Test lock released after 20 minutes.'); }, 20 * 60000);
+      drawLock(); render();
+    }
     function render() {
       document.querySelectorAll('[data-needkey]').forEach(function (b) { b.hidden = !!key(); });
+      drawLock();
       $('tRooms').innerHTML = Object.keys(ROOMS).map(function (k) {
         var R = ROOMS[k];
-        return '<article class="card tcard" style="--rc:' + R.c + '"><h3>' + esc(R.name) + '</h3>' +
+        return '<article class="card tcard' + (k === lock ? '' : ' off') + '" style="--rc:' + R.c + '"' + (k === lock ? '' : ' aria-disabled="true"') + '><h3>' + esc(R.name) + '</h3>' +
           '<div class="btns"><button class="btn" data-t="msg" data-r="' + k + '">Test message</button><button class="btn" data-t="note" data-r="' + k + '">Long message</button>' +
           '<button class="btn" data-t="received" data-r="' + k + '">Order locked in</button><button class="btn" data-t="ready" data-r="' + k + '">Loot dropped</button>' +
           '<button class="btn" data-t="sim" data-r="' + k + '" style="grid-column:1/-1">Full order test (menu + kitchen + TV)</button></div>' +
@@ -945,6 +977,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       'On the home screen it shows as a big card, and over Netflix or the PlayStation as a small card the size of a food alert. ' +
       'OK does nothing until the last page, so nobody closes it by accident. On the last page, OK closes it and marks it as seen.';
     function send(t, r) {
+      if (r !== lock) { toast(lock ? 'Locked to ' + ROOMS[lock].name + '. Unlock first to test another TV.' : 'Lock in the TV you\u2019re testing first.'); return; }
       if (t === 'sim') { ls('r2m.simRoom', r); tab('simorder'); Sim.open(r); return; }
       if (!key()) { toast('Add the TV messages key on the Messages tab first.'); return; }
       var now = Date.now(), p;
@@ -960,11 +993,26 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     var ready = false;
     return {
       open: function () {
-        if (!ready) { ready = true; $('tRooms').addEventListener('click', function (e) { var t = e.target.getAttribute && e.target.getAttribute('data-t'); if (t) send(t, e.target.getAttribute('data-r')); }); }
+        if (!ready) {
+          ready = true;
+          $('tRooms').addEventListener('click', function (e) { var t = e.target.getAttribute && e.target.getAttribute('data-t'); if (t) send(t, e.target.getAttribute('data-r')); });
+          $('tLock').addEventListener('click', function (e) {
+            var b = e.target.closest && e.target.closest('button'); if (!b) return;
+            if (b.hasAttribute('data-pick')) { pick = b.getAttribute('data-pick'); drawLock(); }
+            else if (b.hasAttribute('data-lockin') && pick) setLock(pick);
+            else if (b.hasAttribute('data-unlock')) setLock(null);
+          });
+        }
         render(); clearInterval(timer); timer = setInterval(status, 15000);
       },
-      close: function () { clearInterval(timer); }
+      close: function () { clearInterval(timer); if (lock) setLock(null); }
     };
+  }());
+
+  (function () {
+    var lg = new Image(); lg.alt = 'Round2';
+    lg.onload = function () { var b = $('brand'); if (!b) return; b.className = 'brand logo'; b.innerHTML = ''; b.appendChild(lg); var sm = document.createElement('small'); sm.textContent = 'CONTROL CENTRE'; b.appendChild(sm); };
+    lg.src = 'https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp';
   }());
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
