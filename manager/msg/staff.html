@@ -77,6 +77,10 @@ label.f input { width: 100%; padding: 10px 12px; background: var(--bg); border: 
 
 .made { border: 1px solid var(--accent); background: var(--panel2); padding: 14px; display: grid; gap: 10px; }
 .made .linkline { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; background: var(--bg); border: 1px solid var(--line2); padding: 8px 10px; overflow-wrap: anywhere; user-select: all; }
+.made .for { font-weight: 700; font-size: 15px; }
+.made .copied { color: var(--ok); font-weight: 700; }
+.made.stale { opacity: .45; pointer-events: none; }
+.dup { border: 1px solid var(--bad); padding: 10px; display: grid; gap: 8px; font-size: 14px; }
 .made textarea { width: 100%; min-height: 104px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font: 14px/1.45 var(--f); resize: vertical; }
 
 .group { display: grid; gap: 10px; }
@@ -169,15 +173,18 @@ details.past .list { margin-top: 10px; }
       </div>
       <label class="f">Booking name (staff only)<input type="text" id="label" maxlength="60" autocomplete="off" placeholder="e.g. Jay · WhatsApp"></label>
       <div class="sum" id="sum"></div>
-      <button class="btn primary" id="mkGo" type="submit">Make guest link</button>
+      <div class="dup" id="dup" hidden></div>
+      <button class="btn primary" id="mkGo" type="submit">Make link &amp; copy message</button>
       <div class="msg" id="mkMsg"></div>
     </form>
 
     <div class="made" id="made" hidden>
-      <span class="lbl">Send this to the guest</span>
-      <textarea id="invite" aria-label="Message to send"></textarea>
+      <span class="lbl">Link for</span>
+      <div class="for" id="madeFor"></div>
+      <div class="copied" id="copiedNote"></div>
+      <textarea id="invite" aria-label="Message to send" readonly></textarea>
       <div class="row">
-        <button class="btn primary" id="copyInvite" type="button">Copy message</button>
+        <button class="btn primary" id="copyInvite" type="button">Copy message again</button>
         <button class="btn" id="copyLink" type="button">Copy link only</button>
         <a class="btn" id="openGuest" href="#" target="_blank" rel="noopener">Open guest page</a>
       </div>
@@ -247,22 +254,61 @@ details.past .list { margin-top: 10px; }
   $('rooms').addEventListener('click', function (e) { var b = e.target.closest('button[data-r]'); if (b) { room = b.getAttribute('data-r'); drawRooms(); sum(); } });
   ['date', 'time'].forEach(function (id) { $(id).addEventListener('input', sum); });
 
+  /* Failsafe: making and copying is one step, so the clipboard always gets the link that was just made.
+     Any change to room, date, time or name hides the last link, so an old one can't be copied by mistake. */
+  var madeFor = '', dupOk = '';
+  function slotSig() { return room + '|' + (startMs() || '') + '|' + $('label').value.trim(); }
+  function stale() { if (!$('made').hidden) { $('made').hidden = true; $('mkMsg').className = 'msg'; $('mkMsg').textContent = 'Booking details changed. Make a new link for this booking.'; } $('dup').hidden = true; dupOk = ''; }
+  $('rooms').addEventListener('click', function (e) { if (e.target.closest('button[data-r]')) stale(); });
+  ['date', 'time', 'label'].forEach(function (id) { $(id).addEventListener('input', stale); });
+  function inviteText(code, s, r) {
+    return 'Celebrating something during your Round2 session? 🎉\n' +
+      'You can leave a surprise message that pops up on your room’s TV (' + ROOMS[r][0] + ', ' + day(s) + ', from ' + clock(s) + '). Write it here:\n' + shareUrl(code);
+  }
+  function liveSameSlot(s) {
+    return lastList.filter(function (x) { var st = state(x); return !/^R2/.test(x.key) && x.data.room === room && +x.data.start === s && (st === 'open' || st === 'scheduled' || st === 'ontv'); });
+  }
+
   $('mk').addEventListener('submit', function (e) {
     e.preventDefault();
-    var s = startMs(), m = $('mkMsg'); m.className = 'msg';
+    var s = startMs(), m = $('mkMsg'), r = room; m.className = 'msg';
     if (!key()) { m.className = 'msg bad'; m.textContent = 'Add the staff code first.'; return; }
     if (!s) { m.className = 'msg bad'; m.textContent = 'Pick the date and start time.'; return; }
-    $('mkGo').disabled = true; m.textContent = 'Making the link…';
-    call({ action: 'create', staff: key(), room: room, start: s, label: $('label').value.trim() }).then(function (j) {
-      m.textContent = 'Link made for ' + ROOMS[room][0] + ', ' + day(s) + ' ' + clock(s) + '.';
-      showMade(j.code, s); list();
-    }).catch(function (er) { m.className = 'msg bad'; m.textContent = er.message; }).then(function () { $('mkGo').disabled = false; });
+    if (s < Date.now() - 3 * 3600000) { m.className = 'msg bad'; m.textContent = 'That start time is in the past. Check the date.'; return; }
+    var dups = liveSameSlot(s);
+    if (dups.length && dupOk !== slotSig()) {
+      dupOk = slotSig();
+      $('dup').innerHTML = '<b>' + esc(ROOMS[r][0]) + ', ' + esc(day(s)) + ' ' + esc(clock(s)) + ' already has a link</b>' +
+        (dups[0].data.label ? '<span>' + esc(dups[0].data.label) + '</span>' : '') +
+        '<span>If it’s the same guest, copy that link from the list instead. If it’s a new booking, press the button again.</span>';
+      $('dup').hidden = false; $('mkGo').textContent = 'Make another link & copy'; return;
+    }
+    $('dup').hidden = true; $('made').hidden = true; $('mkGo').disabled = true; m.textContent = 'Making the link…';
+    var sig = slotSig(), job = call({ action: 'create', staff: key(), room: r, start: s, label: $('label').value.trim() });
+    var textP = job.then(function (j) { return inviteText(j.code, s, r); });
+    /* Start the copy inside the tap (iPhone Safari only allows that), with the text arriving once Make answers. */
+    var copyP;
+    try {
+      if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        copyP = navigator.clipboard.write([new ClipboardItem({ 'text/plain': textP.then(function (t) { return new Blob([t], { type: 'text/plain' }); }) })]);
+      }
+    } catch (er) { copyP = null; }
+    if (!copyP) copyP = textP.then(function (t) { return navigator.clipboard.writeText(t); });
+    job.then(function (j) {
+      if (sig !== slotSig()) { m.className = 'msg bad'; m.textContent = 'Details changed while making it. The link was made for ' + ROOMS[r][0] + ', ' + day(s) + ' ' + clock(s) + '. Check the list.'; list(); return; }
+      showMade(j.code, s, r);
+      list();
+      return copyP.then(function () {
+        $('copiedNote').textContent = '✓ Copied. Paste it into the guest’s chat.'; m.textContent = '';
+      }, function () {
+        $('copiedNote').textContent = ''; m.className = 'msg bad'; m.textContent = 'Link made, but it couldn’t copy automatically. Tap “Copy message again”.';
+      });
+    }).catch(function (er) { m.className = 'msg bad'; m.textContent = er.message; }).then(function () { $('mkGo').disabled = false; $('mkGo').textContent = 'Make link & copy message'; dupOk = ''; });
   });
-  function showMade(code, s) {
-    var url = shareUrl(code);
-    $('invite').value = 'Celebrating something during your Round2 session? 🎉\n' +
-      'You can leave a surprise message that pops up on your room’s TV (' + ROOMS[room][0] + ', ' + day(s) + ', from ' + clock(s) + '). Write it here:\n' + url;
-    $('linkText').textContent = url; $('openGuest').href = guestUrl(code); $('made').hidden = false;
+  function showMade(code, s, r) {
+    $('madeFor').textContent = ROOMS[r][0] + ' · ' + day(s) + ' · starts ' + clock(s) + ($('label').value.trim() ? ' · ' + $('label').value.trim() : '');
+    $('invite').value = inviteText(code, s, r);
+    $('linkText').textContent = shareUrl(code); $('openGuest').href = guestUrl(code); $('made').hidden = false;
   }
   function copy(text, btn, fallbackEl) {
     var done = function () { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1400); };
@@ -282,15 +328,15 @@ details.past .list { margin-top: 10px; }
   var CHIP = { open: 'Waiting for guest', scheduled: 'Scheduled', ontv: 'On the TV', cancelled: 'Cancelled', ended: 'Ended' };
 
   function itemHtml(x) {
-    var d = x.data, st = state(x), R = ROOMS[d.room] || [d.room, '#F2C21B'], c = esc(x.key);
-    var h = '<article class="item" style="--rc:' + R[1] + '"><div class="top"><span class="chip room">' + esc(R[0]) + '</span><span class="chip st-' + st + '">' + CHIP[st] + '</span>' +
+    var d = x.data, st = state(x), R = ROOMS[d.room] || [d.room, '#F2C21B'], c = esc(x.key), r2 = /^R2/.test(x.key);   /* R2… = queued from the control centre */
+    var h = '<article class="item" style="--rc:' + R[1] + '"><div class="top"><span class="chip room">' + esc(R[0]) + '</span><span class="chip st-' + st + '">' + CHIP[st] + '</span>' + (r2 ? '<span class="chip">Round2 message</span>' : '') +
       '<span class="when">' + esc(day(d.start)) + ' · starts ' + esc(clock(d.start)) + '</span><span class="code">' + c + '</span></div>';
-    if (d.label) h += '<div class="label">' + esc(d.label) + '</div>';
+    if (d.label && !r2) h += '<div class="label">' + esc(d.label) + '</div>';
     if (d.title) h += '<div class="mini"><div class="tg">' + esc((TAGS[d.kind] || '') + (d.to ? ' · for ' + d.to : '')) + '</div><div class="t">' + esc(d.title) + '</div><p>' + esc(d.text) + '</p>' +
       (d.from ? '<div class="fr">— ' + esc(d.from) + '</div>' : '') + '<div class="at">Pops up ' + esc(day(d.at)) + ' at ' + esc(clock(d.at)) + '</div></div>';
     var live = st === 'open' || st === 'scheduled' || st === 'ontv', btns = '';
     if (st === 'scheduled' || st === 'ontv') btns += '<button class="btn" data-a="now" data-c="' + c + '">' + (st === 'ontv' ? 'Send to TV again now' : 'Send to TV now') + '</button>';
-    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change time or room</button><button class="btn" data-a="copy" data-c="' + c + '">Copy link</button><button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
+    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change time or room</button>' + (r2 ? '' : '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>') + '<button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
     if (btns) h += '<div class="row">' + btns + '</div>';
     if (open && open.code === x.key) {
       var a = open.a;
@@ -382,7 +428,7 @@ details.past .list { margin-top: 10px; }
   function list() {
     if (!key()) { $('groups').innerHTML = '<div class="empty">Add the staff code to see links.</div>'; return; }
     if (open) return;   /* don't redraw under staff while they're choosing a time or confirming */
-    call({ action: 'list', staff: key() }).then(function (j) { lastList = j.links || []; render(); })
+    call({ action: 'list', staff: key() }).then(function (j) { lastList = j.links || []; if (listOn) render(); })
       .catch(function (e) { $('groups').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; if (/staff code/i.test(e.message)) { memKey = ''; ls('r2.guestStaff', null); $('keyBox').hidden = false; } });
   }
   $('groups').addEventListener('click', function (e) {
@@ -424,7 +470,7 @@ details.past .list { margin-top: 10px; }
   drawRooms(); sum();
   $('keyBox').hidden = !!key();
   var listOn = !document.documentElement.classList.contains('v-make');
-  if (listOn) { list(); setInterval(list, 30000); }
+  list(); setInterval(list, listOn ? 30000 : 120000);   /* the link form also uses the list, to warn about a second link for the same booking */
   /* inside the control centre: tell it how tall this page is, so there's no inner scrollbar */
   if (document.documentElement.classList.contains('embed') && window.parent !== window) {
     var lastH = 0, report = function () { var h = document.documentElement.scrollHeight; if (h !== lastH) { lastH = h; try { window.parent.postMessage({ r2frame: location.search, h: h }, location.origin); } catch (e) {} } };

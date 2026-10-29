@@ -27,7 +27,7 @@
       {
        "a": "at",
        "o": "number:lessorequal",
-       "b": "{{timestamp * 1000 + 960000}}"
+       "b": "{{timestamp * 1000 + 360000}}"
       },
       {
        "a": "end",
@@ -35,6 +35,12 @@
        "b": "{{timestamp * 1000}}"
       }
      ]
+    ],
+    "sort": [
+     {
+      "key": "at",
+      "order": 1
+     }
     ]
    }
   },

@@ -432,7 +432,7 @@
               {
                "a": "{{2.at - 2.now}}",
                "o": "number:less",
-               "b": "960000"
+               "b": "360000"
               }
              ]
             ]
@@ -967,7 +967,7 @@
                   {
                    "a": "{{41.newAt - 2.now}}",
                    "o": "number:less",
-                   "b": "960000"
+                   "b": "360000"
                   }
                  ]
                 ]
@@ -1317,6 +1317,189 @@
          ]
         ]
        }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 90,
+       "module": "util:SetVariables",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "scope": "roundtrip",
+        "variables": [
+         {
+          "name": "r2Err",
+          "value": "{{if(2.staffOk = \"no\"; \"Wrong staff code.\"; if(2.roomOk = \"no\"; \"Pick a room.\"; if(contains(split(\"birthday,anniversary,celebrate,note,volume,wrapup,timeup\"; \",\"); ifempty(1.kind; \"x\")); if(length(trim(ifempty(1.title; \"\"))) = 0; \"Add a headline.\"; if(length(ifempty(1.title; \"\")) > 80; \"Keep the headline under 80 characters.\"; if(length(ifempty(1.text; \"\")) > 600; \"Keep the message under 600 characters.\"; if(2.at < 2.now - 120000; \"That time has already passed.\"; \"ok\")))); \"Pick an occasion.\")))}}"
+         },
+         {
+          "name": "qcode",
+          "value": "{{\"R2\" + upper(substring(md5(random + \"|\" + 2.now + \"|\" + 2.room + \"|\" + 2.at); 0; 6))}}"
+         }
+        ]
+       },
+       "filter": {
+        "name": "ROUND2: queue a message",
+        "conditions": [
+         [
+          {
+           "a": "{{2.act}}",
+           "o": "text:equal",
+           "b": "r2"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 91,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "parameters": {},
+       "mapper": null,
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 92,
+           "module": "datastore:AddRecord",
+           "version": 1,
+           "parameters": {
+            "datastore": 237603
+           },
+           "filter": {
+            "name": "R2 ok",
+            "conditions": [
+             [
+              {
+               "a": "{{90.r2Err}}",
+               "o": "text:equal",
+               "b": "ok"
+              }
+             ]
+            ]
+           },
+           "mapper": {
+            "key": "{{90.qcode}}",
+            "overwrite": false,
+            "data": {
+             "room": "{{2.room}}",
+             "label": "Round2",
+             "start": "{{2.at}}",
+             "end": "{{2.at + 10800000}}",
+             "until": "{{2.at + 10800000}}",
+             "status": "approved",
+             "id": "{{\"q\" + lower(90.qcode) + \"-\" + formatDate(now; \"MMDDHHmmss\")}}",
+             "kind": "{{1.kind}}",
+             "to": "{{trim(replace(ifempty(1.to; \"\"); newline; \" \"))}}",
+             "from": "{{trim(replace(ifempty(1.from; \"\"); newline; \" \"))}}",
+             "title": "{{trim(replace(1.title; newline; \" \"))}}",
+             "text": "{{trim(replace(ifempty(1.text; \"\"); newline; \" \"))}}",
+             "ack": "{{if(1.ack = \"no\"; false; true)}}",
+             "at": "{{2.at}}",
+             "onTv": "no",
+             "t": "{{2.now}}",
+             "created": "{{2.now}}",
+             "submitted": "{{2.now}}",
+             "approved": "{{2.now}}"
+            }
+           }
+          },
+          {
+           "id": 93,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 200,
+            "body": "{\"ok\":true,\"code\":\"{{90.qcode}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           }
+          },
+          {
+           "id": 94,
+           "module": "http:MakeRequest",
+           "version": 4,
+           "parameters": {
+            "tlsType": "",
+            "authenticationType": "noAuth"
+           },
+           "mapper": {
+            "url": "https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4",
+            "method": "post",
+            "timeout": 40,
+            "shareCookies": false,
+            "parseResponse": false,
+            "allowRedirects": true,
+            "stopOnHttpError": false,
+            "requestCompressedContent": true,
+            "contentType": "custom",
+            "contentTypeValue": "application/x-www-form-urlencoded",
+            "rawBodyContent": "action=push&staff=STAFF_CODE&code={{90.qcode}}"
+           },
+           "filter": {
+            "name": "DUE SOON: send to the TV now",
+            "conditions": [
+             [
+              {
+               "a": "{{2.at - 2.now}}",
+               "o": "number:less",
+               "b": "360000"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 95,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": 400,
+            "body": "{\"error\":\"{{90.r2Err}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "*"
+             }
+            ]
+           },
+           "filter": {
+            "name": "R2 not valid",
+            "conditions": [
+             [
+              {
+               "a": "{{90.r2Err}}",
+               "o": "text:notequal",
+               "b": "ok"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ]
       }
      ]
     }

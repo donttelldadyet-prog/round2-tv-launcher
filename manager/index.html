@@ -61,6 +61,11 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .banner.warn { border-color: rgba(242,162,27,.7); }
 .banner.bad { border-color: rgba(232,67,106,.7); }
 .banner .grow { flex: 1; min-width: 200px; }
+.review { border: 2px solid var(--accent); background: var(--panel2); padding: 14px 16px; display: grid; gap: 10px; }
+.review.now { border-color: var(--bad); }
+.review .big { font-size: 20px; font-weight: 700; }
+.review .warnl { color: var(--warn); }
+.review ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .spin { width: 14px; height: 14px; border: 2px solid var(--line2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -330,11 +335,14 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
           <span class="hint"><span id="mCount">0</span>/600 · <span id="mPages"></span> · <button type="button" class="btn ghost" id="mDefault" style="padding:2px 8px;font-size:11px">Use Round2's default message</button></span></label>
         <div class="f"><span class="f">When</span>
           <div class="seg" id="mWhen"><button type="button" data-w="now" aria-pressed="true">Now</button><button type="button" data-w="at" aria-pressed="false">At a set time</button></div>
-          <label class="f" id="mAtBox" hidden>Show at<input type="datetime-local" id="mAt"><span class="hint">Tip: within the first hour of their booking. It shows for up to 3 hours after this time.</span></label>
+          <label class="f" id="mAtBox" hidden>Show at<input type="datetime-local" id="mAt"><span class="hint">Tip: within the first hour of their booking. It shows for up to 3 hours after this time. Set-time messages wait in the same queue as guest messages, so they don't overwrite each other.</span></label>
         </div>
+        <label class="switch" id="mPairBox" hidden><input type="checkbox" id="mPair">
+          <span>Also send “10 minutes left” 10 minutes before<br><span class="hint">Optional. Leave it off to send Time’s up on its own. Only with “At a set time”.</span></span></label>
         <label class="switch"><input type="checkbox" id="mAck" checked>
           <span>Must be acknowledged<br><span class="hint">It stays on screen until someone presses OK, and comes back every 5 minutes until then. You'll see the tick here.</span></span></label>
-        <div class="row"><button class="btn primary" id="mSend">Send to TV</button><span class="hint" id="mMsg"></span></div>
+        <div class="row"><button class="btn primary" id="mSend">Check and send…</button><span class="hint" id="mMsg"></span></div>
+        <div class="review" id="mReview" hidden></div>
       </div>
       <div style="display:grid;gap:18px">
         <div><h2 style="margin-top:0">Preview</h2><div class="mprev" id="mPrev"></div></div>
@@ -858,43 +866,92 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         $('mStat')._last = list;
       });
     }
+    /* Failsafe: nothing goes to a TV straight from the button. "Check and send" opens a review of exactly what will
+       happen (rooms, when, wording, anything it replaces or clashes with), and only "Yes, send" in that box sends it.
+       Changing anything on the form closes the review. "At a set time" goes into the Make queue with the guest messages. */
+    var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4', pending = null;
+    function gKey() { return ls('r2.guestStaff') || ''; }
+    function sgTime(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)); }
+    function closeReview() { pending = null; $('mReview').hidden = true; $('mReview').innerHTML = ''; }
+    function pairOn() { return kind === 'timeup' && when === 'at' && $('mPair').checked; }
     function send() {
-      var d = draft(), msg = $('mMsg');
-      if (!key()) { msg.textContent = 'Add the TV messages key first (top of this page).'; return; }
+      var d = draft(), msg = $('mMsg'); closeReview();
       if (!rooms.length) { msg.textContent = 'Pick a room.'; return; }
       if (!d.title) { msg.textContent = 'Give it a headline.'; return; }
-      if (when === 'at' && !$('mAt').value) { msg.textContent = 'Pick the time it should show.'; return; }
-      if (d.until < Date.now()) { msg.textContent = 'That time has already passed.'; return; }
-      d.id = 'm' + Date.now().toString(36);
-      d.t = { '.sv': 'timestamp' };
-      $('mSend').disabled = true; msg.textContent = 'Checking the TVs\u2026';
-      /* one message per TV: a new one replaces the one waiting there, so say so if that one hasn't been seen yet */
-      Promise.all(rooms.map(function (r) {
+      if (when === 'now' && !key()) { msg.textContent = 'Add the TV messages key first (top of this page).'; return; }
+      if (when === 'at') {
+        if (!$('mAt').value) { msg.textContent = 'Pick the time it should show.'; return; }
+        if (d.at < Date.now() - 60000) { msg.textContent = 'That time has already passed.'; return; }
+        if (!gKey()) { msg.textContent = 'Set-time messages need the guest messages staff code. Add it in the Calendar section below.'; return; }
+        if (pairOn() && d.at - 600000 < Date.now() - 60000) { msg.textContent = 'The 10-minute reminder would be in the past. Untick it or pick a later time.'; return; }
+      }
+      $('mSend').disabled = true; msg.textContent = 'Checking the TVs…';
+      var checks = when === 'now' && key() ? rooms.map(function (r) {
+        /* one message per TV: a new one replaces the one waiting there, so say so if that one hasn't been seen yet */
         return Promise.all([fetch(url(r, 'msg'), { cache: 'no-store' }).then(function (x) { return x.json(); }), fetch(url(r, 'msgAck'), { cache: 'no-store' }).then(function (x) { return x.json(); })])
-          .then(function (a) { var m = a[0], ak = a[1]; return m && m.id && m.ack && (!ak || ak.id !== m.id) && (Number(m.until) || 0) > Date.now() ? ROOMS[r].name + ': \u201C' + (m.title || '') + '\u201D' : null; })
+          .then(function (a) { var m = a[0], ak = a[1]; return m && m.id && m.ack && (!ak || ak.id !== m.id) && (Number(m.until) || 0) > Date.now() ? ROOMS[r].name + ' is still showing “' + (m.title || '') + '” (not OK’d yet). This replaces it.' : null; })
           .catch(function () { return null; });
-      })).then(function (busy) {
-        busy = busy.filter(Boolean);
-        if (busy.length && !confirm('Still waiting on the TV, not seen yet:\n\n' + busy.join('\n') + '\n\nEach TV holds one message at a time, so sending this replaces it. Send anyway?')) {
-          msg.textContent = 'Not sent. Wait for the first one to be seen, or put both in one message.'; $('mSend').disabled = false; return;
-        }
-        msg.textContent = 'Sending\u2026';
-        go();
+      }) : [];
+      Promise.all(checks).then(function (warn) {
+        warn = warn.filter(Boolean);
+        /* other messages queued for the same TV close to this time (each TV shows one at a time) */
+        var near = []; try { near = Cal.items(); } catch (e) {}
+        rooms.forEach(function (r) {
+          near.forEach(function (x) {
+            if (x.room !== r || x.st === 'ended') return;
+            if (Math.abs(x.at - d.at) <= 10 * 60000 && (x.st === 'queued' || x.st === 'waiting'))
+              warn.push(ROOMS[r].name + ' already has ' + (x.src === 'r2' ? 'a Round2' : 'a guest') + ' message at ' + sgTime(x.at) + (x.title ? ' (“' + x.title + '”)' : '') + '. Messages less than 10 minutes apart can cover each other.');
+          });
+        });
+        pending = { d: d, rooms: rooms.slice(), when: when, pair: pairOn() };
+        var names = rooms.map(function (r) { return '<span class="chip room" style="--rc:' + ROOMS[r].c + '">' + esc(ROOMS[r].name) + '</span>'; }).join(' ');
+        var h = '<div class="big">' + (when === 'now' ? 'Send NOW to ' : 'Schedule for ') + names + '</div>' +
+          '<div>' + (when === 'now' ? '<b>Pops up on ' + (rooms.length > 1 ? 'these TVs' : 'this TV') + ' within seconds</b>, over whatever the guests are watching.' : '<b>Shows ' + esc(sgTime(d.at)) + '</b>' + (pending.pair ? ', with “10 minutes left” at ' + esc(sgTime(d.at - 600000)) : ' (no 10-minute reminder)') + '.') + '</div>' +
+          '<ul><li>' + esc(KINDS[kind].tag) + (d.to ? ' for ' + esc(d.to) : '') + ': <b>' + esc(d.title) + '</b></li><li>' + esc(d.text.slice(0, 160)) + (d.text.length > 160 ? '…' : '') + '</li>' +
+          '<li>' + (d.ack ? 'Stays until someone presses OK' : 'Closes by itself') + (d.from ? ' · from ' + esc(d.from) : '') + '</li></ul>' +
+          (warn.length ? '<ul class="warnl">' + warn.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' : '') +
+          '<div class="row"><button class="btn primary" id="mGo">Yes, ' + (when === 'now' ? 'send to ' + esc(rooms.map(function (r) { return ROOMS[r].name; }).join(' + ')) + ' now' : 'schedule it') + '</button><button class="btn" id="mBack">Back</button></div>';
+        $('mReview').className = 'review' + (when === 'now' ? ' now' : ''); $('mReview').innerHTML = h; $('mReview').hidden = false;
+        msg.textContent = 'Check the box below, then confirm.';
+        $('mGo').onclick = go; $('mBack').onclick = function () { closeReview(); msg.textContent = 'Not sent.'; };
+        $('mReview').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }).then(function () { $('mSend').disabled = false; });
+    }
+    function queue(r, m) {
+      var body = { action: 'r2', staff: gKey(), room: topic(r), kind: m.kind, to: m.to, from: m.from, title: m.title, text: m.text, ack: m.ack ? 'yes' : 'no', at: m.at };
+      return fetch(HOOK, { method: 'POST', body: new URLSearchParams(body) }).then(function (x) { return x.text(); }).then(function (t) {
+        var j = null; try { j = JSON.parse(t); } catch (e) {}
+        if (!j) throw new Error('Make didn’t answer properly'); if (j.error) { if (/staff code/i.test(j.error)) ls('r2.guestStaff', null); throw new Error(j.error); } return j;
       });
-      function go() { Promise.all(rooms.map(function (r) { return req('PUT', url(r, 'msg'), d); })).then(function () {
-        msg.textContent = when === 'now' ? 'Sent. It pops up on the TV within a few seconds.' : 'Scheduled for ' + nice2(d.at) + '.';
-        toast('Message sent to ' + rooms.map(function (r) { return ROOMS[r].name; }).join(', '));
+    }
+    function go() {
+      if (!pending) return;
+      var p = pending, msg = $('mMsg'), d = p.d; $('mGo').disabled = true; $('mBack').disabled = true; msg.textContent = 'Sending…';
+      var jobs;
+      if (p.when === 'now') {
+        d.id = 'm' + Date.now().toString(36); d.at = Date.now(); d.until = d.at + 3 * 3600000; d.t = { '.sv': 'timestamp' };
+        jobs = p.rooms.map(function (r) { return req('PUT', url(r, 'msg'), d); });
+      } else {
+        jobs = [];
+        p.rooms.forEach(function (r) {
+          if (p.pair) { var w = KINDS.wrapup; jobs.push(queue(r, { kind: 'wrapup', to: '', from: d.from, title: w.title(''), text: w.text, ack: true, at: d.at - 600000 })); }
+          jobs.push(queue(r, d));
+        });
+      }
+      Promise.all(jobs).then(function () {
+        closeReview();
+        msg.textContent = p.when === 'now' ? 'Sent. It pops up on the TV within a few seconds.' : 'Scheduled for ' + sgTime(d.at) + (p.pair ? ', with the 10-minute reminder.' : '.');
+        toast((p.when === 'now' ? 'Sent to ' : 'Scheduled for ') + p.rooms.map(function (r) { return ROOMS[r].name; }).join(', '));
         setTimeout(function () { try { Cal.open(); } catch (e) {} }, 1500);
         setTimeout(status, 1500);
-      }).catch(function (e) { msg.textContent = 'Couldn\u2019t send: ' + e.message + '. Is the key right?'; })
-        .then(function () { $('mSend').disabled = false; }); }
+      }).catch(function (e) { msg.textContent = 'Couldn’t send: ' + e.message + '.'; $('mGo').disabled = false; $('mBack').disabled = false; });
     }
     function init() {
       renderRooms(); fillTitle(); preview();
       $('mRooms').addEventListener('click', function (e) {
         var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return;
         var i = rooms.indexOf(r); if (i >= 0) rooms.splice(i, 1); else rooms.push(r);
-        renderRooms(); preview();
+        renderRooms(); preview(); closeReview();
       });
       $('mKind').addEventListener('click', function (e) {
         var k = e.target.getAttribute && e.target.getAttribute('data-k'); if (!k) return;
@@ -903,17 +960,18 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         if (wasDefault || KINDS[k].admin) $('mText').value = KINDS[k].text;
         $('mTo').closest('label').hidden = !!KINDS[k].admin; if (KINDS[k].admin) $('mTo').value = '';
         if (KINDS[k].admin) $('mAck').checked = true;
+        $('mPairBox').hidden = !(k === 'timeup' && when === 'at'); closeReview();
         preview();
       });
       $('mWhen').addEventListener('click', function (e) {
         var w = e.target.getAttribute && e.target.getAttribute('data-w'); if (!w) return;
-        when = w; seg('#mWhen', 'data-w', w); $('mAtBox').hidden = w !== 'at';
+        when = w; seg('#mWhen', 'data-w', w); $('mAtBox').hidden = w !== 'at'; $('mPairBox').hidden = !(kind === 'timeup' && w === 'at'); closeReview();
         if (w === 'at' && !$('mAt').value) { var t = new Date(Date.now() + 30 * 60000); t.setSeconds(0, 0); $('mAt').value = new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
       });
       $('mTo').addEventListener('input', function () { fillTitle(); preview(); });
       $('mTitle').addEventListener('input', function () { titleEdited = true; preview(); });
-      ['mText', 'mFrom', 'mAt'].forEach(function (id) { $(id).addEventListener('input', preview); });
-      $('mAck').addEventListener('change', preview);
+      ['mText', 'mFrom', 'mAt', 'mTo', 'mTitle'].forEach(function (id) { $(id).addEventListener('input', function () { preview(); closeReview(); }); });
+      ['mAck', 'mPair'].forEach(function (id) { $(id).addEventListener('change', function () { preview(); closeReview(); }); });
       $('mDefault').onclick = function () { $('mText').value = KINDS[kind].text; preview(); };
       $('mSend').onclick = send;
       $('mRefresh').onclick = status;
@@ -926,6 +984,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         var c = e.target.getAttribute && e.target.getAttribute('data-mcancel'), rs = e.target.getAttribute && e.target.getAttribute('data-mresend');
         if (c) { req('DELETE', url(c, 'msg')).then(function () { toast('Removed from ' + ROOMS[c].name + '\u2019s TV.'); status(); }).catch(function (er) { toast('Couldn\u2019t remove: ' + er.message); }); }
         if (rs) {
+          if (!e.target._armed) { e.target._armed = true; var o = e.target.textContent; e.target.textContent = 'Tap again to send to ' + ROOMS[rs].name + ' now'; setTimeout(function () { e.target._armed = false; e.target.textContent = o; }, 4000); return; }
           var x = ($('mStat')._last || []).filter(function (y) { return y.r === rs; })[0]; if (!x || !x.m) return;
           var m = JSON.parse(JSON.stringify(x.m)); m.id = 'm' + Date.now().toString(36); m.at = Date.now(); m.until = m.at + 3 * 3600000; m.t = { '.sv': 'timestamp' };
           req('PUT', url(rs, 'msg'), m).then(function () { toast('Sent again to ' + ROOMS[rs].name + '.'); setTimeout(status, 1500); }).catch(function (er) { toast('Couldn\u2019t send: ' + er.message); });
@@ -964,7 +1023,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       var key = ls('r2m.msgKey') || '', jobs = [], my = ++seq, got = [], gErr = '';
       if (key) Object.keys(ROOMS).forEach(function (r) {
         jobs.push(fetch(FB + '/r2/' + key + '/' + topic(r) + '/msg.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).then(function (m) {
-          if (!m || !m.at || /^g[0-9a-z]{8}/.test(m.id || '')) return;   /* guest messages come from their own list below */
+          if (!m || !m.at || /^(g[0-9a-z]{8}|qr2)/.test(m.id || '')) return;   /* queued messages (guest and Round2) come from the list below */
           got.push({ src: 'r2', room: r, at: m.at, title: m.title || '', who: m.to || '', st: m.until && m.until < Date.now() ? 'ended' : m.at > Date.now() ? 'queued' : 'shown' });
         }).catch(function () {}));
       });
@@ -975,7 +1034,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         (j.links || []).forEach(function (x) {
           var d = x.data, r = roomOf(d.room); if (!ROOMS[r] || d.status === 'cancelled') return;
           var st = d.end < Date.now() ? 'ended' : d.status !== 'approved' ? 'waiting' : (d.onTv === 'yes' || d.at <= Date.now()) ? 'shown' : 'queued';
-          got.push({ src: 'guest', room: r, at: d.status === 'approved' ? d.at : d.start, title: d.title || '', who: d.to || '', label: d.label || '', code: x.key, st: st });
+          got.push({ src: /^R2/.test(x.key) ? 'r2' : 'guest', room: r, at: d.status === 'approved' ? d.at : d.start, title: d.title || '', who: d.to || '', label: d.label || '', code: x.key, st: st });
         });
       }).catch(function () { gErr = 'Couldn’t reach the guest messages list.'; }));
       Promise.all(jobs).then(function () { if (my !== seq) return; items = got; guestErr = gErr; draw(); });   /* only the newest load counts */
@@ -1010,7 +1069,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
           '<span class="chip">' + (x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="hint">' + ST[x.st] + '</span></div>' +
           '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
       }).join('') : '<p class="hint">Nothing scheduled for this day.</p>';
-      h += '<p class="hint">Round2 messages: each TV holds one at a time, so only the one waiting on each TV shows here. <a href="#" data-goguest="1">Manage guest messages</a></p>';
+      h += '<p class="hint">Each TV shows one message at a time; queued ones go out a few minutes before their time. <a href="#" data-goguest="1">Manage guest messages</a></p>';
       $('cDay').innerHTML = h;
     }
     function init() {
@@ -1022,7 +1081,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       $('cDay').addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('[data-goguest]'); if (a) { e.preventDefault(); tab('guestmsgs'); window.scrollTo(0, 0); } });
       $('cKeySave').onclick = function () { var v = $('cKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('cKey').value = ''; load(); };
     }
-    return { open: function () { if (!ready) { ready = true; init(); } load(); } };
+    return { open: function () { if (!ready) { ready = true; init(); } load(); }, items: function () { return items.slice(); } };
   }());
 
   var Sim = (function () {
