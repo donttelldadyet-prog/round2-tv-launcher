@@ -55,9 +55,20 @@ stop() {
   pkill -f 'curl -sN .*firebasedatabase' 2>/dev/null
   # any other copy still running (an older version, or one started twice at boot): only one may watch,
   # or every Home and Back is handled twice. Home-button presses ("key") are left alone.
-  for p in $(ps | grep '[r]ound2d.sh' | grep -v ' key' | awk '{print $1}'); do
-    [ "$p" != "$$" ] && kill "$p" 2>/dev/null
+  # Read from /proc: LG's 'ps' lists only processes of the current terminal, so it never found old copies, and
+  # after an update the old and new helper both ran (two pop-ups for one alert, messages swallowed).
+  n=0
+  for d in /proc/[0-9]*; do
+    p=${d#/proc/}; [ "$p" = "$$" ] && continue
+    set -- $(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)
+    [ "$1" = "-c" ] || [ "$2" = "-c" ] && continue                 # a 'sh -c' that only started us
+    case "$1 $2 $3" in
+      *round2d.sh*key*|*round2d.sh*ack*|*round2d.sh*msgpage*) continue ;;   # one-off button presses
+      *round2d.sh*) kill "$p" 2>/dev/null && n=$((n + 1)) ;;
+    esac
   done
+  [ "$n" -gt 0 ] && log "stopped $n old helper processes"
+  return 0
 }
 
 # --- what each event does ---
