@@ -8,15 +8,15 @@
       "manifest": {
         "id": "sg.round2.tvhome",
         "title": "Round2 Home",
-        "version": "1.0.134",
+        "version": "1.0.135",
         "type": "web",
         "appDescription": "The Round2 room menu: inputs, streaming apps and event backgrounds, driven by the remote.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.134/round2-home.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.135/round2-home.ipk",
         "ipkHash": {
-          "sha256": "23b8b8adfe387d3cebb05a578d91551b62e7a4a47ee525ab80408c60bf7b7e8f"
+          "sha256": "77215c5406f5e82e670639ce3a70de6933c06d678e5440d4fe50c665817233a6"
         }
       }
     },
@@ -117,6 +117,66 @@
         "ipkUrl": "https://github.com/NicholasBly/youtube-webos/releases/download/0.8.4/youtube.leanback.v4_0.8.4_all_webOS22%2B.ipk",
         "ipkHash": {
           "sha256": "c56c4e4a1a72dddc6a12f0adb8a81b70dbeecc1dde04a68228a8483b0b590ab4"
+        }
+      }
+    },
+    {
+      "id": "sg.round2.alerts.a",
+      "title": "Round2 pop-up test A (overlay)",
+      "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
+      "shortDescription": "TEST A: Round2 pop-ups drawn as a webOS \"overlay\" window. Open it once to use it for the test.",
+      "manifest": {
+        "id": "sg.round2.alerts.a",
+        "title": "Round2 pop-up test A (overlay)",
+        "version": "1.0.135",
+        "type": "web",
+        "appDescription": "TEST A: Round2 pop-ups drawn as a webOS \"overlay\" window. Open it once to use it for the test.",
+        "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
+        "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.135/sg.round2.alerts.a.ipk",
+        "ipkHash": {
+          "sha256": "be326ee14ea76715be7bf4a9e62c9d68e1d5ae6187b1e5d979839bdb6791e391"
+        }
+      }
+    },
+    {
+      "id": "sg.round2.alerts.b",
+      "title": "Round2 pop-up test B (popup)",
+      "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
+      "shortDescription": "TEST B: Round2 pop-ups drawn as a webOS \"popup\" window. Open it once to use it for the test.",
+      "manifest": {
+        "id": "sg.round2.alerts.b",
+        "title": "Round2 pop-up test B (popup)",
+        "version": "1.0.135",
+        "type": "web",
+        "appDescription": "TEST B: Round2 pop-ups drawn as a webOS \"popup\" window. Open it once to use it for the test.",
+        "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
+        "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.135/sg.round2.alerts.b.ipk",
+        "ipkHash": {
+          "sha256": "41b83c09d72f1fd9087a22399146808c44587d285031b478faa9f3de7c0f7a63"
+        }
+      }
+    },
+    {
+      "id": "sg.round2.alerts.c",
+      "title": "Round2 pop-up test C (floating)",
+      "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
+      "shortDescription": "TEST C: Round2 pop-ups drawn as a webOS \"floating\" window. Open it once to use it for the test.",
+      "manifest": {
+        "id": "sg.round2.alerts.c",
+        "title": "Round2 pop-up test C (floating)",
+        "version": "1.0.135",
+        "type": "web",
+        "appDescription": "TEST C: Round2 pop-ups drawn as a webOS \"floating\" window. Open it once to use it for the test.",
+        "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png",
+        "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.135/sg.round2.alerts.c.ipk",
+        "ipkHash": {
+          "sha256": "4fc8fd6a522114fa64640bc6ac95aa39b41f5166c7fa3be1c502a70698a9f093"
         }
       }
     }
