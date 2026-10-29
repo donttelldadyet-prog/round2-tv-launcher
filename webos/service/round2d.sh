@@ -67,6 +67,7 @@ watch_apps() {
     luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo '{"subscribe":true}' 2>/dev/null | while read -r line; do
       id=$(echo "$line" | field appId)
       [ -z "$id" ] && continue
+      case "$id" in sg.round2.alerts*) continue ;; esac   # our pop-up card floats over the app; that app is still in front
       [ "$id" != "$prev" ] && { log "front $id"; echo "$id" > "$CFG/front"; }   # for Staff tools > Home helper check, and food alerts
       if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then          # Round2 Home just updated itself
         rm -f "$CFG/relaunch"; sleep 1; launch update; prev=$APP; continue
@@ -113,15 +114,20 @@ FB=https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app
 ACK=https://hook.eu1.make.com/ks522ziapwremxa35kdtan6h6l1oxe17
 num() { sed -n "s/.*\"$1\" *: *\([0-9][0-9]*\).*/\1/p"; }
 clean() { tr -d "\\\\\"'"; }   # no quotes or backslashes: safe inside the luna-send JSON below
-# --- Round2 Alerts (TEST): our own pop-up card instead of LG's, while $CFG/ovtest names an installed test app ---
+# --- Round2 Alerts (sg.round2.alerts, from Homebrew Channel): the Round2 card over other apps instead of LG's pop-ups.
+# Without it installed, LG's own pop-ups are used, so nothing is ever missed.
 ov_app() {
-  id=$(cat "$CFG/ovtest" 2>/dev/null); [ -n "$id" ] || return 1
-  [ -d "/media/developer/apps/usr/palm/applications/$id" ] || return 1
-  echo "$id"
+  [ -d /media/developer/apps/usr/palm/applications/sg.round2.alerts ] || return 1
+  echo sg.round2.alerts
 }
 ov_show() {     # $1 app id, $2 params JSON
-  log "pop-up test: $1 $(echo "$2" | cut -c1-60)"
   luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$1\",\"params\":$2}" >/dev/null 2>&1
+}
+# Is Round2 Home in front right now? (asked fresh: the menu shows alerts itself then)
+menu_front() {
+  id=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' 2>/dev/null | field appId)
+  case "$id" in sg.round2.alerts*|"") id=$(cat "$CFG/front" 2>/dev/null) ;; esac
+  [ "$id" = "$APP" ]
 }
 food_show() {   # $1 type, $2 order no, $3 items
   if ov=$(ov_app); then
@@ -173,7 +179,7 @@ watch_food() {
                    ref=$(echo "$line" | field ref); [ -n "$ref" ] && echo "$ref" >> "$CFG/food.unacked" ;;
             *) continue ;;
           esac
-          [ "$(cat "$CFG/front" 2>/dev/null)" = "$APP" ] && continue   # Round2 Home is in front: the menu shows it
+          menu_front && continue   # Round2 Home is in front: the menu shows it
           food_show "$type" "$no" "$(echo "$line" | field items | clean)" ;;
       esac
     done
@@ -248,7 +254,7 @@ msg_tick() {    # every 20 s: is the message due, and is something other than Ro
     [ "$now" -le "$until" ] || { rm -f "$CFG/msg.cur"; continue; }
     last=$(cat "$CFG/msg.last" 2>/dev/null || echo 0)
     [ $(( now - last )) -ge 300 ] || continue                                   # at most every 5 minutes
-    [ "$(cat "$CFG/front" 2>/dev/null)" = "$APP" ] && continue                  # the menu shows it itself
+    menu_front && continue                                                      # the menu shows it itself
     if msg_acked "$id"; then echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"; continue; fi   # seen on the menu's card
     echo "$now" > "$CFG/msg.last"; echo "$id" > "$CFG/msg.id"
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }

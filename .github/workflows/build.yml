@@ -86,7 +86,7 @@ jobs:
           files: |
             round2-home.apk
             round2-home.ipk
-            sg.round2.alerts.*.ipk
+            sg.round2.alerts.ipk
           make_latest: true
       - name: List the new version for rooted LG TVs (Homebrew Channel)
         if: github.ref_name == 'main'

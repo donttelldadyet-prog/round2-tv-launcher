@@ -8,4 +8,4 @@ local.properties
 build-webos/
 round2-home.ipk
 build-alerts/
-sg.round2.alerts.*.ipk
+sg.round2.alerts*.ipk

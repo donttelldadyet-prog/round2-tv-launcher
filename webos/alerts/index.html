@@ -3,7 +3,9 @@
 <title>Round2 Alerts</title>
 <style>
 /* Round2 Alerts (LG): our pop-up card over Netflix, YouTube, HDMI. Same look as the Android card.
-   TEST build: one copy per window type (A overlay, B popup, C floating) to find what each webOS version allows. */
+   A webOS "overlay" window (appinfo defaultWindowType): drawn above Netflix without pausing it, takes the remote
+   while it's up, and closes by itself when the home screen opens. Chosen after testing overlay, popup and floating
+   windows on Bella (webOS 6, the oldest LG). The LG helper (round2d.sh) opens it with the card's details. */
 html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; overflow: hidden;
   font-family: "LG Smart UI", "Museo Sans", Roboto, Arial, sans-serif; color: #F4F1FB; }
 #card { position: absolute; top: 56px; right: 70px; display: flex; align-items: flex-start; gap: 10px; opacity: 0;
@@ -43,7 +45,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
 <div id="diag"><h1 id="dTitle"></h1><p id="dText"></p><pre id="dLog"></pre></div>
 <script>
 (function () {
-  var VARIANT = '__VARIANT__', WINTYPE = '__WINTYPE__', APPID = '__APPID__';
+  var APPID = 'sg.round2.alerts';
   var CFG = '/var/lib/webosbrew/round2';
   var ICON = {"birthday": "M7.5 7h1.6v4.5H7.5z M11.2 7h1.6v4.5h-1.6z M14.9 7h1.6v4.5h-1.6z M8.3 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M12 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M15.7 2.8c1 1.2 1.1 2.2 0 3.2-1.1-1-1-2 0-3.2z M5 12.5h14a1.5 1.5 0 0 1 1.5 1.5v2.2c-1.2 0-1.9 1-2.8 1s-1.6-1-2.8-1-1.9 1-2.9 1-1.7-1-2.9-1-1.9 1-2.8 1-1.6-1-2.8-1V14A1.5 1.5 0 0 1 5 12.5z M3.5 18.2c1 0 1.6.9 2.8.9s1.8-.9 2.8-.9 1.8.9 2.9.9 1.8-.9 2.9-.9 1.7.9 2.8.9 1.8-.9 2.8-.9V21h-17z", "anniversary": "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z", "celebrate": "M12 1.8l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9l7.1-.6z", "note": "M3 4.5h18a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z M4 7.4V17.5h16V7.4l-8 5.6z M5.6 6.5L12 11l6.4-4.5z", "volume": "M3 9h4l5-4.5v15L7 15H3z M15.3 8.4a5 5 0 0 1 0 7.2l-1.2-1.1a3.4 3.4 0 0 0 0-5z M17.9 5.6a8.7 8.7 0 0 1 0 12.8l-1.2-1.1a7.1 7.1 0 0 0 0-10.6z", "wrapup": "M6 2h12v2h-1v3.2a4 4 0 0 1-1.8 3.3L13.2 12l2 1.5a4 4 0 0 1 1.8 3.3V20h1v2H6v-2h1v-3.2a4 4 0 0 1 1.8-3.3l2-1.5-2-1.5A4 4 0 0 1 7 7.2V4H6z M9 4v3.2c0 .7.3 1.3.9 1.7L12 10.5l2.1-1.6c.6-.4.9-1 .9-1.7V4z M12 14.2l-2.1 1.5c-.6.4-.9 1-.9 1.7V20h6v-2.6c0-.7-.3-1.3-.9-1.7z", "timeup": "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M11 6.5h2v5.1l3.6 2.1-1 1.7-4.6-2.7z"};
   var ROOMS = { vale: ['#E8436A', '#0B0914'], kaeden: ['#4DB848', '#0B0914'], scarlett: ['#F2C21B', '#0B0914'], bella: ['#7A5BE0', '#FFFFFF'],
@@ -59,7 +61,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
     } catch (e) { if (cb) cb({ error: String(e) }); }
   }
   function q(s) { return "'" + String(s).replace(/'/g, '') + "'"; }
-  function log(m) { exec('echo "$(date +%H:%M:%S) ' + VARIANT + ' ' + String(m).replace(/["`$\\]/g, '') + '" >> ' + CFG + '/ovtest.log'); }
+  function log(m) { exec('echo "$(date "+%m-%d %H:%M:%S") alerts: ' + String(m).replace(/["`$\\]/g, '') + '" >> ' + CFG + '/log.txt'); }
 
   function params() {
     try { var p = (window.PalmSystem && PalmSystem.launchParams) || '{}'; return typeof p === 'string' ? JSON.parse(p || '{}') : p; } catch (e) { return {}; }
@@ -68,14 +70,12 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
   /* ---------- opened by hand (from Homebrew Channel or the app list): make this the test pop-up ---------- */
   function setup() {
     $('card').style.display = 'none'; $('diag').style.display = 'block';
-    $('dTitle').textContent = 'ROUND2 POP-UP TEST ' + VARIANT + ' · ' + WINTYPE.toUpperCase();
-    exec('echo ' + APPID + ' > ' + CFG + '/ovtest');
-    $('dText').innerHTML = 'This TV now shows Round2 pop-ups with test <b>' + VARIANT + '</b>.<br>' +
-      '1. Open Netflix and play something.<br>2. On your phone: Control centre › Notifications › Test a TV › this room › <b>Loot dropped</b>, then <b>Long message</b>.<br>' +
-      '3. Note: does Netflix keep playing underneath? Does <span class="k">OK</span> work on the card? Does the remote go back to Netflix after?<br>' +
-      'Press <span class="k">OK</span> here to close. To stop testing and go back to LG’s pop-ups, open this test again and press <span class="k">◀</span>.';
-    exec('tail -n 25 ' + CFG + '/ovtest.log 2>/dev/null; echo ---; grep -E "front|food|message" ' + CFG + '/log.txt | tail -n 12', function (r) {
-      $('dLog').textContent = 'Last test results on this TV:\n' + (r.stdoutString || r.errorText || JSON.stringify(r));
+    $('dTitle').textContent = 'ROUND2 ALERTS';
+    $('dText').innerHTML = 'Installed. Food alerts and messages now show as the Round2 card over Netflix, YouTube and HDMI.<br>' +
+      'Try it: open Netflix, then on your phone: Control centre › Notifications › Test a TV › this room.<br>' +
+      'Press <span class="k">OK</span> to close.';
+    exec('grep -E "alerts:|food|message" ' + CFG + '/log.txt | tail -n 14', function (r) {
+      $('dLog').textContent = 'Recent pop-ups on this TV:\n' + (r.stdoutString || r.errorText || '(none yet)');
     });
     mode = 'setup';
   }
@@ -111,14 +111,14 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
     clearInterval(blinkT); setTimeout(function () { blinkT = setInterval(function () { b.classList.toggle('lit'); }, 550); }, 3000);
     chime();
     clearTimeout(hideT); hideT = setTimeout(function () { log('timed out'); close(); }, p.type === 'received' ? 15000 : 45000);
-    log('shown ' + p.type + ' (' + WINTYPE + ') focus=' + document.hasFocus() + ' visible=' + document.visibilityState);
+    log('shown ' + p.type + (document.hasFocus() ? '' : ' (no remote focus)'));
   }
   function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
   function page(i, turn) {
     var p = card, last = i >= pages.length - 1;
     pi = i;
     var tag = p.type === 'msg' ? (p.tag || 'A MESSAGE') : p.type === 'ready' ? 'LOOT DROPPED · ORDER #' + (p.no || '') : 'ORDER #' + (p.no || '') + ' LOCKED IN';
-    $('tag').textContent = 'TEST ' + VARIANT + ' · ' + tag + (pages.length > 1 ? ' · ' + (i + 1) + '/' + pages.length : '');
+    $('tag').textContent = tag + (pages.length > 1 ? ' · ' + (i + 1) + '/' + pages.length : '');
     $('title').textContent = i === 0 ? (p.title || '') : '';
     $('text').textContent = pages[i] + (last && p.from ? '\n— ' + p.from : '');
     if (turn) { var t = $('text'); t.className = ''; void t.offsetWidth; t.className = 'turn'; }
@@ -153,14 +153,12 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
   function key(e) {
     var k = e.keyCode;
     if (mode === 'setup') {
-      if (k === 37) { exec('rm -f ' + CFG + '/ovtest'); $('dText').innerHTML = 'Testing stopped: this TV uses LG’s pop-ups again. Press <span class="k">OK</span> to close.'; mode = 'setupdone'; e.preventDefault(); return; }
       if (k === 13) { close(); e.preventDefault(); }
       return;
     }
     if (mode === 'setupdone') { if (k === 13) close(); e.preventDefault(); return; }
     if (mode !== 'card') return;
     e.preventDefault(); e.stopPropagation();
-    log('key ' + k);
     var last = pi >= pages.length - 1;
     if (k === 39 && !last) { page(pi + 1, true); return; }
     if (k === 37 && pi > 0) { page(pi - 1, true); return; }
@@ -168,7 +166,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
       chime();
       if (card.type === 'ready') exec('sh ' + CFG + '/round2d.sh ack');
       if (card.type === 'msg' && card.ack) exec('sh ' + CFG + '/round2d.sh msgack');
-      log('OK on ' + card.type + ': closing');
+      log('OK on ' + card.type);
       close(); return;
     }
     nudge();   /* Back and everything else: shake and point at OK */
@@ -181,11 +179,9 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
   }
   document.addEventListener('webOSRelaunch', function (ev) {
     var p = (ev && ev.detail) || params();
-    log('relaunch ' + JSON.stringify(p).slice(0, 80));
+    
     if (p && p.type) { $('diag').style.display = 'none'; $('card').style.display = ''; show(p); }
   }, true);
-  window.addEventListener('blur', function () { if (mode === 'card') log('lost focus'); });
-  window.addEventListener('focus', function () { if (mode === 'card') log('got focus'); });
   start();
 }());
 </script>
