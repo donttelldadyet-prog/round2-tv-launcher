@@ -410,6 +410,14 @@
       "rooms": [
         "kai"
       ]
+    },
+    {
+      "id": "concrete-candy",
+      "name": "CONCRETE CANDY",
+      "source": "sound-concrete-candy-mvszjw83.mp3",
+      "rooms": [
+        "vale"
+      ]
     }
   ],
   "roomDefaults": {
