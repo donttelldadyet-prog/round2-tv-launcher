@@ -65,6 +65,11 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .review.now { border-color: var(--bad); }
 .review .big { font-size: 20px; font-weight: 700; }
 .review .warnl { color: var(--warn); }
+.tpls { display: flex; flex-wrap: wrap; gap: 6px; }
+.tpls .tp { display: inline-flex; align-items: stretch; border: 1px solid var(--line2); }
+.tpls .tp button { background: none; border: 0; color: var(--ink); padding: 6px 10px; cursor: pointer; font-size: 13px; }
+.tpls .tp button.x { color: var(--mute); padding: 6px 8px; border-left: 1px solid var(--line2); }
+.tpls .tp small { color: var(--mute); margin-left: 6px; }
 .review ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .spin { width: 14px; height: 14px; border: 2px solid var(--line2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -332,7 +337,19 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         </div>
         <label class="f">Headline<input type="text" id="mTitle" maxlength="40"></label>
         <label class="f">Message<textarea id="mText" maxlength="600"></textarea>
-          <span class="hint"><span id="mCount">0</span>/600 · <span id="mPages"></span> · <button type="button" class="btn ghost" id="mDefault" style="padding:2px 8px;font-size:11px">Use Round2's default message</button></span></label>
+          <span class="hint"><span id="mCount">0</span>/600 · <span id="mPages"></span> · <button type="button" class="btn ghost" id="mDefault" style="padding:2px 8px;font-size:11px">Use the default message</button></span></label>
+        <div class="f"><span class="f">Saved messages</span>
+          <div class="tpls" id="mTpls"></div>
+          <div class="row" style="margin-top:8px">
+            <button type="button" class="btn ghost" id="mTplNew" style="padding:4px 10px;font-size:12px">Save this as a template…</button>
+            <button type="button" class="btn ghost" id="mDefSave" style="padding:4px 10px;font-size:12px">Make this the default for <span id="mKindName">Birthday</span></button>
+          </div>
+          <div class="row" id="mTplNameRow" hidden style="margin-top:8px">
+            <input type="text" id="mTplName" maxlength="40" placeholder="Name it, e.g. Birthday · VIP room" style="flex:1;min-width:180px">
+            <button type="button" class="btn primary" id="mTplOk">Save template</button><button type="button" class="btn" id="mTplCancel">Cancel</button>
+          </div>
+          <span class="hint">Shared by everyone using the control centre (saved with the themes, so it needs the GitHub key on this computer). Headlines are saved only if you typed your own.</span>
+        </div>
         <div class="f"><span class="f">When</span>
           <div class="seg" id="mWhen"><button type="button" data-w="now" aria-pressed="true">Now</button><button type="button" data-w="at" aria-pressed="false">At a set time</button></div>
           <label class="f" id="mAtBox" hidden>Show at<input type="datetime-local" id="mAt"><span class="hint">Tip: within the first hour of their booking. It shows for up to 3 hours after this time. Set-time messages wait in the same queue as guest messages, so they don't overwrite each other.</span></label>
@@ -812,6 +829,28 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       note: { ic: '<svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" fill-rule="evenodd" d="M3 4.5h18a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1z M4 7.4V17.5h16V7.4l-8 5.6z M5.6 6.5L12 11l6.4-4.5z"/></svg>', tag: 'A message for you', title: function (n) { return n ? 'Hey ' + n + '!' : 'A message for you'; }, text: '' }
     };
     var kind = 'birthday', when = 'now', rooms = [], titleEdited = false, timer = null;
+    /* Saved messages and edited defaults live in themes.json (msgTemplates), so both owners see the same ones. */
+    function tpl() { var t = (data && data.msgTemplates) || {}; return { defaults: t.defaults || {}, saved: t.saved || [] }; }
+    function defText(k) { var d = tpl().defaults[k]; return d && typeof d.text === 'string' ? d.text : KINDS[k].text; }
+    function renderTpls() {
+      var t = tpl(), h = t.saved.map(function (x) {
+        return '<span class="tp"><button type="button" data-tuse="' + esc(x.id) + '">' + esc(x.name) + '<small>' + esc(KINDS[x.kind] ? KINDS[x.kind].tag : '') + '</small></button>' +
+          '<button type="button" class="x" data-tdel="' + esc(x.id) + '" aria-label="Delete ' + esc(x.name) + '">\u00D7</button></span>';
+      }).join('');
+      if (t.defaults[kind]) h += '<span class="tp"><button type="button" data-treset="' + kind + '">\u21BA Back to Round2\u2019s original ' + esc(KINDS[kind].tag.toLowerCase()) + ' default</button></span>';
+      $('mTpls').innerHTML = h || '<span class="hint">None saved yet.</span>';
+      $('mKindName').textContent = KINDS[kind].tag;
+    }
+    function saveTpl(change, what) {
+      if (!token) { toast('Add the GitHub key on this computer first (Themes tab), so it can save.'); return Promise.reject(new Error('no key')); }
+      return gh('/contents/' + PATH + '?ref=main').then(function (j) {   /* merge onto the latest copy */
+        var latest = JSON.parse(unb64utf8(j.content)); fileSha = j.sha;
+        var t = latest.msgTemplates || {}; t.defaults = t.defaults || {}; t.saved = t.saved || [];
+        change(t); latest.msgTemplates = t; data = latest; if (!data.themes) data.themes = [];
+        return commitThemes(what + ' (Messages)');
+      }).then(function () { renderTpls(); toast(what + ' saved.'); })
+        .catch(function (e) { if (e.message !== 'no key') toast('Couldn\u2019t save: ' + e.message); throw e; });
+    }
     function key() { return ls('r2m.msgKey') || ''; }
     function topic(r) { return r === 'maximillion' ? 'max' : r; }
     function url(r, node) { return FB + '/r2/' + key() + '/' + topic(r) + '/' + node + '.json'; }
@@ -934,7 +973,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       } else {
         jobs = [];
         p.rooms.forEach(function (r) {
-          if (p.pair) { var w = KINDS.wrapup; jobs.push(queue(r, { kind: 'wrapup', to: '', from: d.from, title: w.title(''), text: w.text, ack: true, at: d.at - 600000 })); }
+          if (p.pair) { var w = KINDS.wrapup; jobs.push(queue(r, { kind: 'wrapup', to: '', from: d.from, title: w.title(''), text: defText('wrapup'), ack: true, at: d.at - 600000 })); }
           jobs.push(queue(r, d));
         });
       }
@@ -955,13 +994,13 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       });
       $('mKind').addEventListener('click', function (e) {
         var k = e.target.getAttribute && e.target.getAttribute('data-k'); if (!k) return;
-        var wasDefault = !$('mText').value.trim() || $('mText').value.trim() === KINDS[kind].text;
+        var wasDefault = !$('mText').value.trim() || $('mText').value.trim() === defText(kind);
         kind = k; seg('#mKind', 'data-k', k); titleEdited = false; fillTitle();
-        if (wasDefault || KINDS[k].admin) $('mText').value = KINDS[k].text;
+        if (wasDefault || KINDS[k].admin) $('mText').value = defText(k);
         $('mTo').closest('label').hidden = !!KINDS[k].admin; if (KINDS[k].admin) $('mTo').value = '';
         if (KINDS[k].admin) $('mAck').checked = true;
         $('mPairBox').hidden = !(k === 'timeup' && when === 'at'); closeReview();
-        preview();
+        preview(); renderTpls();
       });
       $('mWhen').addEventListener('click', function (e) {
         var w = e.target.getAttribute && e.target.getAttribute('data-w'); if (!w) return;
@@ -972,7 +1011,49 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       $('mTitle').addEventListener('input', function () { titleEdited = true; preview(); });
       ['mText', 'mFrom', 'mAt', 'mTo', 'mTitle'].forEach(function (id) { $(id).addEventListener('input', function () { preview(); closeReview(); }); });
       ['mAck', 'mPair'].forEach(function (id) { $(id).addEventListener('change', function () { preview(); closeReview(); }); });
-      $('mDefault').onclick = function () { $('mText').value = KINDS[kind].text; preview(); };
+      $('mDefault').onclick = function () { $('mText').value = defText(kind); preview(); closeReview(); };
+      $('mTplNew').onclick = function () { $('mTplNameRow').hidden = false; $('mTplName').focus(); };
+      $('mTplCancel').onclick = function () { $('mTplNameRow').hidden = true; $('mTplName').value = ''; };
+      $('mTplOk').onclick = function () {
+        var name = $('mTplName').value.trim(), text = $('mText').value.trim();
+        if (!name) { toast('Give the template a name.'); return; }
+        if (!text) { toast('Write the message first.'); return; }
+        var x = { id: 't' + Date.now().toString(36), name: name, kind: kind, text: text, from: $('mFrom').value.trim(), ack: $('mAck').checked };
+        if (titleEdited && $('mTitle').value.trim()) x.title = $('mTitle').value.trim();
+        $('mTplOk').disabled = true;
+        saveTpl(function (t) { t.saved.push(x); }, 'Template \u201C' + name + '\u201D').then(function () { $('mTplNameRow').hidden = true; $('mTplName').value = ''; }, function () {})
+          .then(function () { $('mTplOk').disabled = false; });
+      };
+      $('mDefSave').onclick = function () {
+        var text = $('mText').value.trim(), b = this;
+        if (!text) { toast('Write the message first.'); return; }
+        if (!b._armed) { b._armed = true; var o = b.innerHTML; b.textContent = 'Tap again: replace the ' + KINDS[kind].tag + ' default for everyone'; setTimeout(function () { b._armed = false; b.innerHTML = o; renderTpls(); }, 4000); return; }
+        b._armed = false; var k = kind;
+        saveTpl(function (t) { t.defaults[k] = { text: text }; }, KINDS[k].tag + ' default').catch(function () {});
+      };
+      $('mTpls').addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('button'); if (!b) return;
+        var t = tpl(), id;
+        if ((id = b.getAttribute('data-tuse'))) {
+          var x = t.saved.filter(function (y) { return y.id === id; })[0]; if (!x) return;
+          if (KINDS[x.kind]) {
+            kind = x.kind; seg('#mKind', 'data-k', kind);
+            $('mTo').closest('label').hidden = !!KINDS[kind].admin; if (KINDS[kind].admin) $('mTo').value = '';
+            $('mPairBox').hidden = !(kind === 'timeup' && when === 'at');
+          }
+          $('mText').value = x.text; if (x.from != null) $('mFrom').value = x.from; if (x.ack != null) $('mAck').checked = !!x.ack;
+          if (x.title) { $('mTitle').value = x.title; titleEdited = true; } else { titleEdited = false; fillTitle(); }
+          preview(); closeReview(); renderTpls(); return;
+        }
+        if ((id = b.getAttribute('data-tdel'))) {
+          if (!b._armed) { b._armed = true; b.textContent = 'Delete?'; setTimeout(function () { b._armed = false; b.textContent = '\u00D7'; }, 4000); return; }
+          saveTpl(function (tt) { tt.saved = tt.saved.filter(function (y) { return y.id !== id; }); }, 'Template removal').catch(function () {});
+          return;
+        }
+        if ((id = b.getAttribute('data-treset'))) {
+          saveTpl(function (tt) { delete tt.defaults[id]; }, KINDS[id].tag + ' default').then(function () { $('mText').value = KINDS[id].text; preview(); }, function () {});
+        }
+      });
       $('mSend').onclick = send;
       $('mRefresh').onclick = status;
       $('mKeySave').onclick = function () {
@@ -990,12 +1071,14 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
           req('PUT', url(rs, 'msg'), m).then(function () { toast('Sent again to ' + ROOMS[rs].name + '.'); setTimeout(status, 1500); }).catch(function (er) { toast('Couldn\u2019t send: ' + er.message); });
         }
       });
-      $('mText').value = KINDS[kind].text; preview();
+      $('mText').value = defText(kind); preview(); renderTpls();
     }
     var ready = false;
     return {
       open: function () {
         if (!ready) { ready = true; init(); }
+        else if ($('mText').value.trim() === KINDS[kind].text) $('mText').value = defText(kind);   /* the saved defaults may have loaded since */
+        renderTpls(); preview();
         $('mKeyBox').hidden = !!key();
         status(); clearInterval(timer); timer = setInterval(status, 20000);
         try { Cal.open(); } catch (e) {}

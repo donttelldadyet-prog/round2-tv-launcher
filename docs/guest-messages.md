@@ -75,3 +75,17 @@ The staff code is not in this repo. It's in the ROUND2 HOMESCREEN Project notes.
 - **Control centre "At a set time" messages now go through the Make queue** (`r2` action) instead of straight to the TV, so they no longer overwrite guest messages. Needs the guest messages staff code on that computer (Calendar section).
 - **Time's up + optional "10 minutes left":** with Time's up and "At a set time", a tick box queues the 10-minute reminder 10 minutes earlier. Off by default.
 - Live Make scenarios were updated at the same time (`r2` route, TV slot rule in `push`, timer limited to opening hours). The control centre's `r2` path couldn't be tested from Claude's workspace (no network to Make); first real use: schedule one far ahead, check it in Guest messages, cancel it.
+
+## Saved messages and editable defaults (control centre › Messages)
+
+- **Save this as a template…**: name it; saves occasion, message, From, "must be acknowledged" and the headline (only if typed by hand). Tap a saved one to fill the form; × twice to delete.
+- **Make this the default for <occasion>** (tap twice): replaces that occasion's default message for everyone. "Back to Round2's original … default" undoes it. The 10-minute reminder uses the "10 minutes left" default.
+- Stored in `themes/themes.json` under `msgTemplates` (`defaults.<kind>.text`, `saved[]`), merged onto the latest copy like room defaults. Needs the GitHub key on that computer. The repo is public, so don't put private details in templates.
+
+## cue.round2.sg (branded guest links)
+
+Files in `cue/` (see `cue/README.md`). Goes live once the `round2-cue` repo + Pages + the Wix CNAME record exist; then switch `PUBLIC`/`shareUrl` in `manager/msg/staff.html` to `https://cue.round2.sg/CODE`.
+
+## Start time picker
+
+The staff page's start time (and Change time) is a dropdown in 15-minute steps (a wheel on iPhone), listed from 10am round to 9:45am.
