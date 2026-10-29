@@ -292,6 +292,14 @@ public class FoodAlerts extends Service {
     private String bangText = "!", okText = "[OK]  GOT IT";
     private boolean pageTurn;
     private int px(float v) { return Math.round(v * u); }
+    /** The menu's fonts (saved as TTF with the app's web files), so the card matches the menu; the TV's own if missing. */
+    private Typeface fUi, fBold, fPix; private boolean fontsTried;
+    private void fonts() {
+        if (fontsTried) return; fontsTried = true;
+        try { fUi = Typeface.createFromAsset(getAssets(), "fonts-native/chakra-500.ttf"); } catch (Exception ignored) { }
+        try { fBold = Typeface.createFromAsset(getAssets(), "fonts-native/chakra-700.ttf"); } catch (Exception ignored) { }
+        try { fPix = Typeface.createFromAsset(getAssets(), "fonts-native/pixel.ttf"); } catch (Exception ignored) { }
+    }
 
     /** A card in the menu's style, top right, over whatever is playing: a room-coloured "!" that pops
      *  and wobbles, and a card that flashes in the room colour.
@@ -334,15 +342,19 @@ public class FoodAlerts extends Service {
         col.setBackground(bgd);
         TextView t1 = new TextView(this);
         t1.setText(tag); t1.setTextColor(room); t1.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(13));
-        t1.setTypeface(Typeface.MONOSPACE, Typeface.BOLD); t1.setLetterSpacing(0.14f);
+        fonts();
+        if (fPix != null) { t1.setTypeface(fPix); t1.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(10)); t1.setLineSpacing(0, 1.4f); }
+        else t1.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        t1.setLetterSpacing(0.14f);
         TextView t2 = new TextView(this);
         t2.setText(title); t2.setTextColor(0xFFF4F1FB); t2.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(34));
-        t2.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD)); t2.setLetterSpacing(0.05f);
+        t2.setTypeface(fBold != null ? fBold : Typeface.create("sans-serif-condensed", Typeface.BOLD)); t2.setLetterSpacing(0.05f);
         t2.setPadding(0, px(8), 0, px(4));
         if (title == null || title.isEmpty()) t2.setVisibility(View.GONE);   // a message's later pages
         TextView t3 = new TextView(this);
         t3.setText(text); t3.setTextColor(0xFFD6D0E3); t3.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(19));
         t3.setLineSpacing(0, 1.15f);
+        if (fUi != null) t3.setTypeface(fUi);
         col.addView(t1); col.addView(t2); col.addView(t3);
         // the order, one row per item, quantity in the room colour (at most 4 rows)
         java.util.List<String> list = new java.util.ArrayList<>();
@@ -363,7 +375,7 @@ public class FoodAlerts extends Service {
                 } else sb.append(x);
                 TextView li = new TextView(this);
                 li.setText(sb); li.setTextColor(0xFFF4F1FB); li.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(18));
-                li.setTypeface(Typeface.DEFAULT_BOLD); li.setSingleLine(true); li.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                li.setTypeface(fBold != null ? fBold : Typeface.DEFAULT_BOLD); li.setSingleLine(true); li.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 col.addView(li);
                 if (i == 4) break;
             }
@@ -372,7 +384,7 @@ public class FoodAlerts extends Service {
             final TextView ok = new TextView(this);
             okLabel = ok;
             ok.setText(okNow); ok.setTextColor(ink); ok.setBackgroundColor(room);
-            ok.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15)); ok.setTypeface(Typeface.DEFAULT_BOLD); ok.setLetterSpacing(0.12f);
+            ok.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(15)); ok.setTypeface(fBold != null ? fBold : Typeface.DEFAULT_BOLD); ok.setLetterSpacing(0.12f);
             ok.setPadding(px(12), px(7), px(22), px(7));
             LinearLayout.LayoutParams ol = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             ol.topMargin = px(12);

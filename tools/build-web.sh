@@ -25,4 +25,5 @@ if [ -f web/media/sources.txt ] && command -v ffmpeg >/dev/null; then
   done < web/media/sources.txt
 fi
 python3 tools/bundle-fonts.py web-assets/index.html || echo "fonts: kept online links"
+python3 tools/fetch-ttf.py web-assets/fonts-native || echo "fonts: pop-up cards use the TV's own font"
 echo "web-assets ready"

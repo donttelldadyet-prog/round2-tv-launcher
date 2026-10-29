@@ -8,6 +8,8 @@ VERSION="${1:-1.0.0}"
 ARES="${ARES_PACKAGE:-npx --yes --package=@webos-tools/cli ares-package}"
 S=build-alerts; rm -rf "$S" && mkdir -p "$S/app" "$S/out"
 cp webos/alerts/index.html webos/alerts/icon.png webos/alerts/largeIcon.png "$S/app/"
+# the menu's fonts (tools/build-web.sh saves them), so the card looks the same as the menu
+[ -d web-assets/fonts-native ] && cp -r web-assets/fonts-native "$S/app/fonts"
 python3 - "$VERSION" "$S/app/appinfo.json" <<'EOF'
 import json, sys
 v, out = sys.argv[1:]

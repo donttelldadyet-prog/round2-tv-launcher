@@ -6,8 +6,11 @@
    A webOS "overlay" window (appinfo defaultWindowType): drawn above Netflix without pausing it, takes the remote
    while it's up, and closes by itself when the home screen opens. Chosen after testing overlay, popup and floating
    windows on Bella (webOS 6, the oldest LG). The LG helper (round2d.sh) opens it with the card's details. */
+@font-face { font-family: 'Chakra Petch'; src: url(fonts/chakra-500.ttf); font-weight: 400 600; }
+@font-face { font-family: 'Chakra Petch'; src: url(fonts/chakra-700.ttf); font-weight: 700 900; }
+@font-face { font-family: 'Press Start 2P'; src: url(fonts/pixel.ttf); }
 html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; overflow: hidden;
-  font-family: "LG Smart UI", "Museo Sans", Roboto, Arial, sans-serif; color: #F4F1FB; }
+  font-family: 'Chakra Petch', "LG Smart UI", Roboto, Arial, sans-serif; font-weight: 500; color: #F4F1FB; }
 #card { position: absolute; top: 56px; right: 70px; display: flex; align-items: flex-start; gap: 10px; opacity: 0;
   transform: translateX(160px); transition: opacity .5s ease-out, transform .55s cubic-bezier(.2,.9,.3,1); }
 #card.in { opacity: 1; transform: none; }
@@ -19,17 +22,17 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
 @keyframes wob { 20% { transform: rotate(-14deg); } 45% { transform: rotate(12deg); } 70% { transform: rotate(-8deg); } 90% { transform: rotate(4deg); } }
 #box { width: 410px; box-sizing: border-box; padding: 16px 22px 18px 20px; background: #110E1A; border: 2px solid var(--rc); transition: background .12s; }
 #box.flash { background: var(--rc); }
-#tag { font: 700 13px monospace; letter-spacing: .14em; color: var(--rc); text-transform: uppercase; }
-#title { font: 700 34px/1.1 "Roboto Condensed", Arial Narrow, sans-serif; letter-spacing: .05em; padding: 8px 0 4px; }
+#tag { font: 400 10px/1.5 'Press Start 2P', monospace; letter-spacing: .14em; color: var(--rc); text-transform: uppercase; }
+#title { font: 700 34px/1.1 'Chakra Petch', Arial, sans-serif; letter-spacing: .05em; padding: 8px 0 4px; }
 #title:empty { display: none; }
 #text { font-size: 19px; line-height: 1.35; color: #D6D0E3; white-space: pre-line; }
 #text.turn { animation: fade .35s ease-out both; }
 @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 #items { margin-top: 10px; border-top: 1px solid rgba(244,241,251,.14); padding-top: 6px; }
-#items div { font: 700 18px/1.4 Arial, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#items div { font: 700 18px/1.4 'Chakra Petch', Arial, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #items b { color: var(--rc); margin-right: 8px; }
 #ok { display: inline-block; margin-top: 12px; padding: 7px 22px 7px 12px; background: var(--rc); color: var(--ink);
-  font: 700 15px Arial, sans-serif; letter-spacing: .12em; transition: transform .14s; }
+  font: 700 15px 'Chakra Petch', Arial, sans-serif; letter-spacing: .12em; transition: transform .14s; }
 #ok.turn { background: transparent; color: var(--rc); box-shadow: inset 0 0 0 2px var(--rc); }
 #ok.nudge { background: #F4F1FB; color: #0B0914; transform: scale(1.12); }
 #card.shake { animation: shake .42s ease-in-out; }
