@@ -84,7 +84,7 @@ The staff code is not in this repo. It's in the ROUND2 HOMESCREEN Project notes.
 
 ## cue.round2.sg (branded guest links)
 
-Files in `cue/` (see `cue/README.md`). Goes live once the `round2-cue` repo + Pages + the Wix CNAME record exist; then switch `PUBLIC`/`shareUrl` in `manager/msg/staff.html` to `https://cue.round2.sg/CODE`.
+Live since 29 Oct. Repo `donttelldadyet-prog/round2-cue` (GitHub Pages, branch main, custom domain `cue.round2.sg`); copies of its files in `cue/`. DNS: CNAME `cue` → `donttelldadyet-prog.github.io` in the Wix DNS zone for round2.sg. Invites now use `https://cue.round2.sg/CODE` (`SHORT` in `manager/msg/staff.html`); old github.io links keep working.
 
 ## Start time picker
 

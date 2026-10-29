@@ -245,8 +245,10 @@ details.past .list { margin-top: 10px; }
     return (found || !sel ? '' : '<option value="' + sel + '" selected>' + sel + '</option>') + h;
   }
   function sgMs(d, t) { var s = Date.parse(d + 'T' + t + ':00+08:00'); return isNaN(s) ? null : s; }
-  function guestUrl(code) { return /github\.io$/.test(location.hostname) ? PUBLIC + '?c=' + code : 'index.html#' + code; }
-  function shareUrl(code) { return PUBLIC + '?c=' + code; }
+  /* Guests get the short branded address (cue.round2.sg, its own repo round2-cue), which shows PUBLIC inside it. */
+  var SHORT = 'https://cue.round2.sg/';
+  function guestUrl(code) { return /github\.io$/.test(location.hostname) ? SHORT + code : 'index.html#' + code; }
+  function shareUrl(code) { return SHORT + code; }
 
   function call(body) {
     return fetch(HOOK, { method: 'POST', body: new URLSearchParams(body) }).then(function (r) {
