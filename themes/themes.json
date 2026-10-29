@@ -466,6 +466,14 @@
       "rooms": [
         "atlas"
       ]
+    },
+    {
+      "id": "bonsai-hours",
+      "name": "Bonsai Hours",
+      "source": "sound-bonsai-hours-mvtaq3c1.mp3",
+      "rooms": [
+        "kai"
+      ]
     }
   ],
   "roomDefaults": {
