@@ -252,6 +252,18 @@
       "takeover": false,
       "loop": "blend",
       "cards": "right"
+    },
+    {
+      "id": "santorini-dusk-2026",
+      "name": "Santorini Dusk",
+      "source": "santorini-dusk-2026-mvt5xxaj.mp4",
+      "rooms": [
+        "atlas"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "bottom"
     }
   ],
   "sounds": [
