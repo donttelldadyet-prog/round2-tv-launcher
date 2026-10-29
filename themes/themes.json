@@ -525,6 +525,15 @@
         "text": "This session has come to an end. We hope you had a great time! Please gather your things, so we can get the room ready for the next guests. See you again soon!"
       }
     },
-    "saved": []
+    "saved": [
+      {
+        "id": "tmvtmity5",
+        "name": "TIMES UP",
+        "kind": "timeup",
+        "text": "This session has come to an end. We hope you had a great time! Please gather your things, so we can get the room ready for the next guests. See you again soon!",
+        "from": "The Round2 team",
+        "ack": true
+      }
+    ]
   }
 }
