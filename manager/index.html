@@ -406,7 +406,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   <section id="tab-website" hidden>
     <h1>Website visitors</h1>
-    <p class="sub">What people do on round2.sg's game menu: who's on it now, busy hours, and how far they get towards booking. Counted by the menu page itself (numbers only, no names or contact details).</p>
+    <p class="sub">What people do on round2.sg's game menu: who's on it now, busy hours, and how far they get towards booking. Updates live while this page is open. Counted by the menu page itself (numbers only, no names or contact details).</p>
     <div class="banner warn" id="wErr" hidden></div>
     <div class="wlive">
       <div><div class="wbig" id="wNow">–</div><div class="hint">on the site right now</div></div>
@@ -1249,15 +1249,26 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       }).catch(function () {});
     }
     function refresh() { liveNow(); stats(); }
+    /* real time: Firebase streams every change (EventSource), so a new visitor or step shows within a second or two.
+       The 15-second timer stays for people who leave without saying (their live entry just goes stale). */
+    var streams = [], dLive = null, dStats = null;
+    function listen() {
+      unlisten();
+      if (!window.EventSource) return;
+      var on = function (es, fn) { ['put', 'patch'].forEach(function (ev) { es.addEventListener(ev, fn); }); streams.push(es); };
+      on(new EventSource(DB + '/live.json'), function () { clearTimeout(dLive); dLive = setTimeout(liveNow, 400); });
+      on(new EventSource(DB + '/days/' + sgDay(Date.now()) + '.json'), function () { clearTimeout(dStats); dStats = setTimeout(stats, 800); });
+    }
+    function unlisten() { streams.forEach(function (es) { try { es.close(); } catch (e) {} }); streams = []; }
     return {
       open: function () {
         if (!ready) {
           ready = true;
           $('wRange').addEventListener('click', function (e) { var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return; range = +r; Array.prototype.forEach.call(document.querySelectorAll('#wRange button'), function (b) { b.setAttribute('aria-pressed', b === e.target); }); stats(); });
         }
-        refresh(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) { liveNow(); } }, 15000);
+        refresh(); listen(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) { liveNow(); } }, 15000);
       },
-      close: function () { clearInterval(timer); }
+      close: function () { clearInterval(timer); unlisten(); }
     };
   }());
 
