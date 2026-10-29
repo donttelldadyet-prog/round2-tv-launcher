@@ -661,7 +661,7 @@
         "variables": [
          {
           "name": "staffErr",
-          "value": "{{if(ifempty(40.room; \"\") = \"\"; \"No such link.\"; if(2.act = \"cancel\"; if(40.status = \"cancelled\"; \"Already cancelled.\"; \"ok\"); if(40.status = \"cancelled\"; \"That link was cancelled.\"; if(2.act = \"move\"; if(2.start <= 0; \"Pick the new start time.\"; if(2.start + 10800000 < 2.now; \"That time has already passed.\"; \"ok\")); if(40.status != \"approved\"; \"The guest hasn't sent a message yet.\"; if(40.end < 2.now; \"That booking has finished.\"; \"ok\"))))))}}"
+          "value": "{{if(ifempty(40.room; \"\") = \"\"; \"No such link.\"; if(2.act = \"cancel\"; if(40.status = \"cancelled\"; \"Already cancelled.\"; \"ok\"); if(40.status = \"cancelled\"; \"That link was cancelled.\"; if(2.act = \"move\"; if(2.start <= 0; \"Pick the new start time.\"; if(2.start + 10800000 < 2.now; \"That time has already passed.\"; if(2.roomOk = \"no\"; \"Pick a room.\"; \"ok\"))); if(40.status != \"approved\"; \"The guest hasn't sent a message yet.\"; if(40.end < 2.now; \"That booking has finished.\"; \"ok\"))))))}}"
          },
          {
           "name": "newAt",
@@ -811,6 +811,7 @@
             "upsert": false,
             "overwriteArrays": false,
             "data": {
+             "room": "{{2.room}}",
              "start": "{{2.start}}",
              "end": "{{2.start + 10800000}}",
              "until": "{{2.start + 10800000}}",

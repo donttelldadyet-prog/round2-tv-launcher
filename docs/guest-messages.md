@@ -12,7 +12,7 @@ Guests write their own birthday, anniversary, celebration or note message for th
 4. **Approved automatically.** Staff don't approve anything. They can Cancel anything they don't like (this also takes it off the TV), or Change time.
 5. **Sent to the TV just before its time.** Each TV holds one message at a time (`/r2/<key>/<room>/msg`), so a message sent days early could be replaced by any other. The timer scenario checks every 15 minutes and sends each message that's due within the next 16 minutes. A message due sooner than that, or one staff press **Send to TV now** on, goes straight away.
 6. **Cut-off.** Behind the scenes, `end` = start + 3 h. The link closes then, and the TV stops showing the message (`until`), so it can't pop up for the next group. Nobody types an end time.
-7. **Change time** (late or rescheduled guests): staff set a new start. The message's show time moves by the same amount and gets a new id, so the TV shows it again. If it had already been sent to the TV, it's taken off and re-sent at the new time.
+7. **Change time or room** (late, rescheduled or changing rooms): staff set a new room and start. The message's show time moves by the same amount and gets a new id, so the TV shows it again. If it had already been sent to the TV, it's taken off and re-sent at the new time.
 
 ## Files
 
@@ -42,7 +42,7 @@ One webhook; `action` decides the route. The pages POST form-encoded fields, so 
 | `get` | guest | `code` | the link record; refuses unknown, cancelled, finished |
 | `submit` | guest | `code`, `kind`, `to`, `from`, `title`, `text`, `at` | saves and approves; refuses times outside the first hour, unknown occasion, empty headline, text over 600, names over 40, and edits once the show time has passed. If due within 16 min, sends it to the TV now. |
 | `list` | staff | `staff` | links that finished less than 2 days ago or later. Make answers plain `Accepted` when there are none. |
-| `move` | staff | `staff`, `code`, `start` | new start; the show time keeps the same gap |
+| `move` | staff | `staff`, `code`, `start`, `room` | new start and room (upgrades, room swaps); the show time keeps the same gap after the start, and the message is taken off the old room's TV if it was there |
 | `now` | staff | `staff`, `code` | show time = now, send to the TV |
 | `cancel` | staff | `staff`, `code` | closes the link; takes the message off the TV if it's still the one there |
 | `push` | internal | `staff`, `code` | writes the record to the room's TV, sets `onTv` = `yes`. Called by the scenario itself and by the timer. |
