@@ -2537,7 +2537,19 @@ window.R2_TV = {
         } catch (e) {}
       }
       go();
-      function go() { if (!document.hidden) show(d, store('r2.msgShown') === d.id); if (d.ack) timer = setTimeout(tick, REPEAT); }
+      function go() {
+        /* rooted LG: the helper may have shown it over another app a moment ago, and OK was pressed there (or it
+           didn't need OK): it notes that in msg.done straight away, before the server hears about it */
+        var asked = false, t = setTimeout(really, 1500);
+        try {
+          LGRoot.exec('cat /var/lib/webosbrew/round2/msg.done 2>/dev/null', function (out) {
+            if (asked) return; asked = true; clearTimeout(t);
+            if (out && out.replace(/\s+/g, '') === d.id) { store('r2.msgDone', d.id); store('r2.msg', ''); return; }
+            really();
+          });
+        } catch (e) { clearTimeout(t); really(); }
+        function really() { asked = true; if (!document.hidden) show(d, store('r2.msgShown') === d.id); if (d.ack) timer = setTimeout(tick, REPEAT); }
+      }
     }
     function listen() {
       var l = link(); if (!l || l.native || !window.EventSource) return;
