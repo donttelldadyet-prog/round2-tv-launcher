@@ -2573,7 +2573,7 @@ window.R2_TV = {
       function go() {
         /* rooted LG: the helper may have shown it over another app a moment ago, and OK was pressed there (or it
            didn't need OK): it notes that in msg.done straight away, before the server hears about it */
-        var asked = false, t = setTimeout(really, 1500);
+        var asked = false, t = setTimeout(really, 6000);   /* Homebrew Channel can take a few seconds to answer */
         try {
           LGRoot.exec('cat /var/lib/webosbrew/round2/msg.done 2>/dev/null', function (out) {
             if (asked) return; asked = true; clearTimeout(t);
