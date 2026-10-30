@@ -551,10 +551,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="card"><h2 style="margin-top:0">Engine check</h2><div class="chk" id="tbChk"><span class="hint">Press Run checks.</span></div>
       <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="tbRun">Run checks</button><span class="hint" id="tbWhen"></span></div></div>
     <div class="tb">
-      <div class="card"><h2>Booking (test payment)</h2><p id="tbBookNote">Book like a guest with HitPay's test card. Nothing is charged while payments are on TEST.</p>
+      <div class="card"><h2>Booking (HitPay sandbox)</h2><p id="tbBookNote">Book like a guest with HitPay's test card. Nothing is charged.</p>
         <ol><li>Card <b>4242 4242 4242 4242</b>, any future date, any 3 digits.</li><li>Check the confirmation page and the one email.</li><li>It's a real booking in SimplyBook: cancel it there afterwards.</li></ol>
         <a class="btn primary" id="tbBook" target="_blank" rel="noopener">Open the booking page</a></div>
-      <div class="card"><h2>Food order</h2><p>The guest menu in test mode, no payment. The kitchen group gets it marked SIMULATED · DO NOT MAKE.</p><button class="btn" type="button" data-go="simorder">Open Test an order</button></div>
+      <div class="card"><h2>Food order</h2><p>The guest menu in test mode. Pick <b>Skip HitPay</b> (alerts only) or <b>Full flow: HitPay sandbox</b> at the top of the menu. The kitchen group gets it marked as a test.</p><button class="btn" type="button" data-go="simorder">Open Test an order</button></div>
       <div class="card"><h2>TV message / food alert</h2><p>Send a test message or food alert to one locked TV and watch it arrive.</p><button class="btn" type="button" data-go="tests">Open Test a TV</button></div>
       <div class="card"><h2>Guest message link</h2><p>Make a link, write a message as a guest, approve it as staff.</p><button class="btn" type="button" data-go="guestlink">Open Make a guest link</button></div>
       <div class="card"><h2>View-your-booking page</h2><p>Find a test booking again with its email and mobile.</p><a class="btn" href="https://round2-book.donttelldadyet.workers.dev/find" target="_blank" rel="noopener">Open View your booking</a></div>
@@ -1474,9 +1474,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var safe = st.booking === 'simplybook', liveP = st.payments === 'live';
       b.innerHTML = (ready ? '' : '<div class="banner warn"><div class="grow"><b>Switches are locked until the two passwords are set.</b> In Cloudflare › Workers &amp; Pages › round2-book › Settings › Variables and Secrets, edit <code>SWITCH_PASS</code> (a password) and <code>SWITCH_PIN</code> (a different PIN only the owners know).</div></div>') +
         box('booking', 'Online booking', safe ? '🛟 Safe mode: guests book on the SimplyBook page' : '✅ New booking page', [['new', 'New booking page', !safe], ['simplybook', 'Safe mode (SimplyBook)', safe]],
-          'Safe mode keeps the business running if anything goes wrong: the booking page just shows a button to the old SimplyBook page, and the engine takes no new online bookings. Bookings already made stay as they are.') +
-        box('pay', 'Payments (booking page and food menu)', liveP ? '💳 LIVE – real money' : '🧪 TEST – sandbox, no real money', [['test', 'Test', !liveP], ['live', 'Live', liveP]],
-          (st.liveKeys ? 'Live HitPay key is in Cloudflare.' : 'The live HitPay key and salt aren’t in Cloudflare yet (HITPAY_LIVE_KEY, HITPAY_LIVE_SALT).') + ' Both the booking page and the menu switch together.') +
+          'Safe mode keeps the business running if anything goes wrong: the booking page shows the old SimplyBook calendar instead (same as the website used before), and the engine takes no new online bookings. Bookings already made stay as they are.') +
+        '<div class="sw"><div class="hint">Payments (booking page and food menu)</div><div class="now">' + (liveP ? '💳 Guests pay LIVE' : '🧪 Pre-launch: everything uses the HitPay sandbox') + '</div>' +
+          '<div class="hint">No switch needed: guests always pay on the live HitPay account once its key is in Cloudflare' + (st.liveKeys ? ' (it is)' : ' (not yet: paste HITPAY_LIVE_KEY and HITPAY_LIVE_SALT)') + '. The test tools (Test bench, Test an order) always use the HitPay sandbox, so testing never charges anyone.</div></div>' +
         '<div class="lockbox" id="swLock" hidden><b id="swWhat"></b><input id="swPass" type="password" autocomplete="off" placeholder="Password"><input id="swPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">' +
         '<input id="swBy" placeholder="Your name (for the record)"><div class="row"><button class="btn primary" type="button" id="swGo">Confirm switch</button><button class="btn" type="button" id="swNo">Cancel</button></div><div class="hint" id="swMsg"></div></div>';
     }
@@ -1492,9 +1492,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var w = e.target.closest('[data-sw]');
       if (w && !w.disabled) {
         var k = w.getAttribute('data-sw'), v = w.getAttribute('data-v');
-        if ((k === 'booking' ? st.booking : st.payments) === v) return;
+        if (st.booking === v) return;
         pending = { k: k, v: v };
-        $('swWhat').textContent = k === 'booking' ? (v === 'simplybook' ? 'Switch online booking to SAFE MODE (SimplyBook page)?' : 'Switch back to the NEW booking page?') : (v === 'live' ? 'Switch payments to LIVE? Guests pay real money from now on.' : 'Switch payments to TEST? Guests can’t really pay until you switch back.');
+        $('swWhat').textContent = v === 'simplybook' ? 'Switch online booking to SAFE MODE (the SimplyBook calendar on the booking page)?' : 'Switch back to the NEW booking page?';
         $('swLock').hidden = false; $('swMsg').textContent = ''; $('swPass').value = ''; $('swPin').value = ''; $('swPass').focus(); return;
       }
       if (e.target.id === 'swNo') { pending = null; $('swLock').hidden = true; return; }
@@ -1510,10 +1510,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var g = e.target.closest('[data-go]'); if (g) { tab(g.getAttribute('data-go')); scrollTo(0, 0); }
     });
     function bench() {
-      $('tbBook').href = BOOK_TEST;
+      var tc = ls('r2m.simCode') || '';
+      $('tbBook').href = BOOK_TEST + (tc ? '?test=' + encodeURIComponent(tc) : '');
       status().then(function (j) {
         st = j;
-        $('tbBookNote').innerHTML = j.payments === 'live' ? '<b class="cbad">Payments are LIVE: a test booking charges real money.</b> Refund it in HitPay afterwards, or switch payments to Test first (Systems).' : 'Payments are on <b class="cwarn">TEST</b>: book like a guest with HitPay’s test card. Nothing is charged.';
+        $('tbBookNote').innerHTML = ls('r2m.simCode') ? 'Opens the booking page in <b class="cwarn">TEST MODE</b>: it pays in the HitPay sandbox even when guests pay live. Nothing is charged.' : '<b class="cbad">Add the menu test code first</b> (Food menu › Test an order, one-time setup). Without it this would be a real booking with real payment once payments are live.';
       }).catch(function () {});
     }
     $('tbRun').addEventListener('click', function () {
