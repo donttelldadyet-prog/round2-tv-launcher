@@ -21,10 +21,10 @@
         },
         {
           "name": "New booking page",
-          "status": "test",
+          "status": "live",
           "check": "payments",
           "what": "Guests pick a room, time and length, pay with HitPay, and it goes straight into SimplyBook. Pays live once the live HitPay key is in Cloudflare; the Test bench always uses the HitPay sandbox. Safe mode (Systems › Switches) shows the old SimplyBook calendar instead.",
-          "runs": "round2sg-home/slots (branch own-booking) + booking engine",
+          "runs": "round2sg-home/slots (GitHub Pages) + booking engine · opened from the website’s Book screen",
           "code": "round2sg-home · slots/index.html, HANDOFF.md"
         },
         {
@@ -38,7 +38,7 @@
         {
           "name": "SimplyBook booking page",
           "status": "live",
-          "what": "The current way guests book (round2.sg/booknow). Stays as the calendar behind everything.",
+          "what": "The calendar behind everything, and the safe-mode fallback (Systems › Switches shows it on the booking page). Walk-in, WhatsApp and staff bookings still go in here.",
           "runs": "SimplyBook"
         },
         {
