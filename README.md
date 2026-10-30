@@ -120,3 +120,5 @@ How it works: `webos/service/round2d.sh` watches LG's power state and which app 
 ## Working on this with Claude
 
 Point Claude at this repo and the website repo. A good opening message: "Read the README in donttelldadyet-prog/round2-tv-launcher. I want to change …".
+
+> **Booking times:** a SimplyBook booking ends 15 min after the guest's session (cleaning). Guest-facing timing (wrap-up / time's up messages) uses the session end. See [docs/booking-times.md](docs/booking-times.md).
