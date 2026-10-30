@@ -139,6 +139,14 @@ label.f input[type=text], label.f input[type=url], label.f input[type=date], lab
 .mcal .ch b { letter-spacing: .12em; text-transform: uppercase; }
 .mcal .ch button { background: var(--bg); border: 1px solid var(--line2); width: 36px; height: 32px; font-size: 18px; line-height: 1; }
 .mcal .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.agtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.agtabs button { font-size: 12px; padding: 6px 10px; }
+.agtabs button b { margin-left: 4px; opacity: .8; }
+.ag.st-shown { box-shadow: inset 3px 0 0 var(--rc); }
+.ag .chip.stc { background: transparent; }
+.ag.st-shown .chip.stc { color: #ffd23f; border-color: #ffd23f; }
+.ag.st-acked .chip.stc { color: #5BE37D; border-color: #5BE37D; }
+.ag.st-ended .chip.stc, .ag.st-done .chip.stc { opacity: .7; }
 .mcal .dow { font-size: 10px; letter-spacing: .14em; color: var(--mute); text-align: center; text-transform: uppercase; }
 .mcal .d { min-height: 52px; background: var(--bg); border: 1px solid var(--line); padding: 4px 5px 6px; display: grid; align-content: space-between; gap: 4px; text-align: left; font-variant-numeric: tabular-nums; font-size: 13px; }
 .mcal .d.out { opacity: .3; }
@@ -1133,7 +1141,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   var Cal = (function () {
     var HOOK = 'https://round2-book.donttelldadyet.workers.dev/gm'   /* Round2 booking engine (Cloudflare) in front of the Make guest messages webhook – docs/guest-messages.md "Front door" */;
     var FB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app';
-    var TZ = 'Asia/Singapore', month = null, pick = null, items = [], ready = false, guestErr = '', seq = 0;
+    var TZ = 'Asia/Singapore', month = null, pick = null, items = [], ready = false, guestErr = '', seq = 0, view = 'live', timer = null;
+    try { view = localStorage.getItem('r2m.calView') || 'live'; } catch (e) {}
     function topic(r) { return r === 'maximillion' ? 'max' : r; }
     function roomOf(t) { return t === 'max' ? 'maximillion' : t; }
     function parts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
@@ -1141,12 +1150,15 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     function clock(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).toLowerCase(); }
     function gKey() { return ls('r2.guestStaff') || ''; }
     function load() {
-      var key = ls('r2m.msgKey') || '', jobs = [], my = ++seq, got = [], gErr = '';
+      var key = ls('r2m.msgKey') || '', jobs = [], my = ++seq, got = [], gErr = '', tv = {};
+      /* each TV: the message it holds now, and the last one a guest pressed OK on (msgAck = { id, t }) */
       if (key) Object.keys(ROOMS).forEach(function (r) {
-        jobs.push(fetch(FB + '/r2/' + key + '/' + topic(r) + '/msg.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).then(function (m) {
+        var get = function (n) { return fetch(FB + '/r2/' + key + '/' + topic(r) + '/' + n + '.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }); };
+        jobs.push(Promise.all([get('msg'), get('msgAck')]).then(function (a) {
+          var m = a[0]; tv[r] = { id: m && m.id, ack: a[1] };
           if (!m || !m.at || /^(g[0-9a-z]{8}|qr2)/.test(m.id || '')) return;   /* queued messages (guest and Round2) come from the list below */
-          got.push({ src: 'r2', room: r, at: m.at, title: m.title || '', who: m.to || '', st: m.until && m.until < Date.now() ? 'ended' : m.at > Date.now() ? 'queued' : 'shown' });
-        }).catch(function () {}));
+          got.push({ src: 'r2', room: r, id: m.id, ackNeeded: m.ack !== false, at: m.at, until: m.until, title: m.title || '', who: m.to || '', st: m.until && m.until < Date.now() ? 'ended' : m.at > Date.now() ? 'queued' : 'shown' });
+        }));
       });
       $('cKeyBox').hidden = !!gKey();
       if (gKey()) jobs.push(fetch(HOOK, { method: 'POST', body: new URLSearchParams({ action: 'list', staff: gKey() }) }).then(function (x) { return x.text(); }).then(function (t) {
@@ -1155,10 +1167,22 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         (j.links || []).forEach(function (x) {
           var d = x.data, r = roomOf(d.room); if (!ROOMS[r] || d.status === 'cancelled') return;
           var st = d.end < Date.now() ? 'ended' : d.status !== 'approved' ? 'waiting' : (d.onTv === 'yes' || d.at <= Date.now()) ? 'shown' : 'queued';
-          got.push({ src: /^R2/.test(x.key) ? 'r2' : 'guest', room: r, at: d.status === 'approved' ? d.at : d.start, title: d.title || '', who: d.to || '', label: d.label || '', code: x.key, st: st });
+          got.push({ src: /^R2/.test(x.key) ? 'r2' : 'guest', room: r, id: d.id, ackNeeded: d.ack !== false, at: d.status === 'approved' ? d.at : d.start, until: d.until || d.end, title: d.title || '', who: d.to || '', label: d.label || '', code: x.key, st: st });
         });
       }).catch(function () { gErr = 'Couldn’t reach the guest messages list.'; }));
-      Promise.all(jobs).then(function () { if (my !== seq) return; items = got; guestErr = gErr; draw(); });   /* only the newest load counts */
+      Promise.all(jobs).then(function () {
+        if (my !== seq) return;   /* only the newest load counts */
+        /* the same message from the TV slot and the queue list: keep the queue's copy */
+        var ids = {}; got.forEach(function (x) { if (x.code && x.id) ids[x.id] = 1; });
+        got = got.filter(function (x) { return x.code || !x.id || !ids[x.id]; });
+        /* acknowledged = the TV's last OK was for this message; shown but replaced by a later one = done */
+        got.forEach(function (x) {
+          var t = tv[x.room]; if (!t || x.st !== 'shown' && x.st !== 'ended') return;
+          if (t.ack && x.id && t.ack.id === x.id) { x.st = 'acked'; x.ackT = t.ack.t; }
+          else if (x.st === 'shown' && (!x.ackNeeded || (t.id && x.id && t.id !== x.id))) x.st = 'done';
+        });
+        items = got; guestErr = gErr; draw();
+      });
     }
     function draw() {
       var now = Date.now(), tp = parts(now), today = dayKey(now);
@@ -1178,19 +1202,29 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       $('cCal').innerHTML = h;
       drawDay(by);
     }
+    /* the day's list, in three tabs: what's still to happen (queued, waiting for the guest's words, on screen waiting
+       for OK) / what's finished (acknowledged, done, ended) / everything. Each day is its own list, so it starts empty
+       every morning; past days stay readable on the calendar. */
+    var GROUP = { waiting: 'live', queued: 'live', shown: 'live', acked: 'done', done: 'done', ended: 'done' };
+    var ST = { queued: 'Queued', shown: 'On the TV · waiting for OK', waiting: 'Waiting for the guest to write it', acked: 'Acknowledged', done: 'Shown', ended: 'Ended without an OK' };
     function drawDay(by) {
-      var k = pick || dayKey(Date.now()), xs = (by[k] || []).sort(function (a, b) { return a.at - b.at; });
+      var k = pick || dayKey(Date.now()), all = (by[k] || []).slice();
+      var order = { shown: 0, queued: 1, waiting: 2, acked: 3, done: 4, ended: 5 };
+      var live = all.filter(function (x) { return GROUP[x.st] === 'live'; }).sort(function (a, b) { return order[a.st] - order[b.st] || a.at - b.at; });
+      var done = all.filter(function (x) { return GROUP[x.st] === 'done'; }).sort(function (a, b) { return (b.ackT || b.at) - (a.ackT || a.at); });
+      var xs = view === 'live' ? live : view === 'done' ? done : all.sort(function (a, b) { return a.at - b.at; });
       var title = new Intl.DateTimeFormat('en-SG', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(k + 'T00:00:00Z'));
-      var ST = { queued: 'Queued', shown: 'On the TV / shown', ended: 'Ended', waiting: 'Waiting for the guest' };
       var h = '<h2 style="margin:0">' + esc(title) + '</h2>';
+      h += '<div class="seg agtabs" role="tablist">' + [['live', 'Coming up & on screen', live.length], ['done', 'Acknowledged & done', done.length], ['all', 'All today', all.length]].map(function (t) {
+        return '<button type="button" data-cv="' + t[0] + '" aria-pressed="' + (view === t[0]) + '">' + t[1] + ' <b>' + t[2] + '</b></button>'; }).join('') + '</div>';
       if (guestErr) h += '<p class="hint">' + esc(guestErr) + '</p>';
       h += xs.length ? xs.map(function (x) {
         var R = ROOMS[x.room];
-        return '<div class="ag" style="--rc:' + R.c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span>' +
-          '<span class="chip">' + (x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="hint">' + ST[x.st] + '</span></div>' +
+        return '<div class="ag st-' + x.st + '" style="--rc:' + R.c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span>' +
+          '<span class="chip">' + (x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="chip stc">' + ST[x.st] + (x.st === 'acked' && x.ackT ? ' ' + esc(clock(x.ackT)) : '') + '</span></div>' +
           '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
-      }).join('') : '<p class="hint">Nothing scheduled for this day.</p>';
-      h += '<p class="hint">Each TV shows one message at a time; queued ones go out a few minutes before their time. <a href="#" data-goguest="1">Manage guest messages</a></p>';
+      }).join('') : '<p class="hint">' + (view === 'live' ? 'Nothing waiting or on screen.' : view === 'done' ? 'Nothing finished yet.' : 'Nothing scheduled for this day.') + '</p>';
+      h += '<p class="hint">Each TV shows one message at a time; queued ones go out a few minutes before their time. Updates every minute. <a href="#" data-goguest="1">Manage guest messages</a></p>';
       $('cDay').innerHTML = h;
     }
     function init() {
@@ -1199,7 +1233,11 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         if (b.hasAttribute('data-cm')) { var y = +month.slice(0, 4), m = +month.slice(5, 7) + Number(b.getAttribute('data-cm')); if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } month = y + '-' + ('0' + m).slice(-2); draw(); }
         else if (b.hasAttribute('data-cd')) { pick = b.getAttribute('data-cd'); draw(); }
       });
-      $('cDay').addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('[data-goguest]'); if (a) { e.preventDefault(); tab('guestmsgs'); window.scrollTo(0, 0); } });
+      $('cDay').addEventListener('click', function (e) {
+        var v = e.target.closest && e.target.closest('[data-cv]'); if (v) { view = v.getAttribute('data-cv'); try { localStorage.setItem('r2m.calView', view); } catch (x) {} draw(); return; }
+        var a = e.target.closest && e.target.closest('[data-goguest]'); if (a) { e.preventDefault(); tab('guestmsgs'); window.scrollTo(0, 0); } });
+      /* keep it current while the Messages tab is open (a guest pressing OK moves it to "Acknowledged") */
+      timer = setInterval(function () { if (!document.hidden && !$('tab-messages').hidden) load(); }, 60000);
       $('cKeySave').onclick = function () { var v = $('cKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('cKey').value = ''; load(); };
     }
     return { open: function () { if (!ready) { ready = true; init(); } load(); }, items: function () { return items.slice(); } };
