@@ -940,7 +940,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
           if (acked) st = '<span class="chip ack">\u2713 Acknowledged ' + esc(nice2(x.ack.t)) + '</span>';
           else if (now > (m.until || m.at + 3 * 3600000)) st = '<span class="chip ended">Expired</span>';
           else if (shown) st = '<span class="chip live">Shown ' + esc(nice2(x.shown.t)) + (m.ack ? ' \u00B7 waiting for OK' : '') + '</span>';
-          else if (now < m.at) st = '<span class="chip soon">Scheduled ' + esc(nice2(m.at)) + '</span>';
+          else if (now < m.at) st = '<span class="chip soon">On the TV, shows at ' + esc(nice2(m.at)) + '</span>';
           else st = '<span class="chip pending">Sending\u2026 (is the TV on?)</span>';
           return '<article><div class="top"><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span>' + st + '</div>' +
             '<div class="t">' + esc(m.title || '') + '</div><div class="hint">' + esc((m.text || '').slice(0, 120)) + (m.from ? ' \u2014 ' + esc(m.from) : '') + '</div>' +
@@ -984,7 +984,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         rooms.forEach(function (r) {
           near.forEach(function (x) {
             if (x.room !== r || x.st === 'ended') return;
-            if (Math.abs(x.at - d.at) <= 10 * 60000 && (x.st === 'queued' || x.st === 'waiting'))
+            if (Math.abs(x.at - d.at) <= 10 * 60000 && (x.st === 'queued' || x.st === 'delivered' || x.st === 'waiting'))
               warn.push(ROOMS[r].name + ' already has ' + (x.src === 'r2' ? 'a Round2' : 'a guest') + ' message at ' + sgTime(x.at) + (x.title ? ' (“' + x.title + '”)' : '') + '. Messages less than 10 minutes apart can cover each other.');
           });
         });
@@ -1166,7 +1166,8 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         var j = JSON.parse(t); if (j.error) { gErr = j.error; if (/staff code/i.test(j.error)) { ls('r2.guestStaff', null); $('cKeyBox').hidden = false; } return; }
         (j.links || []).forEach(function (x) {
           var d = x.data, r = roomOf(d.room); if (!ROOMS[r] || d.status === 'cancelled') return;
-          var st = d.end < Date.now() ? 'ended' : d.status !== 'approved' ? 'waiting' : (d.onTv === 'yes' || d.at <= Date.now()) ? 'shown' : 'queued';
+          /* onTv = "yes" only means it was delivered to the TV, which holds it until its time: it's "shown" from "at" on */
+          var st = d.end < Date.now() ? 'ended' : d.status !== 'approved' ? 'waiting' : d.at <= Date.now() ? 'shown' : d.onTv === 'yes' ? 'delivered' : 'queued';
           got.push({ src: /^R2/.test(x.key) ? 'r2' : 'guest', room: r, id: d.id, ackNeeded: d.ack !== false, at: d.status === 'approved' ? d.at : d.start, until: d.until || d.end, title: d.title || '', who: d.to || '', label: d.label || '', code: x.key, st: st });
         });
       }).catch(function () { gErr = 'Couldn’t reach the guest messages list.'; }));
@@ -1194,7 +1195,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dow">' + d + '</div>'; }).join('');
       for (var i = 0, n = Math.ceil((lead + dim) / 7) * 7; i < n; i++) {
         var dt = new Date(Date.UTC(y, m - 1, 1 + i - lead)), k = dt.toISOString().slice(0, 10), xs = (by[k] || []).sort(function (a, b) { return a.at - b.at; });
-        var queued = xs.some(function (x) { return x.st === 'queued'; });
+        var queued = xs.some(function (x) { return x.st === 'queued' || x.st === 'delivered'; });
         h += '<button type="button" class="d' + (dt.getUTCMonth() !== m - 1 ? ' out' : '') + (k < today ? ' past' : '') + (k === today ? ' today' : '') + (queued ? ' has' : '') + '" data-cd="' + k + '" aria-pressed="' + (pick === k) + '">' +
           '<span class="num">' + dt.getUTCDate() + '</span><span class="dots">' + xs.map(function (x) { return '<i class="dot' + (x.src === 'r2' ? ' r2' : '') + (x.st === 'waiting' ? ' wait' : '') + '" style="--rc:' + ROOMS[x.room].c + '"></i>'; }).join('') + '</span></button>';
       }
@@ -1205,11 +1206,11 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     /* the day's list, in three tabs: what's still to happen (queued, waiting for the guest's words, on screen waiting
        for OK) / what's finished (acknowledged, done, ended) / everything. Each day is its own list, so it starts empty
        every morning; past days stay readable on the calendar. */
-    var GROUP = { waiting: 'live', queued: 'live', shown: 'live', acked: 'done', done: 'done', ended: 'done' };
-    var ST = { queued: 'Queued', shown: 'On the TV · waiting for OK', waiting: 'Waiting for the guest to write it', acked: 'Acknowledged', done: 'Shown', ended: 'Ended without an OK' };
+    var GROUP = { waiting: 'live', queued: 'live', delivered: 'live', shown: 'live', acked: 'done', done: 'done', ended: 'done' };
+    var ST = { queued: 'Queued', delivered: 'On the TV, waiting for its time', shown: 'Showing · waiting for OK', waiting: 'Waiting for the guest to write it', acked: 'Acknowledged', done: 'Shown', ended: 'Ended without an OK' };
     function drawDay(by) {
       var k = pick || dayKey(Date.now()), all = (by[k] || []).slice();
-      var order = { shown: 0, queued: 1, waiting: 2, acked: 3, done: 4, ended: 5 };
+      var order = { shown: 0, delivered: 1, queued: 1, waiting: 2, acked: 3, done: 4, ended: 5 };
       var live = all.filter(function (x) { return GROUP[x.st] === 'live'; }).sort(function (a, b) { return order[a.st] - order[b.st] || a.at - b.at; });
       var done = all.filter(function (x) { return GROUP[x.st] === 'done'; }).sort(function (a, b) { return (b.ackT || b.at) - (a.ackT || a.at); });
       var xs = view === 'live' ? live : view === 'done' ? done : all.sort(function (a, b) { return a.at - b.at; });
