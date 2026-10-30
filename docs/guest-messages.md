@@ -33,7 +33,7 @@ The copies have the real staff code and TV messages key replaced with `STAFF_COD
 | Thing | ID / name |
 | --- | --- |
 | Main scenario | `[BACKEND] GUEST MESSAGE LINKS`, id 8249444 |
-| Timer | `[BACKEND] GUEST MESSAGE TIMER`, id 8251356, every 15 min, only 10:30–23:59 and 00:00–05:15 (SG). About 2,300 operations a month. The account has 10,000 a month, shared with the sound automation, so don't make it more frequent. |
+| Timer | **Now the booking engine (Cloudflare), since 30 Oct** – see "Timer" below. The old Make `[BACKEND] GUEST MESSAGE TIMER`, id 8251356, is switched OFF (kept as a backup: switch it on again in Make if the engine is ever down). It ran every 15 min, only 10:30–23:59 and 00:00–05:15 (SG). About 2,300 operations a month. The account has 10,000 a month, shared with the sound automation, so don't make it more frequent. |
 | Webhook | `GUEST MESSAGE LINKS`, id 4000032 (old address, public in this repo's history – being retired). Replacement: `GUEST MESSAGE LINKS (private, via Cloudflare)`, id 4007003; its address is **only** in Make and in the Cloudflare secret `GM_HOOK_URL` – never put it in a page or this repo. |
 | Front door | `https://round2-book.donttelldadyet.workers.dev/gm` (round2sg-home `worker/round2-book.js`, `gm()`). All pages call this, not Make. |
 | Data store | `GUEST_MSG_LINKS`, id 237603 (data structure 667731). Key = the code. |
@@ -115,3 +115,17 @@ The Make webhook address the engine uses comes from the Cloudflare secret `GM_HO
 1. Make › `[BACKEND] GUEST MESSAGE LINKS` › first module (webhook) › choose `GUEST MESSAGE LINKS (private, via Cloudflare)` › OK › Save.
 2. Straight after: Cloudflare secret `GM_HOOK_URL` = the new address, and `[BACKEND] GUEST MESSAGE TIMER`'s HTTP module URL = the new address.
 3. Then delete the old webhook 4000032 so its public address stops working.
+
+## Timer (Cloudflare, since 30 Oct 2026)
+
+The booking engine's Durable Object keeps the queue (table `gmq`: code, room, show time `at`, end, pushed) and wakes itself
+with a Durable Object alarm **one minute before each message's time**, then calls Make's `push` for it (same as the old timer,
+so the TV slot rule still applies). Make only runs when a message actually goes out – no more runs every 15 minutes.
+
+- The queue is rebuilt from Make's `list` whenever the engine reads it (staff list, any staff change) and at least once a day.
+- Guest saves and the booking page's celebration messages are added straight away.
+- After pushing a message, later messages for the same room go again at their own time (the TV holds one message; `push`
+  may have put a later one back in the queue).
+- Check it: POST `/gm` with `action=queue&staff=<staff code>` (add `sync=1` to rebuild from Make first) → `{queue:[…]}`.
+- Messages now reach the TV ~1 minute before their time instead of up to 15 minutes before, so a TV with a wrong clock can show
+  them at most about a minute early.
