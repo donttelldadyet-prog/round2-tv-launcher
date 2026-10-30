@@ -48,9 +48,9 @@
           "runs": "SimplyBook app"
         },
         {
-          "name": "Mirror rooms (Atlas/Max blocks)",
+          "name": "Mirror rooms (Atlas ↔ Vale blocks)",
           "status": "live",
-          "what": "When one twin room is booked, blocks the other in SimplyBook.",
+          "what": "When Atlas or Vale is booked (online or by staff), blocks the other room at the same time; moves and cancels follow. Only for the Early bird / Off-peak / Peak services. If the twin room can't take the block (already taken, or outside SimplyBook's hours, e.g. late-night), nothing is blocked and nobody is told.",
           "runs": "SimplyBook callback → booking engine (/sb/notify) → Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
         },
         {
