@@ -51,7 +51,7 @@
           "name": "Mirror rooms (Atlas/Max blocks)",
           "status": "live",
           "what": "When one twin room is booked, blocks the other in SimplyBook.",
-          "runs": "Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
+          "runs": "SimplyBook callback → booking engine (/sb/notify) → Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
         },
         {
           "name": "Confirmation email link (TV message)",
@@ -184,7 +184,7 @@
           "name": "Messages follow their booking",
           "status": "live",
           "check": "engine",
-          "what": "When staff move a booking in SimplyBook (new time, day or room), its guest message moves too; if the booking is cancelled, the message is cancelled. Checked every 10 min and right before the message shows. Moving a message by hand still works and isn't undone.",
+          "what": "When staff move a booking in SimplyBook (new time, day or room), its guest message moves too; if the booking is cancelled, the message is cancelled. Happens the moment SimplyBook reports the change (and is checked again right before the message shows). Moving a message by hand still works and isn't undone.",
           "runs": "Booking engine (Cloudflare)",
           "code": "round2-tv-launcher · docs/guest-messages.md \"Follows the booking\""
         },

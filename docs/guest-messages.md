@@ -133,8 +133,10 @@ so the TV slot rule still applies). Make only runs when a message actually goes 
 ## Follows the booking (Cloudflare, since 30 Oct 2026)
 
 Each guest link (not Round2's own `R2…` messages) is tied to the SimplyBook booking in **the same room starting at exactly
-the link's start time**. The booking engine (`round2sg-home` `worker/round2-book.js`, HoldBook table `gml`) checks
-SimplyBook every 10 minutes, and again just before a message goes to its TV:
+the link's start time**. SimplyBook tells the booking engine (`round2sg-home` `worker/round2-book.js`, HoldBook table `gml`)
+the moment a booking is made, changed or cancelled (its callback URL points at the engine's `/sb/notify/<key>`, which passes
+it on to Make's mirror-rooms scenario unchanged). The engine also checks right before a message goes to its TV, and every
+6 hours as a backstop:
 
 - **Booking moved** (new time, new day or new room): the link moves with it (Make `move`, so the show time keeps the same
   gap after the start and the TV is updated).
@@ -146,7 +148,7 @@ SimplyBook every 10 minutes, and again just before a message goes to its TV:
   by hand as before.
 - Safety: more than 3 cancels in one check → nothing is cancelled (logged as "held"), in case SimplyBook answers oddly.
 
-Costs: one SimplyBook read per check (120 days of bookings); Make only when something actually changes. Staff can see the
+Costs: one SimplyBook read per booking change (120 days of bookings); Make only when a message actually moves. Staff can see the
 list and the last 30 changes with `/gm` `action=queue` (fields `follow`, `followLog`) and run a check with `action=follow`
 (`dry=1` shows what it would do). The engine's `/status?deep=1` shows counts only (no codes): `follow.links`, `bound`,
 `last`, `check.would`.
