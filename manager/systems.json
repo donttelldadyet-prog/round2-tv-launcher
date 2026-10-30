@@ -80,7 +80,7 @@
           "name": "Room food menu (QR on the TV)",
           "status": "test",
           "check": "payments",
-          "what": "Guests order food from their room and pay with HitPay (live once the live key is in). Test an order: skip HitPay or the full HitPay-sandbox flow. Waiting for Madd Pizza's PayNow confirmation; remove the $0.50 test item before launch.",
+          "what": "Guests order food from their room and pay with HitPay (live once the live key is in). Test an order: skip HitPay or the full HitPay-sandbox flow. Waiting for Madd Pizza's PayNow confirmation. The $0.50 test item only shows in Test an order; real guests can't buy it.",
           "runs": "round2sg-home/menu + booking engine",
           "code": "round2sg-home · menu/"
         },
