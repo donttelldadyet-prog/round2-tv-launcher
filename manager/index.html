@@ -965,7 +965,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function fillTitle() { if (!titleEdited) $('mTitle').value = KINDS[kind].title($('mTo').value.trim()); }
     function draft() {
       var at = when === 'at' && $('mAt').value ? new Date($('mAt').value).getTime() : Date.now();
-      return { kind: kind, to: $('mTo').value.trim(), from: $('mFrom').value.trim(), title: $('mTitle').value.trim(), text: $('mText').value.trim(), ack: $('mAck').checked, at: at, until: at + 3 * 3600000 };
+      return { kind: kind, to: $('mTo').value.trim(), from: $('mFrom').value.trim(), title: $('mTitle').value.trim(), text: $('mText').value.trim(), ack: $('mAck').checked, at: at, until: at + (kind === 'timeup' ? 15 * 60000 : kind === 'wrapup' ? 25 * 60000 : 3 * 3600000) };   /* That's a wrap: 15 min (cleaning time); 10-minute warning: 25 min; others 3 h */
     }
     function preview() {
       var d = draft(), k = KINDS[kind], rc = rooms.length ? ROOMS[rooms[0]].c : '#F2C21B';
@@ -1087,7 +1087,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var p = pending, msg = $('mMsg'), d = p.d; $('mGo').disabled = true; $('mBack').disabled = true; msg.textContent = 'Sending…';
       var jobs;
       if (p.when === 'now') {
-        d.id = 'm' + Date.now().toString(36); d.at = Date.now(); d.until = d.at + 3 * 3600000; d.t = { '.sv': 'timestamp' };
+        d.id = 'm' + Date.now().toString(36); d.at = Date.now(); d.until = d.at + (d.kind === 'timeup' ? 15 * 60000 : d.kind === 'wrapup' ? 25 * 60000 : 3 * 3600000); d.t = { '.sv': 'timestamp' };
         jobs = p.rooms.map(function (r) { return req('PUT', url(r, 'msg'), d); });
       } else {
         jobs = [];
@@ -1186,7 +1186,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (rs) {
           if (!e.target._armed) { e.target._armed = true; var o = e.target.textContent; e.target.textContent = 'Tap again to send to ' + ROOMS[rs].name + ' now'; setTimeout(function () { e.target._armed = false; e.target.textContent = o; }, 4000); return; }
           var x = ($('mStat')._last || []).filter(function (y) { return y.r === rs; })[0]; if (!x || !x.m) return;
-          var m = JSON.parse(JSON.stringify(x.m)); m.id = 'm' + Date.now().toString(36); m.at = Date.now(); m.until = m.at + 3 * 3600000; m.t = { '.sv': 'timestamp' };
+          var m = JSON.parse(JSON.stringify(x.m)); m.id = 'm' + Date.now().toString(36); m.at = Date.now(); m.until = m.at + (m.kind === 'timeup' ? 15 * 60000 : m.kind === 'wrapup' ? 25 * 60000 : 3 * 3600000); m.t = { '.sv': 'timestamp' };
           req('PUT', url(rs, 'msg'), m).then(function () { toast('Sent again to ' + ROOMS[rs].name + '.'); setTimeout(status, 1500); }).catch(function (er) { toast('Couldn\u2019t send: ' + er.message); });
         }
       });

@@ -152,3 +152,9 @@ Costs: one SimplyBook read per booking change (120 days of bookings); Make only 
 list and the last 30 changes with `/gm` `action=queue` (fields `follow`, `followLog`) and run a check with `action=follow`
 (`dry=1` shows what it would do). The engine's `/status?deep=1` shows counts only (no codes): `follow.links`, `bound`,
 `last`, `check.would`.
+
+## Cut-off for session-end messages (31 Oct 2026)
+"That's a wrap!" (`timeup`) stops showing **15 minutes** after its show time (the cleaning time), and "About 10 minutes to
+go" (`wrapup`) after **25 minutes** (the 10 minutes + cleaning), so neither can pop up for the next group if nobody pressed
+OK. All other messages keep the 3-hour cut-off. Set in Make (`r2` route and `move` route: `end`/`until`) and in the
+control centre (Messages: send now, send again).
