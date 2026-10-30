@@ -181,6 +181,14 @@
           "runs": "Booking engine (replaced Make's GUEST MESSAGE TIMER, now off)"
         },
         {
+          "name": "Messages follow their booking",
+          "status": "live",
+          "check": "engine",
+          "what": "When staff move a booking in SimplyBook (new time, day or room), its guest message moves too; if the booking is cancelled, the message is cancelled. Checked every 10 min and right before the message shows. Moving a message by hand still works and isn't undone.",
+          "runs": "Booking engine (Cloudflare)",
+          "code": "round2-tv-launcher · docs/guest-messages.md \"Follows the booking\""
+        },
+        {
           "name": "Food alerts on the TV",
           "status": "test",
           "what": "'Order locked in' and 'Loot dropped' on the room's TV.",
