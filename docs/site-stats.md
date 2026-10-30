@@ -72,3 +72,12 @@ Check: open the control centre › Website. If it shows "401", the rule isn't pu
 
 - Wix's own analytics (API, via the Wix connector) still has the history before this existed: sessions by hour/day, sources (Google, Instagram ads…), but not what happens inside the menu.
 - If the menu's state names change (`menu`, `pick`, `book`, `gal`, `info` in the component's `this.state`), update `seen()` in the tracker.
+
+## Own booking page (round2sg-home `slots/`, branch own-booking) – added 30 Oct 2026
+
+Same `/web` counters and live view, from the new booking page (and the booking engine for "paid"). Once per visit, numbers only.
+`board`, `board_h<NN>`, `board_dev_m|d`, `board_pick`, `board_room_<name>`, `board_continue`, `board_len_<3-6>`,
+`board_ahead_<today|tomorrow|week|month|3months|later>`, `board_eb|offpeak|peak|ph`, `board_hold`, `board_cel` (TV message added),
+`board_intl` (non +65 number), `board_pay`, `board_left_pay`, `board_let_go`; from the engine (worker/round2-book.js `paidStat`):
+`board_paid`, `board_paid_<name>`, `board_paid_len_<h>`. Live `p` values: `board`, `board_room`, `board_details`, `board_paying`.
+Shown in the control centre › Website › Visitors, under "Own booking page". The existing Firebase rule already allows these keys.

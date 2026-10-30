@@ -419,6 +419,14 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
       <div class="card"><h2 style="margin-top:0">Rooms looked at</h2><div id="wRooms"></div></div>
       <div class="card"><h2 style="margin-top:0">Contact &amp; other</h2><div id="wOther"></div></div>
     </div>
+    <h2 style="margin-top:28px">Own booking page (round2.sg/slots)</h2>
+    <p class="hint">The new booking page that takes payment itself (HitPay) and puts the booking into SimplyBook. Same rules: each step counts visits that reached it at least once; "Paid" is counted by the booking engine once SimplyBook has the booking.</p>
+    <div class="wgrid">
+      <div class="card"><h2 style="margin-top:0">Towards a booking</h2><div id="bFunnel"></div></div>
+      <div class="card"><h2 style="margin-top:0">Rooms opened · paid</h2><div id="bRooms"></div></div>
+      <div class="card"><h2 style="margin-top:0">How long · how far ahead</h2><div id="bLen"></div><h2>Booking for</h2><div id="bAhead"></div></div>
+      <div class="card"><h2 style="margin-top:0">Other</h2><div id="bOther"></div></div>
+    </div>
     <p class="hint" id="wNote"></p>
   </section>
 
@@ -1201,7 +1209,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   var Web = (function () {
     var DB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/web';
     var range = 1, timer = null, ready = false, ROOMN = { vale: 'Vale', kaeden: 'Kaeden', scarlett: 'Scarlett', bella: 'Bella', kai: 'Kai', atlas: 'Atlas', maximillion: 'Maximillion' };
-    var SCREEN = { home: 'Main menu', rooms: 'Rooms', loadout: 'Loadout', how: 'How to play', find: 'Find us', info: 'FAQ / rules', booking: 'Booking form' };
+    var SCREEN = { home: 'Main menu', rooms: 'Rooms', loadout: 'Loadout', how: 'How to play', find: 'Find us', info: 'FAQ / rules', booking: 'Booking form', board: 'Booking page: looking', board_room: 'Booking page: picking a time', board_details: 'Booking page: details', board_paying: 'Booking page: paying' };
     var OUT = { out_wa: 'WhatsApp', out_tg: 'Telegram', out_ig: 'Instagram', out_tiktok: 'TikTok', out_maps: 'Google Maps', out_email: 'Email', out_phone: 'Phone call', out_simplybook: 'SimplyBook (new tab)',
       gallery: 'Opened a room gallery', loadout: 'Loadout', how: 'How to play', find: 'Find us', info_faq: 'FAQ', info_rules: 'House rules', info_about: 'About', info_privacy: 'Privacy', dev_m: 'On a phone', dev_d: 'On a computer' };
     function sgDay(ms) { return new Date(ms + 8 * 3600e3).toISOString().slice(0, 10); }
@@ -1244,6 +1252,16 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         $('wDays').innerHTML = range < 7 ? '<p class="hint">Pick 7 or 28 days to compare days.</p>' : rows([1, 2, 3, 4, 5, 6, 0].map(function (i) { return [WD[i], wk[i]]; }));
         $('wRooms').innerHTML = rows(Object.keys(ROOMN).map(function (k) { return [ROOMN[k], sum['room_' + k] || 0]; }).sort(function (a, b) { return b[1] - a[1]; }));
         $('wOther').innerHTML = rows(Object.keys(OUT).filter(function (k) { return sum[k]; }).map(function (k) { return [OUT[k], sum[k]]; }).sort(function (a, b) { return b[1] - a[1]; }));
+        /* own booking page (round2sg-home slots/) */
+        var bv = sum.board || 0, bp = function (n) { return bv ? Math.round(100 * n / bv) + '%' : ''; }, B = function (k) { return sum[k] || 0; };
+        $('bFunnel').innerHTML = rows([['Opened the booking page', bv, bp(bv)], ['Tapped a room', B('board_pick'), bp(B('board_pick'))], ['Picked a time & length', B('board_continue'), bp(B('board_continue'))],
+          ['Held a slot (details filled)', B('board_hold'), bp(B('board_hold'))], ['Went to pay', B('board_pay'), bp(B('board_pay'))], ['Paid & booked', B('board_paid'), bp(B('board_paid'))]], bv || 1);
+        $('bRooms').innerHTML = rows(Object.keys(ROOMN).map(function (k) { return [ROOMN[k], B('board_room_' + k), B('board_paid_' + k) + ' paid']; }).sort(function (a, b) { return b[1] - a[1]; }));
+        $('bLen').innerHTML = rows([3, 4, 5, 6].map(function (h) { return [h + ' hours', B('board_len_' + h), B('board_paid_len_' + h) + ' paid']; }));
+        $('bAhead').innerHTML = rows([['Today', 'today'], ['Tomorrow', 'tomorrow'], ['Within a week', 'week'], ['Within a month', 'month'], ['1–3 months ahead', '3months'], ['Further ahead', 'later']].map(function (x) { return [x[0], B('board_ahead_' + x[1])]; }));
+        $('bOther').innerHTML = rows([['Early bird (11am)', B('board_eb')], ['Off-peak day', B('board_offpeak')], ['Peak day', B('board_peak')], ['Public holiday', B('board_ph')],
+          ['Added a TV celebration message', B('board_cel')], ['Overseas phone number', B('board_intl')], ['Left the payment page (slot released)', B('board_left_pay')], ['Changed their mind before paying', B('board_let_go')],
+          ['On a phone', B('board_dev_m')], ['On a computer', B('board_dev_d')]].filter(function (x) { return x[1]; }));
         var days = Object.keys(d || {}).sort();
         $('wNote').textContent = days.length ? 'Counting since ' + days[0] + '. Visits on Wix’s other pages (like the room pages) aren’t included here.' : 'No visits counted yet for this period.';
       }).catch(function () {});
