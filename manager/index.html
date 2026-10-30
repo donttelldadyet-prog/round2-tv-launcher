@@ -925,6 +925,25 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         '<h3>' + esc(d.title || '\u2026') + '</h3><p>' + esc(d.text) + '</p>' + (d.from ? '<div class="fr">\u2014 ' + esc(d.from) + '</div>' : '') +
         '<div class="okb">[OK] ' + (d.ack ? 'SEEN IT' : 'CLOSE') + '</div></div>';
     }
+    /* real time: Firebase streams every change on the TVs' message nodes (a guest pressing OK, a message arriving),
+       so "Acknowledged" shows within a second or two instead of at the next timed refresh */
+    var streams = [], liveT = null;
+    function bump() { clearTimeout(liveT); liveT = setTimeout(function () { status(); try { Cal.open(); } catch (e) {} }, 800); }
+    function unlive() { streams.forEach(function (es) { try { es.close(); } catch (e) {} }); streams = []; clearTimeout(liveT); }
+    function live() {
+      unlive(); if (!key() || !window.EventSource) return;
+      var on = function (url, onFail) {
+        var es = new EventSource(url), got = false;
+        ['put', 'patch'].forEach(function (ev) { es.addEventListener(ev, function () { if (got) bump(); got = true; }); });   /* the first event is the current state */
+        es.addEventListener('cancel', function () { es.close(); if (onFail) onFail(); });   /* not allowed to read there */
+        es.onerror = function () { if (!got && es.readyState === 2 && onFail) { onFail(); onFail = null; } };
+        streams.push(es);
+      };
+      /* one stream for all rooms; if the database doesn't allow reading the whole key, one per room's OK */
+      on(FB + '/r2/' + key() + '.json', function () {
+        unlive(); Object.keys(ROOMS).forEach(function (r) { on(url(r, 'msgAck')); });
+      });
+    }
     function nice2(ms) { var d = new Date(ms); return d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
     function status() {
       if (!key()) { $('mStat').innerHTML = '<p class="hint">Add the TV messages key above to see what each TV is showing.</p>'; return; }
@@ -1128,8 +1147,9 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
         $('mKeyBox').hidden = !!key();
         status(); clearInterval(timer); timer = setInterval(status, 20000);
         try { Cal.open(); } catch (e) {}
+        live();
       },
-      close: function () { clearInterval(timer); }
+      close: function () { clearInterval(timer); unlive(); }
     };
   }());
 
