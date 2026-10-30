@@ -489,7 +489,11 @@ details.past .list { margin-top: 10px; }
   drawRooms(); sum();
   $('keyBox').hidden = !!key();
   var listOn = !document.documentElement.classList.contains('v-make');
-  list(); setInterval(list, listOn ? 30000 : 120000);   /* the link form also uses the list, to warn about a second link for the same booking */
+  /* refresh only while someone can see this page (not in a hidden control-centre tab or a background browser tab).
+     The booking engine answers the list from memory, so this costs Make almost nothing; see docs/guest-messages.md "Front door". */
+  function seen() { if (document.hidden) return false; var f = window.frameElement; return !f || f.offsetParent !== null; }
+  list(); setInterval(function () { if (seen()) list(); }, listOn ? 60000 : 180000);   /* the link form also uses the list, to warn about a second link for the same booking */
+  document.addEventListener('visibilitychange', function () { if (seen()) list(); });
   /* inside the control centre: tell it how tall this page is, so there's no inner scrollbar */
   if (document.documentElement.classList.contains('embed') && window.parent !== window) {
     var lastH = 0, report = function () { var h = document.documentElement.scrollHeight; if (h !== lastH) { lastH = h; try { window.parent.postMessage({ r2frame: location.search, h: h }, location.origin); } catch (e) {} } };

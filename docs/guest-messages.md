@@ -104,14 +104,14 @@ form fields to **`https://round2-book.donttelldadyet.workers.dev/gm`** instead o
 - **Guest `submit`**: checks it like Make does (occasion, headline, 600 characters, show time = start … +60 min in 15-min steps,
   not after it popped up, not cancelled), answers `{ok, unchanged}` without calling Make when nothing changed, and allows
   **8 changes per link** (then "message Round2").
+- **Staff `list`** is answered from memory for 15 minutes and fetched from Make again only after a change went through the front door (staff action or guest save). The staff page used to poll Make every 30 s while open: that alone used ~5,000 operations in a day (30 Oct).
 - **Rate limit** per visitor (IP): 30 guest calls / 10 min, 200 staff calls / 10 min.
 - Cache, edit counts and rate limit live in the engine's Durable Object (`HoldBook`, tables `gm` and `gmrate`).
 - The guest page keeps **Send** greyed out ("Saved ✓") until something actually changed.
 
-The Make webhook address the engine uses comes from the Cloudflare secret `GM_HOOK_URL` (falls back to the old public address
-until the swap below is done). The Make scenarios still re-check everything; the front door only saves operations.
+The Make webhook address the engine uses comes from the Cloudflare secret `GM_HOOK_URL` (set 30 Oct; the old public webhook 4000032 is deleted). The Make scenarios still re-check everything; the front door only saves operations.
 
-### Swapping to the private webhook (one-time)
+### Swapping to the private webhook (one-time) – DONE 30 Oct 2026
 1. Make › `[BACKEND] GUEST MESSAGE LINKS` › first module (webhook) › choose `GUEST MESSAGE LINKS (private, via Cloudflare)` › OK › Save.
 2. Straight after: Cloudflare secret `GM_HOOK_URL` = the new address, and `[BACKEND] GUEST MESSAGE TIMER`'s HTTP module URL = the new address.
 3. Then delete the old webhook 4000032 so its public address stops working.
