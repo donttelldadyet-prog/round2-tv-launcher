@@ -526,6 +526,9 @@
       },
       "birthday": {
         "text": "From all of us at Round2: have an epic birthday session. Here’s to another year of good games!"
+      },
+      "wrapup": {
+        "text": "A Friendly Reminder\n\nYour session will be ending in approximately 10 minutes. Please take this time to wrap up and gather your belongings.\n\nThank you for spending your time with us. We hope you had a wonderful experience! ✨"
       }
     },
     "saved": [
