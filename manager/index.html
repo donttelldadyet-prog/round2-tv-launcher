@@ -247,7 +247,35 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 .tlock .pick { display: flex; gap: 6px; flex-wrap: wrap; }
 .tlock .pick button { background: var(--bg); border: 1px solid var(--line2); padding: 7px 12px; font-size: 13px; letter-spacing: .04em; box-shadow: inset 0 -3px 0 var(--rc); }
 .tlock .pick button[aria-pressed="true"] { background: var(--rc); border-color: var(--rc); color: #0b0914; font-weight: 700; }
+/* the page menu under the main menu stays visible while scrolling (top = the header's height, set by script) */
+nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: var(--bg); margin: 0 -16px; padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
+/* Systems */
+.sysarea { margin: 22px 0 8px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.sys { display: grid; grid-template-columns: 130px 1fr; gap: 6px 16px; padding: 14px 16px; margin: 8px 0; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--sc, var(--line2)); }
+.sys h3 { margin: 0; font-size: 16px; letter-spacing: .02em; text-transform: none; }
+.sys p { margin: 4px 0 0; color: var(--mute); font-size: 14px; }
+.sys .meta { font-size: 12px; color: var(--mute); margin-top: 6px; }
+.sys .meta b { color: var(--ink); font-weight: 600; }
+.sys .live { font-size: 13px; margin-top: 6px; }
+.st { display: inline-block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 4px 8px; border: 1px solid var(--sc); color: var(--sc); white-space: nowrap; align-self: start; justify-self: start; }
+.sysleg { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 6px 0 4px; font-size: 13px; color: var(--mute); }
+.sysfilter { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+.sysfilter button { background: none; border: 1px solid var(--line2); padding: 6px 12px; font-size: 13px; color: var(--mute); }
+.sysfilter button[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); }
+.sw { display: grid; gap: 10px; padding: 16px; margin: 10px 0; background: var(--panel); border: 1px solid var(--line); }
+.sw .now { font-size: 20px; font-weight: 700; }
+.sw .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw .opts button[aria-pressed="true"] { background: var(--ink); color: #111; border-color: var(--ink); font-weight: 700; }
+.lockbox { display: grid; gap: 8px; max-width: 420px; padding: 14px; border: 1px dashed var(--warn); }
+.cok { color: var(--ok); } .cbad { color: var(--bad); } .cwarn { color: var(--warn); }
+.tb { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
+.tb .card h2 { margin: 0 0 6px; font-size: 18px; }
+.tb .card p { color: var(--mute); margin: 0 0 10px; font-size: 14px; }
+.tb .card ol { margin: 0 0 10px; padding-left: 18px; color: var(--mute); font-size: 14px; }
+.tb a.btn { text-decoration: none; display: inline-block; }
+.chk { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; }
 @media (max-width: 860px) {
+  .sys { grid-template-columns: 1fr; }
   header.top .wrap { gap: 8px; }
   nav.tabs { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
   nav.tabs::-webkit-scrollbar { display: none; }
@@ -275,6 +303,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     <button role="tab" aria-selected="false" data-group="themes">Themes</button>
     <button role="tab" aria-selected="false" data-group="menu">Food menu</button>
     <button role="tab" aria-selected="false" data-group="web">Website</button>
+    <button role="tab" aria-selected="false" data-group="sys">Systems</button>
     <button role="tab" aria-selected="false" data-group="help">Help</button>
   </nav>
   <div class="who" id="who" hidden></div>
@@ -507,6 +536,31 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   </section>
 
   <!-- help -->
+  <section id="tab-systems" hidden>
+    <h1>Systems</h1>
+    <p class="sub">Everything Round2 runs, and how far along each one is. The coloured checks are read live; the rest is kept up to date in the GitHub project (manager/systems.json).</p>
+    <div class="card" id="sysSwitches"><h2 style="margin-top:0">Switches</h2><div id="swBody" class="hint">Loading…</div></div>
+    <div class="sysleg" id="sysLeg"></div>
+    <div class="sysfilter" id="sysFilter"></div>
+    <div id="sysList"><p class="hint">Loading…</p></div>
+  </section>
+
+  <section id="tab-testbench" hidden>
+    <h1>Test bench</h1>
+    <p class="sub">Try every part of Round2 safely. Each card says what's real and what isn't.</p>
+    <div class="card"><h2 style="margin-top:0">Engine check</h2><div class="chk" id="tbChk"><span class="hint">Press Run checks.</span></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="tbRun">Run checks</button><span class="hint" id="tbWhen"></span></div></div>
+    <div class="tb">
+      <div class="card"><h2>Booking (test payment)</h2><p id="tbBookNote">Book like a guest with HitPay's test card. Nothing is charged while payments are on TEST.</p>
+        <ol><li>Card <b>4242 4242 4242 4242</b>, any future date, any 3 digits.</li><li>Check the confirmation page and the one email.</li><li>It's a real booking in SimplyBook: cancel it there afterwards.</li></ol>
+        <a class="btn primary" id="tbBook" target="_blank" rel="noopener">Open the booking page</a></div>
+      <div class="card"><h2>Food order</h2><p>The guest menu in test mode, no payment. The kitchen group gets it marked SIMULATED · DO NOT MAKE.</p><button class="btn" type="button" data-go="simorder">Open Test an order</button></div>
+      <div class="card"><h2>TV message / food alert</h2><p>Send a test message or food alert to one locked TV and watch it arrive.</p><button class="btn" type="button" data-go="tests">Open Test a TV</button></div>
+      <div class="card"><h2>Guest message link</h2><p>Make a link, write a message as a guest, approve it as staff.</p><button class="btn" type="button" data-go="guestlink">Open Make a guest link</button></div>
+      <div class="card"><h2>View-your-booking page</h2><p>Find a test booking again with its email and mobile.</p><a class="btn" href="https://round2-book.donttelldadyet.workers.dev/find" target="_blank" rel="noopener">Open View your booking</a></div>
+    </div>
+  </section>
+
   <section id="tab-help" hidden>
     <h1>How it works</h1>
     <div class="card">
@@ -1375,6 +1429,112 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
   }());
 
   /* ---------- TV tests: a test message or food alert to any room's TV, and what each TV last received ---------- */
+  /* Systems (All systems + Test bench). The list is manager/systems.json (keep it current); the switches and the coloured
+     checks come live from the booking engine (/status, /mode). Switching needs the two passwords set in Cloudflare
+     (SWITCH_PASS + SWITCH_PIN) – this page never stores them. */
+  var Sys = (function () {
+    var ENG = 'https://round2-book.donttelldadyet.workers.dev';
+    var BOOK_TEST = 'https://raw.githack.com/donttelldadyet-prog/round2sg-home/own-booking/slots/index.html';
+    var ST = { live: ['Live', 'var(--ok)'], test: ['Testing', 'var(--accent)'], build: ['Building', 'var(--focus)'], planned: ['Planned', '#B48CFF'],
+      parked: ['On the shelf', 'var(--mute)'], off: ['Off', 'var(--mute)'], broken: ['Broken', 'var(--bad)'] };
+    var data = null, st = null, filt = 'all', pending = null;
+    function chip(k) { var x = ST[k] || ['?', 'var(--mute)']; return '<span class="st" style="--sc:' + x[1] + '">' + x[0] + '</span>'; }
+    function status(deep) { return fetch(ENG + '/status' + (deep ? '?deep=1' : ''), { cache: 'no-store' }).then(function (r) { return r.json(); }); }
+    function live(it) {
+      if (!st) return '';
+      if (it.check === 'payments') return '<div class="live">Payments now: ' + (st.payments === 'live' ? '<b class="cbad">LIVE · real money</b>' : '<b class="cwarn">TEST · sandbox</b>') + (st.booking === 'simplybook' && /booking/i.test(it.name) ? ' · <b class="cwarn">SAFE MODE: guests sent to SimplyBook</b>' : '') + '</div>';
+      if (it.check === 'engine') return '<div class="live"><b class="cok">● Running</b> · payments ' + st.payments.toUpperCase() + ' · booking ' + (st.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</div>';
+      if (it.check === 'release' && it._rel) return '<div class="live">Latest build: <b>' + esc(it._rel) + '</b></div>';
+      return '';
+    }
+    function render() {
+      if (!data) return;
+      var counts = {}; data.areas.forEach(function (a) { a.items.forEach(function (it) { counts[it.status] = (counts[it.status] || 0) + 1; }); });
+      $('sysLeg').innerHTML = 'Updated ' + esc(data.updated) + ' · ' + Object.keys(ST).filter(function (k) { return counts[k]; }).map(function (k) { return chip(k) + ' ' + counts[k]; }).join(' ');
+      $('sysFilter').innerHTML = [['all', 'All']].concat(Object.keys(ST).filter(function (k) { return counts[k]; }).map(function (k) { return [k, ST[k][0]]; }))
+        .map(function (f) { return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (filt === f[0]) + '">' + f[1] + '</button>'; }).join('');
+      $('sysList').innerHTML = data.areas.map(function (a) {
+        var items = a.items.filter(function (it) { return filt === 'all' || it.status === filt; });
+        if (!items.length) return '';
+        return '<div class="sysarea">' + esc(a.name) + '</div>' + items.map(function (it) {
+          var c = (ST[it.status] || [0, 'var(--line2)'])[1];
+          return '<div class="sys" style="--sc:' + c + '">' + chip(it.status) + '<div><h3>' + esc(it.name) + '</h3><p>' + esc(it.what || '') + '</p>' + live(it) +
+            '<div class="meta">' + (it.runs ? 'Runs on <b>' + esc(it.runs) + '</b>' : '') + (it.code ? ' · Code: ' + esc(it.code) : '') + '</div></div></div>';
+        }).join('');
+      }).join('');
+    }
+    function switches() {
+      var b = $('swBody');
+      if (!st) { b.innerHTML = '<span class="cbad">Can’t reach the booking engine right now.</span>'; return; }
+      var ready = st.switchSet;
+      function box(key, title, now, opts, note) {
+        return '<div class="sw"><div class="hint">' + title + '</div><div class="now">' + now + '</div><div class="opts">' + opts.map(function (o) {
+          return '<button class="btn" type="button" data-sw="' + key + '" data-v="' + o[0] + '" aria-pressed="' + (o[2] ? 'true' : 'false') + '"' + (ready ? '' : ' disabled') + '>' + o[1] + '</button>'; }).join('') + '</div><div class="hint">' + note + '</div></div>';
+      }
+      var safe = st.booking === 'simplybook', liveP = st.payments === 'live';
+      b.innerHTML = (ready ? '' : '<div class="banner warn"><div class="grow"><b>Switches are locked until the two passwords are set.</b> In Cloudflare › Workers &amp; Pages › round2-book › Settings › Variables and Secrets, edit <code>SWITCH_PASS</code> (a password) and <code>SWITCH_PIN</code> (a different PIN only the owners know).</div></div>') +
+        box('booking', 'Online booking', safe ? '🛟 Safe mode: guests book on the SimplyBook page' : '✅ New booking page', [['new', 'New booking page', !safe], ['simplybook', 'Safe mode (SimplyBook)', safe]],
+          'Safe mode keeps the business running if anything goes wrong: the booking page just shows a button to the old SimplyBook page, and the engine takes no new online bookings. Bookings already made stay as they are.') +
+        box('pay', 'Payments (booking page and food menu)', liveP ? '💳 LIVE – real money' : '🧪 TEST – sandbox, no real money', [['test', 'Test', !liveP], ['live', 'Live', liveP]],
+          (st.liveKeys ? 'Live HitPay key is in Cloudflare.' : 'The live HitPay key and salt aren’t in Cloudflare yet (HITPAY_LIVE_KEY, HITPAY_LIVE_SALT).') + ' Both the booking page and the menu switch together.') +
+        '<div class="lockbox" id="swLock" hidden><b id="swWhat"></b><input id="swPass" type="password" autocomplete="off" placeholder="Password"><input id="swPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">' +
+        '<input id="swBy" placeholder="Your name (for the record)"><div class="row"><button class="btn primary" type="button" id="swGo">Confirm switch</button><button class="btn" type="button" id="swNo">Cancel</button></div><div class="hint" id="swMsg"></div></div>';
+    }
+    function refresh() { return status().then(function (j) { st = j; }, function () { st = null; }).then(function () { switches(); render(); }); }
+    function open() {
+      var p1 = data ? Promise.resolve() : fetch('systems.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { data = j; });
+      var p2 = fetch('https://api.github.com/repos/donttelldadyet-prog/round2-tv-launcher/releases/latest').then(function (r) { return r.json(); }).then(function (r) {
+        if (!data || !r.tag_name) return; data.areas.forEach(function (a) { a.items.forEach(function (it) { if (it.check === 'release') it._rel = r.tag_name + ', ' + new Date(r.published_at).toLocaleDateString(); }); }); }).catch(function () {});
+      Promise.all([p1, refresh()]).then(function () { return p2; }).then(render, function () { $('sysList').innerHTML = '<p class="cbad">Couldn’t load the systems list.</p>'; });
+    }
+    document.addEventListener('click', function (e) {
+      var f = e.target.closest('[data-f]'); if (f && $('sysFilter').contains(f)) { filt = f.getAttribute('data-f'); render(); return; }
+      var w = e.target.closest('[data-sw]');
+      if (w && !w.disabled) {
+        var k = w.getAttribute('data-sw'), v = w.getAttribute('data-v');
+        if ((k === 'booking' ? st.booking : st.payments) === v) return;
+        pending = { k: k, v: v };
+        $('swWhat').textContent = k === 'booking' ? (v === 'simplybook' ? 'Switch online booking to SAFE MODE (SimplyBook page)?' : 'Switch back to the NEW booking page?') : (v === 'live' ? 'Switch payments to LIVE? Guests pay real money from now on.' : 'Switch payments to TEST? Guests can’t really pay until you switch back.');
+        $('swLock').hidden = false; $('swMsg').textContent = ''; $('swPass').value = ''; $('swPin').value = ''; $('swPass').focus(); return;
+      }
+      if (e.target.id === 'swNo') { pending = null; $('swLock').hidden = true; return; }
+      if (e.target.id === 'swGo' && pending) {
+        var body = { pass: $('swPass').value, pin: $('swPin').value, by: $('swBy').value }; body[pending.k] = pending.v;
+        $('swMsg').textContent = 'Switching…';
+        fetch(ENG + '/mode', { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (j) {
+          if (j.error) { $('swMsg').innerHTML = '<span class="cbad">' + esc(j.error) + '</span>'; return; }
+          pending = null; refresh();
+        }, function () { $('swMsg').innerHTML = '<span class="cbad">No connection – nothing changed.</span>'; });
+        return;
+      }
+      var g = e.target.closest('[data-go]'); if (g) { tab(g.getAttribute('data-go')); scrollTo(0, 0); }
+    });
+    function bench() {
+      $('tbBook').href = BOOK_TEST;
+      status().then(function (j) {
+        st = j;
+        $('tbBookNote').innerHTML = j.payments === 'live' ? '<b class="cbad">Payments are LIVE: a test booking charges real money.</b> Refund it in HitPay afterwards, or switch payments to Test first (Systems).' : 'Payments are on <b class="cwarn">TEST</b>: book like a guest with HitPay’s test card. Nothing is charged.';
+      }).catch(function () {});
+    }
+    $('tbRun').addEventListener('click', function () {
+      $('tbChk').innerHTML = '<span class="hint">Checking…</span>';
+      var t0 = Date.now();
+      status(true).then(function (j) {
+        var y = function (ok, txt) { return '<span class="' + (ok ? 'cok' : 'cbad') + '">' + (ok ? '✔' : '✖') + '</span><span>' + txt + '</span>'; };
+        $('tbChk').innerHTML = y(true, 'Booking engine answers (' + (Date.now() - t0) + ' ms)') +
+          y(j.sbLogin === 'ok', 'SimplyBook staff login ' + esc(j.sbLogin)) + y(j.sbPublic === 'ok', 'SimplyBook public calendar ' + esc(j.sbPublic)) +
+          '<span class="cwarn">●</span><span>Payments: <b>' + j.payments.toUpperCase() + '</b> · booking: <b>' + (j.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</b></span>' +
+          y(j.kitchenBot, 'Kitchen Telegram bot set') + y(j.guestMessages, 'Guest messages set') + y(j.menuSheet, 'Menu → accounts sheet set') +
+          y(j.sbSecret, 'SimplyBook secret key set') + y(j.liveKeys, 'Live HitPay key in Cloudflare') + y(j.switchSet, 'Switch passwords set') + y(j.staffAlerts, 'Staff booking alerts (Telegram)') +
+          '<span class="hint">●</span><span>TV messages waiting in the timer: ' + (j.timerQueue == null ? '?' : j.timerQueue) + '</span>';
+        $('tbWhen').textContent = 'Checked ' + new Date().toLocaleTimeString();
+      }, function () { $('tbChk').innerHTML = '<span class="cbad">✖</span><span>The booking engine didn’t answer.</span>'; });
+    });
+    return { open: open, bench: bench };
+  }());
+  /* keep the page menu just under the sticky header (its height changes with screen width) */
+  (function () { var h = document.querySelector('header.top'); function set() { document.documentElement.style.setProperty('--hh', h.offsetHeight + 'px'); } set(); if (window.ResizeObserver) new ResizeObserver(set).observe(h); else addEventListener('resize', set); }());
+
   var Tests = (function () {
     var timer = null;
     function key() { return ls('r2m.msgKey') || ''; }
@@ -1474,12 +1634,13 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   var GROUPS = {
     notif: [['messages', 'Round2 messages'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'Settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors']],
+    sys: [['systems', 'All systems'], ['testbench', 'Test bench']],
     help: [['help', 'How it works'], ['stuck', 'If stuck']]
   };
   function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'notif'; }
@@ -1498,6 +1659,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     if (n === 'messages') Msgs.open(); else Msgs.close();
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'website') Web.open(); else Web.close();
+    if (n === 'systems') Sys.open(); if (n === 'testbench') Sys.bench();
     if (n === 'foodmenu') openMenuEditor();
     if (n === 'simorder') Sim.open();
     if (n === 'guestmsgs' || n === 'guestlink') {   /* the guest messages pages, shown inside this tab (loaded the first time it's opened) */

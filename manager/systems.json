@@ -1,0 +1,54 @@
+{
+  "_readme": "Control centre › Systems › All systems reads this file. Keep it up to date whenever a system changes stage (live/test/build/planned/off/broken). Plain words – the owners read it. status: live = guests/staff use it now · test = built, being tested (test payments etc.) · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
+  "updated": "2026-10-30",
+  "areas": [
+    {
+      "name": "Website & booking",
+      "items": [
+        { "name": "Round2 website (game menu)", "status": "live", "what": "The game-style homepage shown on www.round2.sg.", "runs": "GitHub Pages, shown inside Wix", "code": "round2sg-home · index.html" },
+        { "name": "Website visitor stats", "status": "live", "what": "Counts what visitors tap (numbers only) for the Website tab here.", "runs": "Firebase /web", "code": "round2sg-home · index.html, round2-tv-launcher docs/site-stats.md" },
+        { "name": "New booking page", "status": "test", "check": "payments", "what": "Guests pick a room, time and length, pay with HitPay, and it goes straight into SimplyBook. Test payments until launch.", "runs": "round2sg-home/slots (branch own-booking) + booking engine", "code": "round2sg-home · slots/index.html, HANDOFF.md" },
+        { "name": "Booking engine (Cloudflare)", "status": "live", "check": "engine", "what": "The fast back end: free slots, 10-min holds, HitPay, putting bookings in SimplyBook, TV message timer, menu payments.", "runs": "Cloudflare Worker round2-book", "code": "round2sg-home · worker/round2-book.js" },
+        { "name": "SimplyBook booking page", "status": "live", "what": "The current way guests book (round2.sg/booknow). Stays as the calendar behind everything.", "runs": "SimplyBook" },
+        { "name": "SimplyBook phone alerts", "status": "broken", "what": "Push alerts in the SimplyBook app stopped on every phone on 29 Oct, 5:50pm – also for bookings on SimplyBook's own page. Logging out/in didn't help. Ask SimplyBook support.", "runs": "SimplyBook app" },
+        { "name": "Mirror rooms (Atlas/Max blocks)", "status": "live", "what": "When one twin room is booked, blocks the other in SimplyBook.", "runs": "Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS" },
+        { "name": "Confirmation email link (TV message)", "status": "build", "what": "A line in SimplyBook's confirmation email that opens the guest's booking page. Needs the booking-code variable added to the email template.", "runs": "SimplyBook email template + engine /b/<code>" },
+        { "name": "Staff booking alerts (Telegram)", "status": "planned", "what": "A separate 'Round2 Bookings' bot + staff group gets every booking and cancellation. Never the Madd Pizza group.", "runs": "Booking engine" },
+        { "name": "Online rescheduling", "status": "planned", "what": "Rules decided in part (3 h cut-off, $15 then $35). WhatsApp only until switched on.", "code": "round2sg-home · docs/rescheduling-plan.md" }
+      ]
+    },
+    {
+      "name": "Food menu",
+      "items": [
+        { "name": "Room food menu (QR on the TV)", "status": "test", "check": "payments", "what": "Guests order food from their room and pay with HitPay. Waiting for Madd Pizza's PayNow confirmation; remove the $0.50 test item before launch.", "runs": "round2sg-home/menu + booking engine", "code": "round2sg-home · menu/" },
+        { "name": "Kitchen Telegram slip", "status": "test", "what": "Paid orders post to the Madd Pizza kitchen group with a 'food is at the pickup point' button.", "runs": "Booking engine" },
+        { "name": "Order record, Drive slip, accounts sheet", "status": "test", "what": "Saves each paid order, writes the print slip to Google Drive and adds the row to the accounts sheet.", "runs": "Make: [BACKEND] ROOM MENU PAID ORDER" },
+        { "name": "Kitchen printing", "status": "live", "what": "An Android phone syncs the Drive folder and a printing app prints each slip. Works but basic – ideas on the shelf.", "runs": "Kitchen phone" },
+        { "name": "Madd nightly settlement", "status": "live", "what": "Totals the day's Madd payable at 11pm.", "runs": "Make: [BACKEND] MADD NIGHTLY SETTLEMENT LOG" },
+        { "name": "Madd payout (Telegram buttons)", "status": "live", "what": "Telegram buttons to mark Madd as paid.", "runs": "Make: [CONTROL] MADD PAYOUT TELEGRAM" },
+        { "name": "Automatic PayNow payout to Madd", "status": "parked", "what": "HitPay Transfers would pay Madd automatically each night after you approve. Needs HitPay to switch it on.", "runs": "—" },
+        { "name": "Old Wix food orders", "status": "off", "what": "The old Wix checkout. The Make scenario is still switched on but gets no orders.", "runs": "Make: [BACKEND] WIX PAID FOOD ORDER" }
+      ]
+    },
+    {
+      "name": "TVs",
+      "items": [
+        { "name": "Round2 Home (Android/Google TV)", "status": "live", "check": "release", "what": "The home screen on Kai (TCL), Kaeden and Maximillion (Sony) and Atlas (Prism+).", "runs": "Android app, updates from GitHub releases", "code": "round2-tv-launcher · web/, app/" },
+        { "name": "Round2 Home (LG)", "status": "live", "what": "The same menu on Scarlett, Vale and Bella (rooted LG).", "runs": "webOS app (.ipk)", "code": "round2-tv-launcher · webos/" },
+        { "name": "AirPlay on Bella's LG", "status": "build", "what": "A custom AirPlay receiver, because Bella's TV can't get LG's own.", "runs": "Bella's TV", "code": "round2-tv-launcher · airplay-webos/" },
+        { "name": "Themes, event backgrounds, sounds", "status": "live", "what": "Backgrounds and sounds per room and for events, from the Themes tab.", "runs": "GitHub (themes/)", "code": "round2-tv-launcher · themes/" },
+        { "name": "Round2 messages to TVs", "status": "live", "what": "Birthday, '10 minutes left', 'that's a wrap' etc. from the Notifications tab.", "runs": "Firebase + booking engine timer" },
+        { "name": "Guest messages (cue.round2.sg)", "status": "live", "check": "cue", "what": "Guests write their own TV message from a link; staff approve; it pops up on time.", "runs": "cue.round2.sg + booking engine /gm + Make: [BACKEND] GUEST MESSAGE LINKS", "code": "round2-tv-launcher · cue/, manager/msg/, docs/guest-messages.md" },
+        { "name": "Message timer", "status": "live", "what": "Sends each queued message to its TV a minute before its time.", "runs": "Booking engine (replaced Make's GUEST MESSAGE TIMER, now off)" },
+        { "name": "Food alerts on the TV", "status": "test", "what": "'Order locked in' and 'Loot dropped' on the room's TV.", "runs": "Firebase" },
+        { "name": "Automatic 'time's up'", "status": "planned", "what": "Warn 10 min before and at the guest's end time from SimplyBook (booking end minus 15 min cleaning; late-night notes are readable too).", "code": "round2sg-home · docs/booking-times.md" }
+      ]
+    },
+    {
+      "name": "This control centre",
+      "items": [
+        { "name": "Control centre", "status": "live", "what": "This page: messages, themes, menu, website stats, systems and tests.", "runs": "GitHub Pages", "code": "round2-tv-launcher · manager/" }
+      ]
+    }
+  ]
+}

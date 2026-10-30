@@ -15,6 +15,7 @@ Main menu: **Inputs** (PlayStation and guest HDMI ports), **AirPlay** (if PhairP
 | `tv-tools/round2tv.ps1` | Windows toolkit that connects to a TV with adb, backs it up, cleans it up, installs the app and undoes everything. |
 | `tv-tools/cleanup.txt` | The approved list of ad and bloat apps to disable on the TCL TVs. |
 | `signing/round2-tv.jks` | The app's signing key, so each new build installs over the previous one. |
+| `manager/systems.json` | The control centre's **Systems** list: every Round2 system and its stage (live / testing / building / planned / on the shelf / off / broken). **Update it whenever a system changes stage.** |
 | `manager/msg/` | Guest messages: the guest page (`?c=CODE`) and the staff page. See `docs/guest-messages.md`. |
 
 ## Set up a TV (Windows)
