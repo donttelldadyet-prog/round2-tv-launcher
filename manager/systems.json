@@ -50,8 +50,14 @@
         {
           "name": "Mirror rooms (Atlas ↔ Vale blocks)",
           "status": "live",
-          "what": "When Atlas or Vale is booked (online or by staff), blocks the other room at the same time; moves and cancels follow. Only for the Early bird / Off-peak / Peak services. If the twin room can't take the block (already taken, or outside SimplyBook's hours, e.g. late-night), nothing is blocked and nobody is told.",
+          "what": "Tested 30 Oct after SimplyBook's callback moved to the engine: works. When Atlas or Vale is booked (online or by staff), blocks the other room at the same time; moves and cancels follow. Only for the Early bird / Off-peak / Peak services. If the twin room can't take the block (already taken, or outside SimplyBook's hours, e.g. late-night), nothing is blocked and nobody is told.",
           "runs": "SimplyBook callback → booking engine (/sb/notify) → Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
+        },
+        {
+          "name": "Mirror rooms in the engine (+ alert if a block fails)",
+          "status": "planned",
+          "what": "To do: move the Atlas ↔ Vale blocking from Make into the Cloudflare engine. No Make operations, and staff get a Telegram alert when a block can't be made (twin room taken, late-night past SimplyBook's hours, or a service that isn't mirrored). Best done together with the staff booking alerts.",
+          "runs": "Booking engine (Cloudflare) – replaces Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
         },
         {
           "name": "Confirmation email link (TV message)",
