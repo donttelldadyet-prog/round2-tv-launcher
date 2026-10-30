@@ -34,7 +34,8 @@ The copies have the real staff code and TV messages key replaced with `STAFF_COD
 | --- | --- |
 | Main scenario | `[BACKEND] GUEST MESSAGE LINKS`, id 8249444 |
 | Timer | `[BACKEND] GUEST MESSAGE TIMER`, id 8251356, every 15 min, only 10:30–23:59 and 00:00–05:15 (SG). About 2,300 operations a month. The account has 10,000 a month, shared with the sound automation, so don't make it more frequent. |
-| Webhook | `GUEST MESSAGE LINKS`, id 4000032, `https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4` |
+| Webhook | `GUEST MESSAGE LINKS`, id 4000032 (old address, public in this repo's history – being retired). Replacement: `GUEST MESSAGE LINKS (private, via Cloudflare)`, id 4007003; its address is **only** in Make and in the Cloudflare secret `GM_HOOK_URL` – never put it in a page or this repo. |
+| Front door | `https://round2-book.donttelldadyet.workers.dev/gm` (round2sg-home `worker/round2-book.js`, `gm()`). All pages call this, not Make. |
 | Data store | `GUEST_MSG_LINKS`, id 237603 (data structure 667731). Key = the code. |
 
 One webhook; `action` decides the route. The pages POST form-encoded fields, so there's no CORS preflight.
@@ -90,3 +91,27 @@ Live since 29 Oct. Repo `donttelldadyet-prog/round2-cue` (GitHub Pages, branch m
 ## Start time picker
 
 The staff page's start time (and Change time) is a dropdown in 15-minute steps (a wheel on iPhone), listed from 10am round to 9:45am.
+
+## Front door (Cloudflare, since 30 Oct 2026)
+
+Every page (guest page `manager/msg/`, staff page `manager/msg/staff.html`, control centre Messages + calendar) POSTs the same
+form fields to **`https://round2-book.donttelldadyet.workers.dev/gm`** instead of the Make webhook. The booking engine
+(round2sg-home `worker/round2-book.js`, function `gm`) then:
+
+- **Staff actions** (`create`, `list`, `move`, `now`, `cancel`, `r2`, `push`): checks the staff code itself (secret `GM_STAFF`), so
+  wrong guesses never reach Make, then passes the request through unchanged and returns Make's answer.
+- **Guest `get`**: answers from a 1-minute cache of the link (reloads cost nothing); unknown codes are cached for 5 minutes.
+- **Guest `submit`**: checks it like Make does (occasion, headline, 600 characters, show time = start … +60 min in 15-min steps,
+  not after it popped up, not cancelled), answers `{ok, unchanged}` without calling Make when nothing changed, and allows
+  **8 changes per link** (then "message Round2").
+- **Rate limit** per visitor (IP): 30 guest calls / 10 min, 200 staff calls / 10 min.
+- Cache, edit counts and rate limit live in the engine's Durable Object (`HoldBook`, tables `gm` and `gmrate`).
+- The guest page keeps **Send** greyed out ("Saved ✓") until something actually changed.
+
+The Make webhook address the engine uses comes from the Cloudflare secret `GM_HOOK_URL` (falls back to the old public address
+until the swap below is done). The Make scenarios still re-check everything; the front door only saves operations.
+
+### Swapping to the private webhook (one-time)
+1. Make › `[BACKEND] GUEST MESSAGE LINKS` › first module (webhook) › choose `GUEST MESSAGE LINKS (private, via Cloudflare)` › OK › Save.
+2. Straight after: Cloudflare secret `GM_HOOK_URL` = the new address, and `[BACKEND] GUEST MESSAGE TIMER`'s HTTP module URL = the new address.
+3. Then delete the old webhook 4000032 so its public address stops working.

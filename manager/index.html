@@ -946,7 +946,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
     /* Failsafe: nothing goes to a TV straight from the button. "Check and send" opens a review of exactly what will
        happen (rooms, when, wording, anything it replaces or clashes with), and only "Yes, send" in that box sends it.
        Changing anything on the form closes the review. "At a set time" goes into the Make queue with the guest messages. */
-    var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4', pending = null;
+    var HOOK = 'https://round2-book.donttelldadyet.workers.dev/gm'   /* Round2 booking engine (Cloudflare) in front of the Make guest messages webhook – docs/guest-messages.md "Front door" */, pending = null;
     function gKey() { return ls('r2.guestStaff') || ''; }
     function sgTime(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)); }
     function closeReview() { pending = null; $('mReview').hidden = true; $('mReview').innerHTML = ''; }
@@ -1131,7 +1131,7 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
      Round2's own messages: whatever each TV's message slot holds right now (/r2/<key>/<room>/msg; one per TV).
      Guest messages: the links in the guest messages system (Make: [TEST] GUEST MESSAGE LINKS, needs its staff code). */
   var Cal = (function () {
-    var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4';
+    var HOOK = 'https://round2-book.donttelldadyet.workers.dev/gm'   /* Round2 booking engine (Cloudflare) in front of the Make guest messages webhook – docs/guest-messages.md "Front door" */;
     var FB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app';
     var TZ = 'Asia/Singapore', month = null, pick = null, items = [], ready = false, guestErr = '', seq = 0;
     function topic(r) { return r === 'maximillion' ? 'max' : r; }

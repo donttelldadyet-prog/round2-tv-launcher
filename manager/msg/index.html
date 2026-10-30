@@ -164,8 +164,9 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
 <script>
 (function () {
   'use strict';
-  /* Make scenario "[TEST] GUEST MESSAGE LINKS". It checks the code, the booking time and the message on its side too. */
-  var HOOK = 'https://hook.eu1.make.com/0vs25z4g3omjuvbdxwstdgofqhc3p2e4';
+  /* Make scenario "[TEST] GUEST MESSAGE LINKS", reached through the booking engine's /gm front door (it checks the code, caps
+     edits, skips unchanged saves). Both check the booking time and the message on their side too. */
+  var HOOK = 'https://round2-book.donttelldadyet.workers.dev/gm'   /* Round2 booking engine (Cloudflare) in front of the Make guest messages webhook – docs/guest-messages.md "Front door" */;
   var LOGO = 'https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp';
   var TZ = 'Asia/Singapore';
   var ROOMS = { vale: ['Vale', '#E8436A'], kaeden: ['Kaeden', '#4DB848'], scarlett: ['Scarlett', '#F2C21B'], bella: ['Bella', '#7A5BE0'],
@@ -186,7 +187,10 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
   };
 
   var $ = function (id) { return document.getElementById(id); };
-  var code = '', link = null, kind = 'birthday', at = 0, titleEdited = false;
+  var code = '', link = null, kind = 'birthday', at = 0, titleEdited = false, saved = null;
+  /* Send stays greyed out until something differs from what's already saved (each send costs a Make run) */
+  function sig() { var d = draft(); return [d.kind, d.to, d.from, d.title, d.text, at].join('\u0001'); }
+  function markDirty() { var b = $('send'); if (b.textContent === 'Sending…') return; var same = saved !== null && sig() === saved; b.disabled = same; b.textContent = same ? 'Saved ✓ (change something to send again)' : (link && link.status === 'approved' ? 'Save changes' : 'Send it'); }
 
   /* your logo, with the text version as a fallback if it can't load */
   var lg = new Image(); lg.alt = 'Round2'; lg.onload = function () { $('brand').innerHTML = ''; $('brand').appendChild(lg); }; lg.src = LOGO;
@@ -230,6 +234,7 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
     if (link.status === 'approved') {
       $('to').value = link.to || ''; $('from').value = link.from || ''; $('title').value = link.title || ''; $('text').value = link.text || '';
       titleEdited = true; at = link.at || link.start;
+      saved = sig();
       showDone();
       return;
     }
@@ -238,7 +243,7 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
   }
   function showForm() {
     $('done').hidden = true; $('intro').hidden = false; $('msgForm').hidden = false; $('status').hidden = true;
-    drawKinds(); drawTimes(); fillTitle(); preview();
+    drawKinds(); drawTimes(); fillTitle(); preview(); markDirty();
   }
   function showDone() {
     var R = ROOMS[link.room] || ['your room'], onTv = Date.now() >= at;
@@ -277,6 +282,7 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
     var p = pagesOf(d.text, 220);
     $('pages').textContent = p > 1 ? p + ' pages on the TV. They press OK to turn each one.' : 'One page on the TV';
     $('prev').innerHTML = cardHtml(d);
+    markDirty();
   }
 
   $('kinds').addEventListener('click', function (e) {
@@ -287,7 +293,7 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
   });
   $('times').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-t]'); if (!b) return;
-    at = Number(b.getAttribute('data-t')); drawTimes();
+    at = Number(b.getAttribute('data-t')); drawTimes(); markDirty();
   });
   $('to').addEventListener('input', function () { fillTitle(); preview(); });
   $('title').addEventListener('input', function () { titleEdited = true; preview(); });
@@ -299,11 +305,12 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
     var d = draft(), st = $('status');
     if (!d.title) { st.textContent = 'Add a headline.'; st.hidden = false; $('title').focus(); return; }
     if (d.text.length > 600) { st.textContent = 'Keep the message under 600 characters.'; st.hidden = false; return; }
+    if (saved !== null && sig() === saved) { showDone(); return; }
     $('send').disabled = true; $('send').textContent = 'Sending…';
     call(Object.assign({ action: 'submit', code: code, at: at }, d)).then(function () {
-      link.status = 'approved'; showDone();
-    }).catch(function (er) { st.textContent = er.message; st.hidden = false; st.scrollIntoView({ behavior: 'smooth', block: 'center' }); })
-      .then(function () { $('send').disabled = false; $('send').textContent = 'Send it'; });
+      link.status = 'approved'; Object.assign(link, d, { at: at }); saved = sig(); $('send').textContent = ''; showDone();
+    }).catch(function (er) { st.textContent = er.message; st.hidden = false; st.scrollIntoView({ behavior: 'smooth', block: 'center' }); $('send').textContent = ''; })
+      .then(function () { markDirty(); });
   });
   $('codeForm').addEventListener('submit', function (e) { e.preventDefault(); var c = $('codeIn').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase(); if (c) load(c); });
 
