@@ -1667,7 +1667,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var canUndo = !r.undone && now - r.t < 30 * 60000;
         return '<div><span class="chip room" style="--rc:' + ROOMS[RK[r.room]].c + '">' + esc(ROOMS[RK[r.room]].name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · now ends ' + t(r.guestEnd) + ' <span class="hint">(' + t(r.t) + ')</span>' +
           (r.undone ? ' <span class="chip ended">Undone</span>' : '') + ((r.problems || []).length ? ' <span class="chip" style="color:var(--warn)">' + esc(r.problems.join('; ')) + '</span>' : '') +
-          (r.banner && r.banner.shown === false ? ' <span class="hint">TV banner skipped: ' + esc(r.banner.why || '') + '</span>' : '') +
+          (r.banner && r.banner.queued ? ' <span class="hint">TV banner ' + esc(r.banner.why || 'waiting in line') + ' – it shows right after that OK</span>' : r.banner && r.banner.shown === false ? ' <span class="hint">TV banner not shown: ' + esc(r.banner.why || '') + '</span>' : '') +
           (canUndo ? ' <button class="btn ghost" data-undo="' + esc(r.id) + '" style="padding:4px 10px;font-size:11px">Undo</button>' : '') + '</div>';
       }).join('') : '<p class="hint">None yet.</p>';
     }
@@ -1740,7 +1740,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function testSend(r) {
       $('sTMsg').textContent = 'Sending…';
       call({ action: 'extend', test: 1, room: r, hours: $('sTH').value, ack: $('sTAck').checked ? 'yes' : 'no' }).then(function (j) {
-        $('sTMsg').textContent = j && j.ok ? (j.banner && j.banner.shown ? 'Sent. It pops up on ' + ROOMS[RK[r]].name + '’s TV within a few seconds.' : 'Not shown: ' + ((j.banner && j.banner.why) || '?') + '.') : 'Couldn’t send: ' + ((j && j.error) || 'no answer') + '.';
+        $('sTMsg').textContent = j && j.ok ? (j.banner && j.banner.shown ? 'Sent. It pops up on ' + ROOMS[RK[r]].name + '’s TV within a few seconds.' : j.banner && j.banner.queued ? 'Queued: ' + j.banner.why + '. It shows right after someone presses OK on that.' : 'Not shown: ' + ((j.banner && j.banner.why) || '?') + '.') : 'Couldn’t send: ' + ((j && j.error) || 'no answer') + '.';
       });
     }
     return {
