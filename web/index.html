@@ -2638,6 +2638,9 @@ window.R2_TV = {
       Sfx.play('ok');
       clearTimeout(hideTimer);
       if (!d.ack) hideTimer = setTimeout(function () { hide(true); }, 60000);
+      /* one that needs OK still goes at its cut-off (That's a wrap +15 min, 10-min reminder +4 min, credit banner +20 min,
+         others +3 h): the big banner closes by itself then, like the small one over apps (Max, 31 Oct) */
+      else { var cut = times(d).until - Date.now(); hideTimer = setTimeout(function () { if (cur === d) { hide(false); clearTimeout(timer); } }, Math.max(0, Math.min(cut, 2147483000))); }
     }
     /* rooted LG: tell the helper straight away (it shows messages over other apps), so it never shows this one again */
     function tellHelper(id) {
@@ -2647,6 +2650,7 @@ window.R2_TV = {
     var viaHelper = false;   /* rooted LG: the helper decides when and where a message shows, and hands the menu its card */
     function show(d, again) {
       if (!d || !d.id || (cur && cur.id === d.id)) return;
+      if (Date.now() > times(d).until) return;   /* past its cut-off: never shown again */
       if (d.helper) { render(d, again); return; }
       if (done(d.id)) return;
       if (!d.ack) tellHelper(d.id);                       /* no OK needed: seen once is enough */
