@@ -1,5 +1,7 @@
 # Guest messages
 
+> **Start with [notifications.md](notifications.md)**: flow chart of every timer and priority, cut-offs, and where each rule lives in the code.
+
 Merged into `main` on 29 Oct 2026 (it was built on the `feature/guest-messages` branch). Live on GitHub Pages with the control centre.
 
 Guests write their own birthday, anniversary, celebration or note message for the room TV. It works for bookings from any channel (WhatsApp, Telegram, TikTok, SimplyBook, walk-in), because staff send a link instead of the guest messaging a bot.

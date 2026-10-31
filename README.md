@@ -17,6 +17,7 @@ Main menu: **Inputs** (PlayStation and guest HDMI ports), **AirPlay** (if PhairP
 | `signing/round2-tv.jks` | The app's signing key, so each new build installs over the previous one. |
 | `manager/systems.json` | The control centre's **Systems** list: every Round2 system and its stage (live / testing / building / planned / on the shelf / off / broken). **Update it whenever a system changes stage.** |
 | `manager/msg/` | Guest messages: the guest page (`?c=CODE`) and the staff page. See `docs/guest-messages.md`. |
+| `docs/notifications.md` | **TV notifications at a glance**: flow chart of every timer and priority (guest / Round2 / 10-5-wrap / credit banner / food), cut-offs, code map. Read before touching any banner. |
 
 ## Set up a TV (Windows)
 
