@@ -336,6 +336,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 .key .row input { flex: 1; min-width: 200px; }
 .key details { margin-top: 10px; font-size: 14px; color: var(--mute); }
 .key details summary { cursor: pointer; }
+.klock { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; max-width: 760px; }
+.khold { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.khold i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: color-mix(in srgb, var(--gc, var(--accent)) 35%, transparent); pointer-events: none; }
+.khold.go i { width: 100%; transition: width 1.2s linear; }
+.khold span { position: relative; }
+#tab-keys.locked [data-edit] { display: none !important; }
 .key details ol { margin: 8px 0 0; padding-left: 20px; }
 .cok { color: var(--ok); } .cbad { color: var(--bad); } .cwarn { color: var(--warn); }
 .tb { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
@@ -670,14 +676,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     </div>
   </section>
 
-  <section id="tab-keys" hidden>
+  <section id="tab-keys" class="locked" hidden>
     <h1>Keys</h1>
     <p class="sub">Every key the control centre uses, in one place. Each key switches on its own pages, on this phone or computer only. Give staff only the keys for the jobs they do: a page whose key isn't added here stays locked.</p>
+    <div class="klock" id="keyLock"></div>
     <div class="keys" id="keyList"></div>
     <div class="card" style="max-width:760px;margin-top:14px">
       <h2 style="margin-top:0">Not kept here</h2>
       <p class="hint" style="margin:0">The safe-mode switch password and PIN (Test bench) are typed each time and never saved. The TV staff PIN is changed under <b>TV setup › TV settings</b>.</p>
-      <div class="row" style="margin-top:14px"><button class="btn ghost" id="keysWipe" type="button">Remove all keys from this device</button><span class="hint">For a shared phone, or when someone leaves.</span></div>
+      <div class="row" data-edit style="margin-top:14px"><button class="btn ghost" id="keysWipe" type="button">Remove all keys from this device</button><span class="hint">For a shared phone, or when someone leaves.</span></div>
     </div>
   </section>
 
@@ -1947,12 +1954,35 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         (v ? '<span class="st" style="--sc:var(--ok)">Added · ends ' + esc(v.slice(-4)) + '</span>' : stale ? '<span class="st" style="--sc:var(--warn)">Saved · not connected</span>' : '<span class="st" style="--sc:var(--mute)">Not added</span>') + '</div>' +
         '<p class="hint" style="margin:8px 0 0">' + k.about + '</p>' +
         '<div class="opens"><span class="hint" style="align-self:center">Opens:</span>' + k.opens.map(function (o) { return '<button type="button" data-tab="' + o[0] + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>' +
-        '<div class="row"><input class="tok" type="password" autocomplete="off" placeholder="' + esc(k.ph) + '" aria-label="' + esc(k.name) + '" data-in="' + k.id + '">' +
+        '<div class="row" data-edit><input class="tok" type="password" autocomplete="off" placeholder="' + esc(k.ph) + '" aria-label="' + esc(k.name) + '" data-in="' + k.id + '">' +
         '<button class="btn primary" type="button" data-save="' + k.id + '">' + (v ? 'Replace' : 'Save') + '</button>' +
         (v ? '<button class="btn ghost" type="button" data-del="' + k.id + '">Remove</button>' : '') + '</div>' +
-        '<p class="hint" data-kmsg="' + k.id + '" style="margin:8px 0 0"></p>' + (k.how || '') + '</div>';
+        '<p class="hint" data-edit data-kmsg="' + k.id + '" style="margin:8px 0 0"></p>' + (k.how ? '<div data-edit>' + k.how + '</div>' : '') + '</div>';
     }
     function draw() { $('keyList').innerHTML = LIST.map(card).join(''); }
+    /* Locked by default so a stray tap can't remove a key: you can see which keys are added, but adding, replacing
+       and removing only show after holding the Unlock button. It locks again after 2 minutes without a tap or key,
+       and whenever you leave the page. */
+    var unlocked = false, idle = null, holdT = null;
+    function lockBar() {
+      $('keyLock').innerHTML = unlocked
+        ? '<span class="st" style="--sc:var(--warn)">Unlocked</span><span class="hint">Locks again after 2 minutes, or when you leave this page.</span><button class="btn" type="button" id="keyRelock">Lock now</button>'
+        : '<button class="btn primary khold" type="button" id="keyHold"><i></i><span>Hold to unlock</span></button><span class="hint">Hold for a second to add, replace or remove keys.</span>';
+    }
+    function setLock(on) {
+      unlocked = !on; clearTimeout(idle);
+      $('tab-keys').classList.toggle('locked', on);
+      if (!on) idle = setTimeout(function () { setLock(true); }, 120000);
+      lockBar();
+    }
+    function bump() { if (unlocked) { clearTimeout(idle); idle = setTimeout(function () { setLock(true); }, 120000); } }
+    function holdStart(e) {
+      var b = e.target.closest && e.target.closest('#keyHold'); if (!b || holdT) return;
+      if (e.type === 'pointerdown') e.preventDefault();
+      b.classList.add('go');
+      holdT = setTimeout(function () { holdT = null; setLock(false); toast('Unlocked. Locks again after 2 minutes.'); }, 1200);
+    }
+    function holdEnd() { if (!holdT) return; clearTimeout(holdT); holdT = null; var b = $('keyHold'); if (b) b.classList.remove('go'); }
     function find(id) { return LIST.filter(function (k) { return k.id === id; })[0]; }
     function save(id) {
       var k = find(id), inp = document.querySelector('[data-in="' + id + '"]'), msg = document.querySelector('[data-kmsg="' + id + '"]'), v = inp.value.trim();
@@ -1978,19 +2008,29 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function dropMenuKey() { try { var g = JSON.parse(localStorage.getItem('r2gh') || 'null'); if (g && g.token) { delete g.token; localStorage.setItem('r2gh', JSON.stringify(g)); } } catch (e) {} }   /* the menu editor's own copy of the GitHub key */
     var ready = false;
     function init() {
+      var L = $('keyLock');
+      L.addEventListener('pointerdown', holdStart);
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { L.addEventListener(ev, holdEnd); });
+      L.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); holdStart(e); } });
+      L.addEventListener('keyup', holdEnd);
+      L.addEventListener('contextmenu', function (e) { if (e.target.closest && e.target.closest('#keyHold')) e.preventDefault(); });
+      L.addEventListener('click', function (e) { if (e.target.id === 'keyRelock') setLock(true); });
+      ['click', 'input', 'keydown'].forEach(function (ev) { $('tab-keys').addEventListener(ev, bump); });
       $('keyList').addEventListener('click', function (e) {
         var t = e.target, s = t.getAttribute && t.getAttribute('data-save'), d = t.getAttribute && t.getAttribute('data-del'), g = t.getAttribute && t.getAttribute('data-tab');
+        if ((s || d) && !unlocked) return;
         if (s) save(s); else if (d) del(d); else if (g) { tab(g); scrollTo(0, 0); }
       });
-      $('keyList').addEventListener('keydown', function (e) { var id = e.target.getAttribute && e.target.getAttribute('data-in'); if (id && e.key === 'Enter') save(id); });
+      $('keyList').addEventListener('keydown', function (e) { var id = e.target.getAttribute && e.target.getAttribute('data-in'); if (id && e.key === 'Enter' && unlocked) save(id); });
       $('keysWipe').onclick = function () {
+        if (!unlocked) return;
         if (!confirm('Remove every key from this device? Everything except Home, Website, the systems list and Help will lock until keys are added again.')) return;
         LIST.forEach(function (k) { ls(k.store, null); });
         dropMenuKey();
         ls('r2m.tab', 'keys'); location.reload();
       };
     }
-    return { open: function () { if (!ready) { ready = true; init(); } draw(); } };
+    return { open: function () { if (!ready) { ready = true; init(); } setLock(true); draw(); }, close: function () { if (ready) setLock(true); } };
   }());
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
@@ -2065,7 +2105,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
     if (n === 'systems') Sys.open(); if (n === 'testbench') Sys.bench();
-    if (n === 'keys') Keys.open();
+    if (n === 'keys') Keys.open(); else Keys.close();
     if (n === 'foodmenu') openMenuEditor();
     if (n === 'simorder') Sim.open();
     if (n === 'guestmsgs' || n === 'guestlink') {   /* the guest messages pages, shown inside this tab (loaded the first time it's opened) */
