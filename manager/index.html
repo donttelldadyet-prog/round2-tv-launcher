@@ -1657,6 +1657,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
      round2sg-home worker/round2-book.js "In session"; docs/guest-messages.md "In session". */
   var Sess = (function () {
     var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, last = null, pend = null, ackOn = {};
+    var seen = Date.now(), paused = false;
+    function wake() { seen = Date.now(); if (paused && timer) { paused = false; load(); } }
+    ['pointerdown', 'keydown', 'scroll'].forEach(function (ev) { document.addEventListener(ev, wake, { passive: true }); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && timer) { seen = Date.now(); paused = false; load(); } });
     function key() { return ls('r2.guestStaff') || ''; }
     function t(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).replace(/\s/g, '').toLowerCase(); }
     function call(body) {
@@ -1672,7 +1676,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('sKeyBox').hidden = true; $('sMsg').textContent = 'Checking SimplyBook…';
       call({ action: 'insess' }).then(function (j) {
         if (!j || !j.ok) { $('sMsg').textContent = 'Couldn’t load: ' + ((j && j.error) || 'no answer') + '.'; return; }
-        last = j; render(); $('sMsg').textContent = 'Updated ' + t(j.now) + '. Refreshes every minute.';
+        last = j; render(); $('sMsg').textContent = 'Updated ' + t(j.now) + '. Refreshes every minute while this page is open and in use.';
       }).catch(function () { $('sMsg').textContent = 'Couldn’t reach the engine. Check the internet and press Refresh.'; });
     }
     function render() {
@@ -1785,7 +1789,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       });
     }
     return {
-      open: function () { load(); clearInterval(timer); timer = setInterval(function () { if (!pend) load(); }, 60000); },
+      /* auto-refresh only while someone is looking: never when the page/tab is hidden (phone locked, another tab),
+         and it pauses after 10 minutes without a tap or key on the page (a laptop left open). Coming back refreshes once. */
+      open: function () {
+        load(); clearInterval(timer); seen = Date.now();
+        timer = setInterval(function () {
+          if (pend || document.hidden) return;
+          if (Date.now() - seen > 10 * 60000) { if (!paused) { paused = true; $('sMsg').textContent = 'Auto-refresh paused (no one using this page). Tap anywhere or press Refresh.'; } return; }
+          load();
+        }, 60000);
+      },
       close: function () { clearInterval(timer); timer = null; }
     };
   }());
