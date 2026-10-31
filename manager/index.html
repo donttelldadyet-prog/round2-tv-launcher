@@ -1917,7 +1917,23 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       GROUPS[g].map(function (x) { return '<button type="button" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></article>';
   }).join('');
   $('hub').addEventListener('click', function (e) { var n = e.target.closest && e.target.closest('[data-tab]'); if (n) { tab(n.getAttribute('data-tab')); scrollTo(0, 0); } });
-  $('brand').addEventListener('click', function () { tab('home'); scrollTo(0, 0); });
+  /* the logo: 1 tap reloads everything and comes back to the page you're on; 2 quick taps reload and go to Home.
+     If something is half-written (an open editor, a typed message), it asks first so nothing is lost. */
+  (function () {
+    var t = null;
+    function unsaved() { return !!document.querySelector('dialog[open]') || ($('mText') && $('mText').value.trim() && !$('tab-messages').hidden); }
+    function go(home) {
+      if (unsaved() && !confirm('Reload the control centre? Anything not sent or saved yet will be lost.')) return;
+      if (home) ls('r2m.tab', 'home');
+      location.reload();
+    }
+    $('brand').style.touchAction = 'manipulation';
+    $('brand').title = 'Tap: refresh this page · Double-tap: refresh and go Home';
+    $('brand').addEventListener('click', function () {
+      if (t) { clearTimeout(t); t = null; go(true); return; }
+      t = setTimeout(function () { t = null; go(false); }, 350);
+    });
+  }());
   function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'home'; }
   function tab(n) {
     if (TABS.indexOf(n) < 0) n = 'home';
