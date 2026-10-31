@@ -327,6 +327,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 .sw .opts { display: flex; flex-wrap: wrap; gap: 8px; }
 .sw .opts button[aria-pressed="true"] { background: var(--ink); color: #111; border-color: var(--ink); font-weight: 700; }
 .lockbox { display: grid; gap: 8px; max-width: 420px; padding: 14px; border: 1px dashed var(--warn); }
+/* Keys */
+.keys { display: grid; gap: 14px; max-width: 760px; }
+.key h2 { margin: 0; font-size: 18px; text-transform: none; letter-spacing: .02em; }
+.key .khead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.key .opens { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+.key .opens button { background: none; border: 1px solid var(--line2); padding: 5px 10px; font-size: 13px; color: var(--ink); cursor: pointer; }
+.key .row input { flex: 1; min-width: 200px; }
+.key details { margin-top: 10px; font-size: 14px; color: var(--mute); }
+.key details summary { cursor: pointer; }
+.key details ol { margin: 8px 0 0; padding-left: 20px; }
 .cok { color: var(--ok); } .cbad { color: var(--bad); } .cwarn { color: var(--warn); }
 .tb { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
 .tb .card h2 { margin: 0 0 6px; font-size: 18px; }
@@ -569,7 +579,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-tests" hidden>
     <h1>TV tests</h1>
     <p class="sub">Check any room's TV from here: send a test message or a test food alert and watch it arrive. Nothing reaches the kitchen, and the test order isn't real.</p>
-    <div class="banner warn" data-needkey hidden><div class="grow">Add the <b>TV messages key</b> under <b>TV messages › Round2 messages</b> first (once per phone or computer).</div></div>
+    <div class="banner warn" data-needkey hidden><div class="grow">Add the <b>TV messages key</b> under <b>Tests &amp; systems › Keys</b> first (once per phone or computer).</div></div>
     <div class="tlock" id="tLock"></div>
     <div class="rooms" id="tRooms"></div>
   </section>
@@ -657,6 +667,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div class="card"><h2>TV message / food alert</h2><p>Send a test message or food alert to one locked TV and watch it arrive.</p><button class="btn" type="button" data-go="tests">Open Test a TV</button></div>
       <div class="card"><h2>Guest message link</h2><p>Make a link, write a message as a guest, approve it as staff.</p><button class="btn" type="button" data-go="guestlink">Open Make a guest link</button></div>
       <div class="card"><h2>View-your-booking page</h2><p>Find a test booking again with its email and mobile.</p><a class="btn" href="https://book.round2.sg/find" target="_blank" rel="noopener">Open View your booking</a></div>
+    </div>
+  </section>
+
+  <section id="tab-keys" hidden>
+    <h1>Keys</h1>
+    <p class="sub">Every key the control centre uses, in one place. Each key switches on its own pages, on this phone or computer only. Give staff only the keys for the jobs they do: a page whose key isn't added here stays locked.</p>
+    <div class="keys" id="keyList"></div>
+    <div class="card" style="max-width:760px;margin-top:14px">
+      <h2 style="margin-top:0">Not kept here</h2>
+      <p class="hint" style="margin:0">The safe-mode switch password and PIN (Test bench) are typed each time and never saved. The TV staff PIN is changed under <b>TV setup › TV settings</b>.</p>
+      <div class="row" style="margin-top:14px"><button class="btn ghost" id="keysWipe" type="button">Remove all keys from this device</button><span class="hint">For a shared phone, or when someone leaves.</span></div>
     </div>
   </section>
 
@@ -1900,9 +1921,81 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     lg.src = 'https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp';
   }());
 
+  /* ---------- Keys: every private key/code the pages need, added and removed in one place ----------
+     Each is kept only in this browser (localStorage), under the same name its own page reads, so a key added
+     here unlocks that page straight away and a key added on the page shows here too. */
+  var Keys = (function () {
+    var LIST = [
+      { id: 'gh', name: 'GitHub key', store: 'r2m.token', ph: 'github_pat_…',
+        opens: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings'], ['foodmenu', 'Edit the menu (publish)']],
+        about: 'Changes how the TVs look and the food menu. This is the only key that can be personal: make each person their own, and delete just theirs on GitHub when they leave.',
+        how: '<details><summary>How to make one</summary><ol><li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub › New fine-grained token</a> (signed in as the Round2 account).</li><li>Name it after the person, e.g. <code>Round2 – Amir</code>. Expiration: 1 year.</li><li>Repository access: <b>Only select repositories</b> › <code>round2-tv-launcher</code> (add <code>round2sg-home</code> only if they may publish the food menu).</li><li>Permissions › Repository permissions › <b>Contents: Read and write</b>.</li><li>Generate token, and send it to them privately (not in a group chat).</li></ol></details>' },
+      { id: 'msg', name: 'TV messages key', store: 'r2m.msgKey', ph: 'TV messages key',
+        opens: [['messages', 'Round2 messages'], ['tests', 'Test a TV']],
+        about: 'Sends birthday notes and house reminders to the room TVs, and sends test messages and food alerts. It’s the same private code the food alerts use.' },
+      { id: 'staff', name: 'Guest messages staff code', store: 'r2.guestStaff', ph: 'Staff code',
+        opens: [['insession', 'In session (+1h extensions)'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link']],
+        about: 'Adds extra hours after a guest pays, makes guest message links, and shows, moves or cancels guests’ messages (also in the Round2 messages calendar).' },
+      { id: 'sim', name: 'Menu test code', store: 'r2m.simCode', ph: 'Menu test code',
+        opens: [['simorder', 'Test an order'], ['testbench', 'Test bench (booking in test mode)']],
+        about: 'Runs test food orders and test bookings through the sandbox, so nothing is charged. Without it the Test bench booking would be a real booking.' }
+    ];
+    function val(k) { return k.id === 'gh' ? (ls(k.store) && token ? ls(k.store) : '') : (ls(k.store) || ''); }
+    function card(k) {
+      var v = val(k), stale = k.id === 'gh' && ls(k.store) && !token;
+      return '<div class="card key" data-key="' + k.id + '"><div class="khead"><h2>' + esc(k.name) + '</h2>' +
+        (v ? '<span class="st" style="--sc:var(--ok)">Added · ends ' + esc(v.slice(-4)) + '</span>' : stale ? '<span class="st" style="--sc:var(--warn)">Saved · not connected</span>' : '<span class="st" style="--sc:var(--mute)">Not added</span>') + '</div>' +
+        '<p class="hint" style="margin:8px 0 0">' + k.about + '</p>' +
+        '<div class="opens"><span class="hint" style="align-self:center">Opens:</span>' + k.opens.map(function (o) { return '<button type="button" data-tab="' + o[0] + '">' + esc(o[1]) + '</button>'; }).join('') + '</div>' +
+        '<div class="row"><input class="tok" type="password" autocomplete="off" placeholder="' + esc(k.ph) + '" aria-label="' + esc(k.name) + '" data-in="' + k.id + '">' +
+        '<button class="btn primary" type="button" data-save="' + k.id + '">' + (v ? 'Replace' : 'Save') + '</button>' +
+        (v ? '<button class="btn ghost" type="button" data-del="' + k.id + '">Remove</button>' : '') + '</div>' +
+        '<p class="hint" data-kmsg="' + k.id + '" style="margin:8px 0 0"></p>' + (k.how || '') + '</div>';
+    }
+    function draw() { $('keyList').innerHTML = LIST.map(card).join(''); }
+    function find(id) { return LIST.filter(function (k) { return k.id === id; })[0]; }
+    function save(id) {
+      var k = find(id), inp = document.querySelector('[data-in="' + id + '"]'), msg = document.querySelector('[data-kmsg="' + id + '"]'), v = inp.value.trim();
+      if (!v) { inp.focus(); return; }
+      if (id === 'gh') {
+        msg.textContent = 'Checking…';
+        connect(v).then(function () { toast('GitHub key added on this device.'); draw(); }, function (e) { token = ''; if (ls('r2m.token') === v) ls('r2m.token', null); msg.textContent = 'That key didn’t work: ' + e.message; });
+        return;
+      }
+      if (id === 'msg') { v = v.replace(/[^A-Za-z0-9]/g, ''); if (v.length < 12) { msg.textContent = 'That key looks too short.'; return; } }
+      if (id === 'staff' && v.length < 8) { msg.textContent = 'That code looks too short.'; return; }
+      ls(k.store, v); toast(k.name + ' added on this device.'); draw();
+      if (id === 'staff') document.querySelectorAll('iframe.gframe').forEach(function (f) { if (f.getAttribute('src')) f.removeAttribute('src'); });   /* guest pages reload with the new code next time */
+    }
+    function del(id) {
+      var k = find(id);
+      if (!confirm('Remove the ' + k.name + ' from this device? The pages it opens will lock until it’s added again.')) return;
+      ls(k.store, null);
+      if (id === 'gh') { dropMenuKey(); location.reload(); return; }
+      if (id === 'staff') document.querySelectorAll('iframe.gframe').forEach(function (f) { f.removeAttribute('src'); });
+      toast('Removed.'); draw();
+    }
+    function dropMenuKey() { try { var g = JSON.parse(localStorage.getItem('r2gh') || 'null'); if (g && g.token) { delete g.token; localStorage.setItem('r2gh', JSON.stringify(g)); } } catch (e) {} }   /* the menu editor's own copy of the GitHub key */
+    var ready = false;
+    function init() {
+      $('keyList').addEventListener('click', function (e) {
+        var t = e.target, s = t.getAttribute && t.getAttribute('data-save'), d = t.getAttribute && t.getAttribute('data-del'), g = t.getAttribute && t.getAttribute('data-tab');
+        if (s) save(s); else if (d) del(d); else if (g) { tab(g); scrollTo(0, 0); }
+      });
+      $('keyList').addEventListener('keydown', function (e) { var id = e.target.getAttribute && e.target.getAttribute('data-in'); if (id && e.key === 'Enter') save(id); });
+      $('keysWipe').onclick = function () {
+        if (!confirm('Remove every key from this device? Everything except Home, Website, the systems list and Help will lock until keys are added again.')) return;
+        LIST.forEach(function (k) { ls(k.store, null); });
+        dropMenuKey();
+        ls('r2m.tab', 'keys'); location.reload();
+      };
+    }
+    return { open: function () { if (!ready) { ready = true; init(); } draw(); } };
+  }());
+
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'keys', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
@@ -1912,7 +2005,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors']],
-    sys: [['tests', 'Test a TV'], ['testbench', 'Test bench'], ['systems', 'All systems']],
+    sys: [['tests', 'Test a TV'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['keys', 'Keys']],
     help: [['help', 'How it works'], ['stuck', 'If a TV is stuck']]
   };
   var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
@@ -1922,7 +2015,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     themes: ['TV setup', '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>', 'How the TVs look and behave: event backgrounds, each room’s default look, ambience sounds, staff PIN and app updates.'],
     menu: ['Food menu', '<path d="M4 11h16a8 8 0 0 1-16 0z"/><path d="M9 4v4M12 3v5M15 4v4"/>', 'Edit the room food menu and prices, and run a test order through the kitchen and TV chain.'],
     web: ['Website', '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/>', 'Who is on round2.sg right now, the busy hours, and how far people get towards booking.'],
-    sys: ['Tests & systems', '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>', 'Check one TV, try booking and food orders safely, and see the status of everything Round2 runs.'],
+    sys: ['Tests & systems', '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>', 'Check one TV, try booking and food orders safely, see the status of everything Round2 runs, and add the keys that switch each part on.'],
     help: ['Help', '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5M12 16.8v.2"/>', 'How themes work, installing this as an app, and what to do if a TV is stuck.']
   };
   function ico(g) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + AREAS[g][1] + '</svg>'; }
@@ -1972,6 +2065,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
     if (n === 'systems') Sys.open(); if (n === 'testbench') Sys.bench();
+    if (n === 'keys') Keys.open();
     if (n === 'foodmenu') openMenuEditor();
     if (n === 'simorder') Sim.open();
     if (n === 'guestmsgs' || n === 'guestlink') {   /* the guest messages pages, shown inside this tab (loaded the first time it's opened) */
