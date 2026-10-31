@@ -52,6 +52,7 @@ stop() {
   # the luna-send subscriptions belonging to the old copy
   pkill -f '^luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo' 2>/dev/null
   pkill -f '^luna-send -i luna://com.webos.service.tvpower/power/getPowerState' 2>/dev/null
+  pkill -f '^luna-send -i luna://com.webos.service.tvpower/power/registerScreenSaverRequest' 2>/dev/null
   pkill -f 'curl -sN .*firebasedatabase' 2>/dev/null
   # any other copy still running (an older version, or one started twice at boot): only one may watch,
   # or every Home and Back is handled twice. Home-button presses ("key") are left alone.
@@ -126,6 +127,25 @@ watch_apps() {
       prev=$id
     done
     sleep 5                                                               # the subscription ended: start it again
+  done
+}
+watch_saver() {   # Staff tools > TV screensaver: webOS asks before it starts its screensaver; while Round2 Home is in front
+                  # (and the menu had a remote press in the last 3 hours) we answer "no". Anywhere else, or switched off: "yes".
+  while :; do
+    luna-send -i luna://com.webos.service.tvpower/power/registerScreenSaverRequest '{"subscribe":true,"clientName":"round2home"}' 2>/dev/null | while read -r line; do
+      ts=$(printf '%s\n' "$line" | num timestamp)
+      [ -n "$ts" ] || continue
+      ack=true
+      if on saverblock && [ "$(cat "$CFG/front" 2>/dev/null)" = "$APP" ]; then
+        k=$(cat "$CFG/menukey" 2>/dev/null || echo 0)
+        [ $(( $(date +%s) - ${k:-0} )) -lt 10800 ] && ack=false
+      fi
+      luna-send -n 1 luna://com.webos.service.tvpower/power/responseScreenSaverRequest "{\"clientName\":\"round2home\",\"ack\":$ack,\"timestamp\":$ts}" >/dev/null 2>&1
+      if [ "$ack" = false ]; then
+        l=$(cat "$CFG/saver.log" 2>/dev/null || echo 0); [ $(( $(date +%s) - l )) -ge 1800 ] && { date +%s > "$CFG/saver.log"; log "TV screensaver kept away (menu in front)"; }
+      fi
+    done
+    sleep 30                                                              # the subscription ended: start it again
   done
 }
 watch_power() {
@@ -397,17 +417,20 @@ stop
 sum > "$CFG/sum"
 [ "$SELF" = "$CFG/round2d.sh" ] || cp "$SELF" "$CFG/round2d.sh"   # a fixed path for the Home button setting
 log "helper started ($1)"
+date +%s > "$CFG/menukey"
 watch_apps </dev/null >/dev/null 2>&1 &
 A=$!
 watch_power </dev/null >/dev/null 2>&1 &
 P=$!
 watch_food </dev/null >/dev/null 2>&1 &
 F=$!
+watch_saver </dev/null >/dev/null 2>&1 &
+V=$!
 ( K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; watch_msg ) </dev/null >/dev/null 2>&1 &
 M=$!
 ( K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; msg_tick ) </dev/null >/dev/null 2>&1 &
 T=$!
-printf '%s\n%s\n%s\n%s\n%s\n' "$A" "$P" "$F" "$M" "$T" > "$CFG/pids"
+printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$A" "$P" "$F" "$M" "$T" "$V" > "$CFG/pids"
 rm -rf "$CFG/starting"
 [ "$1" = "boot" ] && first_open </dev/null >/dev/null 2>&1 &
 # keep the log short

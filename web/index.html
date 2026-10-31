@@ -726,7 +726,7 @@ window.R2_TV = {
      and when Home is pressed in another app (webos/service/round2d.sh), and updates install from the menu ---- */
   var LGRoot = (function () {
     var HB = 'luna://org.webosbrew.hbchannel.service/', CFG = '/var/lib/webosbrew/round2', HOOK = '/var/lib/webosbrew/init.d/round2';
-    var st = { ok: false, checked: false, poweron: true, home: true };
+    var st = { ok: false, checked: false, poweron: true, home: true, saverblock: true };
     var svc = (function () {   /* this app's service folder, next to the app on the TV */
       var m = /^(\/.+)\/applications\/sg\.round2\.tvhome\//.exec(decodeURIComponent(location.pathname || ''));
       return (m ? m[1] : '/media/developer/apps/usr/palm') + '/services/sg.round2.tvhome.service';
@@ -789,7 +789,7 @@ window.R2_TV = {
     }
     function startHelper(cb) {
       exec(hook() + ' && (command -v setsid >/dev/null 2>&1 && setsid sh "' + svc + '/round2d.sh" ensure || sh "' + svc + '/round2d.sh" ensure) </dev/null >/dev/null 2>&1; ls ' + CFG, function (out) {
-        if (out !== null) { st.poweron = !/poweron\.off/.test(out); st.home = !/home\.off/.test(out); }
+        if (out !== null) { st.poweron = !/poweron\.off/.test(out); st.home = !/home\.off/.test(out); st.saverblock = !/saverblock\.off/.test(out); }
         if (out !== null) { homeKey(); elevate(); setTimeout(syncPartners, 20000); }   /* after the menu has settled */
         if (cb) cb(out !== null);
       });
@@ -1809,6 +1809,7 @@ window.R2_TV = {
   var inTools = false;
   function aHomeSwitchable() { try { return window.R2Android.homeGuardSwitchable && window.R2Android.homeGuardSwitchable() === '1'; } catch (e) { return false; } }
   function aHomeState() { try { return window.R2Android.homeHelper(); } catch (e) { return 'off'; } }
+  function aSaverOn() { try { return window.R2Android.blockSaver() === '1'; } catch (e) { return false; } }
   function aFoodState() { try { return window.R2Android.foodOverlay ? window.R2Android.foodOverlay() : 'na'; } catch (e) { return 'na'; } }
   function setRows() {
     if (inTools && isStaff()) return [
@@ -1818,13 +1819,16 @@ window.R2_TV = {
     ].concat(LGRoot.state.ok ? [
       { act: 'lgPower', label: 'Open when TV turns on', hint: '\u2039 ' + (LGRoot.state.poweron ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'lgHome', label: 'Home button', hint: '\u2039 ' + (LGRoot.state.home ? 'OPENS ROUND2' : 'LG HOME') + ' \u203A' },
+      { act: 'lgSaver', label: 'TV screensaver on the menu', hint: '\u2039 ' + (LGRoot.state.saverblock ? 'OFF (KEPT AWAY)' : 'ON (TV DECIDES)') + ' \u203A' },
       { act: 'airRx', label: 'AirPlay receiver', hint: 'INSTALL / UPDATE \u203A' },
       { act: 'diag', label: 'Diagnostics', hint: 'SHOW LOG \u203A' }
     ] : []).concat(window.R2Android && window.R2Android.openHomeHelper ? [
       { act: 'aHome', label: 'Home button', hint: aHomeSwitchable() ? '\u2039 ' + (aHomeState() === 'on' ? 'OPENS ROUND2' : 'TV HOME') + ' \u203A' : ({ on: 'OPENS ROUND2', watch: 'OPENS ROUND2', paused: 'PAUSED 5 MIN' }[aHomeState()] || 'OFF \u00B7 SWITCH ON') + ' \u203A' }
     ].concat(/^(watch|paused)$/.test(aHomeState()) && window.R2Android.androidHome ? [
       { act: 'aDroid', label: 'Android home screen', hint: '5 MIN \u203A' }
-    ] : []) : []).concat(window.R2Android && aFoodState() !== 'na' ? [
+    ] : []) : []).concat(window.R2Android && window.R2Android.blockSaver ? [
+      { act: 'aSaver', label: 'TV screensaver on the menu', hint: '\u2039 ' + (aSaverOn() ? 'OFF (KEPT AWAY)' : 'ON (TV DECIDES)') + ' \u203A' }
+    ] : []).concat(window.R2Android && aFoodState() !== 'na' ? [
       { act: 'aFood', label: 'Food alerts over apps', hint: aFoodState() === 'on' ? 'ON \u2713' : 'OFF \u00B7 SWITCH ON \u203A' }
     ] : []).concat([
       { act: 'tv',    label: 'TV settings',    hint: 'SYSTEM \u203A' },
@@ -1970,6 +1974,13 @@ window.R2_TV = {
       LGRoot.setFlag(nm, on, function (ok) { if (!ok) toast('The TV didn\u2019t accept that. Is Homebrew Channel still installed?'); });
       Sfx.play('move');
       if (act === 'lgHome') toast(on ? 'Home now opens Round2. Press Home 3 times quickly for LG\u2019s home.' : 'Home now opens LG\u2019s home screen.');
+    }
+    else if (act === 'lgSaver' || act === 'aSaver') {
+      var sv = act === 'lgSaver' ? !LGRoot.state.saverblock : !aSaverOn();
+      if (act === 'lgSaver') LGRoot.setFlag('saverblock', sv, function (ok) { if (!ok) toast('The TV didn\u2019t accept that. Is Homebrew Channel still installed?'); });
+      else try { window.R2Android.setBlockSaver(sv); } catch (e) {}
+      Sfx.play('move');
+      toast(sv ? 'The TV\u2019s screensaver stays away while this menu is on screen (until 3 hours without a button press).' : 'The TV\u2019s own screensaver can start on this menu again.');
     }
     else if (act === 'aHome' && aHomeSwitchable()) {
       var hOn = aHomeState() !== 'on', hr2 = window.R2Android.setHomeGuard(hOn);
@@ -2937,6 +2948,8 @@ window.R2_TV = {
     try { window.R2Android && window.R2Android.keyAck && window.R2Android.keyAck(); } catch (e) {}   /* the app's watchdog: the menu is answering */
     var k = KEYS[ev.keyCode]; if (!k) return;
     ev.preventDefault(); press(k);
+    /* rooted LG: tell the helper the menu is being used (TV screensaver: kept away for 3 h after the last press) */
+    if (LGRoot.state.ok && Date.now() - (window.r2KeyNoted || 0) > 60000) { window.r2KeyNoted = Date.now(); try { LGRoot.exec('date +%s > /var/lib/webosbrew/round2/menukey'); } catch (e) {} }
   });
   /* the Android app calls these: Back on the remote, a room set from the computer, and returning here */
   window.r2Back = function () { press('back'); };

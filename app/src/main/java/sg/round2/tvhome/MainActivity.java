@@ -249,6 +249,7 @@ public class MainActivity extends Activity {
         front = this;
         FoodAlerts.start(this);  // no-op in builds without the food alert key
         FoodAlerts.menuInFront();
+        lastKeyAt = System.currentTimeMillis(); applyAwake();   // back on the menu: the TV's screensaver stays away again
 
         if (bg != null) bg.resume();
         long awayMs = stoppedAt > 0 ? System.currentTimeMillis() - stoppedAt : 0;
@@ -296,6 +297,23 @@ public class MainActivity extends Activity {
 
     private String pendingMsg;   // a message that arrived while the menu was loading
 
+    /* ---- the TV's own screensaver (Staff tools > TV screensaver): while the menu is on screen it keeps the screen on
+       (FLAG_KEEP_SCREEN_ON, so Android's screensaver/Daydream and screen-off timer don't start). After 3 hours without a
+       remote press on the menu it lets go, so a TV left on overnight still goes to its screensaver and sleeps. ---- */
+    static final long AWAKE_IDLE_MS = 3 * 3600_000L;
+    private long lastKeyAt = System.currentTimeMillis();
+    private final Runnable awakeCheck = new Runnable() { @Override public void run() { applyAwake(); } };
+    static boolean blockSaver(android.content.Context c) { return c.getSharedPreferences("r2home", Context.MODE_PRIVATE).getBoolean("blockSaver", true); }
+    void applyAwake() {
+        if (web == null) return;
+        web.removeCallbacks(awakeCheck);
+        long left = AWAKE_IDLE_MS - (System.currentTimeMillis() - lastKeyAt);
+        if (blockSaver(this) && left > 0 && front == this) {
+            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            web.postDelayed(awakeCheck, left + 1000);
+        } else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
     @Override
     protected void onPause() {
         if (front == this) front = null;
@@ -312,6 +330,7 @@ public class MainActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent e) {
         if (web != null && !web.hasFocus()) web.requestFocus();      // keys always go to the menu
         int k = e.getKeyCode();
+        if (e.getAction() == KeyEvent.ACTION_DOWN) { boolean wasIdle = System.currentTimeMillis() - lastKeyAt > AWAKE_IDLE_MS; lastKeyAt = System.currentTimeMillis(); if (wasIdle) applyAwake(); }
         if (e.getAction() == KeyEvent.ACTION_DOWN && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN
                 || k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT || k == KeyEvent.KEYCODE_DPAD_CENTER)) noteKey();
         if (e.getKeyCode() == KeyEvent.KEYCODE_BACK) {
@@ -376,6 +395,16 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void foodSeen(String no) { FoodAlerts.seen(act, no); }
+
+        /** Staff tools > TV screensaver: "1" = the menu keeps the TV's screensaver away (default). */
+        @JavascriptInterface
+        public String blockSaver() { return MainActivity.blockSaver(act) ? "1" : "0"; }
+
+        @JavascriptInterface
+        public void setBlockSaver(final boolean on) {
+            act.getSharedPreferences("r2home", Context.MODE_PRIVATE).edit().putBoolean("blockSaver", on).apply();
+            act.runOnUiThread(new Runnable() { @Override public void run() { act.applyAwake(); } });
+        }
 
         /** A personal message due now and not yet acknowledged ("" if none). */
         @JavascriptInterface

@@ -115,6 +115,13 @@ How it works: `webos/service/round2d.sh` watches LG's power state and which app 
 
 ## Notes
 
+- **TV screensaver on the menu** (Staff tools › TV screensaver on the menu, default OFF = kept away, 31 Oct 2026):
+  Android: `MainActivity.applyAwake` sets `FLAG_KEEP_SCREEN_ON` while the menu is in front (no Daydream/screensaver, no screen-off timer);
+  LG (rooted): the helper's `watch_saver` subscribes to `com.webos.service.tvpower/power/registerScreenSaverRequest` and answers
+  `responseScreenSaverRequest` with `ack:false` while Round2 Home is in front (flag file `saverblock.off` = let the TV decide).
+  Both let go after 3 hours without a remote press on the menu (Android: key time in the app; LG: the menu writes `menukey`),
+  so a TV left on overnight still goes to its screensaver and sleeps. Apps (Netflix, HDMI) are never touched.
+
 - The signing key is in this repo on purpose so builds stay installable over each other. Anyone with the key could build an update, but installing it still needs adb access to the TV, which `lockdown` turns off.
 - Background videos and fonts are bundled in the app, so the menu looks right without internet. Rain and menu sounds are generated on the TV, not downloaded.
 - Useful toolkit commands: `tizentube` (installs TizenTube from its GitHub releases), `airplay` (PhairPlay), `perf` (measures how smooth the menu is), `status`, `monitor`, `undo`.
