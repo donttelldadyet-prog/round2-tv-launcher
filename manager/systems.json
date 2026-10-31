@@ -79,9 +79,9 @@
         },
         {
           "name": "Round2 addresses for guest links (round2.sg)",
-          "status": "planned",
-          "what": "To do: guests should only ever see round2.sg addresses, never 'donttelldadyet'. Room food menu → e.g. menu.round2.sg (GitHub, like cue.round2.sg). Confirmation page, 'View your booking' and TV message pages → e.g. book.round2.sg (Cloudflare) – needs round2.sg's DNS moved from Wix to Cloudflare, copying the Wix site and hello@round2.sg email records first. Domain is registered at Vodien. Old links keep working.",
-          "runs": "Wix DNS (now) → Cloudflare DNS · GitHub Pages · booking engine",
+          "status": "live",
+          "what": "Since 31 Oct guests see round2.sg addresses, not 'donttelldadyet': booking confirmation after paying and 'View your booking' → book.round2.sg (/done, /find, /b/<code>); room food menu → menu.round2.sg/<room> (e.g. menu.round2.sg/vale). TV message links were already cue.round2.sg. DNS stays in Wix (CNAME book / menu → donttelldadyet-prog.github.io); domain registered at Vodien. Old links still work. Still to do: owner points each room's Wix links page (valelinks etc.) at menu.round2.sg/<room>; the SimplyBook confirmation-email line should use book.round2.sg/b/<code>.",
+          "runs": "GitHub Pages repos round2-book and round2-menu (DNS in Wix) · booking engine PUBLIC_BOOK / PUBLIC_MENU",
           "code": "round2sg-home · HANDOFF.md (TO DO at the top)"
         }
       ]
