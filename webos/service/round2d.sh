@@ -83,6 +83,9 @@ watch_apps() {
       case "$id" in "$APP"|com.webos.app.home|com.webos.app.launcher|com.webos.surfacemanager*|"") ;; *) last_app=$id ;; esac
       if [ "$id" = "$APP" ] && [ "$id" != "$prev" ]; then   # the guest is back on the menu: anything still waiting for OK
         rm -f "$CFG/msg.last"                                  # an unread message: shown again within seconds
+        # Home pressed while our card was up over an app: webOS closes the card without it tidying up, so card.up
+        # still said "on screen" and the menu's big banner waited up to 2.5 min (Vale, 31 Oct). The card can't be up now.
+        rm -f "$CFG/card.up"
         [ -f "$CFG/food.pending" ] && ( sleep 2; menu_card "$(cat "$CFG/food.pending")" ) &
         # Close the app they came from (Netflix, YouTube...): LG keeps it running in the background, still holding the
         # TV's video player, and the menu's moving background then stays black. Then the menu restarts its background.
@@ -309,7 +312,7 @@ msg_tick() {    # every 3 s: is the message due, and is something other than Rou
     [ "$now" -le "$until" ] || { rm -f "$CFG/msg.cur"; continue; }
     last=$(cat "$CFG/msg.last" 2>/dev/null || echo 0)
     [ $(( now - last )) -ge 300 ] || continue                                   # at most every 5 minutes
-    up=$(card_up)
+    up=$(card_up); menu_front && up=""                                         # our card never floats over the menu
     [ "$up" = "msg $id" ] && continue                                           # still on screen: stays until OK, no re-chime
     case "$up" in food\ *) continue ;; esac                                     # Loot dropped is up: it comes first
     if msg_acked "$id"; then echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"; continue; fi   # seen on the menu's card
