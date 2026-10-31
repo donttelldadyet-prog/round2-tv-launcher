@@ -192,3 +192,14 @@ Cut-off (gone for good, OK or not): guest message = booking start + 3 h · Round
 One message per TV: a newer one replaces the one showing, **except** that a Round2 message (e.g. "That's a wrap!") waits
 while a guest message is on the TV and not yet acknowledged (engine timer, checks every 2 min; dropped at its own cut-off).
 Staff "send now" from the control centre is not held.
+
+**Same rules on Android and LG** (owner, 31 Oct): LG's Round2 Alerts card writes `card.up` ("msg <id>" / "food <no>",
+refreshed every minute) so the helper never re-pops or re-chimes a card that's still up; Android checks its own card.
+
+**Food alerts** (same banner words): "Order locked in" = 20 s, then gone (big and small banner, Android and LG).
+"Loot dropped" = **stays until OK** everywhere (owner: "it lets us know they know"); if it isn't on screen (TV was off…)
+it comes back every 5 minutes until OK. Loot dropped comes first: a waiting message shows after it's OK'd.
+
+**Show again at…** (staff page, a message that's already been on the TV): pick a time (5-min steps, until the message's
+cut-off, max 6 h ahead); the booking engine sends it to the TV again then (`/gm` `action=later`, table `later`), needing
+OK again. "Don't show again at …" clears it.

@@ -126,7 +126,7 @@ watch_power() {
       [ -z "$st" ] && continue
       if [ "$st" = "Active" ]; then
         case "$last" in
-          "Active Standby"|"Suspend"|"Power Off") rm -f "$CFG/msg.last"; on poweron && { sleep 2; launch poweron; } ;;   # TV on: a waiting message shows now
+          "Active Standby"|"Suspend"|"Power Off") rm -f "$CFG/msg.last" "$CFG/food.last"; on poweron && { sleep 2; launch poweron; } ;;   # TV on: a waiting message shows now
         esac
       fi
       last=$st
@@ -167,6 +167,7 @@ food_show() {   # $1 type, $2 order no, $3 items, $4 "reminder" (shown again on 
   room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null)
   if [ "$1" = received ]; then txt="Madd Pizza is firing it up. We\u2019ll ping you when it lands."; else txt="It\u2019s at the drop zone, the rack right outside the entrance. Grab it while it\u2019s hot!"; fi
   card="{\"type\":\"$1\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\",\"reminder\":$([ "$4" = reminder ] && echo true || echo false)}"
+  [ "$1" = ready ] && date +%s > "$CFG/food.last"
   [ "$1" = ready ] && echo "{\"type\":\"ready\",\"no\":\"$2\",\"items\":\"$3\",\"text\":\"$txt\",\"room\":\"$room\",\"reminder\":true}" > "$CFG/food.pending"
   if menu_front; then menu_card "$card"; log "food $1 #$2 shown on the menu"; return; fi
   if ov=$(ov_app); then
@@ -187,7 +188,7 @@ food_show() {   # $1 type, $2 order no, $3 items, $4 "reminder" (shown again on 
 }
 food_ack() {    # GOT IT pressed: tell Make.com about every order waiting at the pickup point
   set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
-  rm -f "$CFG/food.pending"   # OK pressed (on the menu or over an app): no more reminders
+  rm -f "$CFG/food.pending" "$CFG/msg.last"   # OK pressed (on the menu or over an app): no more reminders; a waiting message may show now
   [ -f "$CFG/food.unacked" ] || exit 0
   mv "$CFG/food.unacked" "$CFG/food.acking"
   while read -r ref; do
@@ -281,9 +282,22 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
   luna-send -n 1 luna://com.webos.notification/createAlert \
     "{\"sourceId\":\"$APP\",\"title\":\"$title\",\"message\":\"$text\",\"modal\":false,\"buttons\":[$btns]}" >/dev/null 2>&1
 }
+card_up() {     # the Round2 Alerts card on screen right now ("msg <id>" / "food <no>"), if it said so in the last 150 s
+  set -- $(cat "$CFG/card.up" 2>/dev/null)
+  [ -n "$3" ] && [ $(( $(date +%s) - $3 )) -lt 150 ] && echo "$1 $2"
+}
+food_again() {  # Loot dropped not OK'd and not on screen (TV was off, a message took the card…): again every 5 minutes
+  [ -f "$CFG/food.pending" ] || return 0
+  p=$(cat "$CFG/food.pending"); no=$(printf '%s\n' "$p" | field no)
+  [ "$(card_up)" = "food $no" ] && return 0
+  [ $(( $(date +%s) - $(cat "$CFG/food.last" 2>/dev/null || echo 0) )) -ge 300 ] || return 0
+  menu_front && return 0                                                  # the menu brings it back itself
+  food_show ready "$no" "$(printf '%s\n' "$p" | field items)" reminder
+}
 msg_tick() {    # every 3 s: is the message due, and is something other than Round2 Home in front?
   while :; do
     sleep 3
+    food_again
     [ -f "$CFG/msg.cur" ] || continue
     line=$(cat "$CFG/msg.cur"); id=$(printf '%s\n' "$line" | field id)
     [ -n "$id" ] || continue
@@ -295,6 +309,9 @@ msg_tick() {    # every 3 s: is the message due, and is something other than Rou
     [ "$now" -le "$until" ] || { rm -f "$CFG/msg.cur"; continue; }
     last=$(cat "$CFG/msg.last" 2>/dev/null || echo 0)
     [ $(( now - last )) -ge 300 ] || continue                                   # at most every 5 minutes
+    up=$(card_up)
+    [ "$up" = "msg $id" ] && continue                                           # still on screen: stays until OK, no re-chime
+    case "$up" in food\ *) continue ;; esac                                     # Loot dropped is up: it comes first
     if msg_acked "$id"; then echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"; continue; fi   # seen on the menu's card
     echo "$now" > "$CFG/msg.last"; echo "$id" > "$CFG/msg.id"
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }

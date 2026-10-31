@@ -220,6 +220,7 @@ details.past .list { margin-top: 10px; }
     kai: ['Kai', '#24B49A'], atlas: ['Atlas', '#E9E7EF'], max: ['Maximillion', '#E0402F'] };
   var TAGS = { birthday: 'Birthday', anniversary: 'Anniversary', celebrate: 'Celebration', note: 'A message for you' };
   var $ = function (id) { return document.getElementById(id); };
+  var laterMap = {};   /* "Show again at…" times kept by the booking engine: code → ms */
   var room = 'vale', lastList = [], open = null, fDay = 'all', fRoom = 'all', calMonth = null;   /* open: { a: 'move'|'now'|'cancel', code, room } */
 
   var lg = new Image(); lg.alt = 'Round2'; lg.onload = function () { $('brand').innerHTML = ''; $('brand').appendChild(lg); }; lg.src = LOGO;
@@ -355,6 +356,8 @@ details.past .list { margin-top: 10px; }
       (d.from ? '<div class="fr">— ' + esc(d.from) + '</div>' : '') + '<div class="at">Pops up ' + esc(day(d.at)) + ' at ' + esc(clock(d.at)) + '</div></div>';
     var live = st === 'open' || st === 'scheduled' || st === 'ontv', btns = '';
     if (st === 'scheduled' || st === 'ontv') btns += '<button class="btn" data-a="now" data-c="' + c + '">' + (st === 'ontv' ? 'Send to TV again now' : 'Send to TV now') + '</button>';
+    if (st === 'ontv') btns += laterMap[x.key] ? '<button class="btn" data-a="unlater" data-c="' + c + '">Don’t show again at ' + esc(clock(laterMap[x.key])) + '</button>'
+      : '<button class="btn" data-a="later" data-c="' + c + '">Show again at…</button>';
     if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change time or room</button>' + (r2 ? '' : '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>') + '<button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
     if (btns) h += '<div class="row">' + btns + '</div>';
     if (open && open.code === x.key) {
@@ -366,6 +369,14 @@ details.past .list { margin-top: 10px; }
           '<div class="rooms" id="mvRooms">' + Object.keys(ROOMS).map(function (k) { return '<button type="button" data-a="mvroom" data-r="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (k === nr) + '">' + ROOMS[k][0] + '</button>'; }).join('') + '</div>' +
           '<div class="two"><input type="date" id="mvDate" value="' + p.year + '-' + p.month + '-' + p.day + '" aria-label="New date"><select id="mvTime" aria-label="New start time">' + timeOpts(p.hour + ':' + p.minute) + '</select></div>' +
           '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Save changes</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+      } else if (a === 'later') {
+        var o = '', t0 = Date.now() + 60000, end = Math.min(+d.end || t0 + 3 * 3600000, Date.now() + 6 * 3600000);
+        t0 = t0 - t0 % 300000 + 300000;
+        for (var t = t0; t < end; t += 300000) o += '<option value="' + t + '">' + esc(clock(t)) + '</option>';
+        h += '<div class="confirm">' + (o ? 'When should it pop up again on ' + esc(R[0]) + '’s TV? E.g. once the guests are seated. It needs OK again.' +
+          '<div class="two"><select id="ltTime" aria-label="Show again at">' + o + '</select></div>' +
+          '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Show it then</button><button class="btn" data-a="no">Keep as is</button></div>'
+          : 'This booking’s message time is over, so it can’t be shown again.<div class="row"><button class="btn" data-a="no">OK</button></div>') + '<div class="msg" id="cmsg"></div></div>';
       } else {
         h += '<div class="confirm">' + (a === 'now'
           ? 'Show this on ' + esc(R[0]) + '’s TV right now? It pops up within a few seconds and replaces any other message waiting on that TV.'
@@ -447,7 +458,8 @@ details.past .list { margin-top: 10px; }
   function list() {
     if (!key()) { $('groups').innerHTML = '<div class="empty">Add the staff code to see links.</div>'; return; }
     if (open) return;   /* don't redraw under staff while they're choosing a time or confirming */
-    call({ action: 'list', staff: key() }).then(function (j) { lastList = j.links || []; if (listOn) render(); })
+    call({ action: 'list', staff: key() }).then(function (j) { lastList = j.links || []; return call({ action: 'later', staff: key() }).catch(function () { return {}; }); })
+      .then(function (l) { laterMap = {}; (l && l.later || []).forEach(function (r) { laterMap[r.code] = r.at; }); if (listOn) render(); })
       .catch(function (e) { $('groups').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; if (/staff code/i.test(e.message)) { memKey = ''; ls('r2.guestStaff', null); $('keyBox').hidden = false; } });
   }
   $('groups').addEventListener('click', function (e) {
@@ -462,13 +474,15 @@ details.past .list { margin-top: 10px; }
     var b = e.target.closest('button[data-a]'); if (!b) return;
     var a = b.getAttribute('data-a'), c = b.getAttribute('data-c');
     if (a === 'copy') { copy(shareUrl(c), b); return; }
-    if (a === 'move' || a === 'cancel' || a === 'now') { open = { a: a, code: c }; render(); return; }
+    if (a === 'move' || a === 'cancel' || a === 'now' || a === 'later') { open = { a: a, code: c }; render(); return; }
+    if (a === 'unlater') { b.disabled = true; call({ action: 'later', staff: key(), code: c, at: 0 }).then(function () { list(); }).catch(function () { b.disabled = false; }); return; }
     if (a === 'mvroom' && open) {   /* keep the date and time typed so far while switching rooms */
       var dv = $('mvDate').value, tv = $('mvTime').value; open.room = b.getAttribute('data-r'); render(); $('mvDate').value = dv; $('mvTime').value = tv; return;
     }
     if (a === 'no') { open = null; render(); return; }
     if (a === 'do' && open) {
       var body = { action: open.a, staff: key(), code: c };
+      if (open.a === 'later') body.at = $('ltTime').value;
       if (open.a === 'move') { var s = sgMs($('mvDate').value, $('mvTime').value); if (!s) { $('cmsg').className = 'msg bad'; $('cmsg').textContent = 'Pick the new date and time.'; return; } body.start = s; var cur = lastList.filter(function (x) { return x.key === c; })[0]; body.room = open.room || (cur && cur.data.room); }
       b.disabled = true;
       call(body).then(function () { open = null; list(); })

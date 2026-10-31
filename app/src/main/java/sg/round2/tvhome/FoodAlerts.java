@@ -266,7 +266,9 @@ public class FoodAlerts extends Service {
                 final String no = p.optString("no");
                 main.postDelayed(new Runnable() { @Override public void run() {
                     String still = pending(FoodAlerts.this);
-                    if (still != null && no.equals(prefs(FoodAlerts.this).getString("pendingNo", ""))) show(still, true);
+                    if (still == null || !no.equals(prefs(FoodAlerts.this).getString("pendingNo", ""))) return;   // OK pressed
+                    if (!(card != null && no.equals(foodCardNo))) show(still, true);   // not on screen (e.g. the TV was off): again
+                    main.postDelayed(this, REPEAT_MS);
                 } }, REPEAT_MS);
             }
             main.post(new Runnable() { @Override public void run() { show(json, false); } });
@@ -288,8 +290,12 @@ public class FoodAlerts extends Service {
             try { Toast.makeText(this, title + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
             return;
         }
-        showCard(tag, title, text, p.optString("items"), ready ? READY_SHOW_MS : RECEIVED_SHOW_MS, p.optString("no"), ready);
+        // Loot dropped: stays until OK (owner, 31 Oct 2026); the same order already up: leave it, no flashing again
+        if (ready && card != null && p.optString("no").equals(foodCardNo)) return;
+        showCard(tag, title, text, p.optString("items"), ready ? 0 : RECEIVED_SHOW_MS, p.optString("no"), ready);
+        if (ready) foodCardNo = p.optString("no");
     }
+    private String foodCardNo;   // the Loot dropped card on screen, if any
 
     private int dp(float v) { return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics()); }
 
@@ -326,7 +332,7 @@ public class FoodAlerts extends Service {
         final boolean lockOk = okLocked;
         onOk = null; onLeft = null; onRight = null; okLocked = false; okText = "[OK]  GOT IT";
         hideCard();
-        msgCardId = null;   // whatever card was up is gone now (showMsgPage sets it again for a message)
+        msgCardId = null; foodCardNo = null;   // whatever card was up is gone now (showMsgPage / show set it again)
         u = getResources().getDisplayMetrics().widthPixels / 1920f;
         final int room = colour(prefs(this).getString("color", ""), 0xFFF2C21B);
         final int ink = colour(prefs(this).getString("ink", ""), 0xFF0B0914);
@@ -601,6 +607,7 @@ public class FoodAlerts extends Service {
                 if (now > until) { p.edit().remove("msg").apply(); if (card != null && id.equals(msgCardId)) { hideCard(); msgCardId = null; } return; }
                 if (now < at) { main.postDelayed(this, Math.min(at - now, 60_000)); return; }
                 if (card != null && id.equals(msgCardId)) { main.postDelayed(this, Math.max(1_000, Math.min(MSG_REPEAT_MS, until - now + 1_000))); return; }   // still on screen
+                if (card != null && foodCardNo != null) { main.postDelayed(this, 30_000); return; }   // Loot dropped is up: it comes first, then this
                 boolean again = id.equals(p.getString("msgShownId", ""));
                 if (!again) { p.edit().putString("msgShownId", id).apply(); report(FoodAlerts.this, "msgShown", id); }
                 showMsg(j, again);

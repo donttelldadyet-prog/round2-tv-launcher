@@ -2450,7 +2450,7 @@ window.R2_TV = {
       el.className = p.type; el.hidden = true; void el.offsetWidth; el.hidden = false;
       Sfx.play('ok');
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(function () { hide(false); }, p.type === 'ready' ? 10 * 60000 : 20000);
+      if (p.type !== 'ready') hideTimer = setTimeout(function () { hide(false); }, 20000);   /* Loot dropped: stays until OK (owner, 31 Oct) */
     }
     function hide(seen) {
       var el = $('food'), p = cur;
