@@ -1,6 +1,6 @@
 {
   "_readme": "Control centre › Systems › All systems reads this file. Keep it up to date whenever a system changes stage (live/test/build/planned/off/broken). Plain words – the owners read it. status: live = guests/staff use it now · test = built, being tested (test payments etc.) · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-10-30",
+  "updated": "2026-10-31",
   "areas": [
     {
       "name": "Website & booking",
@@ -76,6 +76,13 @@
           "status": "planned",
           "what": "Rules decided in part (3 h cut-off, $15 then $35). WhatsApp only until switched on.",
           "code": "round2sg-home · docs/rescheduling-plan.md"
+        },
+        {
+          "name": "Round2 addresses for guest links (round2.sg)",
+          "status": "planned",
+          "what": "To do: guests should only ever see round2.sg addresses, never 'donttelldadyet'. Room food menu → e.g. menu.round2.sg (GitHub, like cue.round2.sg). Confirmation page, 'View your booking' and TV message pages → e.g. book.round2.sg (Cloudflare) – needs round2.sg's DNS moved from Wix to Cloudflare, copying the Wix site and hello@round2.sg email records first. Domain is registered at Vodien. Old links keep working.",
+          "runs": "Wix DNS (now) → Cloudflare DNS · GitHub Pages · booking engine",
+          "code": "round2sg-home · HANDOFF.md (TO DO at the top)"
         }
       ]
     },
