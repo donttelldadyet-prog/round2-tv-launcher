@@ -1298,7 +1298,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         else if ($('mText').value.trim() === KINDS[kind].text) $('mText').value = defText(kind);   /* the saved defaults may have loaded since */
         renderTpls(); preview();
         $('mKeyBox').hidden = !!key();
-        status(); clearInterval(timer); timer = setInterval(status, 20000);
+        status(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) status(); }, 20000);
         try { Cal.open(); } catch (e) {}
         live();
       },
@@ -1888,7 +1888,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             else if (b.hasAttribute('data-unlock')) setLock(null);
           });
         }
-        render(); clearInterval(timer); timer = setInterval(status, 15000);
+        render(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) status(); }, 15000);
       },
       close: function () { clearInterval(timer); if (lock) setLock(null); }
     };
