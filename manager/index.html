@@ -75,6 +75,9 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .sess .meta .warn { color: var(--warn); }
 .sess .plus { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .sess .plus button { font-size: 18px; padding: 12px 6px; }
+.sess .plus button[disabled] { opacity: .3; cursor: not-allowed; text-decoration: line-through; }
+.sess .plus button.late { border-style: dashed; border-color: var(--warn); }
+.sess .plus button small { display: block; font-size: 10px; letter-spacing: .12em; color: var(--warn); margin-top: 2px; }
 .sess label.ack { font-size: 13px; color: var(--mute); display: flex; gap: 8px; align-items: center; }
 .sess .empty { color: var(--mute); font-size: 14px; }
 .sessrec { display: grid; gap: 8px; }
@@ -1624,7 +1627,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             '<div class="meta"><span>10-min reminder: ' + (m.wrapup ? t(m.wrapup.at) : 'not set') + ' · That’s a wrap: ' + (m.timeup ? t(m.timeup.at) : 'not set') + '</span>' +
             (x.nextAt ? '<span' + (gap < 1 ? ' class="warn"' : '') + '>Next booking ' + (R.twin ? 'in ' + esc(R.name) + '/' + esc(ROOMS[RK[R.twin]].name) + ' ' : '') + 'at ' + t(x.nextAt) + (gap < 1 ? ' – no room to extend' : ' – room for +' + Math.min(3, gap) + 'h') + '</span>' : '<span>Nothing booked after this</span>') +
             (x.phone ? '<span>' + esc(x.phone) + '</span>' : '') + '</div>';
-          if (x.st !== 'done') h += '<div class="plus">' + [1, 2, 3].map(function (n) { return '<button class="btn" data-ext="' + n + '" data-room="' + rk + '" data-key="' + esc(x.key) + '">+' + n + 'h</button>'; }).join('') + '</div>';
+          /* greyed out: that many hours would run into the next booking/note (in this room or its twin). Past 11:15pm
+             stays possible (late sessions are agreed on WhatsApp) but is marked, and the check box asks again. */
+          var close = Date.parse(new Date(x.start + 8 * 3600000).toISOString().slice(0, 10) + 'T23:15:00+08:00');
+          if (x.st !== 'done') h += '<div class="plus">' + [1, 2, 3].map(function (n) {
+            var blocked = gap !== null && n > gap, late = x.sbEnd + n * 3600000 > close + 60000;
+            return '<button class="btn' + (late && !blocked ? ' late' : '') + '" data-ext="' + n + '" data-room="' + rk + '" data-key="' + esc(x.key) + '"' + (blocked ? ' disabled title="Runs into the next booking at ' + t(x.nextAt) + '"' : late ? ' title="Goes past 11:15pm"' : '') + '>+' + n + 'h' + (late && !blocked ? '<small>late</small>' : '') + '</button>';
+          }).join('') + '</div>';
         });
         if (show.some(function (x) { return x.st !== 'done'; })) h += '<label class="ack"><input type="checkbox" data-ack="' + rk + '"' + (ackOn[rk] ? ' checked' : '') + '> Banner needs OK on the TV</label>';
         return h + '</article>';
