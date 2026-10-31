@@ -107,6 +107,7 @@ final class NativeSound {
             int steps = Math.max(1, ms / 40);
             rainStep = (rainTarget - rainVol) / steps;
             try { if (rainTarget > 0 && rain.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) rain.play(); } catch (Exception ignored) { }
+            if (rainTarget > 0) watch();
             main.removeCallbacks(fader);
             main.post(fader);
         } });
@@ -160,6 +161,7 @@ final class NativeSound {
                 fileTarget = Math.max(0f, Math.min(1f, vol));
                 fileStep = (fileTarget - fileVol) / Math.max(1, ms / 40);
                 if (fileTarget > 0 && !file.isPlaying()) file.start();
+                if (fileTarget > 0) watch();
                 main.removeCallbacks(fileFader);
                 main.post(fileFader);
             } catch (Exception e) { Log.w(TAG, "ambience file failed " + path, e); releaseFile(); }
@@ -227,6 +229,7 @@ final class NativeSound {
      */
     void revive() {
         main.post(new Runnable() { @Override public void run() {
+            lastRevive = System.currentTimeMillis();
             float rt = rainTarget, ft = fileTarget;
             String fp = filePath;
             synchronized (NativeSound.this) {
@@ -238,6 +241,45 @@ final class NativeSound {
             Log.i(TAG, "ambience players rebuilt");
         } });
     }
+
+    /** Rebuild the players a little later (the TV's sound output often comes back a few seconds after the picture). */
+    private final Runnable reviveRun = new Runnable() { @Override public void run() { revive(); } };
+    void reviveSoon(long ms) { main.removeCallbacks(reviveRun); main.postDelayed(reviveRun, ms); }
+
+    /*
+     * Self-check while an ambience should be playing (every 5 s): if the player has stopped moving for 10 s,
+     * the TV's sound output went away under it (standby, a long film in another app, the soundbar switching
+     * back from Netflix's Dolby sound). Rebuild it. At most once every 20 s, and only while something should be heard.
+     */
+    private long lastHead = -1, lastFilePos = -1, lastRevive = 0;
+    private int stuck = 0;
+    private boolean watching;
+    private void watch() { if (!watching) { watching = true; stuck = 0; lastHead = -1; lastFilePos = -1; main.postDelayed(watchdog, 5000); } }
+    private final Runnable watchdog = new Runnable() {
+        @Override public void run() {
+            boolean rainOn = rain != null && rainTarget > 0f, fileOn = file != null && fileTarget > 0f;
+            if (!rainOn && !fileOn) { watching = false; return; }
+            boolean moving = true;
+            try {
+                if (rainOn) {
+                    long h = rain.getPlayState() == AudioTrack.PLAYSTATE_PLAYING ? (rain.getPlaybackHeadPosition() & 0xffffffffL) : -2;
+                    if (h == -2 || h == lastHead) moving = false;
+                    lastHead = h;
+                }
+                if (fileOn) {
+                    long fp = file.isPlaying() ? file.getCurrentPosition() : -2;
+                    if (fp == -2 || fp == lastFilePos) moving = false;
+                    lastFilePos = fp;
+                }
+            } catch (Exception e) { moving = false; }
+            stuck = moving ? 0 : stuck + 1;
+            if (stuck >= 2 && System.currentTimeMillis() - lastRevive > 20_000) {
+                Log.i(TAG, "ambience stopped moving, rebuilding");
+                stuck = 0; lastHead = -1; lastFilePos = -1; revive();
+            }
+            main.postDelayed(this, 5000);
+        }
+    };
 
     void release() {
         main.post(new Runnable() { @Override public void run() { releaseFile(); } });

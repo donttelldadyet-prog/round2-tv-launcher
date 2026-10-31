@@ -64,6 +64,7 @@ public class MainActivity extends Activity {
     private boolean pageReady;
     private static volatile MainActivity front;   // the menu while it is on screen (food alerts go to it)
     private long stoppedAt;   // when the screen was last hidden (an app, the screensaver, standby)
+    private boolean outputChanged;   // the TV's sound outputs changed while an app was in front
     private boolean screenWasOff;   // standby since the menu was last shown: rebuild the ambience players
     private static final long RELOAD_AFTER_MS = 10 * 60 * 1000L;
 
@@ -177,6 +178,18 @@ public class MainActivity extends Activity {
         root.addView(splash, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(root);
         registerReceiver(screenOff, new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF));
+        /* the TV's sound outputs changing (a soundbar / home theater on HDMI ARC waking up, headphones, Bluetooth):
+           ambience players made before then can stay silent, so rebuild them once things settle. Android reports
+           every existing output right after registering; those first reports are ignored. */
+        final long soundCbAt = System.currentTimeMillis();
+        ((android.media.AudioManager) getSystemService(AUDIO_SERVICE)).registerAudioDeviceCallback(new android.media.AudioDeviceCallback() {
+            void changed() {
+                if (System.currentTimeMillis() - soundCbAt < 5000 || sound == null) return;
+                if (front == MainActivity.this) sound.reviveSoon(2000); else outputChanged = true;
+            }
+            @Override public void onAudioDevicesAdded(android.media.AudioDeviceInfo[] d) { changed(); }
+            @Override public void onAudioDevicesRemoved(android.media.AudioDeviceInfo[] d) { changed(); }
+        }, new android.os.Handler(android.os.Looper.getMainLooper()));
         pendingRoom = getIntent().getStringExtra("room");
         web.loadUrl("file:///android_asset/index.html");
         web.requestFocus(View.FOCUS_DOWN);
@@ -254,8 +267,11 @@ public class MainActivity extends Activity {
         if (bg != null) bg.resume();
         long awayMs = stoppedAt > 0 ? System.currentTimeMillis() - stoppedAt : 0;
         // after standby or a long time away (screensaver), the TV may have re-routed its audio: fresh players
-        if (sound != null && (screenWasOff || awayMs > 60_000)) sound.revive();
-        screenWasOff = false;
+        if (sound != null && (screenWasOff || outputChanged || awayMs > 60_000)) {
+            sound.revive();
+            sound.reviveSoon(8000);   // once more when the TV's sound output has settled (soundbars, ARC, Dolby → normal)
+        }
+        screenWasOff = false; outputChanged = false;
         if (web != null) {
             web.onResume();
             web.requestFocus();
