@@ -216,3 +216,9 @@ For the admin who handles extensions. Control centre › **In session** (engine 
 - **Undo** (30 min): deletes the notes, moves the messages back / cancels the ones it made, removes the banner if still up.
 - **Test** button: banner only (marked TEST) on a TV you pick. Nothing else changes.
 - Tested 31 Oct on 1 Jun 2027 with a test note in Vale: notes in Vale + SYSTEM BLOCK in Atlas, chain read back, clash with a blocker in Atlas found, undo removed all four notes.
+
+## Switching apps while a banner is up (31 Oct 2026)
+
+- **Android:** the small banner is a system overlay, so it stays on top when the guest jumps YouTube → Netflix with the remote's Netflix button (or the TV ignores that button while the card has the remote – it shakes, like any other button). Pressing Home brings the message straight back as the big banner (`FoodAlerts.menuInFront`).
+- **LG:** webOS may close the Round2 Alerts card when another app opens. The helper (`watch_apps`) checks 2 s after any app-to-app switch whether `sg.round2.alerts` is still running; if not, it clears `card.up`/`msg.last`/`food.last` so a message waiting for OK, or Loot dropped, pops up again over the new app within seconds. Home pressed while the card was up: `card.up` is cleared and the big banner shows straight away.
+- No-OK messages and Order locked in are not brought back (they were already shown once).
