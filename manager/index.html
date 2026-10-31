@@ -163,6 +163,14 @@ label.f input[type=text], label.f input[type=url], label.f input[type=date], lab
 .agtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
 .agtabs button { font-size: 12px; padding: 6px 10px; }
 .agtabs button b { margin-left: 4px; opacity: .8; }
+.agtabs button.cv-now b { color: #ffd23f; opacity: 1; }
+.agroom { border: 1px solid var(--line); border-left: 3px solid var(--rc); background: var(--panel); margin: 8px 0; }
+.agroom > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 10px; padding: 10px 12px; }
+.agroom > summary::-webkit-details-marker { display: none; }
+.agroom > summary::before { content: '\25B8'; color: var(--mute); transition: transform .15s; }
+.agroom[open] > summary::before { transform: rotate(90deg); }
+.agroom > summary b { letter-spacing: .14em; text-transform: uppercase; color: var(--rc); font-size: 14px; }
+.agroom .ag { margin: 0 10px 8px; }
 .ag.st-shown { box-shadow: inset 3px 0 0 var(--rc); }
 .ag .chip.stc { background: transparent; }
 .ag.st-shown .chip.stc { color: #ffd23f; border-color: #ffd23f; }
@@ -1332,23 +1340,34 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
        every morning; past days stay readable on the calendar. */
     var GROUP = { waiting: 'live', queued: 'live', delivered: 'live', shown: 'live', acked: 'done', done: 'done', ended: 'done' };
     var ST = { queued: 'Queued', delivered: 'On the TV, waiting for its time', shown: 'Showing · waiting for OK', waiting: 'Waiting for the guest to write it', acked: 'Acknowledged', done: 'Shown', ended: 'Ended without an OK' };
+    /* the day's list: first by what happened (status chips with counts), then by room (one box per room, newest
+       activity on top inside it). Each day starts empty; past days stay readable on the calendar. */
+    var CATS = [['all', 'All', null], ['now', 'On screen now', ['shown']], ['next', 'Coming up', ['queued', 'delivered']], ['waiting', 'Guest still writing', ['waiting']],
+      ['acked', 'Acknowledged', ['acked']], ['done', 'Shown (no OK needed)', ['done']], ['ended', 'Ended without OK', ['ended']]];
+    var closedRooms = {}; try { closedRooms = JSON.parse(localStorage.getItem('r2m.calClosed') || '{}') || {}; } catch (e) {}
     function drawDay(by) {
       var k = pick || dayKey(Date.now()), all = (by[k] || []).slice();
-      var order = { shown: 0, delivered: 1, queued: 1, waiting: 2, acked: 3, done: 4, ended: 5 };
-      var live = all.filter(function (x) { return GROUP[x.st] === 'live'; }).sort(function (a, b) { return order[a.st] - order[b.st] || a.at - b.at; });
-      var done = all.filter(function (x) { return GROUP[x.st] === 'done'; }).sort(function (a, b) { return (b.ackT || b.at) - (a.ackT || a.at); });
-      var xs = view === 'live' ? live : view === 'done' ? done : all.sort(function (a, b) { return a.at - b.at; });
+      var cat = CATS.filter(function (c) { return c[0] === view; })[0] || CATS[0];
+      var n = function (c) { return c[2] ? all.filter(function (x) { return c[2].indexOf(x.st) >= 0; }).length : all.length; };
+      if (cat[2] && !n(cat)) cat = CATS[0];   /* nothing left in that group (e.g. the last one was OK'd): show everything */
+      var xs = cat[2] ? all.filter(function (x) { return cat[2].indexOf(x.st) >= 0; }) : all;
       var title = new Intl.DateTimeFormat('en-SG', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(k + 'T00:00:00Z'));
       var h = '<h2 style="margin:0">' + esc(title) + '</h2>';
-      h += '<div class="seg agtabs" role="tablist">' + [['live', 'Coming up & on screen', live.length], ['done', 'Acknowledged & done', done.length], ['all', 'All today', all.length]].map(function (t) {
-        return '<button type="button" data-cv="' + t[0] + '" aria-pressed="' + (view === t[0]) + '">' + t[1] + ' <b>' + t[2] + '</b></button>'; }).join('') + '</div>';
+      h += '<div class="seg agtabs" role="tablist">' + CATS.filter(function (c) { return !c[2] || n(c); }).map(function (c) {
+        return '<button type="button" class="cv-' + c[0] + '" data-cv="' + c[0] + '" aria-pressed="' + (cat === c) + '">' + c[1] + ' <b>' + n(c) + '</b></button>'; }).join('') + '</div>';
       if (guestErr) h += '<p class="hint">' + esc(guestErr) + '</p>';
-      h += xs.length ? xs.map(function (x) {
-        var R = ROOMS[x.room];
-        return '<div class="ag st-' + x.st + '" style="--rc:' + R.c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span>' +
-          '<span class="chip">' + (x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="chip stc">' + ST[x.st] + (x.st === 'acked' && x.ackT ? ' ' + esc(clock(x.ackT)) : '') + '</span></div>' +
-          '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
-      }).join('') : '<p class="hint">' + (view === 'live' ? 'Nothing waiting or on screen.' : view === 'done' ? 'Nothing finished yet.' : 'Nothing scheduled for this day.') + '</p>';
+      var rooms = Object.keys(ROOMS).filter(function (r) { return xs.some(function (x) { return x.room === r; }); });
+      h += rooms.length ? rooms.map(function (r) {
+        var R = ROOMS[r], mine = xs.filter(function (x) { return x.room === r; }).sort(function (a, b) { return a.at - b.at; });
+        var live = mine.filter(function (x) { return x.st === 'shown'; }).length, next = mine.filter(function (x) { return x.st === 'queued' || x.st === 'delivered'; }).length;
+        return '<details class="agroom" style="--rc:' + R.c + '"' + (closedRooms[r] ? '' : ' open') + ' data-agroom="' + r + '"><summary><b>' + esc(R.name) + '</b><span class="hint">' + mine.length + ' message' + (mine.length > 1 ? 's' : '') +
+          (live ? ' · <span style="color:#ffd23f">' + live + ' on screen</span>' : '') + (next ? ' · ' + next + ' coming up' : '') + '</span></summary>' +
+          mine.map(function (x) {
+            return '<div class="ag st-' + x.st + '" style="--rc:' + R.c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span>' +
+              '<span class="chip">' + (x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="chip stc">' + ST[x.st] + (x.st === 'acked' && x.ackT ? ' ' + esc(clock(x.ackT)) : '') + '</span></div>' +
+              '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
+          }).join('') + '</details>';
+      }).join('') : '<p class="hint">Nothing scheduled for this day.</p>';
       h += '<p class="hint">Each TV shows one message at a time; queued ones go out a few minutes before their time. Updates every minute. <a href="#" data-goguest="1">Manage guest messages</a></p>';
       $('cDay').innerHTML = h;
     }
@@ -1361,6 +1380,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('cDay').addEventListener('click', function (e) {
         var v = e.target.closest && e.target.closest('[data-cv]'); if (v) { view = v.getAttribute('data-cv'); try { localStorage.setItem('r2m.calView', view); } catch (x) {} draw(); return; }
         var a = e.target.closest && e.target.closest('[data-goguest]'); if (a) { e.preventDefault(); tab('guestmsgs'); window.scrollTo(0, 0); } });
+      $('cDay').addEventListener('toggle', function (e) {
+        var r = e.target.getAttribute && e.target.getAttribute('data-agroom'); if (!r) return;
+        if (e.target.open) delete closedRooms[r]; else closedRooms[r] = 1;
+        try { localStorage.setItem('r2m.calClosed', JSON.stringify(closedRooms)); } catch (x) {}
+      }, true);
       /* keep it current while the Messages tab is open (a guest pressing OK moves it to "Acknowledged") */
       timer = setInterval(function () { if (!document.hidden && !$('tab-messages').hidden) load(); }, 60000);
       $('cKeySave').onclick = function () { var v = $('cKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('cKey').value = ''; load(); };
