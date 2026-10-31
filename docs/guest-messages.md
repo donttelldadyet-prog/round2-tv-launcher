@@ -230,3 +230,12 @@ For the admin who handles extensions. Control centre › **In session** (engine 
 1. **About 10 minutes to go** (scheduled, needs OK): shows at end − 10 min, gone after 4 min.
 2. **About 5 minutes to go**: the engine (`nudgeRun`, round2sg-home worker) checks 5 min after the 10-minute reminder went to the TV. Only if that reminder is still the TV's message and nobody pressed OK, it writes a new one (id `w5…`, kind `wrapup`, needs OK, gone at end − 30 s). OK on the 10-minute one → no 5-minute one. A "send now" reminder from the control centre doesn't get one (only scheduled ones).
 3. **That's a wrap!** at the end, needs OK, gone after 15 min on every screen, OK or not (guests just read it and leave).
+
+## One EXT note per room (owner, 31 Oct 2026, replaces "stacked 1-hour notes")
+
+The owner reads SimplyBook on a phone, so an extension never adds a second note: the session's EXT note is **stretched**
+to the new end and its text rewritten short – `EXT till 1:15am · Amanda` (guest's end time, first name). Only the first
+extension makes the note (from the booking's SimplyBook end). Vale/Atlas twin: one `SYSTEM BLOCK · EXT Vale till 1:30am`
+note (block end, incl. cleaning), stretched the same way. Undo puts the old end and text back (or deletes a note it made).
+Tested 31 Oct on 1 Jun 2027: +1h then +1h past midnight (23:30 → 01:30) – SimplyBook accepts notes after 11:15pm; undo
+restored 00:30 then removed both notes.

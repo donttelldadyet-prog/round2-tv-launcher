@@ -63,7 +63,7 @@ flowchart LR
     T3["8:00 · That's a wrap!<br/>needs OK · gone 8:15 OK or not"] --> CL["8:00–8:15 cleaning"]
   end
   subgraph X["Guest extends (In session +1h)"]
-    X1["EXT note(s) in SimplyBook<br/>+ SYSTEM BLOCK in Vale/Atlas twin"] --> X2["10-min + wrap move to the new end<br/>(added if there were none)"] --> X3["+1 CREDIT ADDED on the TV<br/>(last in line)"]
+    X1["one EXT note stretched<br/>"EXT till 1:15am · name"<br/>+ SYSTEM BLOCK in Vale/Atlas twin"] --> X2["10-min + wrap move to the new end<br/>(added if there were none)"] --> X3["+1 CREDIT ADDED on the TV<br/>(last in line)"]
   end
 ```
 

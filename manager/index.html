@@ -1683,7 +1683,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         box.className = 'review' + (P.clash.length ? ' now' : '');
         box.innerHTML = '<div class="big">Extend ' + esc(P.room) + ' (' + esc(P.name || 'guest') + ') by ' + n + ' hour' + (n > 1 ? 's' : '') + '</div>' +
           '<div>Ends <b>' + t(P.guestEnd) + '</b> instead of ' + t(P.guestEndWas) + '.</div><ul>' +
-          '<li>SimplyBook: ' + n + ' EXT note' + (n > 1 ? 's' : '') + ' (' + t(P.notes[0].s) + ' – ' + t(P.notes[P.notes.length - 1].e) + ', with cleaning) in ' + esc(P.room) + (P.twin ? ', and the same as SYSTEM BLOCK in ' + esc(P.twin) : '') + '.</li>' +
+          '<li>SimplyBook: ' + (P.note && P.note.main && P.note.main.edit ? 'the EXT note in ' + esc(P.room) + ' is stretched' : 'one EXT note in ' + esc(P.room)) + ' to ' + t(P.sbEnd) + ' (with cleaning), text “EXT till ' + t(P.guestEnd) + '”' + (P.twin ? '; same block in ' + esc(P.twin) + ' as SYSTEM BLOCK' : '') + '.</li>' +
           '<li>Messages: ' + mv(P.wrapup, 'About 10 minutes to go') + '; ' + mv(P.timeup, 'That’s a wrap!') + '.</li>' +
           '<li>TV: “' + esc(P.banner.title) + '” – ' + (P.banner.ack ? 'stays until someone presses OK' : 'closes by itself, no OK needed') + '.</li></ul>' +
           (P.clash.length ? '<ul class="warnl">' + P.clash.map(function (c) { return '<li>Clashes with ' + esc(c.what) + ' in ' + esc(c.room) + ' (' + t(c.s) + ' – ' + t(c.e) + ').</li>'; }).join('') + '<li>Only extend anyway if you’ve sorted that out.</li></ul>' : '') +
