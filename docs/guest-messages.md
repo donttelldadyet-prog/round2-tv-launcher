@@ -165,3 +165,20 @@ go" (`wrapup`) after **4 minutes**, so it shows **once**: OK or Back and it does
 still say "10 minutes"; owner, 31 Oct). Neither can pop up for the next group if nobody pressed
 OK. All other messages keep the 3-hour cut-off. Set in Make (`r2` route and `move` route: `end`/`until`) and in the
 control centre (Messages: send now, send again).
+
+## Big banner vs small banner (owner's terms, 31 Oct 2026 – use these words)
+- **Big banner** = the message card on the Round2 Home screen (menu in front).
+- **Small banner** = the message card over another app or input (PlayStation/HDMI, Netflix, YouTube…): Android's overlay
+  card (`FoodAlerts.java` `showMsgPage`, 45 s) or, on the rooted LGs, the Round2 Alerts card (`webos/alerts`, 45 s) /
+  LG's own pop-up if Round2 Alerts can't open (stays until a button is pressed).
+
+| | Big banner | Small banner |
+|---|---|---|
+| "Must be acknowledged" ON | Stays until **OK**. **Back** hides it; back in 5 min. | Shows **45 s**, then hides itself (not acknowledged); back every 5 min until **OK**. |
+| "Must be acknowledged" OFF | Shows **1 min**, then gone. | Shows **45 s** once, then gone. |
+| Guest goes back to the home screen while one is waiting | – | Shown as a big banner right away. |
+
+Cut-off (gone for good, OK or not): guest message = booking start + 3 h · Round2 message = show time + 3 h ·
+"That's a wrap!" = +15 min · "About 10 minutes to go" = +4 min (so it shows once) · Test bench = 1 h.
+One message per TV: a newer one replaces the one showing.
+Open question (owner, 31 Oct): session messages as a small banner that stays until OK (TV app change).
