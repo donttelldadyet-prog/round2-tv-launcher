@@ -121,10 +121,10 @@
           "runs": "Make: [CONTROL] MADD PAYOUT TELEGRAM"
         },
         {
-          "name": "Automatic PayNow payout to Madd",
-          "status": "parked",
-          "what": "HitPay Transfers would pay Madd automatically each night after you approve. Needs HitPay to switch it on.",
-          "runs": "—"
+          "name": "Automatic payout to Madd Pizza",
+          "status": "planned",
+          "what": "Next project. Nightly/weekly total → owner gets Approve/Skip on Telegram → HitPay pays Madd's saved bank account/PayNow from the HitPay wallet → confirmation in the shared Madd + Round2 group with a 'Received and tallied' button for Madd's manager. Needs HitPay to switch on Payouts and Madd's bank details or UEN.",
+          "runs": "Booking engine (Cloudflare) + HitPay Payouts"
         },
         {
           "name": "Old Wix food orders",
