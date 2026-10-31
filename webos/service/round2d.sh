@@ -260,7 +260,7 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
   room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null); kind=$(printf '%s\n' "$line" | field kind | clean)
   text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean); to=$(printf '%s\n' "$line" | field to | clean)
   ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
-  case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; *) tag="A MESSAGE" ;; esac
+  case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; extend) tag="SESSION EXTENDED" ;; *) tag="A MESSAGE" ;; esac
   card="{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"to\":\"$to\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"until\":$(printf '%s\n' "$line" | num until | grep -E '^[0-9]+$' || echo 0),\"room\":\"$room\"}"
   if menu_front; then menu_card "$card"; return 0; fi   # the menu's big card
   if ov=$(ov_app); then ov_show "$ov" "$card" && return 0; fi   # our own card pages the message itself

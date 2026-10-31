@@ -61,6 +61,24 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .banner.warn { border-color: rgba(242,162,27,.7); }
 .banner.bad { border-color: rgba(232,67,106,.7); }
 .banner .grow { flex: 1; min-width: 200px; }
+/* In session (extensions) */
+.sess { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+.sess article { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--rc); padding: 14px 16px; display: grid; gap: 10px; align-content: start; }
+.sess .rname { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sess .rname b { font-size: 18px; letter-spacing: .12em; text-transform: uppercase; color: var(--rc); }
+.sess .one { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 6px; }
+.sess .one.done { opacity: .5; }
+.sess .who { font-size: 17px; font-weight: 700; color: var(--ink); }
+.sess .when { font-size: 22px; font-weight: 700; letter-spacing: .04em; }
+.sess .when small { font-size: 13px; color: var(--mute); font-weight: 500; margin-left: 6px; }
+.sess .meta { font-size: 13px; color: var(--mute); display: grid; gap: 2px; }
+.sess .meta .warn { color: var(--warn); }
+.sess .plus { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.sess .plus button { font-size: 18px; padding: 12px 6px; }
+.sess label.ack { font-size: 13px; color: var(--mute); display: flex; gap: 8px; align-items: center; }
+.sess .empty { color: var(--mute); font-size: 14px; }
+.sessrec { display: grid; gap: 8px; }
+.sessrec div { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px; }
 .review { border: 2px solid var(--accent); background: var(--panel2); padding: 14px 16px; display: grid; gap: 10px; }
 .review.now { border-color: var(--bad); }
 .review .big { font-size: 20px; font-weight: 700; }
@@ -299,6 +317,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 <header class="top"><div class="wrap">
   <div class="brand" id="brand">ROUND2 <small>CONTROL CENTRE</small></div>
   <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" aria-selected="false" data-group="sess">In session</button>
     <button role="tab" aria-selected="true" data-group="notif">Notifications</button>
     <button role="tab" aria-selected="false" data-group="themes">Themes</button>
     <button role="tab" aria-selected="false" data-group="menu">Food menu</button>
@@ -426,6 +445,34 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="mcal">
       <div class="card"><div class="cal" id="cCal"></div></div>
       <div class="agenda" id="cDay"></div>
+    </div>
+  </section>
+
+  <section id="tab-insession" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div><h1>In session</h1><p class="sub">Today’s rooms. After a guest pays for more time, press <b>+1h</b>, <b>+2h</b> or <b>+3h</b>. It adds the EXT notes in SimplyBook (Vale and Atlas block each other too), moves “About 10 minutes to go” and “That’s a wrap!” to the new end (or adds them), and the TV shows <b>+N CREDITS ADDED</b>. You check everything before it happens, and you can undo it for 30 minutes.</p></div>
+      <button class="btn" id="sRefresh">Refresh</button>
+    </div>
+    <div id="sKeyBox" class="banner" hidden>
+      <span>This needs the guest messages staff code (same as Guest messages).</span>
+      <input class="tok" id="sKey" type="password" autocomplete="off" placeholder="Staff code" style="min-width:180px">
+      <button class="btn primary" id="sKeySave">Save</button>
+    </div>
+    <div id="sMsg" class="hint"></div>
+    <div id="sReview" class="review" hidden style="margin:12px 0"></div>
+    <div class="sess" id="sRooms"></div>
+    <h2>Extensions today</h2>
+    <div class="sessrec" id="sRecent"><p class="hint">None yet.</p></div>
+    <h2>Test</h2>
+    <div class="card">
+      <p class="hint" style="margin-top:0">Shows the “+ CREDITS ADDED” banner (marked TEST) on one TV. Nothing changes in SimplyBook or the message calendar. Pick a room nobody is in.</p>
+      <div class="row">
+        <select id="sTRoom" class="btn ghost" style="text-transform:none"></select>
+        <select id="sTH" class="btn ghost" style="text-transform:none"><option value="1">+1 hour</option><option value="2">+2 hours</option><option value="3">+3 hours</option></select>
+        <label class="hint" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="sTAck"> Needs OK</label>
+        <button class="btn primary" id="sTGo">Show test banner</button>
+      </div>
+      <p class="hint" id="sTMsg" style="margin-bottom:0"></p>
     </div>
   </section>
 
@@ -1536,6 +1583,120 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   /* keep the page menu just under the sticky header (its height changes with screen width) */
   (function () { var h = document.querySelector('header.top'); function set() { document.documentElement.style.setProperty('--hh', h.offsetHeight + 'px'); } set(); if (window.ResizeObserver) new ResizeObserver(set).observe(h); else addEventListener('resize', set); }());
 
+  /* ================= In session: extend a session (+1/+2/+3 h) =================
+     Reads today's bookings and notes from the engine (POST /gm action=insess, staff code). Every change is checked first
+     (action=extend dry=1 → the review box), then made (extend), and can be undone for 30 min (extundo).
+     round2sg-home worker/round2-book.js "In session"; docs/guest-messages.md "In session". */
+  var Sess = (function () {
+    var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, last = null, pend = null, ackOn = {};
+    function key() { return ls('r2.guestStaff') || ''; }
+    function t(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).replace(/\s/g, '').toLowerCase(); }
+    function call(body) {
+      body.staff = key();
+      return fetch(ENG, { method: 'POST', body: new URLSearchParams(body) }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.error && /staff code/i.test(j.error)) { ls('r2.guestStaff', null); $('sKeyBox').hidden = false; }
+        return j;
+      });
+    }
+    var RK = { vale: 'vale', kaeden: 'kaeden', scarlett: 'scarlett', bella: 'bella', kai: 'kai', atlas: 'atlas', max: 'maximillion' };
+    function load() {
+      if (!key()) { $('sKeyBox').hidden = false; $('sRooms').innerHTML = ''; return; }
+      $('sKeyBox').hidden = true; $('sMsg').textContent = 'Checking SimplyBook…';
+      call({ action: 'insess' }).then(function (j) {
+        if (!j || !j.ok) { $('sMsg').textContent = 'Couldn’t load: ' + ((j && j.error) || 'no answer') + '.'; return; }
+        last = j; render(); $('sMsg').textContent = 'Updated ' + t(j.now) + '. Refreshes every minute.';
+      }).catch(function () { $('sMsg').textContent = 'Couldn’t reach the engine. Check the internet and press Refresh.'; });
+    }
+    function render() {
+      var j = last, now = j.now, order = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'];
+      $('sRooms').innerHTML = order.map(function (rk) {
+        var R = j.rooms[rk], c = ROOMS[RK[rk]].c, ss = R.sessions.slice().sort(function (a, b) { return a.start - b.start; });
+        var live = ss.filter(function (x) { return x.st === 'now' || x.st === 'cleaning'; }), next = ss.filter(function (x) { return x.st === 'next'; }), done = ss.filter(function (x) { return x.st === 'done'; });
+        var show = live.concat(next.slice(0, live.length ? 1 : 2));
+        var h = '<article style="--rc:' + c + '"><div class="rname"><b>' + esc(R.name) + '</b>' + (live.length ? '<span class="chip live">In use</span>' : next.length ? '<span class="chip soon">Next ' + t(next[0].start) + '</span>' : R.twin && j.rooms[R.twin].sessions.some(function (x) { return x.st !== 'done'; }) ? '<span class="chip soon">Via ' + esc(ROOMS[RK[R.twin]].name) + '</span>' : '<span class="chip ended">Free</span>') + '</div>';
+        var tw = R.twin ? j.rooms[R.twin].sessions.filter(function (x) { return x.st !== 'done'; }) : [];
+        if (!show.length && tw.length) { h += '<div class="empty">Booked through ' + esc(ROOMS[RK[R.twin]].name) + ': ' + tw.map(function (x) { return t(x.start) + ' – ' + t(x.guestEnd); }).join(', ') + '. Extend it on ' + esc(ROOMS[RK[R.twin]].name) + '’s card (both rooms are blocked).</div>'; return h + '</article>'; }
+        if (!show.length) h += '<div class="empty">' + (done.length ? 'Done for today (' + done.length + ' session' + (done.length > 1 ? 's' : '') + ').' : 'Nothing booked today.') + (R.twin ? ' Shares space with ' + esc(ROOMS[RK[R.twin]].name) + '.' : '') + '</div>';
+        show.forEach(function (x) {
+          var m = x.msgs || {}, gap = x.nextAt ? Math.floor((x.nextAt - x.sbEnd) / 3600000) : null;
+          h += '<div class="one ' + x.st + '"><div class="who">' + esc(x.name || 'Guest') + (x.k === 'n' ? ' <span class="chip">note</span>' : '') + '</div>' +
+            '<div class="when">' + t(x.start) + ' – ' + t(x.guestEnd) + (x.ext.length ? '<small>incl. +' + x.ext.length + 'h EXT</small>' : '') + (x.st === 'cleaning' ? '<small>cleaning</small>' : '') + '</div>' +
+            '<div class="meta"><span>10-min reminder: ' + (m.wrapup ? t(m.wrapup.at) : 'not set') + ' · That’s a wrap: ' + (m.timeup ? t(m.timeup.at) : 'not set') + '</span>' +
+            (x.nextAt ? '<span' + (gap < 1 ? ' class="warn"' : '') + '>Next booking ' + (R.twin ? 'in ' + esc(R.name) + '/' + esc(ROOMS[RK[R.twin]].name) + ' ' : '') + 'at ' + t(x.nextAt) + (gap < 1 ? ' – no room to extend' : ' – room for +' + Math.min(3, gap) + 'h') + '</span>' : '<span>Nothing booked after this</span>') +
+            (x.phone ? '<span>' + esc(x.phone) + '</span>' : '') + '</div>';
+          if (x.st !== 'done') h += '<div class="plus">' + [1, 2, 3].map(function (n) { return '<button class="btn" data-ext="' + n + '" data-room="' + rk + '" data-key="' + esc(x.key) + '">+' + n + 'h</button>'; }).join('') + '</div>';
+        });
+        if (show.some(function (x) { return x.st !== 'done'; })) h += '<label class="ack"><input type="checkbox" data-ack="' + rk + '"' + (ackOn[rk] ? ' checked' : '') + '> Banner needs OK on the TV</label>';
+        return h + '</article>';
+      }).join('');
+      var rec = (j.recent || []).filter(function (r) { return now - r.t < 24 * 3600000; });
+      $('sRecent').innerHTML = rec.length ? rec.map(function (r) {
+        var canUndo = !r.undone && now - r.t < 30 * 60000;
+        return '<div><span class="chip room" style="--rc:' + ROOMS[RK[r.room]].c + '">' + esc(ROOMS[RK[r.room]].name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · now ends ' + t(r.guestEnd) + ' <span class="hint">(' + t(r.t) + ')</span>' +
+          (r.undone ? ' <span class="chip ended">Undone</span>' : '') + ((r.problems || []).length ? ' <span class="chip" style="color:var(--warn)">' + esc(r.problems.join('; ')) + '</span>' : '') +
+          (r.banner && r.banner.shown === false ? ' <span class="hint">TV banner skipped: ' + esc(r.banner.why || '') + '</span>' : '') +
+          (canUndo ? ' <button class="btn ghost" data-undo="' + esc(r.id) + '" style="padding:4px 10px;font-size:11px">Undo</button>' : '') + '</div>';
+      }).join('') : '<p class="hint">None yet.</p>';
+    }
+    function sessOf(rk, k) { var R = last && last.rooms[rk]; return R && R.sessions.filter(function (x) { return x.key === k; })[0]; }
+    function review(rk, k, n) {
+      var x = sessOf(rk, k); if (!x) return;
+      var box = $('sReview'); box.hidden = false; box.className = 'review'; box.innerHTML = '<div>Checking SimplyBook…</div>';
+      box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      call({ action: 'extend', key: k, hours: n, ack: ackOn[rk] ? 'yes' : 'no', end: x.sbEnd, dry: 1 }).then(function (j) {
+        if (!j || !j.plan) { box.innerHTML = '<div>' + esc((j && j.error) || 'No answer.') + '</div><div class="row"><button class="btn" id="sBack">Close</button></div>'; $('sBack').onclick = closeReview; return; }
+        var P = j.plan; pend = { key: k, hours: n, ack: ackOn[rk] ? 'yes' : 'no', end: x.sbEnd, room: rk, clash: P.clash.length };
+        var mv = function (o, label) { return o.make ? 'adds “' + label + '” at ' + t(o.at) : 'moves “' + label + '” ' + t(o.was) + ' → ' + t(o.at); };
+        box.className = 'review' + (P.clash.length ? ' now' : '');
+        box.innerHTML = '<div class="big">Extend ' + esc(P.room) + ' (' + esc(P.name || 'guest') + ') by ' + n + ' hour' + (n > 1 ? 's' : '') + '</div>' +
+          '<div>Ends <b>' + t(P.guestEnd) + '</b> instead of ' + t(P.guestEndWas) + '.</div><ul>' +
+          '<li>SimplyBook: ' + n + ' EXT note' + (n > 1 ? 's' : '') + ' (' + t(P.notes[0].s) + ' – ' + t(P.notes[P.notes.length - 1].e) + ', with cleaning) in ' + esc(P.room) + (P.twin ? ', and the same as SYSTEM BLOCK in ' + esc(P.twin) : '') + '.</li>' +
+          '<li>Messages: ' + mv(P.wrapup, 'About 10 minutes to go') + '; ' + mv(P.timeup, 'That’s a wrap!') + '.</li>' +
+          '<li>TV: “' + esc(P.banner.title) + '” – ' + (P.banner.ack ? 'stays until someone presses OK' : 'closes by itself, no OK needed') + '.</li></ul>' +
+          (P.clash.length ? '<ul class="warnl">' + P.clash.map(function (c) { return '<li>Clashes with ' + esc(c.what) + ' in ' + esc(c.room) + ' (' + t(c.s) + ' – ' + t(c.e) + ').</li>'; }).join('') + '<li>Only extend anyway if you’ve sorted that out.</li></ul>' : '') +
+          '<div class="row"><button class="btn primary" id="sGo">' + (P.clash.length ? 'Extend anyway' : 'Yes, extend') + '</button><button class="btn" id="sBack">Back</button></div>';
+        $('sGo').onclick = go; $('sBack').onclick = closeReview;
+      }).catch(function () { box.innerHTML = '<div>Couldn’t reach the engine.</div>'; });
+    }
+    function closeReview() { pend = null; $('sReview').hidden = true; $('sReview').innerHTML = ''; }
+    function go() {
+      if (!pend) return; var p = pend; $('sGo').disabled = true; $('sBack').disabled = true; $('sGo').textContent = 'Extending…';
+      call({ action: 'extend', key: p.key, hours: p.hours, ack: p.ack, end: p.end, force: p.clash ? 'yes' : '' }).then(function (j) {
+        if (!j || !j.ok) { $('sReview').innerHTML = '<div>Not extended: ' + esc((j && j.error) || (j && j.clash ? 'it clashes with something now. Refresh and check.' : 'no answer')) + '</div><div class="row"><button class="btn" id="sBack">Close</button></div>'; $('sBack').onclick = closeReview; load(); return; }
+        var d = j.done || {};
+        closeReview();
+        toast('Extended ' + ROOMS[RK[p.room]].name + ' by ' + p.hours + 'h' + ((d.problems || []).length ? ' (check the messages)' : ''));
+        load();
+      });
+    }
+    $('sRooms').addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-ext]'); if (b) review(b.getAttribute('data-room'), b.getAttribute('data-key'), +b.getAttribute('data-ext'));
+    });
+    $('sRooms').addEventListener('change', function (e) { var a = e.target.getAttribute && e.target.getAttribute('data-ack'); if (a) ackOn[a] = e.target.checked; });
+    $('sRecent').addEventListener('click', function (e) {
+      var u = e.target.getAttribute && e.target.getAttribute('data-undo'); if (!u) return;
+      if (!confirm('Undo this extension? The EXT notes are deleted and the messages go back to the old times.')) return;
+      e.target.disabled = true;
+      call({ action: 'extundo', id: u }).then(function (j) { toast(j && j.ok ? 'Undone' + ((j.problems || []).length ? ' (some parts need a look: ' + j.problems.join('; ') + ')' : '') : 'Couldn’t undo: ' + ((j && j.error) || 'no answer')); load(); });
+    });
+    $('sRefresh').onclick = load;
+    $('sKeySave').onclick = function () { var v = $('sKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('sKey').value = ''; load(); };
+    $('sTRoom').innerHTML = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'].map(function (r) { return '<option value="' + r + '">' + ROOMS[RK[r]].name + '</option>'; }).join('');
+    $('sTGo').onclick = function () {
+      if (!key()) { $('sKeyBox').hidden = false; return; }
+      var r = $('sTRoom').value, R = last && last.rooms[r];
+      if (R && R.sessions.some(function (x) { return x.st === 'now'; }) && !confirm(ROOMS[RK[r]].name + ' has guests in it right now. Show the test banner on their TV anyway?')) return;
+      $('sTMsg').textContent = 'Sending…';
+      call({ action: 'extend', test: 1, room: r, hours: $('sTH').value, ack: $('sTAck').checked ? 'yes' : 'no' }).then(function (j) {
+        $('sTMsg').textContent = j && j.ok ? (j.banner && j.banner.shown ? 'Sent. It pops up on ' + ROOMS[RK[r]].name + '’s TV within a few seconds.' : 'Not shown: ' + ((j.banner && j.banner.why) || '?') + '.') : 'Couldn’t send: ' + ((j && j.error) || 'no answer') + '.';
+      });
+    };
+    return {
+      open: function () { load(); clearInterval(timer); timer = setInterval(function () { if (!pend) load(); }, 60000); },
+      close: function () { clearInterval(timer); timer = null; }
+    };
+  }());
+
   var Tests = (function () {
     var timer = null;
     function key() { return ls('r2m.msgKey') || ''; }
@@ -1635,8 +1796,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   var GROUPS = {
+    sess: [['insession', 'In session']],
     notif: [['messages', 'Round2 messages'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'Settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
@@ -1659,6 +1821,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'settings') renderSettings();
     if (n === 'messages') Msgs.open(); else Msgs.close();
     if (n === 'tests') Tests.open(); else Tests.close();
+    if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
     if (n === 'systems') Sys.open(); if (n === 'testbench') Sys.bench();
     if (n === 'foodmenu') openMenuEditor();

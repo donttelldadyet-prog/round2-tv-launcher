@@ -203,3 +203,16 @@ it comes back every 5 minutes until OK. Loot dropped comes first: a waiting mess
 **Show again at…** (staff page, a message that's already been on the TV): pick a time (5-min steps, until the message's
 cut-off, max 6 h ahead); the booking engine sends it to the TV again then (`/gm` `action=later`, table `later`), needing
 OK again. "Don't show again at …" clears it.
+
+## In session (control centre, 31 Oct 2026)
+
+For the admin who handles extensions. Control centre › **In session** (engine `POST /gm` with the staff code: `action=insess`, `extend`, `extundo`; round2sg-home `worker/round2-book.js` "In session").
+
+- **Reads** today's SimplyBook bookings and time-blocked notes per room (a WhatsApp booking may be a note). EXT notes that start where a session ends are stacked onto it. Mirror blocks (the Make mirror's SYSTEM BLOCK bookings, clients 2472/2476, or anything named SYSTEM BLOCK) are never shown as sessions; Atlas/Vale say "Via Vale/Atlas" instead. Notes longer than 12 h (a room closed for months) only count as clashes.
+- **+1h / +2h / +3h** (always as EXT notes, owner's rule): 1-hour time-blocked notes from the session's SimplyBook end (each hour includes the 15-min cleaning), note text `EXT +1h (1/2) · <guest> · control centre`. Vale and Atlas: the twin gets the same notes as `SYSTEM BLOCK · EXT +1h for <room> · <guest>`.
+- **Clash check** first (other bookings/notes in the room or its twin, past 11:15pm closing); the review box shows exactly what will change and only "Extend anyway" goes past a clash. If the session changed since the page loaded, the engine refuses (no double extensions).
+- **Messages**: "About 10 minutes to go" moves to new end − 10 min and "That's a wrap!" to the new end (Make `move`); if a room had none, they're created (Make `r2`). Found by kind, same room, within 20 min of the old end.
+- **TV banner** (Firebase `msg`, written by the engine): `kind: "extend"`, title `+N CREDIT(S) ADDED`, text `Your session has been extended by N hour(s).`, `n`, `ack` = the card's "Banner needs OK" tick (default off: big banner 1 min, small banner 45 s, like any no-OK message). Not written if a guest message is on the TV and not OK'd yet. Coin-into-slot animation on the home screen (web), Android over apps (FoodAlerts) and LG over apps (alerts app); tag "SESSION EXTENDED".
+- **Undo** (30 min): deletes the notes, moves the messages back / cancels the ones it made, removes the banner if still up.
+- **Test** button: banner only (marked TEST) on a TV you pick. Nothing else changes.
+- Tested 31 Oct on 1 Jun 2027 with a test note in Vale: notes in Vale + SYSTEM BLOCK in Atlas, chain read back, clash with a blocker in Atlas found, undo removed all four notes.

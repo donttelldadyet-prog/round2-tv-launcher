@@ -202,6 +202,14 @@
           "code": "round2-tv-launcher · docs/guest-messages.md \"Follows the booking\""
         },
         {
+          "name": "In session: extend a session (+1/+2/+3h)",
+          "status": "live",
+          "check": "engine",
+          "what": "Control centre › In session shows today's bookings and WhatsApp notes per room. +1h/+2h/+3h adds 1-hour EXT notes in SimplyBook (Vale and Atlas block each other: the twin gets a SYSTEM BLOCK note), moves or adds 'About 10 minutes to go' and 'That's a wrap!', and the TV shows '+N CREDITS ADDED' with a coin dropping into a slot (no OK unless ticked). Checked before it happens; undo for 30 min; Test button shows the banner on one TV.",
+          "runs": "Booking engine (Cloudflare) + TV app",
+          "code": "round2-tv-launcher · docs/guest-messages.md \"In session\""
+        },
+        {
           "name": "Food alerts on the TV",
           "status": "test",
           "what": "'Order locked in' and 'Loot dropped' on the room's TV.",

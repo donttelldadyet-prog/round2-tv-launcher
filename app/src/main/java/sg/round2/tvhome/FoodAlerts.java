@@ -309,6 +309,7 @@ public class FoodAlerts extends Service {
     private Runnable onLeft, onRight;         // a long message: ◀ ▶ turn its pages
     private boolean okLocked;                 // a long message before its last page: OK only points at ▶
     private String bangText = "!", okText = "[OK]  GOT IT";
+    private String coinText = null;   /* "+N CREDITS ADDED": the coin that drops into the slot icon */
     private boolean pageTurn;
     private int px(float v) { return Math.round(v * u); }
     /** The menu's fonts (saved as TTF with the app's web files), so the card matches the menu; the TV's own if missing. */
@@ -327,7 +328,7 @@ public class FoodAlerts extends Service {
      *  Netflix gets no presses until it is closed, so a guest can't skip past it by accident. */
     private void showCard(String tag, String title, String text, String items, long ms, final String no, final boolean ready) {
         // this card's own settings (set just before by a message page), then back to the food-alert defaults
-        final String bangNow = bangText, okNow = okText;
+        final String bangNow = bangText, okNow = okText, coinNow = coinText; coinText = null;
         final Runnable okAct = onOk, leftAct = onLeft, rightAct = onRight;
         final boolean lockOk = okLocked;
         onOk = null; onLeft = null; onRight = null; okLocked = false; okText = "[OK]  GOT IT";
@@ -352,7 +353,20 @@ public class FoodAlerts extends Service {
         bang.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(px(76), px(76));
         bl.rightMargin = px(10);
-        box.addView(bang, bl);
+        TextView coin = null;
+        if (coinNow != null) {   // the slot icon with a coin that drops into it (three times), like the home screen and LG
+            android.widget.FrameLayout fl = new android.widget.FrameLayout(this);
+            fl.setClipChildren(false); fl.setClipToPadding(false);
+            fl.addView(bang, new android.widget.FrameLayout.LayoutParams(px(76), px(76)));
+            coin = new TextView(this);
+            coin.setText(coinNow); coin.setGravity(Gravity.CENTER); coin.setTextColor(0xFF5A3D00);
+            coin.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(14)); coin.setTypeface(Typeface.DEFAULT_BOLD);
+            android.graphics.drawable.GradientDrawable cg = new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, new int[] { 0xFFFFF3B0, 0xFFF2C21B, 0xFFB8860B });
+            cg.setShape(android.graphics.drawable.GradientDrawable.OVAL); cg.setStroke(Math.max(1, px(2)), 0xFFE0A800);
+            coin.setBackground(cg); coin.setAlpha(0f);
+            fl.addView(coin, new android.widget.FrameLayout.LayoutParams(px(32), px(32), Gravity.CENTER_HORIZONTAL | Gravity.TOP));
+            box.addView(fl, bl);
+        } else box.addView(bang, bl);
 
         final LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -447,6 +461,16 @@ public class FoodAlerts extends Service {
             box.setAlpha(0f); box.setTranslationX(px(160));
             box.animate().alpha(1f).translationX(0).setDuration(560).setInterpolator(new android.view.animation.DecelerateInterpolator(2.2f)).start();
             playConfirm();
+            if (coin != null) {
+                final TextView cn = coin;
+                for (int k = 0; k < 3; k++) main.postDelayed(new Runnable() { @Override public void run() {
+                    if (card != me) return;
+                    cn.setTranslationY(-px(12)); cn.setScaleX(1f); cn.setAlpha(0f);
+                    cn.animate().alpha(1f).translationY(px(14)).setDuration(650).setInterpolator(new android.view.animation.AccelerateInterpolator(1.6f)).withEndAction(new Runnable() { @Override public void run() {
+                        cn.animate().scaleX(0.16f).translationY(px(40)).alpha(0f).setDuration(450).setInterpolator(new android.view.animation.AccelerateInterpolator()).start();
+                    } }).start();
+                } }, 900 + k * 1500L);
+            }
             bang.setScaleX(0f); bang.setScaleY(0f); bang.setRotation(-30f);
             bang.animate().scaleX(1f).scaleY(1f).rotation(0f).setStartDelay(100).setDuration(450)
                     .setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
@@ -651,11 +675,12 @@ public class FoodAlerts extends Service {
         final boolean ack = d.optBoolean("ack"), last = i >= pg.size() - 1;
         String kind = d.optString("kind", "note");
         String tag = ("birthday".equals(kind) ? "BIRTHDAY" : "anniversary".equals(kind) ? "ANNIVERSARY" : "celebrate".equals(kind) ? "CELEBRATION"
-                : "volume".equals(kind) ? "A FRIENDLY REMINDER" : "wrapup".equals(kind) || "timeup".equals(kind) ? "SESSION REMINDER" : "A MESSAGE")
+                : "volume".equals(kind) ? "A FRIENDLY REMINDER" : "wrapup".equals(kind) || "timeup".equals(kind) ? "SESSION REMINDER" : "extend".equals(kind) ? "SESSION EXTENDED" : "A MESSAGE")
                 + (d.optString("to").isEmpty() ? "" : " \u00B7 FOR " + d.optString("to").toUpperCase()) + (again && i == 0 ? " \u00B7 REMINDER" : "")
                 + (pg.size() > 1 ? " \u00B7 " + (i + 1) + "/" + pg.size() : "");
         String text = pg.get(i) + (last && !d.optString("from").isEmpty() ? "\n\u2014 " + d.optString("from") : "");
-        bangText = "icon:" + (kind.matches("birthday|anniversary|celebrate|volume|wrapup|timeup") ? kind : "note");
+        coinText = "extend".equals(kind) ? "+" + Math.max(1, d.optInt("n", 1)) : null;
+        bangText = "icon:" + (kind.matches("birthday|anniversary|celebrate|volume|wrapup|timeup|extend") ? kind : "note");
         // ◀ ▶ turn the pages (guests can go back to re-read or take a photo); OK only closes it, on the last page
         okText = !last ? (i > 0 ? "\u25C0 \u25B6" : "\u25B6") + "  NEXT PAGE  " + (i + 1) + "/" + pg.size()
                 : (pg.size() > 1 ? "\u25C0   " : "") + (ack ? "[OK]  SEEN IT \u00B7 CLOSES THIS" : "[OK]  CLOSE");
