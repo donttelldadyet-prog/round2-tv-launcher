@@ -161,6 +161,7 @@ list and the last 30 changes with `/gm` `action=queue` (fields `follow`, `follow
 
 ## Cut-off for session-end messages (31 Oct 2026)
 "That's a wrap!" (`timeup`) stops showing **15 minutes** after its show time (the cleaning time), and "About 10 minutes to
-go" (`wrapup`) after **25 minutes** (the 10 minutes + cleaning), so neither can pop up for the next group if nobody pressed
+go" (`wrapup`) after **4 minutes**, so it shows **once**: OK or Back and it doesn't come back (a repeat 5 minutes later would
+still say "10 minutes"; owner, 31 Oct). Neither can pop up for the next group if nobody pressed
 OK. All other messages keep the 3-hour cut-off. Set in Make (`r2` route and `move` route: `end`/`until`) and in the
 control centre (Messages: send now, send again).
