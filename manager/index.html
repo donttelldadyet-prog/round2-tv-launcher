@@ -33,15 +33,44 @@ header.top .wrap { display: flex; align-items: center; gap: 16px; padding-top: 1
 .brand small { letter-spacing: .14em; font-weight: 500; color: var(--mute); margin-left: 8px; font-size: 12px; }
 .brand.logo { border: 0; padding: 0; display: flex; align-items: center; gap: 10px; }
 .brand.logo img { height: 30px; width: auto; display: block; }
-nav.tabs { display: flex; gap: 4px; margin-left: auto; }
-nav.tabs button { background: none; border: 1px solid transparent; padding: 8px 14px; letter-spacing: .12em; font-size: 13px; text-transform: uppercase; color: var(--mute); }
-nav.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--line2); background: var(--panel); }
-nav.subtabs { display: flex; gap: 6px; margin: 18px 0 -4px; overflow-x: auto; scrollbar-width: none; }
+/* Areas: each main tab has its own colour and icon. The colour follows you on every page in that area
+   (the section bar, page titles, card edges), so you can tell where you are at a glance. */
+[data-group="home"], body[data-g="home"] { --c: #F2C21B; }
+[data-group="sess"], body[data-g="sess"] { --c: #4DB848; }
+[data-group="notif"], body[data-g="notif"] { --c: #FF6FAE; }
+[data-group="themes"], body[data-g="themes"] { --c: #A78BFA; }
+[data-group="menu"], body[data-g="menu"] { --c: #F59E0B; }
+[data-group="web"], body[data-g="web"] { --c: #38BDF8; }
+[data-group="sys"], body[data-g="sys"] { --c: #2DD4BF; }
+[data-group="help"], body[data-g="help"] { --c: #B8B0CC; }
+body { --gc: var(--c, var(--accent)); }
+.ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+nav.tabs { display: flex; gap: 2px; order: 3; width: 100%; margin: 0 -4px; border-top: 1px solid var(--line); padding-top: 8px; }
+nav.tabs button { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; border-bottom: 3px solid transparent; padding: 8px 12px 7px; letter-spacing: .1em; font-size: 13px; text-transform: uppercase; color: var(--mute); }
+nav.tabs button .ico { color: var(--c); }
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--c); background: var(--panel); font-weight: 600; }
+nav.subtabs { display: flex; align-items: center; gap: 6px; margin: 18px 0 -4px; overflow-x: auto; scrollbar-width: none; }
 nav.subtabs::-webkit-scrollbar { display: none; }
 nav.subtabs:empty { display: none; }
+nav.subtabs .sect { flex: none; display: inline-flex; align-items: center; gap: 8px; color: var(--gc); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; padding-right: 12px; margin-right: 4px; border-right: 1px solid var(--line2); }
 nav.subtabs button { flex: none; background: none; border: 1px solid var(--line2); border-radius: 999px; padding: 8px 16px; font-size: 13px; letter-spacing: .06em; color: var(--mute); }
-nav.subtabs button[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
-.who { font-size: 13px; color: var(--mute); }
+nav.subtabs button:hover { color: var(--ink); }
+nav.subtabs button[aria-current="page"] { background: var(--gc); border-color: var(--gc); color: #111; font-weight: 600; }
+.brand { cursor: pointer; }
+.who { font-size: 13px; color: var(--mute); margin-left: auto; }
+/* Overview (Home) */
+.hub { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
+.hub article { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--c); padding: 16px 18px; display: grid; gap: 10px; align-content: start; }
+.hub h3 { margin: 0; display: flex; align-items: center; gap: 10px; color: var(--c); font-size: 17px; letter-spacing: .1em; text-transform: uppercase; }
+.hub h3 .ico { width: 22px; height: 22px; }
+.hub p { margin: 0; color: var(--mute); font-size: 14px; }
+.hub .go { display: flex; flex-wrap: wrap; gap: 6px; }
+.hub .go button { background: var(--bg); border: 1px solid var(--line2); border-radius: 999px; padding: 7px 14px; font-size: 13px; color: var(--ink); }
+.hub .go button:hover { border-color: var(--c); color: var(--c); }
+/* page titles carry the area colour */
+main > section > h1, main > section > .row h1 { display: flex; align-items: center; gap: 12px; }
+main > section > h1::before, main > section > .row h1::before { content: ''; flex: none; width: 6px; height: .85em; background: var(--gc); }
 .who button { background: none; border: 0; color: var(--focus); padding: 0; margin-left: 6px; text-decoration: underline; }
 
 h1 { font-size: 30px; letter-spacing: .06em; text-transform: uppercase; margin: 28px 0 4px; }
@@ -55,7 +84,7 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .btn.ghost { background: none; }
 .btn:disabled { opacity: .5; cursor: default; }
 
-.card { background: var(--panel); border: 1px solid var(--line); padding: 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); padding: 18px; border-top: 2px solid var(--line2); border-top-color: color-mix(in srgb, var(--gc) 55%, transparent); }
 .banner { padding: 12px 16px; border: 1px solid var(--line2); background: var(--panel2); margin: 16px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .banner.ok { border-color: rgba(77,184,72,.6); }
 .banner.warn { border-color: rgba(242,162,27,.7); }
@@ -321,6 +350,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   .ed .side { border-left: 0; border-top: 1px solid var(--line); }
   nav.tabs { margin-left: 0; width: 100%; }
   nav.tabs button { padding: 8px 9px; font-size: 12px; letter-spacing: .08em; }
+  nav.subtabs .sect span { display: none; }
+  nav.subtabs .sect { padding-right: 8px; margin-right: 0; }
 }
 </style>
 </head>
@@ -328,12 +359,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 <header class="top"><div class="wrap">
   <div class="brand" id="brand">ROUND2 <small>CONTROL CENTRE</small></div>
   <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" aria-selected="true" data-group="home">Home</button>
     <button role="tab" aria-selected="false" data-group="sess">In session</button>
-    <button role="tab" aria-selected="true" data-group="notif">Notifications</button>
-    <button role="tab" aria-selected="false" data-group="themes">Themes</button>
+    <button role="tab" aria-selected="false" data-group="notif">TV messages</button>
+    <button role="tab" aria-selected="false" data-group="themes">TV setup</button>
     <button role="tab" aria-selected="false" data-group="menu">Food menu</button>
     <button role="tab" aria-selected="false" data-group="web">Website</button>
-    <button role="tab" aria-selected="false" data-group="sys">Systems</button>
+    <button role="tab" aria-selected="false" data-group="sys">Tests &amp; systems</button>
     <button role="tab" aria-selected="false" data-group="help">Help</button>
   </nav>
   <div class="who" id="who" hidden></div>
@@ -359,6 +391,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       </div>
       <p class="hint" id="tokMsg" style="margin:10px 0 0">The key is saved only in this browser on this computer. Anyone with it can change the TV themes, so don't share it in group chats. Delete it any time from the same GitHub page.</p>
     </div>
+  </section>
+
+  <!-- overview: every area and its pages (built by script from GROUPS) -->
+  <section id="tab-home" hidden>
+    <h1>Control centre</h1>
+    <p class="sub">Pick what you need. Each area has its own colour and icon, and that colour stays with you on every page inside it.</p>
+    <div class="hub" id="hub"></div>
   </section>
 
   <!-- schedule -->
@@ -528,7 +567,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-tests" hidden>
     <h1>TV tests</h1>
     <p class="sub">Check any room's TV from here: send a test message or a test food alert and watch it arrive. Nothing reaches the kitchen, and the test order isn't real.</p>
-    <div class="banner warn" data-needkey hidden><div class="grow">Add the <b>TV messages key</b> on the Messages tab first (once per phone or computer).</div></div>
+    <div class="banner warn" data-needkey hidden><div class="grow">Add the <b>TV messages key</b> under <b>TV messages › Round2 messages</b> first (once per phone or computer).</div></div>
     <div class="tlock" id="tLock"></div>
     <div class="rooms" id="tRooms"></div>
   </section>
@@ -929,7 +968,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   /* ---------- sign in ---------- */
   function showApp(on) {
     $('who').hidden = !on;
-    tab(ls('r2m.tab') || 'messages');
+    tab(ls('r2m.tab') || 'home');
   }
   /* the menu editor (round2sg-home) lives on the same site, so it can use this page's GitHub key if it has none yet */
   function openMenuEditor() {
@@ -1848,24 +1887,50 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
+     everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
+    home: [['home', 'Overview']],
     sess: [['insession', 'In session']],
-    notif: [['messages', 'Round2 messages'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link'], ['tests', 'Test a TV']],
-    themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'Settings']],
+    notif: [['messages', 'Round2 messages'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link']],
+    themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors']],
-    sys: [['systems', 'All systems'], ['testbench', 'Test bench']],
-    help: [['help', 'How it works'], ['stuck', 'If stuck']]
+    sys: [['tests', 'Test a TV'], ['testbench', 'Test bench'], ['systems', 'All systems']],
+    help: [['help', 'How it works'], ['stuck', 'If a TV is stuck']]
   };
-  function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'notif'; }
+  var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
+    home: ['Home', '<path d="M3 11l9-7 9 7v9h-6v-6H9v6H3z"/>'],
+    sess: ['In session', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 'Rooms running today. Add extra hours after a guest pays, and the TV shows the new time.'],
+    notif: ['TV messages', '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>', 'Send birthday notes and house reminders to a room’s TV. See, move or cancel the messages guests wrote, and make guest links.'],
+    themes: ['TV setup', '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>', 'How the TVs look and behave: event backgrounds, each room’s default look, ambience sounds, staff PIN and app updates.'],
+    menu: ['Food menu', '<path d="M4 11h16a8 8 0 0 1-16 0z"/><path d="M9 4v4M12 3v5M15 4v4"/>', 'Edit the room food menu and prices, and run a test order through the kitchen and TV chain.'],
+    web: ['Website', '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/>', 'Who is on round2.sg right now, the busy hours, and how far people get towards booking.'],
+    sys: ['Tests & systems', '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>', 'Check one TV, try booking and food orders safely, and see the status of everything Round2 runs.'],
+    help: ['Help', '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5M12 16.8v.2"/>', 'How themes work, installing this as an app, and what to do if a TV is stuck.']
+  };
+  function ico(g) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + AREAS[g][1] + '</svg>'; }
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.insertAdjacentHTML('afterbegin', ico(b.getAttribute('data-group'))); });
+  $('hub').innerHTML = Object.keys(GROUPS).filter(function (g) { return g !== 'home'; }).map(function (g) {
+    return '<article data-group="' + g + '"><h3>' + ico(g) + AREAS[g][0].replace('&', '&amp;') + '</h3><p>' + AREAS[g][2] + '</p><div class="go">' +
+      GROUPS[g].map(function (x) { return '<button type="button" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></article>';
+  }).join('');
+  $('hub').addEventListener('click', function (e) { var n = e.target.closest && e.target.closest('[data-tab]'); if (n) { tab(n.getAttribute('data-tab')); scrollTo(0, 0); } });
+  $('brand').addEventListener('click', function () { tab('home'); scrollTo(0, 0); });
+  function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'home'; }
   function tab(n) {
-    if (TABS.indexOf(n) < 0) n = 'messages';
+    if (TABS.indexOf(n) < 0) n = 'home';
     ls('r2m.tab', n); ls('r2m.sub.' + groupOf(n), n);
     var g = groupOf(n);
+    document.body.setAttribute('data-g', g);
     Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-group') === g); });
     var subs = GROUPS[g];
-    $('subtabs').innerHTML = subs.length < 2 ? '' : subs.map(function (x) { return '<button type="button" data-tab="' + x[0] + '"' + (x[0] === n ? ' aria-current="page"' : '') + '>' + x[1] + '</button>'; }).join('');
+    $('subtabs').innerHTML = g === 'home' ? '' : '<span class="sect" title="' + AREAS[g][0].replace('&', '&amp;') + '">' + ico(g) + '<span>' + AREAS[g][0].replace('&', '&amp;') + '</span></span>' + (subs.length < 2 ? '' : subs.map(function (x) { return '<button type="button" data-tab="' + x[0] + '"' + (x[0] === n ? ' aria-current="page"' : '') + '>' + x[1] + '</button>'; }).join(''));
+    [document.querySelector('#tabs [aria-selected="true"]'), document.querySelector('#subtabs [aria-current="page"]')].forEach(function (el) {   /* phones: keep the current tab and page in view in the sideways-scrolling bars */
+      if (!el) return; var bar = el.parentNode; if (bar.scrollWidth <= bar.clientWidth) return;
+      bar.scrollLeft = el.offsetLeft - bar.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;
+    });
     var needGh = GH_TABS.indexOf(n) >= 0 && !token;
     TABS.forEach(function (k) { $('tab-' + k).hidden = k !== n || needGh; });
     $('signin').hidden = !needGh;
@@ -1890,8 +1955,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     Array.prototype.forEach.call(document.querySelectorAll('iframe.gframe'), function (f) { if (f.contentWindow === e.source) f.style.height = (e.data.h + 8) + 'px'; });
   });
   /* four main tabs, each with its own pages; a main tab reopens on the page last used in it */
-  $('tabs').addEventListener('click', function (e) { var g = e.target.getAttribute && e.target.getAttribute('data-group'); if (g) tab(ls('r2m.sub.' + g) || GROUPS[g][0][0]); });
-  $('subtabs').addEventListener('click', function (e) { var n = e.target.getAttribute && e.target.getAttribute('data-tab'); if (n) tab(n); });
+  $('tabs').addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('[data-group]'), g = t && t.getAttribute('data-group'); if (g) { var s = ls('r2m.sub.' + g); tab(s && groupOf(s) === g ? s : GROUPS[g][0][0]); } });
+  $('subtabs').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-tab]'); if (b) tab(b.getAttribute('data-tab')); });
   $('roomFilter').innerHTML = '<option value="all">All rooms</option>' + Object.keys(ROOMS).map(function (k) { return '<option value="' + k + '">' + ROOMS[k].name + '</option>'; }).join('');
   $('roomFilter').onchange = renderList;
   $('rooms').addEventListener('click', function (e) {
