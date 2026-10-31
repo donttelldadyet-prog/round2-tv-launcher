@@ -146,6 +146,9 @@ it on to Make's mirror-rooms scenario unchanged). The engine also checks right b
   booking starts exactly at the new room + time.
 - **No booking at that room + time** (e.g. the link was made for a slightly different time): nothing happens; staff move it
   by hand as before.
+- **Online bookings** (booking page "Celebrating?"): the message is tied to its booking the moment it's made (31 Oct).
+- **Booking cancelled before the engine tied it** (no booking left at that room + start, but a cancelled one is there):
+  the link is cancelled too (31 Oct; this left two test messages behind on 30 Oct).
 - Safety: more than 3 cancels in one check → nothing is cancelled (logged as "held"), in case SimplyBook answers oddly.
 
 Costs: one SimplyBook read per booking change (120 days of bookings); Make only when a message actually moves. Staff can see the
