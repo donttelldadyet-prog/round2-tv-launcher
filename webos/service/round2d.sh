@@ -97,6 +97,13 @@ watch_apps() {
       fi
       # the guest left the menu for an app or input: a message still waiting for OK follows as the small banner now
       [ "$prev" = "$APP" ] && [ "$id" != "$APP" ] && rm -f "$CFG/msg.last"
+      # app to app (YouTube -> Netflix with the remote's Netflix button): if webOS closed our card on the way, a message
+      # waiting for OK (and Loot dropped) come straight back over the new app instead of after the 5-minute reminder.
+      # If the card is still up, nothing changes (it stays until OK).
+      case "$prev:$id" in
+        :*|*:"$APP"|"$APP":*|*:com.webos.app.home|*:com.webos.app.launcher|com.webos.app.home:*|com.webos.app.launcher:*) ;;
+        *) [ "$prev" != "$id" ] && ( sleep 2; alerts_running || { rm -f "$CFG/card.up" "$CFG/msg.last" "$CFG/food.last"; log "app switch: card gone, shows again"; } ) & ;;
+      esac
       if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then          # Round2 Home just updated itself
         rm -f "$CFG/relaunch"; sleep 1; launch update; prev=$APP; continue
       fi
@@ -153,6 +160,9 @@ ov_show() {     # $1 app id, $2 params JSON. Fails (so the caller uses LG's pop-
   case "$r" in *'"returnValue":true'*|*'"returnValue": true'*) return 0 ;; esac
   log "Round2 Alerts didn't open: $(echo "$r" | tr -d '\n' | cut -c1-120)"
   return 1
+}
+alerts_running() {   # is the Round2 Alerts card (its webOS overlay app) still open?
+  luna-send -n 1 luna://com.webos.applicationManager/running '{}' 2>/dev/null | grep -q '"sg.round2.alerts'
 }
 # Is Round2 Home in front right now? (asked fresh: the menu shows alerts itself then)
 menu_front() {
