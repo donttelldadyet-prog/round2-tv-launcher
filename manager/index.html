@@ -297,7 +297,9 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 .tcard h3 { margin: 0; font-size: 20px; color: var(--rc); letter-spacing: .08em; text-transform: uppercase; }
 .tcard .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tcard .btns .btn { padding: 12px 8px; }
-.tcard .st { font-size: 13px; color: var(--mute); display: grid; gap: 2px; }
+.tcard .tst { font-size: 13px; color: var(--mute); display: grid; gap: 2px; overflow-wrap: anywhere; }
+.tcard > * { min-width: 0; }
+.tcard .btns .btn { min-width: 0; overflow-wrap: anywhere; }
 .tcard.off { opacity: .38; }
 .tcard.off .btn { pointer-events: none; }
 .tlock { border: 1px solid var(--warn); background: var(--panel2); padding: 14px 16px; margin: 16px 0; display: grid; gap: 10px; }
@@ -1826,7 +1828,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           '<div class="btns"><button class="btn" data-t="msg" data-r="' + k + '">Test message</button><button class="btn" data-t="note" data-r="' + k + '">Long message</button>' +
           '<button class="btn" data-t="received" data-r="' + k + '">Order locked in</button><button class="btn" data-t="ready" data-r="' + k + '">Loot dropped</button>' +
           '<button class="btn" data-t="sim" data-r="' + k + '" style="grid-column:1/-1">Full order test (menu + kitchen + TV)</button></div>' +
-          '<div class="st" id="tst-' + k + '">' + (key() ? 'Checking\u2026' : '') + '</div></article>';
+          '<div class="tst" id="tst-' + k + '">' + (key() ? 'Checking\u2026' : '') + '</div></article>';
       }).join('');
       status();
     }
