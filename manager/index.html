@@ -1663,8 +1663,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           '<li>Messages: ' + mv(P.wrapup, 'About 10 minutes to go') + '; ' + mv(P.timeup, 'That’s a wrap!') + '.</li>' +
           '<li>TV: “' + esc(P.banner.title) + '” – ' + (P.banner.ack ? 'stays until someone presses OK' : 'closes by itself, no OK needed') + '.</li></ul>' +
           (P.clash.length ? '<ul class="warnl">' + P.clash.map(function (c) { return '<li>Clashes with ' + esc(c.what) + ' in ' + esc(c.room) + ' (' + t(c.s) + ' – ' + t(c.e) + ').</li>'; }).join('') + '<li>Only extend anyway if you’ve sorted that out.</li></ul>' : '') +
-          '<div class="row"><button class="btn primary" id="sGo">' + (P.clash.length ? 'Extend anyway' : 'Yes, extend') + '</button><button class="btn" id="sBack">Back</button></div>';
-        $('sGo').onclick = go; $('sBack').onclick = closeReview;
+          '<label style="display:flex;gap:10px;align-items:center;font-weight:600"><input type="checkbox" id="sPaid" style="width:20px;height:20px"> The guest has paid for +' + n + ' hour' + (n > 1 ? 's' : '') + ' (I’ve checked the payment)</label>' +
+          '<div class="row"><button class="btn primary" id="sGo" disabled>' + (P.clash.length ? 'Extend anyway' : 'Yes, extend') + '</button><button class="btn" id="sBack">Back</button></div>';
+        /* two confirmations: tick "paid", press once, then press again within 8 s */
+        var armed = false, armT = null, label = $('sGo').textContent;
+        $('sPaid').onchange = function () { $('sGo').disabled = !this.checked; armed = false; $('sGo').textContent = label; $('sGo').style.background = ''; };
+        $('sGo').onclick = function () {
+          if (!$('sPaid').checked) return;
+          if (!armed) { armed = true; $('sGo').textContent = 'Press again: add ' + n + 'h to ' + P.room + ' now'; $('sGo').style.background = 'var(--bad)'; $('sGo').style.borderColor = 'var(--bad)';
+            clearTimeout(armT); armT = setTimeout(function () { if (!$('sGo')) return; armed = false; $('sGo').textContent = label; $('sGo').style.background = ''; $('sGo').style.borderColor = ''; }, 8000); return; }
+          clearTimeout(armT); go();
+        };
+        $('sBack').onclick = closeReview;
       }).catch(function () { box.innerHTML = '<div>Couldn’t reach the engine.</div>'; });
     }
     function closeReview() { pend = null; $('sReview').hidden = true; $('sReview').innerHTML = ''; }
@@ -1691,15 +1701,24 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     $('sRefresh').onclick = load;
     $('sKeySave').onclick = function () { var v = $('sKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('sKey').value = ''; load(); };
     $('sTRoom').innerHTML = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'].map(function (r) { return '<option value="' + r + '">' + ROOMS[RK[r]].name + '</option>'; }).join('');
+    /* test banner: press once to see what will happen, then "Yes, show it" (and, if guests are in that room, tick that you know) */
     $('sTGo').onclick = function () {
       if (!key()) { $('sKeyBox').hidden = false; return; }
-      var r = $('sTRoom').value, R = last && last.rooms[r];
-      if (R && R.sessions.some(function (x) { return x.st === 'now'; }) && !confirm(ROOMS[RK[r]].name + ' has guests in it right now. Show the test banner on their TV anyway?')) return;
+      var r = $('sTRoom').value, R = last && last.rooms[r], busy = R && R.sessions.some(function (x) { return x.st === 'now'; }), nm = ROOMS[RK[r]].name;
+      $('sTMsg').innerHTML = '<div class="review' + (busy ? ' now' : '') + '" style="margin-top:6px"><div class="big">Show a TEST banner on ' + esc(nm) + '’s TV now?</div>' +
+        '<div>“+' + $('sTH').value + ' CREDIT' + ($('sTH').value > 1 ? 'S' : '') + ' ADDED (TEST)” – ' + ($('sTAck').checked ? 'stays until someone presses OK' : 'closes by itself') + '. Nothing changes in SimplyBook or the messages.</div>' +
+        (busy ? '<label style="display:flex;gap:8px;align-items:center;color:var(--warn)"><input type="checkbox" id="sTBusy"> ' + esc(nm) + ' has guests in it right now – show it on their TV anyway</label>' : '') +
+        '<div class="row"><button class="btn primary" id="sTYes"' + (busy ? ' disabled' : '') + '>Yes, show it</button><button class="btn" id="sTNo">Cancel</button></div></div>';
+      if (busy) $('sTBusy').onchange = function () { $('sTYes').disabled = !this.checked; };
+      $('sTNo').onclick = function () { $('sTMsg').textContent = 'Not sent.'; };
+      $('sTYes').onclick = function () { testSend(r); };
+    };
+    function testSend(r) {
       $('sTMsg').textContent = 'Sending…';
       call({ action: 'extend', test: 1, room: r, hours: $('sTH').value, ack: $('sTAck').checked ? 'yes' : 'no' }).then(function (j) {
         $('sTMsg').textContent = j && j.ok ? (j.banner && j.banner.shown ? 'Sent. It pops up on ' + ROOMS[RK[r]].name + '’s TV within a few seconds.' : 'Not shown: ' + ((j.banner && j.banner.why) || '?') + '.') : 'Couldn’t send: ' + ((j && j.error) || 'no answer') + '.';
       });
-    };
+    }
     return {
       open: function () { load(); clearInterval(timer); timer = setInterval(function () { if (!pend) load(); }, 60000); },
       close: function () { clearInterval(timer); timer = null; }

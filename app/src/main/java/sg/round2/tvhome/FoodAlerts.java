@@ -93,7 +93,12 @@ public class FoodAlerts extends Service {
 
     static void menuInFront() {
         final FoodAlerts s = inst;
-        if (s != null) s.main.post(new Runnable() { @Override public void run() { s.hideCard(); } });
+        if (s == null) return;
+        s.main.post(new Runnable() { @Override public void run() { s.hideCard(); } });
+        /* a message still waiting for OK (e.g. its small banner was up and the guest pressed Home instead of OK) comes
+           back straight away as the big banner on the home screen, not at the next 5-minute reminder. If the menu is
+           still loading, MainActivity holds it until the page is ready. */
+        s.main.postDelayed(new Runnable() { @Override public void run() { s.main.removeCallbacks(s.msgTick); s.main.post(s.msgTick); } }, 1500);
     }
 
     /** A guest pressed OK on a "ready" alert: stop reminding. */
