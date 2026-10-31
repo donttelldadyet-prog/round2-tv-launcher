@@ -166,19 +166,29 @@ still say "10 minutes"; owner, 31 Oct). Neither can pop up for the next group if
 OK. All other messages keep the 3-hour cut-off. Set in Make (`r2` route and `move` route: `end`/`until`) and in the
 control centre (Messages: send now, send again).
 
-## Big banner vs small banner (owner's terms, 31 Oct 2026 – use these words)
+## Big banner vs small banner (owner's terms and rules, 31 Oct 2026 – use these words)
 - **Big banner** = the message card on the Round2 Home screen (menu in front).
 - **Small banner** = the message card over another app or input (PlayStation/HDMI, Netflix, YouTube…): Android's overlay
-  card (`FoodAlerts.java` `showMsgPage`, 45 s) or, on the rooted LGs, the Round2 Alerts card (`webos/alerts`, 45 s) /
-  LG's own pop-up if Round2 Alerts can't open (stays until a button is pressed).
+  card (`FoodAlerts.java` `showMsgPage`), the rooted LGs' Round2 Alerts card (`webos/alerts`), or LG's own pop-up if
+  Round2 Alerts can't open.
+
+Rule (owner): **"must be acknowledged" means the guest has to press OK. It never disappears on its own** (big or small
+banner); Back and every other button only shake it. Only the cut-off removes it.
 
 | | Big banner | Small banner |
 |---|---|---|
-| "Must be acknowledged" ON | Stays until **OK**. **Back** hides it; back in 5 min. | Shows **45 s**, then hides itself (not acknowledged); back every 5 min until **OK**. |
-| "Must be acknowledged" OFF | Shows **1 min**, then gone. | Shows **45 s** once, then gone. |
-| Guest goes back to the home screen while one is waiting | – | Shown as a big banner right away. |
+| Must be acknowledged | Stays until **OK**; Back/other buttons shake it | Stays until **OK**; Back/other buttons shake it |
+| OK not needed | Shows **1 min**, then gone | Shows **45 s** once, then gone |
+| Guest leaves the home screen while one is waiting | – | Becomes a small banner straight away |
+| Guest goes back to the home screen while one is waiting | Shown as a big banner right away | – |
+| TV switched on while one is waiting | Shown as soon as the TV is on | Shown as soon as the TV is on |
+| Home screen still loading (after standby / a long film) | Held and shown as the big banner once loaded (never a small banner over our own home screen) | – |
+
+Which messages need OK: guest messages always; Round2 birthday/note/anniversary, "About 10 minutes to go", "That's a
+wrap!" by default; volume reminder and the others: staff choose (tickbox).
 
 Cut-off (gone for good, OK or not): guest message = booking start + 3 h · Round2 message = show time + 3 h ·
-"That's a wrap!" = +15 min · "About 10 minutes to go" = +4 min (so it shows once) · Test bench = 1 h.
-One message per TV: a newer one replaces the one showing.
-Open question (owner, 31 Oct): session messages as a small banner that stays until OK (TV app change).
+"That's a wrap!" = +15 min · "About 10 minutes to go" = +4 min · Test bench = 1 h.
+One message per TV: a newer one replaces the one showing, **except** that a Round2 message (e.g. "That's a wrap!") waits
+while a guest message is on the TV and not yet acknowledged (engine timer, checks every 2 min; dropped at its own cut-off).
+Staff "send now" from the control centre is not held.

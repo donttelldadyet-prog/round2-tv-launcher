@@ -117,7 +117,11 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
     for (var i = 0; i < 8; i++) (function (i) { setTimeout(function () { $('box').className = i % 2 ? '' : 'flash'; }, 200 + i * 250); })(i);
     clearInterval(blinkT); setTimeout(function () { blinkT = setInterval(function () { b.classList.toggle('lit'); }, 550); }, 3000);
     chime();
-    clearTimeout(hideT); hideT = setTimeout(function () { log('timed out'); close(); }, p.type === 'received' ? 15000 : 45000);
+    clearTimeout(hideT);
+    if (p.type === 'msg' && p.ack) {   /* must be acknowledged: stays until OK (other buttons shake it), gone at the cut-off */
+      var left = Number(p.until) - Date.now();
+      if (left > 0) hideT = setTimeout(function () { log('cut-off'); close(); }, Math.min(left, 2147483000));
+    } else hideT = setTimeout(function () { log('timed out'); close(); }, p.type === 'received' ? 15000 : 45000);
     log('shown ' + p.type + (document.hasFocus() ? '' : ' (no remote focus)'));
   }
   function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }

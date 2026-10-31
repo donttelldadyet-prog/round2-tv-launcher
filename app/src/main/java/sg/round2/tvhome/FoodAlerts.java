@@ -79,6 +79,18 @@ public class FoodAlerts extends Service {
     }
 
     /** The Round2 menu came to the front: drop the card drawn over other apps (the menu shows its own). */
+    /** Round2 Home went to the background (an app, an HDMI input, standby): a message still waiting for OK
+     *  becomes a small banner straight away. */
+    static void menuLeft() {
+        final FoodAlerts s = inst;
+        if (s != null) s.main.postDelayed(new Runnable() { @Override public void run() { s.main.removeCallbacks(s.msgTick); s.main.post(s.msgTick); } }, 700);
+    }
+
+    /* TV switched on: a message that came while the screen was off shows now */
+    private final android.content.BroadcastReceiver screenOn = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) { main.removeCallbacks(msgTick); main.postDelayed(msgTick, 4_000); }
+    };
+
     static void menuInFront() {
         final FoodAlerts s = inst;
         if (s != null) s.main.post(new Runnable() { @Override public void run() { s.hideCard(); } });
@@ -182,12 +194,13 @@ public class FoodAlerts extends Service {
         new Thread(this::listen, "food-alerts").start();
         new Thread(this::listenMsg, "room-messages").start();
         main.post(msgTick);   // a message waiting from before a restart
+        try { registerReceiver(screenOn, new android.content.IntentFilter(Intent.ACTION_SCREEN_ON)); } catch (Exception ignored) { }
     }
 
     @Override public int onStartCommand(Intent i, int flags, int id) { return START_STICKY; }
 
     @Override
-    public void onDestroy() { if (inst == this) inst = null; running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }
+    public void onDestroy() { try { unregisterReceiver(screenOn); } catch (Exception ignored) { } if (inst == this) inst = null; running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }
 
     /** The Firebase Realtime Database that carries the alerts. Make.com writes each alert to
      *  /r2/<key>/<room>/last; every TV streams its own room's node (Server-Sent Events). */
@@ -313,6 +326,7 @@ public class FoodAlerts extends Service {
         final boolean lockOk = okLocked;
         onOk = null; onLeft = null; onRight = null; okLocked = false; okText = "[OK]  GOT IT";
         hideCard();
+        msgCardId = null;   // whatever card was up is gone now (showMsgPage sets it again for a message)
         u = getResources().getDisplayMetrics().widthPixels / 1920f;
         final int room = colour(prefs(this).getString("color", ""), 0xFFF2C21B);
         final int ink = colour(prefs(this).getString("ink", ""), 0xFF0B0914);
@@ -447,7 +461,7 @@ public class FoodAlerts extends Service {
                     main.postDelayed(this, 550);
                 }
             }, 3000);
-            main.postDelayed(new Runnable() { @Override public void run() { if (card == me) hideCard(); } }, ms);
+            if (ms > 0) main.postDelayed(new Runnable() { @Override public void run() { if (card == me) hideCard(); } }, ms);   // 0: stays until OK
         } catch (Exception e) {
             try { Toast.makeText(this, title + "\n" + text, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
         }
@@ -584,12 +598,13 @@ public class FoodAlerts extends Service {
                 JSONObject d = new JSONObject(j);
                 String id = d.optString("id");
                 long now = System.currentTimeMillis(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
-                if (now > until) { p.edit().remove("msg").apply(); return; }
+                if (now > until) { p.edit().remove("msg").apply(); if (card != null && id.equals(msgCardId)) { hideCard(); msgCardId = null; } return; }
                 if (now < at) { main.postDelayed(this, Math.min(at - now, 60_000)); return; }
+                if (card != null && id.equals(msgCardId)) { main.postDelayed(this, Math.max(1_000, Math.min(MSG_REPEAT_MS, until - now + 1_000))); return; }   // still on screen
                 boolean again = id.equals(p.getString("msgShownId", ""));
                 if (!again) { p.edit().putString("msgShownId", id).apply(); report(FoodAlerts.this, "msgShown", id); }
                 showMsg(j, again);
-                if (d.optBoolean("ack")) main.postDelayed(this, MSG_REPEAT_MS);       // until someone presses OK
+                if (d.optBoolean("ack")) main.postDelayed(this, Math.max(1_000, Math.min(MSG_REPEAT_MS, until - now + 1_000)));   // until OK, or gone at the cut-off
                 else p.edit().putString("msgDone", id).remove("msg").apply();
             } catch (Exception ignored) { }
         }
@@ -641,7 +656,9 @@ public class FoodAlerts extends Service {
         if (i > 0) onLeft = new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i - 1); } };
         if (!last) onRight = new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i + 1); } };
         onOk = new Runnable() { @Override public void run() { msgCardId = null; if (ack) msgAck(FoodAlerts.this, id); } };
-        showCard(tag, i == 0 ? d.optString("title") : "", text, "", READY_SHOW_MS, "", false);   // like "Loot dropped": 45 s a page, back every 5 min until OK
+        // must be acknowledged: stays until OK (Back and other buttons only shake it), gone at the cut-off;
+        // no OK needed: 45 s (owner's rules, 31 Oct 2026 – docs/guest-messages.md "Big banner vs small banner")
+        showCard(tag, i == 0 ? d.optString("title") : "", text, "", ack ? 0 : READY_SHOW_MS, "", false);
         msgCardId = id;
     }
 

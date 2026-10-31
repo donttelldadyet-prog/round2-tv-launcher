@@ -92,6 +92,8 @@ watch_apps() {
           ( sleep 1; luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$APP\",\"params\":{\"r2\":\"back\"}}" >/dev/null 2>&1 ) &
         fi
       fi
+      # the guest left the menu for an app or input: a message still waiting for OK follows as the small banner now
+      [ "$prev" = "$APP" ] && [ "$id" != "$APP" ] && rm -f "$CFG/msg.last"
       if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then          # Round2 Home just updated itself
         rm -f "$CFG/relaunch"; sleep 1; launch update; prev=$APP; continue
       fi
@@ -124,7 +126,7 @@ watch_power() {
       [ -z "$st" ] && continue
       if [ "$st" = "Active" ]; then
         case "$last" in
-          "Active Standby"|"Suspend"|"Power Off") on poweron && { sleep 2; launch poweron; } ;;
+          "Active Standby"|"Suspend"|"Power Off") rm -f "$CFG/msg.last"; on poweron && { sleep 2; launch poweron; } ;;   # TV on: a waiting message shows now
         esac
       fi
       last=$st
@@ -258,7 +260,7 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
   text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean); to=$(printf '%s\n' "$line" | field to | clean)
   ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
   case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; *) tag="A MESSAGE" ;; esac
-  card="{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"to\":\"$to\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"room\":\"$room\"}"
+  card="{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"to\":\"$to\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"until\":$(printf '%s\n' "$line" | num until | grep -E '^[0-9]+$' || echo 0),\"room\":\"$room\"}"
   if menu_front; then menu_card "$card"; return 0; fi   # the menu's big card
   if ov=$(ov_app); then ov_show "$ov" "$card" && return 0; fi   # our own card pages the message itself
   printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | { if command -v fold >/dev/null 2>&1; then fold -s -w 110; else cat; fi; } > "$CFG/msg.pages"

@@ -143,6 +143,8 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 pageReady = true;
                 applyPendingRoom();
+                if (pendingMsg != null) { final String j = pendingMsg; pendingMsg = null;
+                    web.postDelayed(new Runnable() { @Override public void run() { if (web != null) web.evaluateJavascript("window.r2Msg && window.r2Msg(" + j + ")", null); } }, 1500); }
                 if (splash != null) splash.postDelayed(new Runnable() { @Override public void run() {   // the menu's boot screen has drawn by now
                     if (splash != null) { splash.animate().alpha(0f).setDuration(250).start(); splash.postDelayed(new Runnable() {
                         @Override public void run() { if (splash != null) { splash.setVisibility(View.GONE); } } }, 300); }
@@ -292,9 +294,13 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String pendingMsg;   // a message that arrived while the menu was loading
+
     @Override
     protected void onPause() {
         if (front == this) front = null;
+        pendingMsg = null;
+        FoodAlerts.menuLeft();   // a message waiting for OK follows the guest as a small banner
         if (bg != null) bg.pause();
         if (web != null) web.evaluateJavascript("window.r2Pause && window.r2Pause()", null);   // stop the rain ambience
         if (web != null) web.onPause();   // stops the background video while an app is open
@@ -347,7 +353,10 @@ public class MainActivity extends Activity {
     /** A personal message (FoodAlerts): the menu shows it if it is on screen. False = show it natively. */
     static boolean showMsg(final String json) {
         final MainActivity a = front;
-        if (a == null || a.web == null || !a.pageReady) return false;
+        if (a == null) return false;
+        /* Round2 Home is in front but the menu is still (re)loading (after standby, a long film): hold the message and
+           show it as the big banner once the menu is ready – never a small banner over our own home screen */
+        if (a.web == null || !a.pageReady) { a.pendingMsg = json; return true; }
         a.runOnUiThread(new Runnable() { @Override public void run() {
             if (a.web != null) a.web.evaluateJavascript("window.r2Msg && window.r2Msg(" + json + ")", null);
         } });
