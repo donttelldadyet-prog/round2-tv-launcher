@@ -222,3 +222,9 @@ For the admin who handles extensions. Control centre › **In session** (engine 
 - **Android:** the small banner is a system overlay, so it stays on top when the guest jumps YouTube → Netflix with the remote's Netflix button (or the TV ignores that button while the card has the remote – it shakes, like any other button). Pressing Home brings the message straight back as the big banner (`FoodAlerts.menuInFront`).
 - **LG:** webOS may close the Round2 Alerts card when another app opens. The helper (`watch_apps`) checks 2 s after any app-to-app switch whether `sg.round2.alerts` is still running; if not, it clears `card.up`/`msg.last`/`food.last` so a message waiting for OK, or Loot dropped, pops up again over the new app within seconds. Home pressed while the card was up: `card.up` is cleared and the big banner shows straight away.
 - No-OK messages and Order locked in are not brought back (they were already shown once).
+
+## 10 → 5 minutes → That's a wrap (owner, 31 Oct 2026)
+
+1. **About 10 minutes to go** (scheduled, needs OK): shows at end − 10 min, gone after 4 min.
+2. **About 5 minutes to go**: the engine (`nudgeRun`, round2sg-home worker) checks 5 min after the 10-minute reminder went to the TV. Only if that reminder is still the TV's message and nobody pressed OK, it writes a new one (id `w5…`, kind `wrapup`, needs OK, gone at end − 30 s). OK on the 10-minute one → no 5-minute one. A "send now" reminder from the control centre doesn't get one (only scheduled ones).
+3. **That's a wrap!** at the end, needs OK, gone after 15 min on every screen, OK or not (guests just read it and leave).
