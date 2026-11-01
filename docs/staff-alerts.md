@@ -13,12 +13,12 @@ Needs the guest messages staff code on the phone (Keys).
 ## Alerts
 | Kind | When | Example |
 |---|---|---|
-| `booking` | SimplyBook callback (`/sb/notify/<key>`): create / change / cancel | **🩷 VALE · Sat 2 Nov 4pm–7pm** · NEW · Amanda Tan · 3 pax · Peak · S$69 paid online (most important first: the iPhone banner cuts the body off) |
-| `soon` | Cron every 10 min, 9:45am–2am SG only: a session 50–62 min away (not if keyed in within the hour) (bookings **and** calendar notes that block time) | **🩷 VALE · in 1 hour · 11am–2pm** · Indra · booking |
+| `booking` | SimplyBook callback (`/sb/notify/<key>`): create / change / cancel | **⛵ ATLAS · Clarence Tia** (+ CHANGED / CANCELLED / in N min) · Sat 14 Nov, 11am–2pm · 3h · S$35 paid (EB+peak) · 2 pax |
+| `soon` | Cron every 10 min, 9:45am–2am SG only: a session 50–62 min away (not if keyed in within the hour), bookings **and** calendar notes | **🐈 VALE · Indra · in 1 hour** · Arrives 11am · 3h (till 2pm) · 2 pax (pax decides room set-up and controllers; from the booking field, or "4 pax" written in a note) |
 
-- Room colour: iPhone always shows the app icon, so the title starts with the room's heart: 🩷 Vale, 💚 Kaeden,
-  💛 Scarlett, 🩵 Kai, 💜 Bella, 🤍 Atlas, ❤️ Max (🩷/🩵 need iOS 16.4, the same version push needs).
-- Rate: Peak / Off-peak / Early Bird (peak or off-peak day), from the SimplyBook service.
+- Room icon = the character's icon from the booking page, in the room colour where an emoji exists: 🐈 Vale, 🍃 Kaeden,
+  🪐 Scarlett, 🏔️ Kai, 🔮 Bella, ⛵ Atlas, 🏎️ Max (iPhone always shows the app icon itself).
+- Rate: Peak / Off-peak / EB / EB+peak (Early Bird on a peak day), from the SimplyBook service.
 - Money: our own booking page's record ("paid online"), else SimplyBook's invoice ("paid" / "NOT PAID"), else the
   room's price for that day and length ("price").
 - Skipped: the Make mirror's SYSTEM BLOCK bookings/notes (twin room), EXT notes (extensions), notes not in a room.
