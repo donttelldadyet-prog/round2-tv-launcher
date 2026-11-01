@@ -37,6 +37,12 @@ Needs the guest messages staff code on the phone (Keys).
 - `sw.js`: `push` → showNotification, `notificationclick` → focus/open with `?tab=…`.
 - `index.html` › `Alerts` module (Tests & systems › Alerts).
 
+## Late session (staff.round2.sg/late/, also In session › Late session)
+Standalone page with its own Home Screen button ("Late session"); the control centre tab shows the same page (`?embed=1`).
+Room, date, arrives, guest leaves, name, pax → Check (engine `/gm` action `late`, dry run + clash list) → Add to SimplyBook:
+ONE note from arrival to guest end + 15 min cleaning (past midnight too), text `<name> <pax> pax · late till 1am · control
+centre`; Vale/Atlas twin gets a SYSTEM BLOCK. Needs the guest messages staff code (asked once on that phone).
+
 ## Next alert ideas
 Food order paid / food at pickup; Loot dropped not OK'd after 10 min; TV offline or Homebrew failsafe in opening hours;
 guest message not shown; Madd payout approval. Add the kind to `PUSH_KINDS` (engine) and `KINDS` (control centre).
