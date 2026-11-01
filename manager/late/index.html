@@ -48,6 +48,17 @@ select { background-image: linear-gradient(45deg, transparent 50%, var(--mute) 5
 header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
 .note { border: 1px solid var(--line); border-left: 3px solid var(--acc); background: var(--panel2); padding: 10px 12px; margin-top: 12px; font-size: 14px; color: var(--ink); }
 .note.warnbox { border-left-color: var(--warn); }
+/* Upcoming late sessions: hidden in SimplyBook's calendar after midnight, so they're changed / cancelled here */
+.up { list-style: none; margin: 8px 0 0; padding: 0; }
+.up li { border: 1px solid var(--line); border-left: 4px solid var(--rc); background: var(--panel2); padding: 10px 12px; margin-top: 8px; }
+.up .t { font-weight: 700; }
+.up .w { color: var(--mute); font-size: 14px; }
+.up .row { margin-top: 8px; }
+.up .btn { padding: 8px 14px; min-height: 40px; font-size: 12px; }
+.btn.danger { background: transparent; color: var(--warn); border-color: var(--warn); }
+.btn.danger.sure { background: var(--warn); color: #111; }
+.editing[hidden] { display: none; }
+.editing { border: 1px solid var(--acc); background: rgba(242,194,27,.08); padding: 10px 12px; margin-bottom: 12px; font-size: 14px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 </style>
 </head>
 <body>
@@ -63,6 +74,7 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   </div>
 
   <div class="card" id="formCard">
+    <div class="editing" id="editing" hidden></div>
     <label>Room</label>
     <div class="rooms" id="rooms"></div>
     <div class="grid" style="margin-top:14px">
@@ -77,12 +89,18 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
     <div class="row"><button class="btn primary" id="check" type="button">Check</button><button class="btn" id="clear" type="button">Clear</button></div>
     <div id="plan" class="hint plan" style="margin-top:12px"></div>
   </div>
+
+  <div class="card" id="upCard" hidden>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b>Upcoming late sessions</b><button class="btn" id="upRefresh" type="button" style="padding:8px 12px;min-height:38px;font-size:12px">Refresh</button></div>
+    <p class="hint" style="margin:4px 0 0">Sessions after midnight are hidden in SimplyBook’s calendar (you only see the “↓ AFTER 12AM” note at 11:45pm the night before). Change or cancel them here – the TV messages and that note follow.</p>
+    <ul class="up" id="up"></ul>
+  </div>
 </div>
 <script>
 (function () {
   var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm';
   var ROOMS = [['5', 'Vale', '#E8436A'], ['7', 'Kaeden', '#4DB848'], ['8', 'Scarlett', '#F2C21B'], ['9', 'Kai', '#24B49A'], ['10', 'Bella', '#7A5BE0'], ['12', 'Atlas', '#E9E7EF'], ['11', 'Max', '#E0402F']];
-  var $ = function (id) { return document.getElementById(id); }, unit = '', ready = null;
+  var $ = function (id) { return document.getElementById(id); }, unit = '', ready = null, editing = null, upList = [];
   var embed = /[?&]embed=1/.test(location.search);
   if (embed) document.body.classList.add('embed');
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
@@ -130,16 +148,64 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   function form() {
     var d = $('day').value, A = +$('start').value, E = +$('end').value;
     return { unit: unit, day: $('start').value ? addDays(d, Math.floor(A / 1440)) : d, start: $('start').value ? hhmm(A) : '', end: $('end').value ? hhmm(E) : '',
-      name: $('name').value.trim(), pax: $('pax').value, msgs: $('msgs').checked ? 'yes' : 'no' };
+      name: $('name').value.trim(), pax: $('pax').value, msgs: $('msgs').checked ? 'yes' : 'no', replace: editing ? editing.id : '', oldDay: editing ? editing.day : '' };
   }
-  function call(body) {
-    body.staff = key(); body.action = 'late';
+  function call(body, action) {
+    body.staff = key(); body.action = action || 'late';
     return fetch(ENG, { method: 'POST', body: new URLSearchParams(body) }).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.error && /staff code/i.test(j.error)) { ls('r2.guestStaff', null); gate(); }
       return j;
     });
   }
-  function gate() { $('keyBox').hidden = !!key(); $('formCard').hidden = !key(); report(); }
+  function gate() { $('keyBox').hidden = !!key(); $('formCard').hidden = !key(); $('upCard').hidden = !key(); if (key()) loadUp(); report(); }
+  /* ---- Upcoming late sessions: list, Change (loads it into the form above), Cancel (tap twice) ---- */
+  function sgMin(ms, night) { return Math.round((ms - Date.parse(night + 'T00:00:00+08:00')) / 60000); }
+  function roomOf(u) { for (var i = 0; i < ROOMS.length; i++) if (ROOMS[i][0] === String(u)) return ROOMS[i]; return [String(u), 'Room', '#888']; }
+  function loadUp() {
+    $('up').innerHTML = '<li style="--rc:var(--line)" class="w">Loading…</li>'; report();
+    call({}, 'latelist').then(function (j) {
+      if (!j || !j.ok) { $('up').innerHTML = '<li style="--rc:var(--warn)" class="warn">' + esc((j && j.error) || 'No answer') + '</li>'; report(); return; }
+      upList = j.sessions || []; renderUp();
+    }).catch(function () { $('up').innerHTML = '<li style="--rc:var(--warn)" class="warn">Couldn’t reach the engine.</li>'; report(); });
+  }
+  function renderUp() {
+      $('up').innerHTML = upList.length ? upList.map(function (x, i) {
+        var r = roomOf(x.unit), A = sgMin(x.s, x.night), E = sgMin(x.guestEnd, x.night);
+        return '<li style="--rc:' + r[2] + '"><div class="t">' + esc(r[1] + ' · ' + (x.name || x.text)) + (x.pax ? ' · ' + x.pax + ' pax' : '') + (editing && editing.id === x.id ? ' <span class="hint">(changing)</span>' : '') + '</div>' +
+          '<div class="w">Night of ' + dayName(x.night) + ' · ' + hm(A) + (A >= 1440 ? ' (' + dayName(addDays(x.night, 1)) + ')' : '') + ' → ' + hm(E) + (E >= 1440 && A < 1440 ? ' (' + dayName(addDays(x.night, 1)) + ')' : '') + ' · ' + ((E - A) / 60) + 'h' + (x.ext ? ' · extended' : '') + (x.live ? ' · <b class="okmsg">playing now</b>' : '') + '</div>' +
+          '<div class="row"><button class="btn" type="button" data-ch="' + i + '">Change</button><button class="btn danger" type="button" data-cx="' + i + '">Cancel</button></div></li>';
+      }).join('') : '<li style="--rc:var(--line)" class="w">Nothing after midnight coming up.</li>';
+      report();
+  }
+  function startEdit(x) {
+    var A = sgMin(x.s, x.night), E = sgMin(x.guestEnd, x.night);
+    editing = { id: x.id, day: x.day };
+    unit = String(x.unit); drawRooms();
+    $('day').value = x.night; fillStart(); $('start').value = String(A); fillEnd();
+    if (E > A && E <= A + 720 && (E - A) % Q === 0) $('end').value = String(E); when();
+    $('name').value = x.name || ''; $('pax').value = x.pax || '';
+    $('editing').innerHTML = '<span><b>Changing:</b> ' + esc(roomOf(x.unit)[1] + ' · ' + (x.name || x.text) + ' · ' + hm(A) + '–' + hm(E)) + '<br><span class="hint">Change anything above, then Check. The old one is replaced.</span></span><button class="btn" type="button" id="stopEdit" style="padding:8px 12px;min-height:38px;font-size:12px">Stop changing</button>';
+    $('editing').hidden = false; $('stopEdit').onclick = stopEdit; ready = null; show('');
+    $('formCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); renderUp();
+  }
+  function stopEdit() { $('clear').onclick(); renderUp(); }
+  $('up').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button') : null; if (!b) return;
+    var ch = b.getAttribute('data-ch'), cx = b.getAttribute('data-cx');
+    if (ch !== null) { startEdit(upList[+ch]); return; }
+    if (cx !== null) {
+      var x = upList[+cx];
+      if (!b.classList.contains('sure')) { b.classList.add('sure'); b.textContent = 'Tap again to cancel'; setTimeout(function () { if (b.isConnected) { b.classList.remove('sure'); b.textContent = 'Cancel'; } }, 4000); return; }
+      b.disabled = true; b.textContent = 'Cancelling…';
+      call({ id: x.id, day: x.day }, 'latecancel').then(function (j) {
+        if (!j || !j.ok) { b.disabled = false; b.textContent = 'Cancel'; b.classList.remove('sure'); alertUp((j && j.error) || 'No answer'); return; }
+        if (editing && editing.id === x.id) { editing = null; $('editing').hidden = true; }
+        loadUp(); try { if (embed) parent.postMessage({ r2late: true }, location.origin); } catch (e2) {}
+      }).catch(function () { b.disabled = false; b.textContent = 'Cancel'; alertUp('Couldn’t reach the engine. Check SimplyBook before trying again.'); });
+    }
+  });
+  function alertUp(t) { var li = document.createElement('li'); li.style.setProperty('--rc', 'var(--warn)'); li.className = 'warn'; li.textContent = t; $('up').insertBefore(li, $('up').firstChild); report(); }
+  $('upRefresh').onclick = loadUp;
   function check() {
     if (!unit) { show('<span class="warn">Pick a room.</span>'); return; }
     var f = form(); f.dry = '1'; ready = null; show('Checking SimplyBook…');
@@ -152,18 +218,19 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
         (p.twin ? '<br>' + esc(p.twin) + ' gets a SYSTEM BLOCK for the same time.' : '') +
         '<br>TV: ' + (p.msgs === 'auto' ? 'Auto wrap-up is on, so it adds “About 10 minutes to go” and “That’s a wrap!” by itself.' : p.msgs === 'off' ? 'no messages added.' : p.msgs === 'later' ? 'messages not added – the session starts more than 24 hours from now. Use +1h or Round2 messages nearer the time.' : '“About 10 minutes to go” at ' + esc(p.msgs.wrapup) + ', “That’s a wrap!” at ' + esc(p.msgs.timeup) + '.');
       if (clash) h += '<p class="warn" style="margin:10px 0 0"><b>Already in the calendar then:</b><br>' + p.clash.map(function (c) { return esc(c.room + ' · ' + c.what + ' · ' + c.name + ' · ' + c.from + '–' + c.to); }).join('<br>') + '</p>';
-      h += '<div class="row"><button class="btn primary" type="button" id="go">' + (clash ? 'Add anyway' : 'Add to SimplyBook') + '</button></div></div>';
+      h += '<div class="row"><button class="btn primary" type="button" id="go">' + (editing ? (clash ? 'Save change anyway' : 'Save change') : (clash ? 'Add anyway' : 'Add to SimplyBook')) + '</button></div></div>';
       show(h); $('go').onclick = function () { go(clash); };
     }).catch(function () { show('<span class="warn">Couldn’t reach the engine. Check the internet.</span>'); });
   }
   function go(force) {
     if (!ready) return; var f = Object.assign({}, ready); if (force) f.force = 'yes';
-    $('go').disabled = true; $('go').textContent = 'Adding…';
+    $('go').disabled = true; $('go').textContent = editing ? 'Saving…' : 'Adding…';
     call(f).then(function (j) {
       if (!j || !j.ok) { show('<span class="warn">' + esc((j && j.error) || (j && j.clash ? 'Something is already in the calendar then. Press Check again.' : 'No answer')) + '</span>'); return; }
       var p = j.plan;
       var mp = (j.msgs || []).filter(function (m) { return m.problem; });
-      show('<span class="okmsg"><b>Added to SimplyBook ✓</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrivesDay + ', ' + p.arrives + ' – ' + p.leavesDay + ', ' + p.guestEnd) +
+      var was = !!editing; editing = null; $('editing').hidden = true; loadUp();
+      show('<span class="okmsg"><b>' + (was ? 'Changed in SimplyBook ✓' : 'Added to SimplyBook ✓') + '</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrivesDay + ', ' + p.arrives + ' – ' + p.leavesDay + ', ' + p.guestEnd) +
         ((j.msgs || []).length ? '<br>' + (mp.length ? '<span class="warn">TV messages: ' + esc(mp.map(function (m) { return m.problem; }).join('; ')) + ' – set them in Round2 messages.</span>' : 'TV messages set ✓') : ''));
       ready = null; $('name').value = ''; $('pax').value = ''; $('start').value = ''; fillEnd();
       try { if (embed) parent.postMessage({ r2late: true }, location.origin); } catch (e) {}
@@ -173,7 +240,7 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   $('day').addEventListener('change', fillStart); $('start').addEventListener('change', fillEnd); $('end').addEventListener('change', when);
   ['day', 'start', 'end', 'name', 'pax', 'msgs'].forEach(function (k) { $(k).addEventListener(k === 'msgs' || k === 'start' || k === 'end' || k === 'day' ? 'change' : 'input', function () { if (ready) { ready = null; show(''); } }); });
   $('check').onclick = check;
-  $('clear').onclick = function () { unit = ''; drawRooms(); ['start', 'name', 'pax'].forEach(function (k) { $(k).value = ''; }); $('day').value = sgToday(); fillStart(); ready = null; show(''); };
+  $('clear').onclick = function () { if (editing) { editing = null; $('editing').hidden = true; } unit = ''; drawRooms(); ['start', 'name', 'pax'].forEach(function (k) { $(k).value = ''; }); $('day').value = sgToday(); fillStart(); ready = null; show(''); };
   $('keySave').onclick = function () { var v = $('key').value.trim(); if (v.length < 8) return; ls('r2.guestStaff', v); $('key').value = ''; gate(); };
   $('day').value = sgToday(); fillStart(); drawRooms(); gate(); report();
   $('logo').onerror = function () { this.outerHTML = '<b style="letter-spacing:.14em">ROUND2</b>'; };
