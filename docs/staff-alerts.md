@@ -49,8 +49,11 @@ late sessions; last night's too until 6am) gets "About 10 minutes to go" (guest 
 as soon as the engine sees it. Kept in sync every 10 min (cron) and straight away on every SimplyBook callback: new →
 added, moved/extended → moved, gone → cancelled (only messages the auto made; more than 4 at once → nothing cancelled,
 logged). Messages already set (+1h, Late session, Round2 messages) are adopted, never doubled. Per-session "Auto off".
-Skips SYSTEM BLOCKs and stray EXT notes. Table `auto` in the Durable Object; last change in kv `autoLast`.
-Cost: about 2 Make operations per session (plus 1 per move/cancel).
+Skips SYSTEM BLOCKs and stray EXT notes. Last change in kv `autoLast`.
+No Make at all (owner, 1 Nov): the engine keeps its own schedule (table `autoq`) and its alarm writes the message straight
+to the room's TV in Firebase (id `A…`), guest message not OK'd yet goes first, 5-minute reminder still follows. While the
+switch is on, +1h and Late session don't add Make messages (existing ones still move). These auto messages don't appear
+in Round2 messages (that list is Make's); the Auto wrap-up tab is where to see them.
 
 ## Next alert ideas
 Food order paid / food at pickup; Loot dropped not OK'd after 10 min; TV offline or Homebrew failsafe in opening hours;

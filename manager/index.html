@@ -2015,7 +2015,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var R = ROOMS[RN[x.room]] || { name: x.room, c: '#888' }, st;
         if (x.done) st = '<span class="hint">Ended ' + tm(x.guestEnd) + '</span>';
         else if (x.off) st = '<span class="chip">Auto off</span>';
-        else if (x.msgs && (x.msgs.w || x.msgs.t)) st = '<span class="chip" style="color:var(--ok)">✓ ' + tm(x.guestEnd - 600000) + ' & ' + tm(x.guestEnd) + (x.msgs.own ? '' : ' · set by hand') + (x.msgs.synced ? '' : ' · updating') + '</span>';
+        else if (x.msgs && (x.msgs.w || x.msgs.t)) st = '<span class="chip" style="color:var(--ok)">' + (x.msgs.own ? (x.msgs.wSent ? '10-min sent ✓' : '✓ ' + tm(x.msgs.wAt || x.guestEnd - 600000)) + ' & ' + (x.msgs.tSent ? 'wrap sent ✓' : tm(x.msgs.tAt || x.guestEnd)) : '✓ set by hand') + '</span>';
         else st = '<span class="hint">' + (on ? 'Adding…' : 'No messages yet') + '</span>';
         return '<div class="card" style="max-width:760px;margin:8px 0;padding:10px 12px;border-left:4px solid ' + R.c + ';opacity:' + (x.done ? .55 : 1) + '"><div class="row" style="justify-content:space-between;align-items:center;margin:0">' +
           '<div><b>' + esc(R.name) + '</b> · ' + esc(x.name || (x.k === 'n' ? 'note' : 'guest')) + '<div class="hint">' + tm(x.s) + '–' + tm(x.guestEnd) + (x.k === 'n' ? ' · note' : '') + '</div></div>' +

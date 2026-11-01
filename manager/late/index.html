@@ -150,7 +150,7 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
         'Arrives <b>' + esc(p.arrivesDay) + ', ' + esc(p.arrives) + '</b> · leaves <b>' + esc(p.leavesDay) + ', ' + esc(p.guestEnd) + '</b> · ' + p.hours + 'h<br>' +
         'SimplyBook note: ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.nextDay ? '. After midnight it shows at the top of the next day in SimplyBook.' : '') +
         (p.twin ? '<br>' + esc(p.twin) + ' gets a SYSTEM BLOCK for the same time.' : '') +
-        '<br>TV: ' + (p.msgs === 'off' ? 'no messages added.' : p.msgs === 'later' ? 'messages not added – the session starts more than 24 hours from now. Use +1h or Round2 messages nearer the time.' : '“About 10 minutes to go” at ' + esc(p.msgs.wrapup) + ', “That’s a wrap!” at ' + esc(p.msgs.timeup) + '.');
+        '<br>TV: ' + (p.msgs === 'auto' ? 'Auto wrap-up is on, so it adds “About 10 minutes to go” and “That’s a wrap!” by itself.' : p.msgs === 'off' ? 'no messages added.' : p.msgs === 'later' ? 'messages not added – the session starts more than 24 hours from now. Use +1h or Round2 messages nearer the time.' : '“About 10 minutes to go” at ' + esc(p.msgs.wrapup) + ', “That’s a wrap!” at ' + esc(p.msgs.timeup) + '.');
       if (clash) h += '<p class="warn" style="margin:10px 0 0"><b>Already in the calendar then:</b><br>' + p.clash.map(function (c) { return esc(c.room + ' · ' + c.what + ' · ' + c.name + ' · ' + c.from + '–' + c.to); }).join('<br>') + '</p>';
       h += '<div class="row"><button class="btn primary" type="button" id="go">' + (clash ? 'Add anyway' : 'Add to SimplyBook') + '</button></div></div>';
       show(h); $('go').onclick = function () { go(clash); };
