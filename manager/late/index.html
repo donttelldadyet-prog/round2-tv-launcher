@@ -106,7 +106,8 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function key() { return ls('r2.guestStaff') || ''; }
-  function sgToday() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
+  /* the shop's day runs until we sleep (owner, 2 Nov): before 6am, "Night of" is still last night */
+  function sgToday() { return new Date(Date.now() + 8 * 3600e3 - 6 * 3600e3).toISOString().slice(0, 10); }
   /* inside the control centre: report the page height so the tab has no scrollbar of its own */
   var lastH = 0; function report() { if (!embed) return; var h = document.documentElement.scrollHeight; if (h !== lastH) { lastH = h; try { parent.postMessage({ r2frame: location.search, h: h }, location.origin); } catch (e) {} } }
   setInterval(report, 500);
