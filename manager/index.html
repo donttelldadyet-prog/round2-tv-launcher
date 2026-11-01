@@ -816,7 +816,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="hjump" id="hJump">
       <a href="#h-basics">⭐ Basics</a><a href="#h-phone">📱 Set up</a><a href="#h-extend">⏱️ +1h</a><a href="#h-late">🌙 Late</a>
       <a href="#h-latechange">✏️ Move / cancel</a><a href="#h-labels">↓ Labels</a><a href="#h-r2">💬 TV messages</a><a href="#h-auto">⚙ Auto wrap-up</a>
-      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food orders</a><a href="#h-themes">🎨 TV looks</a><a href="#h-tvmenu">🎮 TV home screen</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
+      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food orders</a><a href="#h-themes">🎨 TV looks</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
     </div>
 
     <details class="hcard" id="h-basics" open><summary><span class="hi">⭐</span>The basics</summary>
@@ -927,7 +927,28 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <p class="tip">🔊 Sounds: add your own ambience (rain, café…). 🔁 Move a TV to another room: on the TV › Options › Staff › This TV’s room.</p>
     </details>
 
-    <details class="hcard" id="h-tvmenu"><summary><span class="hi">🎮</span>The Round2 home screen on the TV</summary>
+    <div class="hcard" style="padding:12px 16px"><b>🎮 The TV’s home screen and 🔐 Staff tools</b> have their own page: <b>Help › On the TV</b>.</div>
+
+    <details class="hcard" id="h-check"><summary><span class="hi">✅</span>Is everything working?</summary>
+      <div class="hflow"><div class="hstep"><i>🧪</i>Tests &amp; systems</div><em>›</em><div class="hstep"><i>✅</i>System check</div><em>›</em><div class="hstep ok"><i>▶️</i>Run full check</div></div>
+      <div class="hkeys"><span>✅ all good</span><span>⚠️ have a look</span><span>❌ broken – screenshot it to the owner</span></div>
+      <p class="tip">Safe any time – it tests with a pretend guest far in the future, then tidies up.</p>
+    </details>
+
+    <details class="hcard" id="h-wrong"><summary><span class="hi">🆘</span>Something’s wrong</summary>
+      <div class="hgrid">
+        <div class="hmini"><div class="hbig">🥶</div><b>TV frozen</b><span>next tab: <b>If a TV is stuck</b></span></div>
+        <div class="hmini"><div class="hbig">💬❓</div><b>Message didn’t show</b><span>is it “Coming up”? is the TV on? a guest’s message goes first</span></div>
+        <div class="hmini"><div class="hbig">🔒</div><b>Page locked</b><span>Tests &amp; systems › Keys › paste the key message again</span></div>
+        <div class="hmini"><div class="hbig">🤷</div><b>Not sure</b><span>run the System check, send the owner a screenshot</span></div>
+      </div>
+    </details>
+  </section>
+
+  <section id="tab-tvhelp" hidden>
+    <h1>On the TV</h1>
+    <p class="sub">The Round2 home screen in every room: what guests can do, and what staff can change after the PIN.</p>
+    <details class="hcard" id="t-guest" open><summary><span class="hi">🎮</span>What guests see</summary>
       <p class="hh">📺 What guests see</p>
       <div class="hhome">
         <div class="hht"><i>🎮</i>Inputs<span>PlayStation / HDMI</span></div>
@@ -955,7 +976,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <div class="htvr"><span>🗂️ Info cards</span><em>where the description box sits</em></div>
         <div class="htvr lock"><span>🔐 Staff</span><em>PIN – opens Staff tools for 10 min</em></div>
       </div>
-      <p class="hh">🔐 Getting into Staff tools</p>
+    </details>
+
+    <details class="hcard" id="t-staff" open><summary><span class="hi">🔐</span>Staff tools (after the PIN)</summary>
+      <p class="hh">🔢 Getting in</p>
       <div class="hflow"><div class="hstep"><i>⚙️</i>Options</div><em>›</em><div class="hstep"><i>🔐</i>Staff</div><em>›</em><div class="hstep"><i>🔢</i>Type the staff PIN</div><em>›</em><div class="hstep ok"><i>🧰</i>Staff tools (10 min)</div></div>
       <p class="tip">Type the PIN with the remote’s number buttons, or ▲▼ to pick a number and ▶ for the next one. Don’t know it? Ask the owner – he can change it in the control centre (TV setup › TV settings › Staff PIN). Wrong 5 times = wait a minute. After 10 minutes it locks again by itself.</p>
       <div class="htv staff">
@@ -984,21 +1008,6 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <div class="htvr"><span>🩺 Diagnostics</span><em>shows the TV’s technical log on screen, for the owner to photograph and send to Claude when something is broken. Changes nothing.</em></div>
       </div>
       <p class="tip">⚠️ <b>Advanced is for the owner.</b> Staff: no need to open it. Some rows only show on the TVs they apply to. Changed something by mistake? It stays until you change it back – nothing resets by itself.</p>
-    </details>
-
-    <details class="hcard" id="h-check"><summary><span class="hi">✅</span>Is everything working?</summary>
-      <div class="hflow"><div class="hstep"><i>🧪</i>Tests &amp; systems</div><em>›</em><div class="hstep"><i>✅</i>System check</div><em>›</em><div class="hstep ok"><i>▶️</i>Run full check</div></div>
-      <div class="hkeys"><span>✅ all good</span><span>⚠️ have a look</span><span>❌ broken – screenshot it to the owner</span></div>
-      <p class="tip">Safe any time – it tests with a pretend guest far in the future, then tidies up.</p>
-    </details>
-
-    <details class="hcard" id="h-wrong"><summary><span class="hi">🆘</span>Something’s wrong</summary>
-      <div class="hgrid">
-        <div class="hmini"><div class="hbig">🥶</div><b>TV frozen</b><span>next tab: <b>If a TV is stuck</b></span></div>
-        <div class="hmini"><div class="hbig">💬❓</div><b>Message didn’t show</b><span>is it “Coming up”? is the TV on? a guest’s message goes first</span></div>
-        <div class="hmini"><div class="hbig">🔒</div><b>Page locked</b><span>Tests &amp; systems › Keys › paste the key message again</span></div>
-        <div class="hmini"><div class="hbig">🤷</div><b>Not sure</b><span>run the System check, send the owner a screenshot</span></div>
-      </div>
     </details>
   </section>
 
@@ -2776,7 +2785,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
@@ -2787,7 +2796,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors']],
     sys: [['alerts', 'Alerts'], ['tests', 'Test a TV'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
-    help: [['help', 'How it works'], ['stuck', 'If a TV is stuck']]
+    help: [['help', 'How it works'], ['tvhelp', 'On the TV'], ['stuck', 'If a TV is stuck']]
   };
   var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
     home: ['Home', '<path d="M3 11l9-7 9 7v9h-6v-6H9v6H3z"/>'],
