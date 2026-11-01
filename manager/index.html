@@ -949,7 +949,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
   function toast(m) { var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
   function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
-  function today() { return ymd(new Date()); }
+  /* Singapore date, whatever the device's own time zone (time check 2 Nov): a laptop abroad or a TV set to UTC must agree */
+  function sgNow() { var x = new Date(Date.now() + 8 * 3600e3); return new Date(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), 12); }
+  function today() { return ymd(sgNow()); }
   function nice(s) { if (!s) return ''; var d = new Date(s + 'T12:00:00'); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined }); }
   function b64utf8(s) { return btoa(unescape(encodeURIComponent(s))); }
   function unb64utf8(s) { return decodeURIComponent(escape(atob(s.replace(/\n/g, '')))); }
@@ -1842,9 +1844,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             (x.phone ? '<span>' + esc(x.phone) + '</span>' : '') + '</div>';
           /* greyed out: that many hours would run into the next booking/note (in this room or its twin). Past 11:15pm
              stays possible (late sessions are agreed on WhatsApp) but is marked, and the check box asks again. */
-          var close = Date.parse(new Date(x.start + 8 * 3600000).toISOString().slice(0, 10) + 'T23:15:00+08:00');
+          /* 11:15pm of the shop night (12am–11am starts belong to the night before), on the guest end – same rule as the engine */
+          var close = Date.parse(new Date(x.start - 11 * 3600000 + 8 * 3600000).toISOString().slice(0, 10) + 'T23:15:00+08:00');
           if (x.st !== 'done') h += '<div class="plus">' + [1, 2, 3].map(function (n) {
-            var blocked = gap !== null && n > gap, late = x.sbEnd + n * 3600000 > close + 60000;
+            var blocked = gap !== null && n > gap, late = x.guestEnd + n * 3600000 > close + 60000;
             return '<button class="btn' + (late && !blocked ? ' late' : '') + '" data-ext="' + n + '" data-room="' + rk + '" data-key="' + esc(x.key) + '"' + (blocked ? ' disabled title="Runs into the next booking at ' + t(x.nextAt) + '"' : late ? ' title="Goes past 11:15pm"' : '') + '>+' + n + 'h' + (late && !blocked ? '<small>late</small>' : '') + '</button>';
           }).join('') + '</div>';
         });
@@ -2123,8 +2126,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return gm({ action: 'auto' }).then(function (a) {
           warnIf(!a.cronLast, 'No heartbeat yet (it appears within 10 minutes of the 2 Nov update).');
           must(Date.now() - a.cronLast < 25 * 60e3, 'Last run ' + ago(a.cronLast) + ' – the 10-minute timer looks stuck.');
-          warnIf(a.last && (a.last.problems || []).length, 'Auto wrap-up reported: ' + (a.last.problems || []).join('; '));
-          warnIf(a.orphanLast && (a.orphanLast.problems || []).length, 'Message clean-up reported: ' + (a.orphanLast.problems || []).join('; '));
+          var ap = (a.last && a.last.problems) || [], op = (a.orphanLast && a.orphanLast.problems) || [];
+          warnIf(ap.length, 'Auto wrap-up reported: ' + ap.join('; '));
+          warnIf(op.length, 'Message clean-up reported: ' + op.join('; '));
           return 'Last run ' + ago(a.cronLast) + ' · Auto wrap-up ' + (a.on ? 'ON' : 'off');
         }); }); })
       /* 3. booking page: slot board vs checkout price */
@@ -2178,6 +2182,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }).then(function (r) {
           must(r[0].length === 1, 'In session sees ' + r[0].length + ' test sessions in Max (expected 1).');
           var x = (r[1].sessions || []).filter(function (s) { return /^ZZTEST max/.test(s.text); }); must(x.length === 1, 'Upcoming late sessions sees ' + x.length + '.'); T.maxS = r[0][0]; return 'Max 3–5am · note “' + x[0].text + '”';
+        }); }); })
+      .then(function () { return step('Closing time follows the shop night (a 3am session is already past 11:15pm)', function () {
+        return gm({ action: 'extend', day: T.day, key: T.maxS.key, hours: '1', end: String(T.maxS.sbEnd), msgs: 'no', dry: '1' }).then(function (j) {
+          must(j.ok, '+1h check: ' + (j.error || 'refused')); must((j.plan.clash || []).some(function (c) { return /closing/.test(c.what); }), 'A 3am session wasn’t marked past closing.'); return 'Marked “past closing time”, as it should be';
         }); }); })
       .then(function () { return step('+1h on a late note: note stretched, text rewritten, no EXT note', function () {
         return gm({ action: 'extend', day: T.day, key: T.maxS.key, hours: '1', end: String(T.maxS.sbEnd), msgs: 'no', force: 'yes' }).then(function (j) {
@@ -2650,7 +2658,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   });
   $('quick').addEventListener('click', function (e) {
     var q = e.target.getAttribute && e.target.getAttribute('data-q'); if (!q) return;
-    var d = new Date(), from = ymd(d), until = '';
+    var d = sgNow(), from = ymd(d), until = '';
     if (q === 'now7') { var e7 = new Date(d); e7.setDate(d.getDate() + 6); until = ymd(e7); }
     if (q === 'weekend') { var s = new Date(d); s.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7)); var su = new Date(s); su.setDate(s.getDate() + 1); from = ymd(s); until = ymd(su); if (d.getDay() === 0) { from = ymd(d); until = ymd(d); } }
     if (q === 'month') { until = ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }

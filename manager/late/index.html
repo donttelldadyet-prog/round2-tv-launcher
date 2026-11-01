@@ -106,8 +106,9 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function key() { return ls('r2.guestStaff') || ''; }
-  /* the shop's day runs until we sleep (owner, 2 Nov): before 6am, "Night of" is still last night */
-  function sgToday() { return new Date(Date.now() + 8 * 3600e3 - 6 * 3600e3).toISOString().slice(0, 10); }
+  /* the shop's day runs until we sleep (owner, 2 Nov): before 11am, "Night of" is still last night – same 11am rule as the
+     engine (a 3am or 9am walk-in is picked under last night, where arrivals now run to 10:45am) */
+  function sgToday() { return new Date(Date.now() + 8 * 3600e3 - 11 * 3600e3).toISOString().slice(0, 10); }
   /* inside the control centre: report the page height so the tab has no scrollbar of its own */
   var lastH = 0; function report() { if (!embed) return; var h = document.documentElement.scrollHeight; if (h !== lastH) { lastH = h; try { parent.postMessage({ r2frame: location.search, h: h }, location.origin); } catch (e) {} } }
   setInterval(report, 500);
@@ -117,7 +118,7 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   }
   /* times in 15-minute steps (like bookings), counted from the midnight that starts the "night of" date:
      660 = 11am, 1440 = 12am (already the next date), 1605 = 2:45am */
-  var Q = 15, FIRST = 660, LAST_ARR = 1605;
+  var Q = 15, FIRST = 660, LAST_ARR = 1440 + 645;   /* 11am to 10:45am next morning: the whole shop night (time check 2 Nov: was 2:45am) */
   function addDays(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
   function dayName(d) { return new Date(d + 'T00:00:00Z').toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(/,/g, ''); }
   function hm(m) { m = ((m % 1440) + 1440) % 1440; var h = Math.floor(m / 60), mm = m % 60; return (h % 12 || 12) + ':' + (mm < 10 ? '0' : '') + mm + (h < 12 ? 'am' : 'pm'); }

@@ -1702,7 +1702,8 @@ window.R2_TV = {
     if (a !== 'rain' && a !== 'storm' && a !== 'off' && !upSound(a)) a = 'rain';
     return a;
   }
-  function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  /* Singapore date even on a TV whose clock zone isn't set to Singapore (time check 2 Nov) */
+  function today() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
   function themeWalls() {
     var out = [], d = today();
     for (var i = 0; i < THEMES.length; i++) {
