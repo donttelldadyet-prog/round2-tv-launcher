@@ -13,8 +13,8 @@ Needs the guest messages staff code on the phone (Keys).
 ## Alerts
 | Kind | When | Example |
 |---|---|---|
-| `booking` | SimplyBook callback (`/sb/notify/<key>`): create / change / cancel | **🩷 VALE · New booking** · Amanda Tan · Sat 2 Nov, 4pm–7pm (3h) · Peak · S$69 paid online · 3 pax · Vale |
-| `soon` | Cron every 10 min, 9:45am–2am SG only: a session 50–62 min away (not if keyed in within the hour) (bookings **and** calendar notes that block time) | **🩷 VALE · in 1 hour** · Indra · 11am–2pm (3h) · SimplyBook booking · Vale |
+| `booking` | SimplyBook callback (`/sb/notify/<key>`): create / change / cancel | **🩷 VALE · Sat 2 Nov 4pm–7pm** · NEW · Amanda Tan · 3 pax · Peak · S$69 paid online (most important first: the iPhone banner cuts the body off) |
+| `soon` | Cron every 10 min, 9:45am–2am SG only: a session 50–62 min away (not if keyed in within the hour) (bookings **and** calendar notes that block time) | **🩷 VALE · in 1 hour · 11am–2pm** · Indra · booking |
 
 - Room colour: iPhone always shows the app icon, so the title starts with the room's heart: 🩷 Vale, 💚 Kaeden,
   💛 Scarlett, 🩵 Kai, 💜 Bella, 🤍 Atlas, ❤️ Max (🩷/🩵 need iOS 16.4, the same version push needs).
