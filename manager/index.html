@@ -390,6 +390,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 .hsbe { background: #ffc96b; padding: 6px; } .hsbn { background: #fde3b8; padding: 6px; font-weight: 700; color: #7a5a18; }
 .hsbf { text-align: center; padding: 5px; color: #9aa0b0; font-style: italic; }
 .hphone { background: #0e0c14; border: 1px solid var(--line2); border-radius: 18px; padding: 10px; max-width: 340px; margin: 4px 0 12px; display: grid; gap: 8px; }
+.hrooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; margin: 0 0 14px; max-width: 760px; }
+.hrooms a { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; background: var(--panel); border: 1px solid var(--line2); border-bottom: 3px solid var(--rc); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 700; }
+.hrooms a i { font-style: normal; font-size: 22px; }
+.hsteps { display: grid; gap: 8px; margin: 0 0 12px; }
+.hnum { display: grid; grid-template-columns: 30px 38px 1fr; align-items: center; gap: 8px; background: var(--panel2, #1B1826); border: 1px solid var(--line2); padding: 10px; }
+.hnum > b { width: 28px; height: 28px; display: grid; place-items: center; background: var(--accent); color: #0b0914; font-weight: 800; }
+.hnum > i { font-style: normal; font-size: 22px; text-align: center; letter-spacing: -4px; }
+.hnum > div { display: flex; flex-direction: column; gap: 3px; font-size: 14px; } .hnum > div span { color: var(--mute); line-height: 1.4; }
 .hsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 12px; }
 .hpath { display: flex; flex-direction: column; align-items: stretch; gap: 4px; border: 1px dashed var(--line2); padding: 8px; }
 .hpath > em { text-align: center; font-style: normal; color: var(--accent); font-weight: 700; }
@@ -928,30 +936,49 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <!-- failsafes -->
   <section id="tab-stuck" hidden>
     <h1>If a TV is stuck</h1>
-    <p class="sub">How to get past the Round2 menu to the TV's own screens: for staff settings, or if the menu freezes or keeps closing. Try the steps in order.</p>
-    <div class="card">
-      <h2 style="margin-top:0">Android TVs: Kai (TCL), Kaeden and Maximillion (Sony), Atlas (Prism+)</h2>
-      <ol style="padding-left:20px;display:grid;gap:10px;margin:0">
-        <li><b>Hold Home for 2 seconds.</b> The TV's own Android home screen opens and the Round2 menu stays out of the way for 5 minutes. Hold it again for another 5 minutes. A short press of Home brings Round2 back. If holding does nothing (some TCL TVs don't pass the long press on), go to step 3.</li>
-        <li><b>Wait a few seconds.</b> It fixes itself: a frozen menu reloads by itself, and a crashed app is reopened. If it crashes 4 times in a minute, it steps aside and leaves the TV on the Android home screen for 10 minutes.</li>
-        <li><b>The master switch.</b> Press the Settings button on the remote › <b>Device Preferences</b> (TCL: <b>System</b>) › <b>Accessibility</b> › <b>Round2 Home button</b> › <b>Off</b>. The TV behaves like a normal TV until you switch it back on. Round2 never switches it back on by itself.</li>
-        <li><b>Prism+ (Atlas):</b> its Settings menu hides the Round2 Home button helper, so switch it in Round2 instead: <b>Options</b> › <b>Staff</b> (PIN) › <b>Staff tools</b> › <b>Home button</b> › <b>TV HOME</b> (OK or ◀ ▶). Hold Home for 2 seconds for the TV's own home screen for 5 minutes. From the laptop: <code>round2tv.ps1 rescue</code>.</li>
-        <li><b>From the PC</b>, when the remote can't get past the menu: run <code>.\round2tv.ps1 connect kai</code> (use that TV's room name), then <code>.\round2tv.ps1 rescue</code>. It closes Round2 Home, switches the Home helper off and shows the Android home screen. When it's fixed: <code>.\round2tv.ps1 homeguard</code> turns the helper back on.</li>
-        <li><b>Last resort:</b> unplug the TV for 30 seconds and plug it back in. If the menu keeps crashing after that, step 2 lets you through within a minute.</li>
-      </ol>
-      <h2>Rooted LG TVs (with Homebrew Channel and LG Input Hook)</h2>
-      <ol style="padding-left:20px;display:grid;gap:10px;margin:0">
-        <li><b>Press Home 3 times quickly</b> (each press within about 1.5 seconds). LG's own home screen opens. This works even if the Round2 menu is frozen, because the button is caught outside the menu. One press of Home goes back to Round2.</li>
-        <li><b>Back</b> on the remote leaves Netflix, an HDMI input or another app and returns to Round2.</li>
-        <li><b>Staff switches:</b> in Round2, <b>Options</b> › <b>Staff</b> (PIN) › <b>Staff tools</b>. <b>Home button</b> › <b>LG HOME</b> makes Home open LG's home screen again. <b>Open when TV turns on</b> › <b>OFF</b> stops Round2 opening at power-on. Both stay until you change them back.</li>
-        <li><b>Turn Home back to normal for good:</b> open <b>LG Input Hook</b> from LG's apps row and delete the keybind with ID <b>773</b>, then <b>Save changes</b>.</li>
-        <li><b>Last resort:</b> unplug the TV for 30 seconds. Round2 opens again at start-up, and 3 presses of Home still get you to LG's home screen.</li>
-      </ol>
-      <h2>LG TVs that aren't rooted</h2>
-      <p style="margin:0">Nothing to get past: <b>Home</b> always opens LG's own home bar. Round2 Home is opened from its tile in the apps row, and <b>Back</b> returns to it from other apps.</p>
-      <h2>Still stuck?</h2>
-      <p style="margin:0">On an Android TV, run <code>.\round2tv.ps1 diag</code> on the PC straight away. It changes nothing on the TV and saves a file of logs you can send to Claude. On a rooted LG, note what you pressed and what the screen showed.</p>
+    <p class="sub">Menu frozen, keeps closing, or you need the TV’s own settings? Tap the room you’re in, then try the steps in order – easiest first.</p>
+    <p class="hh">📺 Which room?</p>
+    <div class="hrooms">
+      <a href="#s-android" style="--rc:#24B49A"><i>🏔️</i>Kai</a><a href="#s-android" style="--rc:#4DB848"><i>🍃</i>Kaeden</a><a href="#s-android" style="--rc:#E0402F"><i>🏎️</i>Max</a><a href="#s-android" style="--rc:#E9E7EF"><i>⛵</i>Atlas</a>
+      <a href="#s-lg" style="--rc:#F2C21B"><i>🪐</i>Scarlett</a><a href="#s-lg" style="--rc:#E8436A"><i>🎀</i>Vale</a><a href="#s-lg" style="--rc:#7A5BE0"><i>🔮</i>Bella</a>
     </div>
+
+    <details class="hcard" id="s-android" open><summary><span class="hi">🤖</span>Kai, Kaeden, Max, Atlas</summary>
+      <div class="hsteps">
+        <div class="hnum"><b>1</b><i>✋</i><div><b>Hold Home for 2 seconds</b><span>The TV’s own home screen opens, and Round2 stays away for 5 minutes. A short press of Home brings Round2 back.</span></div></div>
+        <div class="hnum"><b>2</b><i>⏳</i><div><b>Wait a few seconds</b><span>A frozen menu reloads by itself. If it crashes again and again, it steps aside for 10 minutes on its own.</span></div></div>
+        <div class="hnum"><b>3</b><i>⚙️</i><div><b>Switch Round2 off for now</b><span>Remote Settings › <b>Device Preferences</b> (TCL: <b>System</b>) › <b>Accessibility</b> › <b>Round2 Home button</b> › <b>Off</b>. It acts like a normal TV until you switch it back on.</span></div></div>
+        <div class="hnum"><b>4</b><i>🔌</i><div><b>Unplug for 30 seconds</b><span>Then plug back in. Still crashing? Step 2 lets you through within a minute.</span></div></div>
+      </div>
+      <p class="tip">⛵ <b>Atlas is different at step 3</b> – its Settings hide that switch. Instead: Round2 <b>Options › Staff</b> (PIN) › <b>Staff tools › Home button › TV HOME</b>.</p>
+    </details>
+
+    <details class="hcard" id="s-lg"><summary><span class="hi">🌀</span>Scarlett, Vale, Bella</summary>
+      <div class="hsteps">
+        <div class="hnum"><b>1</b><i style="font-size:15px;letter-spacing:0">🏠×3</i><div><b>Press Home 3 times quickly</b><span>LG’s own home screen opens – works even when the menu is frozen. One press of Home goes back to Round2.</span></div></div>
+        <div class="hnum"><b>2</b><i>↩️</i><div><b>Back</b><span>Leaves Netflix, HDMI or any app and returns to Round2.</span></div></div>
+        <div class="hnum"><b>3</b><i>⚙️</i><div><b>Change how Home works</b><span>Round2 <b>Options › Staff</b> (PIN) › <b>Staff tools</b>: <b>Home button › LG HOME</b> gives LG’s home back; <b>Open when TV turns on › OFF</b> stops Round2 opening at power-on.</span></div></div>
+        <div class="hnum"><b>4</b><i>🔌</i><div><b>Unplug for 30 seconds</b><span>Round2 opens again at start-up; 3 presses of Home still get you out.</span></div></div>
+      </div>
+      <p class="tip">⚠️ Never let these LG TVs install an LG software update – it can break Round2 on them.</p>
+    </details>
+
+    <details class="hcard" id="s-still"><summary><span class="hi">🆘</span>Still stuck?</summary>
+      <div class="hgrid">
+        <div class="hmini"><div class="hbig">📸</div><b>Take a photo</b><span>of the screen, and note which buttons you pressed</span></div>
+        <div class="hmini"><div class="hbig">💬</div><b>Send it to the owner</b><span>with the room name</span></div>
+        <div class="hmini"><div class="hbig">🎮</div><b>Keep guests happy</b><span>step 1 (or 3) gets them to Netflix / HDMI while it’s sorted</span></div>
+      </div>
+    </details>
+
+    <details class="hcard" id="s-owner"><summary><span class="hi">💻</span>Owner only: fix from the laptop</summary>
+      <div class="hsteps">
+        <div class="hnum"><b>1</b><i>🔗</i><div><b>Connect</b><span><code>.\round2tv.ps1 connect kai</code> (use that room’s name)</span></div></div>
+        <div class="hnum"><b>2</b><i>🛟</i><div><b>Rescue</b><span><code>.\round2tv.ps1 rescue</code> – closes Round2 and shows the TV’s own home screen. Fixed? <code>.\round2tv.ps1 homeguard</code> turns it back on.</span></div></div>
+        <div class="hnum"><b>3</b><i>📄</i><div><b>Logs</b><span><code>.\round2tv.ps1 diag</code> – changes nothing, saves a log file to send to Claude.</span></div></div>
+      </div>
+      <p class="tip">LG TVs: to make Home normal for good, open <b>LG Input Hook</b> › delete keybind <b>773</b> › Save changes.</p>
+    </details>
   </section>
 </main>
 
@@ -1218,7 +1245,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         '<label class="hint" for="ip-' + k + '">TV address on the shop Wi-Fi</label>' +
         '<input id="ip-' + k + '" inputmode="decimal" placeholder="192.168.88.xx" value="' + esc((data.tvs || {})[k] || '') + '">' +
         '<button class="btn" type="button" data-room-ip="' + k + '">Save address</button>' +
-        '<p class="hint" style="margin:8px 0 0">The TV shows it under Options › Staff › Staff tools › About this TV. Then on the PC: <code>.\\round2tv.ps1 connect ' + k + '</code></p>' +
+        '<p class="hint" style="margin:8px 0 0">The TV shows it under Options › Staff › Staff tools › About this TV. Then on the PC: <code>.\round2tv.ps1 connect ' + k + '</code></p>' +
         '</details></article>';
     }).join('');
   }
@@ -3269,7 +3296,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   $('appAsk').onclick = function () {
     data.app = { updateRequested: new Date().toISOString() };
     saveSettings('Update request');
-    $('appMsg').textContent = 'Sent. Each TV checks within 30 minutes of someone using its home screen (or at once with .\\round2tv.ps1 themes), and shows UPDATE READY under Options › Staff › Staff tools when there\u2019s a newer version.';
+    $('appMsg').textContent = 'Sent. Each TV checks within 30 minutes of someone using its home screen (or at once with .\round2tv.ps1 themes), and shows UPDATE READY under Options › Staff › Staff tools when there\u2019s a newer version.';
   };
   $('guestSave').onclick = function () {
     data.staff = data.staff || {}; data.staff.guestBackground = $('guestBg').checked;
@@ -3288,7 +3315,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (run && run.status === 'completed') {
           if (run.conclusion === 'success') {
             banner('ok', removed ? '<b>' + esc(name) + '</b> removed. TVs delete it at their next check.' :
-              '<b>' + esc(name) + '</b> is ready. TVs pick it up within a few hours, or at once when someone goes back to the home screen (at most every 30 minutes). To push it to one TV right now: <code>.\\round2tv.ps1 themes</code> on the PC.');
+              '<b>' + esc(name) + '</b> is ready. TVs pick it up within a few hours, or at once when someone goes back to the home screen (at most every 30 minutes). To push it to one TV right now: <code>.\round2tv.ps1 themes</code> on the PC.');
             load();
           } else banner('bad', 'GitHub couldn’t prepare <b>' + esc(name) + '</b>. Usually the video link has expired or isn’t a video. <a href="' + esc(run.html_url) + '" target="_blank" rel="noopener">See details</a>');
           return;
