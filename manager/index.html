@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#06050A">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -291,6 +291,11 @@ details summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-s
 
 /* sign in */
 .signin { max-width: 680px; margin: 40px auto; }
+/* no key on this device: only the Keys page shows, nothing else of the control centre */
+body.gated #tabs, body.gated #subtabs, body.gated #who, body.gated #tab-keys > h1, body.gated #tab-keys > .sub, body.gated #keyLock, body.gated #tab-keys .opens, body.gated #tab-keys > .card, body.gated #tab-keys > [data-edit] { display: none !important; }
+.gatehead { display: none; max-width: 760px; margin: 28px 0 20px; }
+body.gated .gatehead { display: block; }
+.gatehead img { width: 72px; height: 72px; border-radius: 16px; display: block; margin-bottom: 16px; }
 .signin ol { padding-left: 20px; display: grid; gap: 10px; }
 .signin code { background: var(--panel2); padding: 1px 6px; }
 
@@ -682,6 +687,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   </section>
 
   <section id="tab-keys" class="locked" hidden>
+    <div class="gatehead"><img src="icon-192.png" alt=""><h1>Add your key</h1><p class="sub">This phone or computer isn’t set up yet. Paste the key the owner gave you into its box below and press Save. The control centre opens straight away, showing only the pages your key is for.</p></div>
     <h1>Keys</h1>
     <p class="sub">Every key the control centre uses, in one place. Each key switches on its own pages, on this phone or computer only. Give staff only the keys for the jobs they do: a page whose key isn't added here stays locked.</p>
     <div class="klock" id="keyLock"></div>
@@ -888,6 +894,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   var token = '', data = { themes: [] }, fileSha = '', published = {}, editing = -1, pendingFile = null, pollTimer = null;
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function gated() { return !['r2m.token', 'r2m.msgKey', 'r2.guestStaff', 'r2m.simCode'].some(function (k) { return ls(k); }); }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
   function toast(m) { var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
   function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
@@ -2004,10 +2011,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function setLock(on) {
       unlocked = !on; clearTimeout(idle);
       $('tab-keys').classList.toggle('locked', on);
-      if (!on) idle = setTimeout(function () { setLock(true); }, 120000);
+      if (!on && !gated()) idle = setTimeout(function () { setLock(true); }, 120000);
       lockBar();
     }
-    function bump() { if (unlocked) { clearTimeout(idle); idle = setTimeout(function () { setLock(true); }, 120000); } }
+    function bump() { if (unlocked && !gated()) { clearTimeout(idle); idle = setTimeout(function () { setLock(true); }, 120000); } }
     function holdStart(e) {
       var b = e.target.closest && e.target.closest('#keyHold'); if (!b || holdT) return;
       if (e.type === 'pointerdown') e.preventDefault();
@@ -2017,16 +2024,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function holdEnd() { if (!holdT) return; clearTimeout(holdT); holdT = null; var b = $('keyHold'); if (b) b.classList.remove('go'); }
     function find(id) { return LIST.filter(function (k) { return k.id === id; })[0]; }
     function save(id) {
-      var k = find(id), inp = document.querySelector('[data-in="' + id + '"]'), msg = document.querySelector('[data-kmsg="' + id + '"]'), v = inp.value.trim();
+      var k = find(id), inp = document.querySelector('[data-in="' + id + '"]'), msg = document.querySelector('[data-kmsg="' + id + '"]'), v = inp.value.trim(), first = gated();
+      function opened() { if (first) { ls('r2m.tab', 'home'); location.reload(); } }
       if (!v) { inp.focus(); return; }
       if (id === 'gh') {
         msg.textContent = 'Checking…';
-        connect(v).then(function () { toast('GitHub key added on this device.'); draw(); }, function (e) { token = ''; if (ls('r2m.token') === v) ls('r2m.token', null); msg.textContent = 'That key didn’t work: ' + e.message; });
+        connect(v).then(function () { toast('GitHub key added on this device.'); draw(); opened(); }, function (e) { token = ''; if (ls('r2m.token') === v) ls('r2m.token', null); msg.textContent = 'That key didn’t work: ' + e.message; });
         return;
       }
       if (id === 'msg') { v = v.replace(/[^A-Za-z0-9]/g, ''); if (v.length < 12) { msg.textContent = 'That key looks too short.'; return; } }
       if (id === 'staff' && v.length < 8) { msg.textContent = 'That code looks too short.'; return; }
-      ls(k.store, v); toast(k.name + ' added on this device.'); draw();
+      ls(k.store, v); toast(k.name + ' added on this device.'); draw(); opened();
       if (id === 'staff') document.querySelectorAll('iframe.gframe').forEach(function (f) { if (f.getAttribute('src')) f.removeAttribute('src'); });   /* guest pages reload with the new code next time */
     }
     function del(id) {
@@ -2062,7 +2070,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         ls('r2m.tab', 'keys'); location.reload();
       };
     }
-    return { open: function () { if (!ready) { ready = true; init(); } setLock(true); draw(); }, close: function () { if (ready) setLock(true); } };
+    return { open: function () { if (!ready) { ready = true; init(); } setLock(!gated()); draw(); }, close: function () { if (ready) setLock(true); } };
   }());
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
@@ -2117,6 +2125,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'home'; }
   function tab(n) {
     if (TABS.indexOf(n) < 0) n = 'home';
+    document.body.classList.toggle('gated', gated());
+    if (gated()) n = 'keys';
     ls('r2m.tab', n); ls('r2m.sub.' + groupOf(n), n);
     var g = groupOf(n);
     document.body.setAttribute('data-g', g);

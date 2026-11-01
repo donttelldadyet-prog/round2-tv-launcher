@@ -12,7 +12,7 @@ import hashlib, json, sys
 version, ipk = sys.argv[1], sys.argv[2]
 sha = hashlib.sha256(open(ipk, 'rb').read()).hexdigest()
 REPO = 'https://github.com/donttelldadyet-prog/round2-tv-launcher'
-ICON = 'https://donttelldadyet-prog.github.io/round2-tv-launcher/icon-192.png'
+ICON = 'https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png'
 desc = 'The Round2 room menu: inputs, streaming apps and event backgrounds, driven by the remote.'
 manifest = {
     'id': 'sg.round2.tvhome', 'title': 'Round2 Home', 'version': version, 'type': 'web',
