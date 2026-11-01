@@ -390,6 +390,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 .hsbe { background: #ffc96b; padding: 6px; } .hsbn { background: #fde3b8; padding: 6px; font-weight: 700; color: #7a5a18; }
 .hsbf { text-align: center; padding: 5px; color: #9aa0b0; font-style: italic; }
 .hphone { background: #0e0c14; border: 1px solid var(--line2); border-radius: 18px; padding: 10px; max-width: 340px; margin: 4px 0 12px; display: grid; gap: 8px; }
+.hhome { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; background: #0b0a12; border: 1px solid var(--line2); padding: 10px; margin: 0 0 10px; max-width: 560px; }
+.hht { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 8px 4px; background: var(--panel2, #1B1826); border: 1px solid var(--line2); font-size: 12px; font-weight: 700; }
+.hht i { font-style: normal; font-size: 22px; } .hht span { font-weight: 400; color: var(--mute); font-size: 11px; }
+.hht.opt { border-color: var(--accent); }
 .htv { background: #0b0a12; border: 1px solid var(--line2); margin: 0 0 10px; max-width: 520px; font-size: 13px; }
 .htv.staff { border-color: var(--accent); }
 .htvh { padding: 7px 10px; font-size: 11px; letter-spacing: .14em; font-weight: 700; color: var(--mute); border-bottom: 1px solid var(--line2); }
@@ -814,7 +818,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="hjump" id="hJump">
       <a href="#h-basics">⭐ Basics</a><a href="#h-phone">📱 Set up</a><a href="#h-extend">⏱️ +1h</a><a href="#h-late">🌙 Late</a>
       <a href="#h-latechange">✏️ Move / cancel</a><a href="#h-labels">↓ Labels</a><a href="#h-r2">💬 TV messages</a><a href="#h-auto">⚙ Auto wrap-up</a>
-      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food orders</a><a href="#h-themes">🎨 TV looks</a><a href="#h-tvmenu">📺 TV menu</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
+      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food orders</a><a href="#h-themes">🎨 TV looks</a><a href="#h-tvmenu">🎮 TV home screen</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
     </div>
 
     <details class="hcard" id="h-basics" open><summary><span class="hi">⭐</span>The basics</summary>
@@ -925,8 +929,23 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <p class="tip">🔊 Sounds: add your own ambience (rain, café…). 🔁 Move a TV to another room: on the TV › Options › Staff › This TV’s room.</p>
     </details>
 
-    <details class="hcard" id="h-tvmenu"><summary><span class="hi">📺</span>The TV’s own menu (Options)</summary>
-      <p>On the TV: Round2 menu › <b>Options</b>. ◀ ▶ changes a setting, OK opens it.</p>
+    <details class="hcard" id="h-tvmenu"><summary><span class="hi">🎮</span>The Round2 home screen on the TV</summary>
+      <p class="hh">📺 What guests see</p>
+      <div class="hhome">
+        <div class="hht"><i>🎮</i>Inputs<span>PlayStation / HDMI</span></div>
+        <div class="hht"><i>📲</i>AirPlay<span>mirror an iPhone</span></div>
+        <div class="hht"><i>▶️</i>YouTube<span>no ads</span></div>
+        <div class="hht"><i>🎬</i>Netflix</div>
+        <div class="hht"><i>📦</i>Prime Video</div>
+        <div class="hht"><i>🟣</i>HBO Max<span>Deluxe + VIP</span></div>
+        <div class="hht"><i>➕</i>More apps<span>Disney+, Spotify…</span></div>
+        <div class="hht opt"><i>⚙️</i>Options<span>settings</span></div>
+      </div>
+      <p class="tip">Scarlett, Vale, Bella (LG) may also show <b>Screen Share</b> for Android phones and laptops. A new group never sees the last group’s apps or history.</p>
+      <p class="hh">🕹️ The remote</p>
+      <div class="hkeys"><span><b>◀ ▶</b> move</span><span><b>OK</b> open</span><span><b>Back</b> leave an app / go back</span><span><b>Home</b> back to Round2</span></div>
+      <p class="hh">⚙️ Options</p>
+      <p>Round2 menu › <b>Options</b>. ◀ ▶ changes a setting, OK opens it.</p>
       <div class="htv">
         <div class="htvh">OPTIONS · anyone can change</div>
         <div class="htvr"><span>🖼️ Background</span><em>the room’s video wallpaper</em></div>
@@ -938,6 +957,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <div class="htvr"><span>🗂️ Info cards</span><em>where the description box sits</em></div>
         <div class="htvr lock"><span>🔐 Staff</span><em>PIN – opens Staff tools for 10 min</em></div>
       </div>
+      <p class="hh">🔐 Getting into Staff tools</p>
+      <div class="hflow"><div class="hstep"><i>⚙️</i>Options</div><em>›</em><div class="hstep"><i>🔐</i>Staff</div><em>›</em><div class="hstep"><i>🔢</i>Type the staff PIN</div><em>›</em><div class="hstep ok"><i>🧰</i>Staff tools (10 min)</div></div>
+      <p class="tip">Type the PIN with the remote’s number buttons, or ▲▼ to pick a number and ▶ for the next one. Don’t know it? Ask the owner – he can change it in the control centre (TV setup › TV settings › Staff PIN). Wrong 5 times = wait a minute. After 10 minutes it locks again by itself.</p>
       <div class="htv staff">
         <div class="htvh">🔐 STAFF TOOLS · after the PIN</div>
         <div class="htvr"><span>🚪 This TV’s room</span><em>which room it is – colours, apps and themes follow</em></div>
