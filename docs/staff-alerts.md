@@ -14,7 +14,7 @@ Needs the guest messages staff code on the phone (Keys).
 | Kind | When | Example |
 |---|---|---|
 | `booking` | SimplyBook callback (`/sb/notify/<key>`): create / change / cancel | **🩷 VALE · New booking** · Amanda Tan · Sat 2 Nov, 4pm–7pm (3h) · Peak · S$69 paid online · 3 pax · Vale |
-| `soon` | Cron every 5 min: a session 50–62 min away (bookings **and** calendar notes that block time) | **🩷 VALE · in 1 hour** · Indra · 11am–2pm (3h) · SimplyBook booking · Vale |
+| `soon` | Cron every 10 min, 9:45am–2am SG only: a session 50–62 min away (not if keyed in within the hour) (bookings **and** calendar notes that block time) | **🩷 VALE · in 1 hour** · Indra · 11am–2pm (3h) · SimplyBook booking · Vale |
 
 - Room colour: iPhone always shows the app icon, so the title starts with the room's heart: 🩷 Vale, 💚 Kaeden,
   💛 Scarlett, 🩵 Kai, 💜 Bella, 🤍 Atlas, ❤️ Max (🩷/🩵 need iOS 16.4, the same version push needs).
@@ -30,7 +30,7 @@ Needs the guest messages staff code on the phone (Keys).
 - `POST /push/sub|state|unsub|test|preview` with `{staff, …}` (staff = GM_STAFF). Body is JSON sent as text (no CORS preflight).
   `preview` shows what an alert would say (`{kind:'soon'}` or `{bid}`), sends nothing.
 - Phones are kept in the HoldBook Durable Object (`push` table); one the push service says is gone (404/410) is dropped.
-- Cron trigger `*/5 * * * *` → `scheduled()` → `soonRun` (only reads SimplyBook when a phone wants `soon`; table `soon` stops repeats).
+- Cron trigger `*/10 * * * *` → `scheduled()` → `soonRun`: asks SimplyBook only 9:45am–2am SG, only when a phone wants `soon`, today only (tomorrow near midnight); table `soon` stops repeats. Booking alerts are pushed by SimplyBook 24/7.
 - `/status` shows `pushAlerts: true` when the key is set.
 
 ## Control centre (`manager/`)
