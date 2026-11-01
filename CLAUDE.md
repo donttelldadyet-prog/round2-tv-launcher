@@ -7,3 +7,5 @@
 - Times are Singapore time everywhere. The shop's "day" runs until staff sleep: a session starting 12am–11am belongs to
   the night before. Guest end = SimplyBook end − 15 min cleaning. Booking times go in 15-minute steps.
 - The booking engine lives in the other repo: round2sg-home `worker/round2-book.js` (deployed to Cloudflare `round2-book`).
+- **Kaeden is under renovation (since ~30 Oct 2026, open-ended).** Its long "room blocked" note in SimplyBook stays – don't
+  remove it or "fix" Kaeden having no free slots. Its TV should still run and report in like the others, ready for reopening.

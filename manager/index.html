@@ -2165,7 +2165,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return Promise.all(rooms.map(function (r) { return Promise.all([fetch(FB + mk + '/' + r + '/msgShown.json').then(function (x) { return x.json(); }).catch(function () { return null; }), fetch(FB + mk + '/' + r + '/msgAck.json').then(function (x) { return x.json(); }).catch(function () { return null; })]); })).then(function (all) {
           var stale = [], seen = [];
           all.forEach(function (a, i) { var t = Math.max((a[0] && a[0].t) || 0, (a[1] && a[1].t) || 0); (Date.now() - t > 2 * 86400e3 ? stale : seen).push(rooms[i] + (t ? ' ' + ago(t) : ' never')); });
-          warnIf(stale.length, 'Not heard from in 2+ days: ' + stale.join(', ') + '. TV off, unplugged or offline? (Others: ' + seen.join(', ') + ')');
+          /* Kaeden is under renovation (owner, 2 Nov): its SimplyBook block stays, but its TV should keep running like the others */
+          warnIf(stale.length, 'Not heard from in 2+ days: ' + stale.join(', ') + '. TV off, unplugged or offline?' + (stale.some(function (x) { return /^kaeden/.test(x); }) ? ' (Kaeden is under renovation, but its TV should stay on and online, ready for reopening.)' : '') + ' Others: ' + seen.join(', '));
           return seen.join(' · ');
         });
       }); })
