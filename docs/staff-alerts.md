@@ -43,6 +43,15 @@ Room, date, arrives, guest leaves, name, pax → Check (engine `/gm` action `lat
 ONE note from arrival to guest end + 15 min cleaning (past midnight too), text `<name> <pax> pax · late till 1am · control
 centre`; Vale/Atlas twin gets a SYSTEM BLOCK. Needs the guest messages staff code (asked once on that phone).
 
+## Auto wrap-up (TV messages › Auto wrap-up) – built 1 Nov 2026, starts OFF
+Switch (engine mode `autoEnd`, staff code, `/gm` action `auto`). When on, every session today (bookings + calendar notes,
+late sessions; last night's too until 6am) gets "About 10 minutes to go" (guest end − 10) and "That's a wrap!" (guest end)
+as soon as the engine sees it. Kept in sync every 10 min (cron) and straight away on every SimplyBook callback: new →
+added, moved/extended → moved, gone → cancelled (only messages the auto made; more than 4 at once → nothing cancelled,
+logged). Messages already set (+1h, Late session, Round2 messages) are adopted, never doubled. Per-session "Auto off".
+Skips SYSTEM BLOCKs and stray EXT notes. Table `auto` in the Durable Object; last change in kv `autoLast`.
+Cost: about 2 Make operations per session (plus 1 per move/cancel).
+
 ## Next alert ideas
 Food order paid / food at pickup; Loot dropped not OK'd after 10 min; TV offline or Homebrew failsafe in opening hours;
 guest message not shown; Madd payout approval. Add the kind to `PUSH_KINDS` (engine) and `KINDS` (control centre).

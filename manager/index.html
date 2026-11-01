@@ -562,6 +562,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <iframe class="gframe" title="Guest messages" data-src="msg/staff.html?view=list&amp;embed=1"></iframe>
   </section>
 
+  <section id="tab-autowrap" hidden>
+    <h1>Auto wrap-up</h1>
+    <p class="sub">When on, every session today gets “About 10 minutes to go” and “That’s a wrap!” on its TV, by itself. Bookings and calendar notes, late sessions too. New, moved, extended or cancelled sessions are followed within 10 minutes (bookings straight away).</p>
+    <div class="card" id="awSwitch" style="max-width:760px"><p class="hint" style="margin:0">Loading…</p></div>
+    <h2 style="margin-top:18px">Today</h2>
+    <div id="awList"></div>
+    <p class="hint" id="awLast"></p>
+  </section>
+
   <section id="tab-late" hidden>
     <h1>Late session</h1>
     <p class="sub">Key in a WhatsApp or walk-in session, including past midnight.</p>
@@ -1990,6 +1999,54 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     lg.src = 'https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp';
   }());
 
+  /* ---------- TV messages › Auto wrap-up (engine /gm action=auto): the switch + today's sessions ---------- */
+  var AutoWrap = (function () {
+    var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, busy = false, RN = { vale: 'vale', kaeden: 'kaeden', scarlett: 'scarlett', bella: 'bella', kai: 'kai', atlas: 'atlas', max: 'maximillion' };
+    function key() { return ls('r2.guestStaff') || ''; }
+    function tm(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).replace(/\s/g, '').toLowerCase(); }
+    function call(extra) { return fetch(ENG, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: key(), action: 'auto' }, extra || {})) }).then(function (r) { return r.json(); }); }
+    function draw(j) {
+      var on = j.on;
+      $('awSwitch').innerHTML = '<div class="row" style="justify-content:space-between;align-items:center"><div><b style="font-size:18px">' + (on ? 'On' : 'Off') + '</b>' +
+        '<div class="hint">' + (on ? 'The engine adds and keeps these messages in sync by itself.' : 'Nothing is added automatically. +1h, Late session and Round2 messages still work as before.') + (j.t ? ' Switched ' + (on ? 'on' : 'off') + ' ' + new Date(j.t).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (j.by ? ' by ' + esc(j.by) : '') + '.' : '') + '</div></div>' +
+        '<button class="btn ' + (on ? '' : 'primary') + '" type="button" data-aw="' + (on ? 'off' : 'on') + '">' + (on ? 'Turn off' : 'Turn on') + '</button></div>';
+      var L = j.sessions || [];
+      $('awList').innerHTML = L.length ? L.map(function (x) {
+        var R = ROOMS[RN[x.room]] || { name: x.room, c: '#888' }, st;
+        if (x.done) st = '<span class="hint">Ended ' + tm(x.guestEnd) + '</span>';
+        else if (x.off) st = '<span class="chip">Auto off</span>';
+        else if (x.msgs && (x.msgs.w || x.msgs.t)) st = '<span class="chip" style="color:var(--ok)">✓ ' + tm(x.guestEnd - 600000) + ' & ' + tm(x.guestEnd) + (x.msgs.own ? '' : ' · set by hand') + (x.msgs.synced ? '' : ' · updating') + '</span>';
+        else st = '<span class="hint">' + (on ? 'Adding…' : 'No messages yet') + '</span>';
+        return '<div class="card" style="max-width:760px;margin:8px 0;padding:10px 12px;border-left:4px solid ' + R.c + ';opacity:' + (x.done ? .55 : 1) + '"><div class="row" style="justify-content:space-between;align-items:center;margin:0">' +
+          '<div><b>' + esc(R.name) + '</b> · ' + esc(x.name || (x.k === 'n' ? 'note' : 'guest')) + '<div class="hint">' + tm(x.s) + '–' + tm(x.guestEnd) + (x.k === 'n' ? ' · note' : '') + '</div></div>' +
+          '<div style="text-align:right">' + st + (x.done ? '' : '<br><button class="btn ghost" type="button" style="padding:4px 10px;font-size:11px;margin-top:4px" data-awk="' + esc(x.key) + '" data-aws="' + (x.off ? 'on' : 'off') + '">' + (x.off ? 'Turn auto on' : 'Auto off for this one') + '</button>') + '</div></div></div>';
+      }).join('') : '<p class="hint">No sessions today yet.</p>';
+      var l = j.last; $('awLast').textContent = l && l.t ? 'Last change ' + tm(l.t) + ': ' + [l.made && l.made + ' added', l.moved && l.moved + ' moved', l.cancelled && l.cancelled + ' cancelled', l.adopted && l.adopted + ' already set'].filter(Boolean).join(', ') + ((l.problems || []).length ? ' · ' + l.problems.join('; ') : '') + '.' : '';
+    }
+    function load(extra) {
+      if (!key()) { $('awSwitch').innerHTML = '<p class="hint" style="margin:0">Needs the guest messages staff code (Tests &amp; systems › Keys).</p>'; $('awList').innerHTML = ''; return; }
+      if (busy) return; busy = true;
+      call(extra).then(function (j) { busy = false; if (!j || !j.ok) { $('awSwitch').innerHTML = '<p class="hint" style="margin:0">Couldn’t load: ' + esc((j && j.error) || 'no answer') + '</p>'; return; } draw(j); })
+        .catch(function () { busy = false; $('awSwitch').innerHTML = '<p class="hint" style="margin:0">Couldn’t reach the engine.</p>'; });
+    }
+    var ready = false;
+    return {
+      open: function () {
+        if (!ready) {
+          ready = true;
+          $('tab-autowrap').addEventListener('click', function (e) {
+            var b = e.target.closest && e.target.closest('button'); if (!b) return;
+            var sw = b.getAttribute('data-aw'), k = b.getAttribute('data-awk');
+            if (sw) { if (sw === 'off' && !confirm('Turn off auto wrap-up? Messages already queued stay; nothing new is added.')) return; b.disabled = true; b.textContent = '…'; load({ set: sw, by: 'control centre' }); }
+            else if (k) { b.disabled = true; load({ key: k, sess: b.getAttribute('data-aws') }); }
+          });
+        }
+        load(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) load(); }, 60000);
+      },
+      close: function () { clearInterval(timer); timer = null; }
+    };
+  }());
+
   /* ---------- Alerts on this phone: web push from the Cloudflare engine (/push/*), docs/staff-alerts.md ----------
      iPhone: only works in the app opened from the Home Screen icon (iOS 16.4+), and "Turn on" must be tapped. */
   var Alerts = (function () {
@@ -2090,7 +2147,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         opens: [['messages', 'Round2 messages'], ['tests', 'Test a TV']],
         about: 'Sends birthday notes and house reminders to the room TVs, and sends test messages and food alerts. It’s the same private code the food alerts use.' },
       { id: 'staff', name: 'Guest messages staff code', store: 'r2.guestStaff', ph: 'Staff code',
-        opens: [['insession', 'In session (+1h extensions)'], ['late', 'Late session'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link'], ['alerts', 'Alerts on this phone']],
+        opens: [['insession', 'In session (+1h extensions)'], ['late', 'Late session'], ['autowrap', 'Auto wrap-up'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link'], ['alerts', 'Alerts on this phone']],
         about: 'Adds extra hours after a guest pays, makes guest message links, and shows, moves or cancels guests’ messages (also in the Round2 messages calendar).' },
       { id: 'sim', name: 'Menu test code', store: 'r2m.simCode', ph: 'Menu test code',
         opens: [['simorder', 'Test an order'], ['testbench', 'Test bench (booking in test mode)']],
@@ -2206,13 +2263,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'keys', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'keys', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
     home: [['home', 'Overview']],
     sess: [['insession', 'In session'], ['late', 'Late session']],
-    notif: [['messages', 'Round2 messages'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link']],
+    notif: [['messages', 'Round2 messages'], ['autowrap', 'Auto wrap-up'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors']],
@@ -2280,6 +2337,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'systems') Sys.open(); if (n === 'testbench') Sys.bench();
     if (n === 'keys') Keys.open(); else Keys.close();
     if (n === 'alerts') Alerts.open();
+    if (n === 'autowrap') AutoWrap.open(); else AutoWrap.close();
     if (n === 'foodmenu') openMenuEditor();
     if (n === 'simorder') Sim.open();
     if (n === 'guestmsgs' || n === 'guestlink' || n === 'late') {   /* the guest messages pages, shown inside this tab (loaded the first time it's opened) */
