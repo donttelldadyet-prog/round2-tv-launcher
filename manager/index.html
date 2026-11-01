@@ -954,7 +954,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   var clockOff = 0; try { clockOff = Number(localStorage.getItem('r2.clockOff')) || 0; } catch (e) {}
   (function () { var t0 = Date.now(); fetch('https://round2-book.donttelldadyet.workers.dev/time', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
     var t1 = Date.now(); if (j && j.t && t1 - t0 < 5000) { clockOff = Math.round(j.t + (t1 - t0) / 2 - t1); try { localStorage.setItem('r2.clockOff', String(clockOff)); } catch (e) {} } }).catch(function () {}); }());
-  function sgNow() { var x = new Date(Date.now() + clockOff + 8 * 3600e3); return new Date(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), 12); }
+  /* the shop night (owner, 2 Nov): before 7am "today" is still last night – theme dates follow it like the TVs do */
+  function sgNow() { var x = new Date(Date.now() + clockOff + 8 * 3600e3 - 7 * 3600e3); return new Date(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), 12); }
   function today() { return ymd(sgNow()); }
   function nice(s) { if (!s) return ''; var d = new Date(s + 'T12:00:00'); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined }); }
   function b64utf8(s) { return btoa(unescape(encodeURIComponent(s))); }
@@ -1461,9 +1462,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function topic(r) { return r === 'maximillion' ? 'max' : r; }
     function roomOf(t) { return t === 'max' ? 'maximillion' : t; }
     function parts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
-    /* the shop's day runs until we sleep (owner, 1 Nov): messages 12am–6am belong to the night before, and before 6am
-       "today" is still last night */
-    function dayKey(ms) { var p = parts(ms - 6 * 3600e3); return p.year + '-' + p.month + '-' + p.day; }
+    /* the shop night (owner, 2 Nov): messages before 7am belong to the night before, and before 7am "today" is still last night */
+    function dayKey(ms) { var p = parts(ms - 7 * 3600e3); return p.year + '-' + p.month + '-' + p.day; }
     function clock(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).toLowerCase(); }
     function gKey() { return ls('r2.guestStaff') || ''; }
     function load() {
@@ -1849,7 +1849,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           /* greyed out: that many hours would run into the next booking/note (in this room or its twin). Past 11:15pm
              stays possible (late sessions are agreed on WhatsApp) but is marked, and the check box asks again. */
           /* 11:15pm of the shop night (12am–11am starts belong to the night before), on the guest end – same rule as the engine */
-          var close = Date.parse(new Date(x.start - 11 * 3600000 + 8 * 3600000).toISOString().slice(0, 10) + 'T23:15:00+08:00');
+          var close = Date.parse(new Date(x.start - 7 * 3600000 + 8 * 3600000).toISOString().slice(0, 10) + 'T23:15:00+08:00');   /* 7am shop-night rule */
           if (x.st !== 'done') h += '<div class="plus">' + [1, 2, 3].map(function (n) {
             var blocked = gap !== null && n > gap, late = x.guestEnd + n * 3600000 > close + 60000;
             return '<button class="btn' + (late && !blocked ? ' late' : '') + '" data-ext="' + n + '" data-room="' + rk + '" data-key="' + esc(x.key) + '"' + (blocked ? ' disabled title="Runs into the next booking at ' + t(x.nextAt) + '"' : late ? ' title="Goes past 11:15pm"' : '') + '>+' + n + 'h' + (late && !blocked ? '<small>late</small>' : '') + '</button>';
@@ -2123,7 +2123,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }); }); })
       .then(function () { return step('One clock: the engine’s time is reachable (TVs and this page set themselves by it)', function () {
         var t0 = Date.now(); return J('/time').then(function (j) { var t1 = Date.now(), off = Math.round((j.t + (t1 - t0) / 2 - t1) / 1000);
-          must(j.t && j.today, 'No time from the engine.'); return 'Engine: ' + j.sg + ' (Singapore), shop night ' + j.night + ' · this phone’s own clock is ' + (Math.abs(off) <= 2 ? 'spot on' : Math.abs(off) + ' s ' + (off > 0 ? 'slow' : 'fast')) + ' – ignored'; }); }); })
+          must(j.t && j.today, 'No time from the engine.');
+          must(j.night === new Date(j.t + 8 * 3600e3 - 7 * 3600e3).toISOString().slice(0, 10), 'The engine’s shop night isn’t on the 7am rule (' + j.night + ').'); return 'Engine: ' + j.sg + ' (Singapore), shop night ' + j.night + ' · this phone’s own clock is ' + (Math.abs(off) <= 2 ? 'spot on' : Math.abs(off) + ' s ' + (off > 0 ? 'slow' : 'fast')) + ' – ignored'; }); }); })
       .then(function () { return step('SimplyBook answers (login + all 7 rooms)', function () {
         return J('/selftest').then(function (j) { must(j.sbLogin, 'SimplyBook login failed.'); must((j.rooms || []).length === 7, 'Expected 7 rooms, got ' + (j.rooms || []).length + '.'); return j.rooms.join(', '); }); }); })
       .then(function () { return step('Public holidays loaded (this year and next)', function () {

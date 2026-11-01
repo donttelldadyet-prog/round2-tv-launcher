@@ -386,7 +386,8 @@ details.past .list { margin-top: 10px; }
     }
     return h + '</article>';
   }
-  function dayKey(ms) { var p = sgParts(ms); return p.year + '-' + p.month + '-' + p.day; }
+  /* the shop night (owner, 2 Nov): a link for a session before 7am is filed under the night before, like every other screen */
+  function dayKey(ms) { var p = sgParts(ms - 7 * 3600e3); return p.year + '-' + p.month + '-' + p.day; }
   function dayName(k) {
     var today = dayKey(Date.now()), tmr = dayKey(Date.now() + 86400000), ms = Date.parse(k + 'T12:00:00+08:00');
     var d = fmt(ms, { weekday: 'short', day: 'numeric', month: 'short' });

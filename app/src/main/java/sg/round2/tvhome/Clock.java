@@ -30,11 +30,11 @@ final class Clock {
         if (off == Long.MIN_VALUE) off = c.getSharedPreferences("r2clock", Context.MODE_PRIVATE).getLong("off", 0);
     }
 
-    /** Singapore date (yyyy-MM-dd), by the engine's clock; days = days from today. */
+    /** Singapore date (yyyy-MM-dd) of the shop night, by the engine's clock: before 7am it's still last night (owner, 2 Nov). */
     static String sgDate(int days) {
         SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
         f.setTimeZone(TimeZone.getTimeZone("Asia/Singapore"));
-        return f.format(new Date(now() + days * 86_400_000L));
+        return f.format(new Date(now() - 7 * 3_600_000L + days * 86_400_000L));
     }
 
     /** Ask the engine for its time (call off the main thread). */

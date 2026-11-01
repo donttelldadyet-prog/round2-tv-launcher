@@ -1715,8 +1715,9 @@ window.R2_TV = {
     } catch (e) {}
   }
   syncClock(); setInterval(syncClock, 30 * 60 * 1000);
-  /* Singapore date by the engine's clock (time check 2 Nov) */
-  function today() { return new Date(r2Now() + 8 * 3600e3).toISOString().slice(0, 10); }
+  /* Singapore date by the engine's clock, on the shop night (owner, 2 Nov): before 7am it's still last night's date, so a
+     theme ending "31 Oct" runs through that night */
+  function today() { return new Date(r2Now() + 8 * 3600e3 - 7 * 3600e3).toISOString().slice(0, 10); }
   function themeWalls() {
     var out = [], d = today();
     for (var i = 0; i < THEMES.length; i++) {
