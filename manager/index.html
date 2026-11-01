@@ -2013,8 +2013,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         (on ? '<button class="btn" type="button" id="alSave">Save choices</button><button class="btn ghost" type="button" id="alOff">Turn off</button>'
             : '<button class="btn primary" type="button" id="alOn"' + (perm === 'denied' ? ' disabled' : '') + '>Turn on alerts</button>') +
         '</div><p class="hint" id="alMsg" style="margin:10px 0 0"></p></div>';
-      if (on) h += '<div class="card"><h2 style="margin-top:0">Test</h2><p class="hint" style="margin-top:0">Sends to this phone only, marked TEST. The samples use a real upcoming booking or session.</p><div class="row">' +
-        '<button class="btn primary" type="button" data-alt="">Test alert</button><button class="btn" type="button" data-alt="booking">Sample booking alert</button><button class="btn" type="button" data-alt="soon">Sample 1-hour alert</button></div></div>';
+      if (on) h += '<div class="card"><h2 style="margin-top:0">Test</h2><p class="hint" style="margin-top:0">Sends to this phone only, marked TEST. The samples use the next real booking or calendar note. Notes show the whole note; pax is read from it when written like “4 pax”.</p><div class="row">' +
+        '<button class="btn primary" type="button" data-alt="">Test alert</button><button class="btn" type="button" data-alt="booking">Sample booking alert</button><button class="btn" type="button" data-alt="soon">1 hour before: a booking</button><button class="btn" type="button" data-alt="soonnote">1 hour before: a calendar note</button></div></div>';
       if (on && state.last) { var L = state.last; try { L = JSON.parse(L); } catch (e) {} if (L && L.t) h += '<p class="hint">Last alert to this phone: ' + new Date(L.t).toLocaleString('en-SG') + (L.r && L.r !== 'ok' ? ' · ' + esc(L.r) : ' · delivered') + '</p>'; }
       box.innerHTML = h;
     }

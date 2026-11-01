@@ -7,7 +7,7 @@ extra service.
 ## For staff
 1. iPhone: Safari › staff.round2.sg › Share › **Add to Home Screen**, then open it **from that icon** (iOS 16.4+).
 2. Tests & systems › **Alerts** › tick what you want › **Turn on alerts** › Allow.
-3. Use the Test buttons (plain test, a sample booking alert, a sample 1-hour alert – sent to this phone only, marked TEST).
+3. Use the Test buttons (plain test, a sample booking alert, 1 hour before for the next booking and for the next calendar note – sent to this phone only, marked TEST).
 Needs the guest messages staff code on the phone (Keys).
 
 ## Alerts
