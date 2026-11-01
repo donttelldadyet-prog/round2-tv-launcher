@@ -390,6 +390,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 .hsbe { background: #ffc96b; padding: 6px; } .hsbn { background: #fde3b8; padding: 6px; font-weight: 700; color: #7a5a18; }
 .hsbf { text-align: center; padding: 5px; color: #9aa0b0; font-style: italic; }
 .hphone { background: #0e0c14; border: 1px solid var(--line2); border-radius: 18px; padding: 10px; max-width: 340px; margin: 4px 0 12px; display: grid; gap: 8px; }
+.htv { background: #0b0a12; border: 1px solid var(--line2); margin: 0 0 10px; max-width: 520px; font-size: 13px; }
+.htv.staff { border-color: var(--accent); }
+.htvh { padding: 7px 10px; font-size: 11px; letter-spacing: .14em; font-weight: 700; color: var(--mute); border-bottom: 1px solid var(--line2); }
+.htv.staff .htvh { color: var(--accent); }
+.htvr { display: grid; grid-template-columns: minmax(150px, 46%) 1fr; gap: 8px; padding: 7px 10px; border-top: 1px solid rgba(255,255,255,.05); }
+.htvr span { font-weight: 700; } .htvr em { font-style: normal; color: var(--mute); }
+.htvr.lock span { color: var(--accent); } .htvr.hot { background: rgba(242,194,27,.1); }
 .hrooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; margin: 0 0 14px; max-width: 760px; }
 .hrooms a { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; background: var(--panel); border: 1px solid var(--line2); border-bottom: 3px solid var(--rc); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 700; }
 .hrooms a i { font-style: normal; font-size: 22px; }
@@ -806,7 +813,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="hjump" id="hJump">
       <a href="#h-basics">⭐ Basics</a><a href="#h-phone">📱 Set up</a><a href="#h-extend">⏱️ +1h</a><a href="#h-late">🌙 Late</a>
       <a href="#h-latechange">✏️ Move / cancel</a><a href="#h-labels">↓ Labels</a><a href="#h-r2">💬 TV messages</a><a href="#h-auto">⚙ Auto wrap-up</a>
-      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food orders</a><a href="#h-themes">🎨 TV looks</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
+      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food orders</a><a href="#h-themes">🎨 TV looks</a><a href="#h-tvmenu">📺 TV menu</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
     </div>
 
     <details class="hcard" id="h-basics" open><summary><span class="hi">⭐</span>The basics</summary>
@@ -917,6 +924,35 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <p class="tip">🔊 Sounds: add your own ambience (rain, café…). 🔁 Move a TV to another room: on the TV › Options › Staff › This TV’s room.</p>
     </details>
 
+    <details class="hcard" id="h-tvmenu"><summary><span class="hi">📺</span>The TV’s own menu (Options)</summary>
+      <p>On the TV: Round2 menu › <b>Options</b>. ◀ ▶ changes a setting, OK opens it.</p>
+      <div class="htv">
+        <div class="htvh">OPTIONS · anyone can change</div>
+        <div class="htvr"><span>🖼️ Background</span><em>the room’s video wallpaper</em></div>
+        <div class="htvr"><span>🌧️ Ambience</span><em>rain, storm, our own sounds, or off</em></div>
+        <div class="htvr"><span>🔉 Ambience volume</span><em>how loud that is</em></div>
+        <div class="htvr"><span>✨ Transition</span><em>the animation between screens</em></div>
+        <div class="htvr"><span>🚀 Home animation</span><em>the intro when the menu opens</em></div>
+        <div class="htvr"><span>🔔 Menu sounds</span><em>the click when you move</em></div>
+        <div class="htvr"><span>🗂️ Info cards</span><em>where the description box sits</em></div>
+        <div class="htvr lock"><span>🔐 Staff</span><em>PIN – opens Staff tools for 10 min</em></div>
+      </div>
+      <div class="htv staff">
+        <div class="htvh">🔐 STAFF TOOLS · after the PIN</div>
+        <div class="htvr"><span>🚪 This TV’s room</span><em>which room it is – colours, apps and themes follow</em></div>
+        <div class="htvr"><span>⬆️ Update app</span><em>install the newest Round2 version</em></div>
+        <div class="htvr"><span>🎬 Check for new themes</span><em>fetch new event backgrounds now</em></div>
+        <div class="htvr hot"><span>🏠 Home button</span><em><b>OPENS ROUND2</b> (normal) or <b>TV HOME</b> / <b>LG HOME</b> (the TV’s own)</em></div>
+        <div class="htvr"><span>⚡ Open when TV turns on</span><em>LG rooms: start on Round2 or not</em></div>
+        <div class="htvr"><span>🤖 Android home screen</span><em>Sony / TCL / Prism+: the TV’s own home for 5 min</em></div>
+        <div class="htvr"><span>🌙 TV screensaver on the menu</span><em>keep the TV’s screensaver away, or let the TV decide</em></div>
+        <div class="htvr"><span>🍕 Food alerts over apps</span><em>food pop-ups even inside Netflix etc.</em></div>
+        <div class="htvr"><span>📡 AirPlay receiver</span><em>Bella: install / update AirPlay</em></div>
+        <div class="htvr"><span>⚙️ TV settings · ℹ️ About</span><em>the TV’s own settings · its name and version</em></div>
+      </div>
+      <p class="tip">Some rows only show on the TVs they apply to. Changed something by mistake? It stays until you change it back – nothing resets by itself.</p>
+    </details>
+
     <details class="hcard" id="h-check"><summary><span class="hi">✅</span>Is everything working?</summary>
       <div class="hflow"><div class="hstep"><i>🧪</i>Tests &amp; systems</div><em>›</em><div class="hstep"><i>✅</i>System check</div><em>›</em><div class="hstep ok"><i>▶️</i>Run full check</div></div>
       <div class="hkeys"><span>✅ all good</span><span>⚠️ have a look</span><span>❌ broken – screenshot it to the owner</span></div>
@@ -950,14 +986,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <div class="hnum"><b>3</b><i>⚙️</i><div><b>Switch Round2 off for now</b><span>Remote Settings › <b>Device Preferences</b> (TCL: <b>System</b>) › <b>Accessibility</b> › <b>Round2 Home button</b> › <b>Off</b>. It acts like a normal TV until you switch it back on.</span></div></div>
         <div class="hnum"><b>4</b><i>🔌</i><div><b>Unplug for 30 seconds</b><span>Then plug back in. Still crashing? Step 2 lets you through within a minute.</span></div></div>
       </div>
-      <p class="tip">⛵ <b>Atlas is different at step 3</b> – its Settings hide that switch. Instead: Round2 <b>Options › Staff</b> (PIN) › <b>Staff tools › Home button › TV HOME</b>.</p>
+      <div class="hex"><span class="hexl">Easier way</span> 🏠 Round2 <b>Options › Staff</b> (PIN) › <b>Staff tools › Home button</b> › switch to <b>TV HOME</b>. Home now opens the TV’s own screen until you switch it back to <b>OPENS ROUND2</b>. (Same menu: <b>Android home screen</b> = the TV’s own home for 5 min.)</div>
+      <p class="tip">⛵ <b>Atlas:</b> step 3’s Settings switch is hidden on it – always use the easier way above.</p>
     </details>
 
     <details class="hcard" id="s-lg"><summary><span class="hi">🌀</span>Scarlett, Vale, Bella</summary>
       <div class="hsteps">
         <div class="hnum"><b>1</b><i style="font-size:15px;letter-spacing:0">🏠×3</i><div><b>Press Home 3 times quickly</b><span>LG’s own home screen opens – works even when the menu is frozen. One press of Home goes back to Round2.</span></div></div>
         <div class="hnum"><b>2</b><i>↩️</i><div><b>Back</b><span>Leaves Netflix, HDMI or any app and returns to Round2.</span></div></div>
-        <div class="hnum"><b>3</b><i>⚙️</i><div><b>Change how Home works</b><span>Round2 <b>Options › Staff</b> (PIN) › <b>Staff tools</b>: <b>Home button › LG HOME</b> gives LG’s home back; <b>Open when TV turns on › OFF</b> stops Round2 opening at power-on.</span></div></div>
+        <div class="hnum"><b>3</b><i>🏠</i><div><b>Change what Home does</b><span>Round2 <b>Options › Staff</b> (PIN) › <b>Staff tools › Home button</b> › <b>LG HOME</b>: Home opens LG’s own screen until you switch it back to <b>OPENS ROUND2</b>. <b>Open when TV turns on › OFF</b> stops Round2 starting at power-on.</span></div></div>
         <div class="hnum"><b>4</b><i>🔌</i><div><b>Unplug for 30 seconds</b><span>Round2 opens again at start-up; 3 presses of Home still get you out.</span></div></div>
       </div>
       <p class="tip">⚠️ Never let these LG TVs install an LG software update – it can break Round2 on them.</p>
