@@ -687,7 +687,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   </section>
 
   <section id="tab-keys" class="locked" hidden>
-    <div class="gatehead"><img src="icon-192.png" alt=""><h1>Add your key</h1><p class="sub">This phone or computer isn’t set up yet. Paste the key the owner gave you into its box below and press Save. The control centre opens straight away, showing only the pages your key is for.</p></div>
+    <div class="gatehead"><img src="icon-192.png" alt=""><h1>Add your key</h1><p class="sub">This phone or computer isn’t set up yet. Paste the key the owner gave you into its box below and press Save. The control centre opens straight away, showing only the pages your key is for.</p>
+      <div class="card" style="margin-top:14px"><h2 style="margin-top:0">Moving from the old address?</h2><p class="hint" style="margin:0 0 10px">On the old control centre: Tests &amp; systems › Keys › hold to unlock › <b>Copy keys for the new address</b>. Paste it here.</p>
+      <div class="row"><input class="tok" id="bundleIn" type="password" autocomplete="off" placeholder="R2KEYS:…" aria-label="Copied keys" style="flex:1;min-width:200px"><button class="btn primary" type="button" id="bundleGo">Add all</button></div><p class="hint" id="bundleMsg" style="margin:8px 0 0"></p></div></div>
     <h1>Keys</h1>
     <p class="sub">Every key the control centre uses, in one place. Each key switches on its own pages, on this phone or computer only. Give staff only the keys for the jobs they do: a page whose key isn't added here stays locked.</p>
     <div class="klock" id="keyLock"></div>
@@ -695,6 +697,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="card" style="max-width:760px;margin-top:14px">
       <h2 style="margin-top:0">Not kept here</h2>
       <p class="hint" style="margin:0">The safe-mode switch password and PIN (Test bench) are typed each time and never saved. The TV staff PIN is changed under <b>TV setup › TV settings</b>.</p>
+      <div class="row" data-edit style="margin-top:14px"><button class="btn" id="keysCopy" type="button">Copy keys for the new address</button><span class="hint">Copies every key on this device, to paste into staff.round2.sg once. Paste it straight away and don’t send it in a chat.</span></div>
       <div class="row" data-edit style="margin-top:14px"><button class="btn ghost" id="keysWipe" type="button">Remove all keys from this device</button><span class="hint">For a shared phone, or when someone leaves.</span></div>
     </div>
   </section>
@@ -1020,6 +1023,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var g = JSON.parse(localStorage.getItem('r2gh') || 'null') || {};
       if (!g.token && token) { g.token = token; localStorage.setItem('r2gh', JSON.stringify(g)); }
     } catch (e) {}
+    f.addEventListener('load', function () { if (token) try { f.contentWindow.postMessage({ r2ghToken: token }, 'https://donttelldadyet-prog.github.io'); } catch (e) {} });
     f.setAttribute('src', 'https://donttelldadyet-prog.github.io/round2sg-home/menu/admin.html');
   }
   function connect(t) {
@@ -2046,9 +2050,19 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       toast('Removed.'); draw();
     }
     function dropMenuKey() { try { var g = JSON.parse(localStorage.getItem('r2gh') || 'null'); if (g && g.token) { delete g.token; localStorage.setItem('r2gh', JSON.stringify(g)); } } catch (e) {} }   /* the menu editor's own copy of the GitHub key */
+    function importBundle() {
+      var v = $('bundleIn').value.trim(), m = $('bundleMsg'), o;
+      try { o = JSON.parse(decodeURIComponent(escape(atob(v.replace(/^R2KEYS:/, ''))))); } catch (e) { o = null; }
+      var ok = o && LIST.filter(function (k) { return typeof o[k.store] === 'string' && o[k.store]; });
+      if (!ok || !ok.length) { m.textContent = 'That doesn’t look like copied keys. Copy them again on the old address.'; return; }
+      ok.forEach(function (k) { ls(k.store, o[k.store]); });
+      ls('r2m.tab', 'home'); location.reload();
+    }
     var ready = false;
     function init() {
       var L = $('keyLock');
+      $('bundleGo').onclick = importBundle;
+      $('bundleIn').addEventListener('keydown', function (e) { if (e.key === 'Enter') importBundle(); });
       L.addEventListener('pointerdown', holdStart);
       ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { L.addEventListener(ev, holdEnd); });
       L.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); holdStart(e); } });
@@ -2062,6 +2076,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (s) save(s); else if (d) del(d); else if (g) { tab(g); scrollTo(0, 0); }
       });
       $('keyList').addEventListener('keydown', function (e) { var id = e.target.getAttribute && e.target.getAttribute('data-in'); if (id && e.key === 'Enter' && unlocked) save(id); });
+      $('keysCopy').onclick = function () {
+        if (!unlocked) return;
+        var o = {}; LIST.forEach(function (k) { var v = ls(k.store); if (v) o[k.store] = v; });
+        if (!Object.keys(o).length) { toast('No keys on this device.'); return; }
+        var txt = 'R2KEYS:' + btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+        (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { toast('Copied ' + Object.keys(o).length + ' key(s). Paste them into staff.round2.sg.'); },
+          function () { prompt('Copy this and paste it into staff.round2.sg:', txt); });
+      };
       $('keysWipe').onclick = function () {
         if (!unlocked) return;
         if (!confirm('Remove every key from this device? Everything except Home, Website, the systems list and Help will lock until keys are added again.')) return;
