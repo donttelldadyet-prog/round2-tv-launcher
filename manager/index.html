@@ -2010,7 +2010,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function draw(j) {
       var on = j.on;
       $('awSwitch').innerHTML = '<div class="row" style="justify-content:space-between;align-items:center"><div><b style="font-size:18px">' + (on ? 'On' : 'Off') + '</b>' +
-        '<div class="hint">' + (on ? 'The engine adds and keeps these messages in sync by itself.' : 'Nothing is added automatically. +1h, Late session and Round2 messages still work as before.') + (j.t ? ' Switched ' + (on ? 'on' : 'off') + ' ' + new Date(j.t).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (j.by ? ' by ' + esc(j.by) : '') + '.' : '') + '</div></div>' +
+        '<div class="hint">' + (on ? 'The engine adds and keeps these messages in sync by itself. Each one is also in <b>Round2 messages</b> (marked “Auto wrap-up”) – coming up, on screen, OK’d, today’s history.' : 'Nothing is added automatically. +1h, Late session and Round2 messages still work as before.') + (j.t ? ' Switched ' + (on ? 'on' : 'off') + ' ' + new Date(j.t).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (j.by ? ' by ' + esc(j.by) : '') + '.' : '') + '</div></div>' +
         '<button class="btn ' + (on ? '' : 'primary') + '" type="button" data-aw="' + (on ? 'off' : 'on') + '">' + (on ? 'Turn off' : 'Turn on') + '</button></div>';
       var L = j.sessions || [];
       $('awList').innerHTML = L.length ? L.map(function (x) {
