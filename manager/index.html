@@ -351,6 +351,46 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 .key .row input { flex: 1; min-width: 200px; }
 .key details { margin-top: 10px; font-size: 14px; color: var(--mute); }
 .key details summary { cursor: pointer; }
+/* Help (owner, 2 Nov): plain-language cards, one per job */
+.hjump { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; }
+.hjump a { font-size: 13px; padding: 6px 10px; border: 1px solid var(--line2); color: var(--ink); text-decoration: none; }
+.hcard { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); margin: 8px 0; padding: 0 16px; max-width: 760px; scroll-margin-top: 120px; }
+.hcard > summary { color: var(--ink); font-size: 17px; letter-spacing: 0; text-transform: none; font-weight: 700; padding: 14px 0; list-style: none; display: flex; align-items: center; gap: 10px; }
+.hcard > summary::-webkit-details-marker { display: none; }
+.hcard > summary::after { content: '+'; margin-left: auto; color: var(--mute); font-size: 22px; font-weight: 400; }
+.hcard[open] > summary::after { content: '–'; }
+.hcard .hi { width: 28px; text-align: center; font-size: 20px; }
+.hcard ol, .hcard ul { margin: 0 0 12px; padding-left: 22px; display: grid; gap: 8px; line-height: 1.5; }
+.hcard p { margin: 0 0 12px; line-height: 1.5; }
+.hcard .tip { background: var(--panel2, rgba(255,255,255,.04)); border-left: 3px solid var(--ok); padding: 8px 10px; font-size: 14px; }
+.hchip { display: inline-block; font-size: 12px; letter-spacing: .08em; padding: 2px 7px; border: 1px solid var(--line2); margin-right: 4px; }
+.hchip.gold { border-color: var(--accent); color: var(--accent); }
+.hcard .hh { font-weight: 700; margin: 6px 0 8px; }
+.hflow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; margin: 0 0 12px; }
+.hflow > em { align-self: center; font-style: normal; color: var(--accent); font-size: 20px; font-weight: 700; }
+.hstep { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-width: 74px; max-width: 120px; padding: 8px 8px; background: var(--panel2, #1B1826); border: 1px solid var(--line2); font-size: 12px; line-height: 1.3; }
+.hstep i { font-style: normal; font-size: 24px; line-height: 1; margin-bottom: 5px; }
+.hstep.ok { border-color: var(--ok); } .hstep.bad { border-color: var(--bad); }
+.hnight { display: grid; grid-template-columns: repeat(5, 1fr); margin: 4px 0 10px; font-size: 11px; text-align: center; }
+.hseg { padding: 8px 2px; display: flex; flex-direction: column; gap: 3px; }
+.hseg b { font-size: 12px; } .hseg span { opacity: .9; }
+.hseg.day { background: #3a3317; } .hseg.eve { background: #3a2a17; } .hseg.late { background: #23214a; } .hseg.late2 { background: #1d1b3d; } .hseg.next { background: #17332a; }
+.hbar { display: flex; margin: 4px 0 8px; font-size: 13px; font-weight: 700; }
+.hplay { flex: 12; background: var(--ok); color: #0b0914; padding: 8px 10px; } .hclean { flex: 2; background: var(--line2); padding: 8px 6px; text-align: center; color: var(--ink); }
+.hgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 4px 0 12px; }
+.hmini { background: var(--panel2, #1B1826); border: 1px solid var(--line2); padding: 10px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.hmini span { color: var(--mute); line-height: 1.35; } .hbig { font-size: 24px; margin-bottom: 2px; }
+.hkeys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 12px; font-size: 13px; }
+.hkeys .kgrey { color: var(--mute); } .hkeys .kdash { border: 1px dashed var(--warn); padding: 0 5px; color: var(--warn); }
+.hex { background: var(--panel2, #1B1826); padding: 9px 10px; margin: 0 0 12px; font-size: 14px; line-height: 1.5; }
+.hexl { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); margin-right: 6px; } .hwarn { color: var(--warn); font-weight: 700; white-space: nowrap; }
+.hsb { background: #f4f5f8; color: #2a2f45; margin: 4px 0 12px; font-size: 12px; max-width: 360px; }
+.hsbh { background: #263044; color: #fff; padding: 6px 8px; font-weight: 700; }
+.hsbr { display: grid; grid-template-columns: 54px 1fr; border-top: 1px solid #dfe2ea; } .hsbr > span { padding: 6px; color: #7a8196; }
+.hsbe { background: #ffc96b; padding: 6px; } .hsbn { background: #fde3b8; padding: 6px; font-weight: 700; color: #7a5a18; }
+.hsbf { text-align: center; padding: 5px; color: #9aa0b0; font-style: italic; }
+.hphone { background: #0e0c14; border: 1px solid var(--line2); border-radius: 18px; padding: 10px; max-width: 340px; margin: 4px 0 12px; display: grid; gap: 8px; }
+.hpn { background: rgba(255,255,255,.08); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; } .hpn span { color: var(--mute); } .hchip.blue { background: #8EC5FF; border-color: #8EC5FF; color: #0b0914; font-weight: 700; } .hchip.grey { color: var(--mute); }
 .klock { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; max-width: 760px; }
 .khold { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .khold i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: color-mix(in srgb, var(--gc, var(--accent)) 35%, transparent); pointer-events: none; }
@@ -749,21 +789,123 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   <section id="tab-help" hidden>
     <h1>How it works</h1>
-    <div class="card">
-      <ol style="padding-left:20px;display:grid;gap:10px;margin:0">
-        <li><b>New theme</b>: give it a name, add the video (paste a link from OpenArt, or upload a file up to 45 MB), choose rooms and dates.</li>
-        <li><b>Switch automatically</b> makes it the room's background on its own while the dates are live, and puts the normal background back afterwards. Turn it off to only add it to the TV's Background list.</li>
-        <li><b>Sounds</b>: upload your own ambience (rain on a window, café chatter, spooky wind) in the Sounds tab. It appears on the TVs under Options › Ambience, and a theme can play it while it's live.</li>
-        <li><b>Info card position</b> moves the description box so the logo in your video stays visible.</li>
-        <li><b>Fit the video</b>: drag the picture in the preview, or use the sliders, to zoom and move it. GitHub renders it that way for the TVs, so small fixes don't need a new video (or OpenArt credits). Any video works, even a portrait phone video: press <b>Show whole video</b>.</li>
-        <li><b>Save &amp; publish</b>. GitHub prepares the video for TVs (about 2–4 minutes). TVs check every few hours and whenever someone goes back to the home screen (at most every 30 minutes), and download videos up to 2 weeks before the start date.</li>
-        <li>To make one TV check right now: on the PC, <code>.\round2tv.ps1 themes</code>.</li>
-      </ol>
-      <h2>Moving a TV to another room</h2>
-      <p style="margin:0">On the TV: <b>Options › Staff</b> (PIN) › <b>Staff tools › This TV's room</b> and pick the room. The character, colours, apps and themes all follow the room.</p>
-      <h2>Install as an app</h2>
-      <p style="margin:0">Windows (Edge or Chrome): the install icon at the right of the address bar. Mac (Safari): <b>File › Add to Dock</b>. Chrome on Mac: ⋮ › Cast, save and share › Install page as app.</p>
+    <p class="sub">Every job in the control centre, in pictures. Tap a topic to open it.</p>
+    <div class="hjump" id="hJump">
+      <a href="#h-basics">⭐ Basics</a><a href="#h-phone">📱 Set up</a><a href="#h-extend">⏱️ +1h</a><a href="#h-late">🌙 Late</a>
+      <a href="#h-latechange">✏️ Move / cancel</a><a href="#h-labels">↓ Labels</a><a href="#h-r2">💬 TV messages</a><a href="#h-auto">⚙ Auto wrap-up</a>
+      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food</a><a href="#h-themes">🎨 TV looks</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
     </div>
+
+    <details class="hcard" id="h-basics" open><summary><span class="hi">⭐</span>The basics</summary>
+      <p class="hh">🌙 A night lasts until 7am</p>
+      <div class="hnight">
+        <div class="hseg day"><b>11am</b><span>☀️ open</span></div>
+        <div class="hseg eve"><b>11:15pm</b><span>🔒 closing</span></div>
+        <div class="hseg late"><b>12am</b><span>📅 new date…</span></div>
+        <div class="hseg late2"><b>…still tonight</b><span>🎮 late guests</span></div>
+        <div class="hseg next"><b>7am</b><span>😴 new day</span></div>
+      </div>
+      <p>A guest at <b>1am Tuesday</b> belongs to <b>Monday night</b>. Every screen moves to the new day at 7am.</p>
+      <p class="hh">🧹 Every session gets 15 min cleaning</p>
+      <div class="hbar"><div class="hplay">🎮 Guest 7pm → 10pm</div><div class="hclean">🧹 10:15</div></div>
+      <p>SimplyBook shows <b>till 10:15pm</b>. The guest plays <b>till 10pm</b> – that’s when “That’s a wrap!” pops up.</p>
+      <div class="hgrid">
+        <div class="hmini"><div class="hbig">🎀 🔗 ⛵</div><b>Vale + Atlas</b><span>one space – book one, the other is blocked</span></div>
+        <div class="hmini"><div class="hbig">🕐</div><b>One clock</b><span>all times come from our system, not your phone</span></div>
+        <div class="hmini"><div class="hbig">🍃 🚧</div><b>Kaeden</b><span>closed for renovation – leave its block, keep its TV on</span></div>
+      </div>
+    </details>
+
+    <details class="hcard" id="h-phone"><summary><span class="hi">📱</span>Set up a phone</summary>
+      <div class="hflow"><div class="hstep"><i>🧭</i>Safari:<br>staff.round2.sg</div><em>›</em><div class="hstep"><i>⬆️</i>Share</div><em>›</em><div class="hstep"><i>➕</i>Add to Home Screen</div><em>›</em><div class="hstep"><i>🔑</i>Paste the key message</div></div>
+      <p class="tip">Always open it from the new <b>[||]</b> icon. Late session has its own icon: staff.round2.sg/late</p>
+    </details>
+
+    <details class="hcard" id="h-extend"><summary><span class="hi">⏱️</span>A guest wants more time</summary>
+      <div class="hflow"><div class="hstep"><i>🕹️</i>In session</div><em>›</em><div class="hstep"><i>👆</i>Tap +1h</div><em>›</em><div class="hstep"><i>✅</i>Confirm</div></div>
+      <p class="hh">✨ Then all by itself</p>
+      <div class="hflow"><div class="hstep ok"><i>📅</i>SimplyBook updated</div><div class="hstep ok"><i>⏰</i>Messages move</div><div class="hstep ok"><i>📺</i>TV: +1 CREDIT</div></div>
+      <div class="hkeys"><span><b class="kgrey">grey</b> = next booking in the way</span><span><b class="kdash">dashed</b> = past 11:15pm (fine if agreed)</span><span><b>↩︎ Undo</b> = for 30 min</span></div>
+    </details>
+
+    <details class="hcard" id="h-late"><summary><span class="hi">🌙</span>Key in a late or walk-in guest</summary>
+      <div class="hflow"><div class="hstep"><i>🚪</i>Room</div><em>›</em><div class="hstep"><i>🌙</i>Night you’re working</div><em>›</em><div class="hstep"><i>🕐</i>Arrives</div><em>›</em><div class="hstep"><i>👋</i>Leaves</div><em>›</em><div class="hstep"><i>🙋</i>Name + pax</div><em>›</em><div class="hstep"><i>🔍</i>Check</div><em>›</em><div class="hstep ok"><i>📅</i>Add</div></div>
+      <div class="hex"><span class="hexl">Example</span> Night of <b>Mon 2 Nov</b> · arrives <b>1:00am · Tue 3 Nov</b> <span class="hwarn">⚠ that’s already Tue!</span></div>
+      <p class="tip">✔ Tick = TV gets “10 minutes to go” and “That’s a wrap!”. Untick = no messages for this guest.</p>
+    </details>
+
+    <details class="hcard" id="h-latechange"><summary><span class="hi">✏️</span>Move or cancel a late guest</summary>
+      <div class="hflow"><div class="hstep"><i>🌙</i>Late session</div><em>›</em><div class="hstep"><i>⬇️</i>Upcoming late sessions</div><em>›</em><div class="hstep"><i>✏️</i>Change</div><em>or</em><div class="hstep bad"><i>✖️</i>Cancel ×2</div></div>
+      <p class="tip">TV messages and the SimplyBook label follow by themselves. Normal online bookings: change them in SimplyBook.</p>
+    </details>
+
+    <details class="hcard" id="h-labels"><summary><span class="hi">↓</span>The “↓” notes in SimplyBook</summary>
+      <div class="hsb">
+        <div class="hsbh">Kaeden · Mon 2 Nov</div>
+        <div class="hsbr"><span>10pm</span><div class="hsbe">Amanda · booking</div></div>
+        <div class="hsbr"><span>11pm</span><div class="hsbe">Amanda</div></div>
+        <div class="hsbr"><span>11:30pm</span><div class="hsbn">↓ AFTER 12AM · karen 2 pax · 12:15–3am Tue</div></div>
+        <div class="hsbf">— SimplyBook stops at 12am —</div>
+      </div>
+      <p><b>↓ AFTER 12AM</b> = a guest is coming after midnight. <b>↓ TILL 1AM</b> = a guest is staying past midnight.</p>
+      <p class="tip">Just a reminder for your eyes – it blocks nothing. <b>Don’t delete</b> (it comes back).</p>
+    </details>
+
+    <details class="hcard" id="h-r2"><summary><span class="hi">💬</span>Messages on the room TVs</summary>
+      <div class="hflow"><div class="hstep"><i>💬</i>Round2 messages</div><em>›</em><div class="hstep"><i>🚪</i>Room</div><em>›</em><div class="hstep"><i>🎉</i>Kind + text + time</div><em>›</em><div class="hstep ok"><i>📺</i>Send</div></div>
+      <p class="hh">🏷️ Who made it</p>
+      <div class="hkeys"><span><span class="hchip gold">ROUND2</span> us</span><span><span class="hchip blue">⚙ AUTO WRAP-UP</span> automatic</span><span><span class="hchip grey">GUEST</span> the guest</span></div>
+      <p class="hh">🛤️ Its journey</p>
+      <div class="hflow"><div class="hstep"><i>🕓</i>Coming up</div><em>›</em><div class="hstep"><i>📺</i>On screen</div><em>›</em><div class="hstep ok"><i>👍</i>OK pressed</div><em>›</em><div class="hstep"><i>📜</i>Today’s history</div></div>
+      <p class="tip">Nobody pressed OK on “10 minutes to go”? The TV asks again 5 minutes later.</p>
+    </details>
+
+    <details class="hcard" id="h-auto"><summary><span class="hi">⚙</span>Auto wrap-up</summary>
+      <div class="hgrid">
+        <div class="hmini"><div class="hbig">🟢</div><b>ON</b><span>every guest tonight gets “10 minutes to go” + “That’s a wrap!” by itself</span></div>
+        <div class="hmini"><div class="hbig">🔁</div><b>Follows changes</b><span>new booking, +1h, moved, cancelled – it keeps up</span></div>
+        <div class="hmini"><div class="hbig">🤝</div><b>Never doubles</b><span>already set one by hand? it uses yours</span></div>
+        <div class="hmini"><div class="hbig">⚪</div><b>OFF</b><span>removes everything it planned – yours stay</span></div>
+      </div>
+      <p class="tip">Skip one guest: TV messages › Auto wrap-up › <b>Auto off for this one</b>.</p>
+    </details>
+
+    <details class="hcard" id="h-guest"><summary><span class="hi">🎂</span>Guest writes their own TV message</summary>
+      <div class="hflow"><div class="hstep"><i>🔗</i>Make a guest link</div><em>›</em><div class="hstep"><i>💚</i>Send on WhatsApp</div><em>›</em><div class="hstep"><i>✍️</i>Guest writes it</div><em>›</em><div class="hstep ok"><i>📺</i>Pops up on time</div></div>
+      <p class="tip">See, move or cancel them in <b>Guest messages</b>. Booking moved in SimplyBook? The message moves too.</p>
+    </details>
+
+    <details class="hcard" id="h-alerts"><summary><span class="hi">🔔</span>Booking alerts on your phone</summary>
+      <div class="hphone"><div class="hpn"><b>⛵ Atlas · Amir</b><span>Sun 8 Nov · 3h · $49 peak · 4 pax</span></div><div class="hpn"><b>⏰ In 1 hour: 🎀 Vale · karen</b><span>7pm–10pm · 2 pax</span></div></div>
+      <p>New, changed and cancelled bookings, plus a reminder <b>1 hour before</b> each guest.</p>
+      <p class="tip">Turn on: Tests &amp; systems › <b>Alerts</b>. Only works from the Home Screen icon. Press <b>Test</b> to try.</p>
+    </details>
+
+    <details class="hcard" id="h-food"><summary><span class="hi">🍕</span>Food menu</summary>
+      <div class="hflow"><div class="hstep"><i>📱</i>Guest orders + pays</div><em>›</em><div class="hstep"><i>🧾</i>Kitchen (Telegram)</div><em>›</em><div class="hstep"><i>📺</i>TV: Order locked in</div><em>›</em><div class="hstep ok"><i>🍕</i>TV: Loot dropped!</div></div>
+      <p class="tip">Change items or prices: Food menu › <b>Edit the menu</b> › Publish. Try it free: <b>Test an order</b>.</p>
+    </details>
+
+    <details class="hcard" id="h-themes"><summary><span class="hi">🎨</span>TV looks: events, backgrounds, sounds</summary>
+      <div class="hflow"><div class="hstep"><i>🎬</i>New event + video</div><em>›</em><div class="hstep"><i>🚪</i>Rooms + dates</div><em>›</em><div class="hstep"><i>🚀</i>Save &amp; publish</div><em>›</em><div class="hstep ok"><i>📺</i>On the TVs</div></div>
+      <p>Video ready in ~3 min, TVs pick it up within a few hours. An event “until 31 Oct” runs through that night till 7am.</p>
+      <p class="tip">🔊 Sounds: add your own ambience (rain, café…). 🔁 Move a TV to another room: on the TV › Options › Staff › This TV’s room.</p>
+    </details>
+
+    <details class="hcard" id="h-check"><summary><span class="hi">✅</span>Is everything working?</summary>
+      <div class="hflow"><div class="hstep"><i>🧪</i>Tests &amp; systems</div><em>›</em><div class="hstep"><i>✅</i>System check</div><em>›</em><div class="hstep ok"><i>▶️</i>Run full check</div></div>
+      <div class="hkeys"><span>✅ all good</span><span>⚠️ have a look</span><span>❌ broken – screenshot it to the owner</span></div>
+      <p class="tip">Safe any time – it tests with a pretend guest far in the future, then tidies up.</p>
+    </details>
+
+    <details class="hcard" id="h-wrong"><summary><span class="hi">🆘</span>Something’s wrong</summary>
+      <div class="hgrid">
+        <div class="hmini"><div class="hbig">🥶</div><b>TV frozen</b><span>next tab: <b>If a TV is stuck</b></span></div>
+        <div class="hmini"><div class="hbig">💬❓</div><b>Message didn’t show</b><span>is it “Coming up”? is the TV on? a guest’s message goes first</span></div>
+        <div class="hmini"><div class="hbig">🔒</div><b>Page locked</b><span>Tests &amp; systems › Keys › paste the key message again</span></div>
+        <div class="hmini"><div class="hbig">🤷</div><b>Not sure</b><span>run the System check, send the owner a screenshot</span></div>
+      </div>
+    </details>
   </section>
 
   <!-- failsafes -->
