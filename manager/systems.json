@@ -217,8 +217,8 @@
         },
         {
           "name": "Late session",
-          "status": "live",
-          "what": "In session › Late session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too).",
+          "status": "test",
+          "what": "In session › Late session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too). TESTING (owner, 2 Nov): the form asks for “Night of” + arrival (times after 12am show their real date, a red box confirms it; before 7am the page opens on last night). Waiting for the admin's feedback: keep “Night of”, or pick the real date instead?",
           "runs": "Booking engine + SimplyBook notes",
           "code": "round2sg-home · docs/booking-times.md"
         },
