@@ -493,7 +493,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         </div>
         <div class="f"><span class="f">When</span>
           <div class="seg" id="mWhen"><button type="button" data-w="now" aria-pressed="true">Now</button><button type="button" data-w="at" aria-pressed="false">At a set time</button></div>
-          <label class="f" id="mAtBox" hidden>Show at<input type="datetime-local" id="mAt"><span class="hint">Tip: within the first hour of their booking. It shows for up to 3 hours after this time. Set-time messages wait in the same queue as guest messages, so they don't overwrite each other.</span></label>
+          <label class="f" id="mAtBox" hidden>Show at (Singapore time)<input type="datetime-local" id="mAt"><span class="hint">Tip: within the first hour of their booking. It shows for up to 3 hours after this time. Set-time messages wait in the same queue as guest messages, so they don't overwrite each other.</span></label>
         </div>
         <label class="switch" id="mPairBox" hidden><input type="checkbox" id="mPair">
           <span>Also send “10 minutes left” 10 minutes before<br><span class="hint">Optional. Leave it off to send Time’s up on its own. Only with “At a set time”.</span></span></label>
@@ -1096,7 +1096,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function fillTitle() { if (!titleEdited) $('mTitle').value = KINDS[kind].title($('mTo').value.trim()); }
     function draft() {
-      var at = when === 'at' && $('mAt').value ? new Date($('mAt').value).getTime() : Date.now();
+      var at = when === 'at' && $('mAt').value ? Date.parse($('mAt').value + ':00+08:00') : Date.now();   /* always Singapore time, wherever the phone is */
       return { kind: kind, to: $('mTo').value.trim(), from: $('mFrom').value.trim(), title: $('mTitle').value.trim(), text: $('mText').value.trim(), ack: $('mAck').checked, at: at, until: at + (kind === 'timeup' ? 15 * 60000 : kind === 'wrapup' ? 4 * 60000 : 3 * 3600000) };   /* That's a wrap: 15 min (cleaning time); 10-minute warning: 4 min (shows once); others 3 h */
     }
     function preview() {
@@ -1131,7 +1131,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       });
     }
     function clock2(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).replace(/\s/g, '').toLowerCase(); }
-    function nice2(ms) { var d = new Date(ms); return d.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
+    function nice2(ms) { var d = new Date(ms); return d.toLocaleString(undefined, { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
     function status() {
       if (!key()) { $('mStat').innerHTML = '<p class="hint">Add the TV messages key above to see what each TV is showing.</p>'; return; }
       Promise.all(Object.keys(ROOMS).map(function (r) {
@@ -1283,7 +1283,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('mWhen').addEventListener('click', function (e) {
         var w = e.target.getAttribute && e.target.getAttribute('data-w'); if (!w) return;
         when = w; seg('#mWhen', 'data-w', w); $('mAtBox').hidden = w !== 'at'; $('mPairBox').hidden = !(kind === 'timeup' && w === 'at'); closeReview();
-        if (w === 'at' && !$('mAt').value) { var t = new Date(Date.now() + 30 * 60000); t.setSeconds(0, 0); $('mAt').value = new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+        if (w === 'at' && !$('mAt').value) { var t = Math.floor((Date.now() + 30 * 60000) / 60000) * 60000; $('mAt').value = new Date(t + 8 * 3600000).toISOString().slice(0, 16); }   /* Singapore time */
       });
       $('mTo').addEventListener('input', function () { fillTitle(); preview(); });
       $('mTitle').addEventListener('input', function () { titleEdited = true; preview(); });
@@ -1703,7 +1703,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           y(j.kitchenBot, 'Kitchen Telegram bot set') + y(j.guestMessages, 'Guest messages set') + y(j.menuSheet, 'Menu → accounts sheet set') +
           y(j.sbSecret, 'SimplyBook secret key set') + y(j.liveKeys, 'Live HitPay key in Cloudflare') + y(j.switchSet, 'Switch passwords set') + y(j.staffAlerts, 'Staff booking alerts (Telegram)') +
           '<span class="hint">●</span><span>TV messages waiting in the timer: ' + (j.timerQueue == null ? '?' : j.timerQueue) + '</span>';
-        $('tbWhen').textContent = 'Checked ' + new Date().toLocaleTimeString();
+        $('tbWhen').textContent = 'Checked ' + new Date().toLocaleTimeString(undefined, { timeZone: 'Asia/Singapore' });
       }, function () { $('tbChk').innerHTML = '<span class="cbad">✖</span><span>The booking engine didn’t answer.</span>'; });
     });
     return { open: open, bench: bench };
@@ -1870,7 +1870,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function url(r, node) { return 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/' + key() + '/' + topic(r) + '/' + node + '.json'; }
     function put(r, node, body) { return fetch(url(r, node), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (x) { if (!x.ok) throw new Error('the TV database said ' + x.status); }); }
     function get(r, node) { return fetch(url(r, node), { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }); }
-    function when(t) { if (!t) return 'never'; var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : new Date(t).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
+    function when(t) { if (!t) return 'never'; var m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : new Date(t).toLocaleString(undefined, { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
     /* Safety lock: nothing can be sent until one TV is picked and locked in, and then only to that TV.
        Stops a test popping up on a guest's TV by a mis-tap. Unlocks itself after 20 minutes or when leaving this tab. */
     var pick = null, lock = null, lockTimer = null;
