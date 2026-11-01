@@ -43,11 +43,16 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
 .plan b { color: var(--ink); }
 .warn { color: var(--warn); }
 .okmsg { color: var(--ok); }
+input[type=checkbox] { -webkit-appearance: auto; appearance: auto; accent-color: var(--acc); }
+select { background-image: linear-gradient(45deg, transparent 50%, var(--mute) 50%), linear-gradient(135deg, var(--mute) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 28px; }
+header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
+.note { border: 1px solid var(--line); border-left: 3px solid var(--acc); background: var(--panel2); padding: 10px 12px; margin-top: 12px; font-size: 14px; color: var(--ink); }
+.note.warnbox { border-left-color: var(--warn); }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header><img src="icon-192.png" alt=""><div><b>ROUND2</b><small>Late session</small></div></header>
+  <header><img class="logo" id="logo" src="https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp" alt="ROUND2"><div><small>Late session</small></div></header>
   <h1>Late session</h1>
   <p class="sub">For WhatsApp or walk-in sessions, including ones past midnight. Writes one note into SimplyBook from arrival to the guest’s end + 15 min cleaning, with name and pax, so reminders, +1h and “That’s a wrap!” get the right times. Vale and Atlas block each other.</p>
 
@@ -61,11 +66,12 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
     <label>Room</label>
     <div class="rooms" id="rooms"></div>
     <div class="grid" style="margin-top:14px">
-      <label>Date (when they arrive)<input id="day" type="date"></label>
-      <label>Arrives<input id="start" type="time" step="900"></label>
-      <label>Guest leaves (before cleaning)<input id="end" type="time" step="900"></label>
+      <label>Night of<input id="day" type="date"></label>
+      <label>Arrives<select id="start"></select></label>
+      <label>Guest leaves (before cleaning)<select id="end"></select></label>
       <label>Pax<input id="pax" type="number" min="1" max="20" inputmode="numeric"></label>
     </div>
+    <div id="when"></div>
     <label style="margin-top:12px">Guest name<input id="name" type="text" maxlength="40" autocomplete="off" autocapitalize="words"></label>
     <label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;color:var(--ink)"><input id="msgs" type="checkbox" checked style="width:22px;height:22px;min-height:0;margin:0;flex:none"><span>Also put “About 10 minutes to go” and “That’s a wrap!” on the room’s TV<br><span class="hint">Only for sessions starting within 24 hours. Turn off if someone already set them.</span></span></label>
     <div class="row"><button class="btn primary" id="check" type="button">Check</button><button class="btn" id="clear" type="button">Clear</button></div>
@@ -90,7 +96,42 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
   function drawRooms() {
     $('rooms').innerHTML = ROOMS.map(function (r) { return '<button type="button" data-u="' + r[0] + '" style="--rc:' + r[2] + '" aria-pressed="' + (r[0] === unit) + '">' + r[1] + '</button>'; }).join('');
   }
-  function form() { return { unit: unit, day: $('day').value, start: $('start').value, end: $('end').value, name: $('name').value.trim(), pax: $('pax').value, msgs: $('msgs').checked ? 'yes' : 'no' }; }
+  /* times in 15-minute steps (like bookings), counted from the midnight that starts the "night of" date:
+     660 = 11am, 1440 = 12am (already the next date), 1605 = 2:45am */
+  var Q = 15, FIRST = 660, LAST_ARR = 1605;
+  function addDays(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  function dayName(d) { return new Date(d + 'T00:00:00Z').toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(/,/g, ''); }
+  function hm(m) { m = ((m % 1440) + 1440) % 1440; var h = Math.floor(m / 60), mm = m % 60; return (h % 12 || 12) + ':' + (mm < 10 ? '0' : '') + mm + (h < 12 ? 'am' : 'pm'); }
+  function hhmm(m) { m = m % 1440; return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); }
+  function label(m) { var d = $('day').value; return hm(m) + (m >= 1440 && d ? '  · ' + dayName(addDays(d, 1)) : ''); }
+  function fillStart() {
+    var cur = $('start').value, h = '<option value="">–</option>';
+    for (var m = FIRST; m <= LAST_ARR; m += Q) h += '<option value="' + m + '">' + label(m) + '</option>';
+    $('start').innerHTML = h; $('start').value = cur; fillEnd();
+  }
+  function fillEnd() {
+    var a = +$('start').value, cur = $('end').value, h = '<option value="">–</option>';
+    if ($('start').value) for (var m = a + 30; m <= a + 720; m += Q) h += '<option value="' + m + '">' + label(m) + '  (' + ((m - a) / 60) + 'h)</option>';
+    $('end').innerHTML = h;
+    if (cur && +cur > a && +cur <= a + 720) $('end').value = cur; else if ($('start').value) $('end').value = String(a + 180);
+    when();
+  }
+  /* 12am is a new date: say so plainly (owner, 1 Nov) */
+  function when() {
+    var d = $('day').value, a = $('start').value, e = $('end').value, h = '';
+    if (d && a !== '') {
+      var A = +a, E = e ? +e : null, next = dayName(addDays(d, 1));
+      if (A >= 1440) h += '<div class="note warnbox"><b>⚠ Arrives after 12am – that’s already ' + next + '.</b><br>12am starts a new date. This session goes into SimplyBook on <b>' + next + '</b> (top of that day). If the guest is coming on the night of ' + dayName(d) + ', this is right; if not, change “Night of”.</div>';
+      else if (E !== null && E > 1440) h += '<div class="note">Leaves after midnight, on <b>' + next + '</b>. SimplyBook’s calendar only draws up to 12am, but the whole session is saved and the control centre shows it.</div>';
+      if (E !== null) h += '<div class="hint" style="margin-top:8px">' + dayName(addDays(d, Math.floor(A / 1440))) + ' ' + hm(A) + ' → ' + dayName(addDays(d, Math.floor(E / 1440))) + ' ' + hm(E) + ' · ' + ((E - A) / 60) + 'h</div>';
+    }
+    $('when').innerHTML = h; report();
+  }
+  function form() {
+    var d = $('day').value, A = +$('start').value, E = +$('end').value;
+    return { unit: unit, day: $('start').value ? addDays(d, Math.floor(A / 1440)) : d, start: $('start').value ? hhmm(A) : '', end: $('end').value ? hhmm(E) : '',
+      name: $('name').value.trim(), pax: $('pax').value, msgs: $('msgs').checked ? 'yes' : 'no' };
+  }
   function call(body) {
     body.staff = key(); body.action = 'late';
     return fetch(ENG, { method: 'POST', body: new URLSearchParams(body) }).then(function (r) { return r.json(); }).then(function (j) {
@@ -106,7 +147,7 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
       if (!j || !j.ok) { show('<span class="warn">' + esc((j && j.error) || 'No answer') + '</span>'); return; }
       var p = j.plan, clash = p.clash && p.clash.length; ready = form();
       var h = '<div class="card" style="margin:0;border-top-color:' + (clash ? 'var(--warn)' : 'var(--ok)') + '"><b>' + esc(p.room) + ' · ' + esc(p.name) + ' · ' + p.pax + ' pax</b><br>' +
-        'Arrives ' + esc(p.arrives) + ', leaves ' + esc(p.guestEnd) + (p.nextDay ? ' (after midnight)' : '') + ' · ' + p.hours + 'h<br>' +
+        'Arrives <b>' + esc(p.arrivesDay) + ', ' + esc(p.arrives) + '</b> · leaves <b>' + esc(p.leavesDay) + ', ' + esc(p.guestEnd) + '</b> · ' + p.hours + 'h<br>' +
         'SimplyBook note: ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.nextDay ? '. After midnight it shows at the top of the next day in SimplyBook.' : '') +
         (p.twin ? '<br>' + esc(p.twin) + ' gets a SYSTEM BLOCK for the same time.' : '') +
         '<br>TV: ' + (p.msgs === 'off' ? 'no messages added.' : p.msgs === 'later' ? 'messages not added – the session starts more than 24 hours from now. Use +1h or Round2 messages nearer the time.' : '“About 10 minutes to go” at ' + esc(p.msgs.wrapup) + ', “That’s a wrap!” at ' + esc(p.msgs.timeup) + '.');
@@ -122,18 +163,20 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
       if (!j || !j.ok) { show('<span class="warn">' + esc((j && j.error) || (j && j.clash ? 'Something is already in the calendar then. Press Check again.' : 'No answer')) + '</span>'); return; }
       var p = j.plan;
       var mp = (j.msgs || []).filter(function (m) { return m.problem; });
-      show('<span class="okmsg"><b>Added to SimplyBook ✓</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrives + '–' + p.guestEnd) +
+      show('<span class="okmsg"><b>Added to SimplyBook ✓</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrivesDay + ', ' + p.arrives + ' – ' + p.leavesDay + ', ' + p.guestEnd) +
         ((j.msgs || []).length ? '<br>' + (mp.length ? '<span class="warn">TV messages: ' + esc(mp.map(function (m) { return m.problem; }).join('; ')) + ' – set them in Round2 messages.</span>' : 'TV messages set ✓') : ''));
-      ready = null; $('name').value = ''; $('pax').value = ''; $('start').value = ''; $('end').value = '';
+      ready = null; $('name').value = ''; $('pax').value = ''; $('start').value = ''; fillEnd();
       try { if (embed) parent.postMessage({ r2late: true }, location.origin); } catch (e) {}
     }).catch(function () { show('<span class="warn">Couldn’t reach the engine. Check SimplyBook before trying again.</span>'); });
   }
   $('rooms').addEventListener('click', function (e) { var u = e.target.getAttribute && e.target.getAttribute('data-u'); if (u) { unit = u; ready = null; drawRooms(); show(''); } });
-  ['day', 'start', 'end', 'name', 'pax', 'msgs'].forEach(function (k) { $(k).addEventListener(k === 'msgs' ? 'change' : 'input', function () { if (ready) { ready = null; show(''); } }); });
+  $('day').addEventListener('change', fillStart); $('start').addEventListener('change', fillEnd); $('end').addEventListener('change', when);
+  ['day', 'start', 'end', 'name', 'pax', 'msgs'].forEach(function (k) { $(k).addEventListener(k === 'msgs' || k === 'start' || k === 'end' || k === 'day' ? 'change' : 'input', function () { if (ready) { ready = null; show(''); } }); });
   $('check').onclick = check;
-  $('clear').onclick = function () { unit = ''; drawRooms(); ['start', 'end', 'name', 'pax'].forEach(function (k) { $(k).value = ''; }); $('day').value = sgToday(); ready = null; show(''); };
+  $('clear').onclick = function () { unit = ''; drawRooms(); ['start', 'name', 'pax'].forEach(function (k) { $(k).value = ''; }); $('day').value = sgToday(); fillStart(); ready = null; show(''); };
   $('keySave').onclick = function () { var v = $('key').value.trim(); if (v.length < 8) return; ls('r2.guestStaff', v); $('key').value = ''; gate(); };
-  $('day').value = sgToday(); drawRooms(); gate(); report();
+  $('day').value = sgToday(); fillStart(); drawRooms(); gate(); report();
+  $('logo').onerror = function () { this.outerHTML = '<b style="letter-spacing:.14em">ROUND2</b>'; };
   if ('serviceWorker' in navigator && !embed) navigator.serviceWorker.register('../sw.js').catch(function () {});
 }());
 </script>
