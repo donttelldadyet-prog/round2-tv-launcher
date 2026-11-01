@@ -89,6 +89,12 @@ label.f input, label.f select { width: 100%; -webkit-appearance: none; appearanc
 .who .wait b { color: var(--accent); }
 .who .near { font-size: 13px; color: var(--mute); }
 .who .near a { color: var(--ink); cursor: pointer; text-decoration: underline; }
+.chip.tie { border-color: var(--ok); color: var(--ok); }
+.chip.untied { border-color: var(--accent); color: var(--accent); }
+.pick { display: grid; gap: 6px; margin: 8px 0; }
+.pick button { text-align: left; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); padding: 9px 11px; font-size: 14px; display: grid; gap: 2px; border-left: 4px solid var(--rc, var(--line2)); }
+.pick button[aria-pressed="true"] { border-color: var(--ok); background: var(--panel2); }
+.pick button small { color: var(--mute); font-size: 12px; }
 .dup { border: 1px solid var(--bad); padding: 10px; display: grid; gap: 8px; font-size: 14px; }
 .made textarea { width: 100%; min-height: 104px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font: 14px/1.45 var(--f); resize: vertical; }
 
@@ -399,11 +405,21 @@ details.past .list { margin-top: 10px; }
     if (d.status !== 'approved') return 'open';
     return d.onTv === 'yes' || (d.at && d.at <= now) ? 'ontv' : 'scheduled';
   }
+  /* tied or waiting (owner, 2 Nov): which SimplyBook booking or note the link follows; waiting ones get a Pair button */
+  var pairMap = null;
+  function untied(x, st) { var p = pairMap && pairMap[x.key]; return !!pairMap && !/^R2/.test(x.key) && (st === 'open' || st === 'scheduled') && (!p || (!p.bid && !p.nid)); }
+  function tieChip(x, st) {
+    if (!pairMap || /^R2/.test(x.key) || !(st === 'open' || st === 'scheduled' || st === 'ontv')) return '';
+    var p = pairMap[x.key];
+    if (p && p.bid) return '<span class="chip tie">🔗 Online booking</span>';
+    if (p && p.nid) return '<span class="chip tie">🔗 Note</span>';
+    return st === 'ontv' ? '' : '<span class="chip untied">⏳ Not tied yet</span>';
+  }
   var CHIP = { open: 'Waiting for guest', scheduled: 'Scheduled', ontv: 'On the TV', cancelled: 'Cancelled', ended: 'Ended' };
 
   function itemHtml(x) {
     var d = x.data, st = state(x), R = ROOMS[d.room] || [d.room, '#F2C21B'], c = esc(x.key), r2 = /^R2/.test(x.key);   /* R2… = queued from the control centre */
-    var h = '<article class="item" style="--rc:' + R[1] + '"><div class="top"><span class="chip room">' + esc(R[0]) + '</span><span class="chip st-' + st + '">' + CHIP[st] + '</span>' + (r2 ? '<span class="chip">Round2 message</span>' : '') +
+    var h = '<article class="item" style="--rc:' + R[1] + '"><div class="top"><span class="chip room">' + esc(R[0]) + '</span><span class="chip st-' + st + '">' + CHIP[st] + '</span>' + (r2 ? '<span class="chip">Round2 message</span>' : '') + tieChip(x, st) +
       '<span class="when">' + esc(day(d.start)) + ' · starts ' + esc(clock(d.start)) + '</span><span class="code">' + c + '</span></div>';
     if (d.label && !r2) h += '<div class="label">' + esc(d.label) + '</div>';
     if (d.title) h += '<div class="mini"><div class="tg">' + esc((TAGS[d.kind] || '') + (d.to ? ' · for ' + d.to : '')) + '</div><div class="t">' + esc(d.title) + '</div><p>' + esc(d.text) + '</p>' +
@@ -412,6 +428,7 @@ details.past .list { margin-top: 10px; }
     if (st === 'scheduled' || st === 'ontv') btns += '<button class="btn" data-a="now" data-c="' + c + '">' + (st === 'ontv' ? 'Send to TV again now' : 'Send to TV now') + '</button>';
     if (st === 'ontv') btns += laterMap[x.key] ? '<button class="btn" data-a="unlater" data-c="' + c + '">Don’t show again at ' + esc(clock(laterMap[x.key])) + '</button>'
       : '<button class="btn" data-a="later" data-c="' + c + '">Show again at…</button>';
+    if (untied(x, st)) btns += '<button class="btn ok" data-a="pair" data-c="' + c + '">Pair with booking</button>';
     if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change time or room</button>' + (r2 ? '' : '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>') + '<button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
     if (btns) h += '<div class="row">' + btns + '</div>';
     if (open && open.code === x.key) {
@@ -423,6 +440,20 @@ details.past .list { margin-top: 10px; }
           '<div class="rooms" id="mvRooms">' + Object.keys(ROOMS).map(function (k) { return '<button type="button" data-a="mvroom" data-r="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (k === nr) + '">' + ROOMS[k][0] + '</button>'; }).join('') + '</div>' +
           '<div class="two"><input type="date" id="mvDate" value="' + p.year + '-' + p.month + '-' + p.day + '" aria-label="New date"><select id="mvTime" aria-label="New start time">' + timeOpts(p.hour + ':' + p.minute) + '</select></div>' +
           '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Save changes</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+      } else if (a === 'pair') {
+        h += '<div class="confirm">Which booking or note is this guest’s? ' + esc(day(d.start)) + ' in SimplyBook:';
+        if (!open.list) h += '<div class="pick"><span class="hint">Checking SimplyBook…</span></div>';
+        else if (open.err) h += '<div class="msg bad">' + esc(open.err) + '</div>';
+        else if (!open.list.length) h += '<div class="pick"><span class="hint">Nothing in SimplyBook that day yet. Make the note or booking first, then come back.</span></div>';
+        else {
+          var L2 = open.list.slice().sort(function (p, q) { return (p.room !== d.room) - (q.room !== d.room) || p.s - q.s; });
+          h += '<div class="pick">' + L2.map(function (y) {
+            var RR = ROOMS[y.room] || [y.room, '#F2C21B'], mv = y.room !== d.room || y.s !== +d.start;
+            return '<button type="button" data-a="pairpick" data-k="' + esc(y.key) + '" style="--rc:' + RR[1] + '" aria-pressed="' + (open.k === y.key) + '">' + esc(RR[0]) + ' · ' + esc(clock(y.s)) + '–' + esc(clock(y.guestEnd)) + ' · ' + (y.kind === 'booking' ? '📅 ' : '📝 ') + esc(y.name || 'guest') +
+              '<small>' + (mv ? 'the link (and its message) moves to ' + esc(RR[0]) + ' ' + esc(clock(y.s)) : 'same room and time as the link') + '</small></button>';
+          }).join('') + '</div>';
+        }
+        h += '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '"' + (open.k ? '' : ' disabled') + '>Tie the link to it</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
       } else if (a === 'later') {
         var o = '', t0 = Date.now() + 60000, end = Math.min(+d.end || t0 + 3 * 3600000, Date.now() + 6 * 3600000);
         t0 = t0 - t0 % 300000 + 300000;
@@ -515,7 +546,8 @@ details.past .list { margin-top: 10px; }
     if (!key()) { $('groups').innerHTML = '<div class="empty">Add the staff code to see links.</div>'; return; }
     if (open) return;   /* don't redraw under staff while they're choosing a time or confirming */
     call({ action: 'list', staff: key() }).then(function (j) { lastList = j.links || []; return call({ action: 'later', staff: key() }).catch(function () { return {}; }); })
-      .then(function (l) { laterMap = {}; (l && l.later || []).forEach(function (r) { laterMap[r.code] = r.at; }); if (listOn) render(); })
+      .then(function (l) { laterMap = {}; (l && l.later || []).forEach(function (r) { laterMap[r.code] = r.at; }); return call({ action: 'pairs', staff: key() }).catch(function () { return null; }); })
+      .then(function (p) { if (p && p.links) { pairMap = {}; p.links.forEach(function (r) { pairMap[r.code] = r; }); } if (listOn) render(); })
       .catch(function (e) { $('groups').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; if (/staff code/i.test(e.message)) { memKey = ''; ls('r2.guestStaff', null); $('keyBox').hidden = false; } });
   }
   $('groups').addEventListener('click', function (e) {
@@ -531,6 +563,13 @@ details.past .list { margin-top: 10px; }
     var a = b.getAttribute('data-a'), c = b.getAttribute('data-c');
     if (a === 'copy') { copy(shareUrl(c), b); return; }
     if (a === 'move' || a === 'cancel' || a === 'now' || a === 'later') { open = { a: a, code: c }; render(); return; }
+    if (a === 'pair') {
+      var it = lastList.filter(function (x) { return x.key === c; })[0]; if (!it) return;
+      var pd = sgParts(it.data.start), dd = pd.year + '-' + pd.month + '-' + pd.day, o2 = open = { a: 'pair', code: c, day: dd }; render();
+      call({ action: 'slotday', staff: key(), day: dd }).then(function (j) { if (open !== o2) return; o2.list = j.sessions || []; render(); }, function (er) { if (open !== o2) return; o2.list = []; o2.err = er.message; render(); });
+      return;
+    }
+    if (a === 'pairpick' && open) { open.k = b.getAttribute('data-k'); render(); return; }
     if (a === 'unlater') { b.disabled = true; call({ action: 'later', staff: key(), code: c, at: 0 }).then(function () { list(); }).catch(function () { b.disabled = false; }); return; }
     if (a === 'mvroom' && open) {   /* keep the date and time typed so far while switching rooms */
       var dv = $('mvDate').value, tv = $('mvTime').value; open.room = b.getAttribute('data-r'); render(); $('mvDate').value = dv; $('mvTime').value = tv; return;
@@ -539,6 +578,7 @@ details.past .list { margin-top: 10px; }
     if (a === 'do' && open) {
       var body = { action: open.a, staff: key(), code: c };
       if (open.a === 'later') body.at = $('ltTime').value;
+      if (open.a === 'pair') { body.key = open.k; body.day = open.day; }
       if (open.a === 'move') { var s = sgMs($('mvDate').value, $('mvTime').value); if (!s) { $('cmsg').className = 'msg bad'; $('cmsg').textContent = 'Pick the new date and time.'; return; } body.start = s; var cur = lastList.filter(function (x) { return x.key === c; })[0]; body.room = open.room || (cur && cur.data.room); }
       b.disabled = true;
       call(body).then(function () { open = null; list(); })

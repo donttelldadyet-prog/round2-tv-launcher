@@ -895,7 +895,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
     <details class="hcard" id="h-guest"><summary><span class="hi">🎂</span>Guest writes their own TV message</summary>
       <div class="hflow"><div class="hstep"><i>🔗</i>Make a guest link</div><em>›</em><div class="hstep"><i>💚</i>Send on WhatsApp</div><em>›</em><div class="hstep"><i>✍️</i>Guest writes it</div><em>›</em><div class="hstep ok"><i>📺</i>Pops up on time</div></div>
-      <p class="tip">See, move or cancel them in <b>Guest messages</b>. Booking moved in SimplyBook? The message moves too.</p>
+      <p><b>Who’s it for:</b> after picking the room and time, tap the booking or note that’s in SimplyBook then. The link sticks to it: <b>moved → the message moves</b>, <b>deleted or cancelled → the message is cancelled</b>.</p>
+      <p><b>Made the link first?</b> Fine – it shows <b>⏳ Not tied yet</b> and ties itself once the booking or note is in at that exact time (Late session does it straight away). Different time by mistake? Tap <b>Pair with booking</b> in Guest messages. Still not tied 3 hours before? Your phone gets a heads-up.</p>
+      <p class="tip">See, move or cancel them in <b>Guest messages</b>: 🔗 = tied to its booking or note.</p>
     </details>
 
     <details class="hcard" id="h-alerts"><summary><span class="hi">🔔</span>Booking alerts on your phone</summary>
@@ -2371,7 +2373,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       return gm({ action: 'insess', day: day }).then(function (j) { var R = Object.keys(j.rooms || {}).map(function (k) { return j.rooms[k]; }).filter(function (r) { return String(r.unit) === String(unit); })[0]; return R ? R.sessions.filter(function (s) { return /ZZTEST/.test(s.name); }) : []; });
     }
     function cleanup() {
-      return gm({ action: 'latelist' }).then(function (j) {
+      return Promise.all((T.links || []).map(function (c) { return gm({ action: 'cancel', code: c }).catch(function () {}); })).then(function () { return gm({ action: 'latelist' }); }).then(function (j) {
         return (j.sessions || []).filter(function (x) { return /^ZZTEST/.test(x.text); }).reduce(function (pr, x) { return pr.then(function () { return gm({ action: 'latecancel', id: x.id, day: x.day }); }); }, Promise.resolve());
       }).then(function () { return T.night ? gm({ action: 'shadow', from: addD(T.night, -1), n: '2' }) : null; }).catch(function () {});
     }
@@ -2469,10 +2471,45 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return gm({ action: 'extundo', id: T.ext }).then(function (j) { must(j.ok, 'Undo: ' + (j.error || 'refused')); return sessOf(T.day, 11); })
           .then(function (s) { must(s.length === 1 && /late till 5am/.test(s[0].name), 'After undo: ' + (s[0] ? s[0].name : 'session missing')); return '“' + s[0].name + '”'; });
       }); })
+      /* guest links follow their booking or note (owner, 2 Nov): paired when made, a waiting link ties to a Late session
+         made after it, Pair by hand moves a link to its guest, a deleted note cancels its links (on the 2nd look) */
+      .then(function () { return step('Guest links pair with their note: made after, made before, Pair, note deleted', function () {
+        var at = function (hm) { return String(sgMs(T.day, hm)); }, pr = function (c) { return gm({ action: 'pairs' }).then(function (j) { return (j.links || []).filter(function (x) { return x.code === c; })[0] || {}; }); };
+        T.links = [];
+        return gm({ action: 'create', room: 'max', start: at('03:00'), label: 'ZZTEST pair A' }).then(function (a) {
+          must(a.ok, 'Create: ' + a.error); T.links.push(a.code); T.linkA = a.code; must(a.paired === 'note', 'A link made on the Max test note wasn’t tied to it (' + a.paired + ').');
+          return gm({ action: 'create', room: 'max', start: at('05:30'), label: 'ZZTEST pair B' });
+        }).then(function (b) {
+          must(b.ok && b.paired === 'waiting', 'A link with nothing booked should wait (' + (b.paired || b.error) + ').'); T.links.push(b.code); T.linkB = b.code;
+          return gm({ action: 'late', unit: '11', day: T.day, start: '05:30', end: '06:15', name: 'ZZTEST max2', pax: '1', msgs: 'no' });
+        }).then(function (l) {
+          must(l.ok, 'Second Late session: ' + (l.error || 'refused')); must(l.tied >= 1, 'Late session didn’t tie the waiting link.'); T.max2 = l.notes[0].id;
+          return gm({ action: 'create', room: 'kai', start: at('06:30'), label: 'ZZTEST pair C' });
+        }).then(function (c) {
+          T.links.push(c.code); T.linkC = c.code; return gm({ action: 'pair', code: c.code, key: 'n' + T.max2, day: T.day });
+        }).then(function (p) {
+          must(p.ok && p.moved && p.room === 'max', 'Pair by hand: ' + (p.error || 'didn’t move the link to Max 5:30am'));
+          return gm({ action: 'latecancel', id: T.max2, day: T.day });
+        }).then(function () { return gm({ action: 'follow' }); }).then(function () { return wait(50000); }).then(function () { return gm({ action: 'follow' }); })
+          .then(function () { return gm({ action: 'list' }); }).then(function (j) {
+            var st = {}; (j.links || []).forEach(function (x) { st[x.key] = x.data.status; });
+            must(st[T.linkB] === 'cancelled' && st[T.linkC] === 'cancelled', 'Note deleted but its links weren’t cancelled (B ' + st[T.linkB] + ', C ' + st[T.linkC] + ').');
+            must(st[T.linkA] !== 'cancelled', 'A link on a different note was cancelled too.');
+            return 'Tied on making · waiting link tied by Late session · Pair moved Kai 6:30 → Max 5:30 · note deleted → its 2 links cancelled';
+          });
+      }); })
       .then(function () { return step('Change: Max → Bella moves everything', function () {
         return gm({ action: 'late', unit: '10', day: T.day, start: '03:30', end: '05:30', name: 'ZZTEST max', pax: '2', msgs: 'yes', replace: T.max, oldDay: T.day }).then(function (j) {
           must(j.ok && j.replaced, 'Change: ' + (j.error || 'refused')); return Promise.all([sessOf(T.day, 11), sessOf(T.day, 10)]);
         }).then(function (r) { must(!r[0].length, 'Max still has the old session.'); must(r[1].length === 1, 'Bella has ' + r[1].length + '.'); return 'Max empty · Bella 3:30–5:30am'; });
+      }); })
+      .then(function () { return step('Guest link follows Late session › Change (Max 3am → Bella 3:30am)', function () {
+        must(T.linkA, 'No link from the pairing step.');
+        return gm({ action: 'follow' }).then(function () { return gm({ action: 'list' }); }).then(function (j) {
+          var x = (j.links || []).filter(function (y) { return y.key === T.linkA; })[0];
+          must(x && x.data.room === 'bella' && +x.data.start === sgMs(T.day, '03:30'), 'The link stayed at ' + (x ? x.data.room + ' ' + new Date(x.data.start + 8 * 3600e3).toISOString().slice(11, 16) : '?') + '.');
+          return gm({ action: 'cancel', code: T.linkA }).then(function () { return 'Link moved to Bella 3:30am with its note'; });
+        });
       }); })
       .then(function () { return step('Vale ↔ Atlas: twin blocked, +1h stretches both', function () {
         return gm({ action: 'late', unit: '5', day: T.day, start: '03:00', end: '05:00', name: 'ZZTEST vale', pax: '4', msgs: 'yes' }).then(function (j) {

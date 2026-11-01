@@ -189,7 +189,7 @@
           "name": "Guest messages (cue.round2.sg)",
           "status": "live",
           "check": "cue",
-          "what": "Guests write their own TV message from a link; staff approve; it pops up on time.",
+          "what": "Guests write their own TV message from a link; staff approve; it pops up on time. Each link is tied to its booking or note when made (moved → moves, deleted → cancelled); a link made first waits and ties itself, Late session ties it straight away, Pair fixes a wrong time, and a phone heads-up comes 3 h before if it's still not tied (2 Nov).",
           "runs": "cue.round2.sg + booking engine /gm (messages kept in the engine since 1 Nov; Make scenario off, kept as fallback)",
           "code": "round2-tv-launcher · cue/, manager/msg/, docs/guest-messages.md"
         },

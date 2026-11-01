@@ -164,6 +164,34 @@ it on to Make's mirror-rooms scenario unchanged). The engine also checks right b
   the message belonged to the cancelled guest → cancelled, never shown to the new guest.
 - Safety: more than 3 cancels in one check → nothing is cancelled (logged as "held"), in case SimplyBook answers oddly.
 
+### Paired when made, notes too (2 Nov 2026)
+Owner: "what if the guest link is made before she makes the note?" Links are now tied **when they're made**, to the exact
+thing staff pick, by SimplyBook's own id (it stays the same when a booking or note is edited, stretched or dragged).
+`gml` columns: `bid` (booking), `nid` (note), `pin` = 1 (paired the new way: never guessed from old cancelled bookings),
+`miss` (when its note was first found gone), `warn` (heads-up sent).
+
+- **Make a guest link** asks the engine (`action=slot`) what starts in that room at that time and shows "Who's it for":
+  online booking 📅 or note 📝 (WhatsApp / Late session guest). The pick goes with `create` as `pair` (`b<id>`, `n<id>`,
+  `none`); an old page without it gets the one thing starting then, if exactly one.
+- **Nothing there yet → waiting link.** Staff confirm with a second tap. Every 10 min (cron `waitWarn` → `fNotes` → `follow`)
+  it ties to whatever lands **exactly** at its room + start: a booking first, else a time-blocked note (not SYSTEM BLOCK,
+  EXT, 12 h+ room blocks or the "↓ AFTER 12AM" labels). A waiting link is **never cancelled** by the engine.
+- **Late session** ties a waiting link for the same room + arrival on the spot (`lTieWaiting`; the page says
+  "🔗 The guest link for this time is now tied to this session"). **Late session › Change** deletes and remakes the note, so
+  its links are re-pointed to the new id first (`lRenote`, also when a failed change puts the old note back).
+- **Tied to a note:** moved (time/room/date) → the link moves; deleted → cancelled, but only if it's still gone on a
+  **second look** a minute later (so a note being swapped never cancels a guest's message). Couldn't tell → left alone.
+  +1h stretches or adds EXT notes, the id doesn't change, nothing happens.
+- **Guest messages** shows 🔗 Online booking / 🔗 Note / ⏳ Not tied yet (`action=pairs`). Waiting links get **Pair with
+  booking**: everything in SimplyBook that day (`action=slotday`), and the pick ties it (`action=pair`); a different room or
+  time moves the link (and its message) to match.
+- **Heads-up:** still waiting 3 h before its start (and made over 20 min ago) → one push to phones with booking or
+  "coming up" alerts: "⏳ MAX · guest link not tied yet … Check the note or booking time, or tap Pair in Guest messages."
+- Older links (made before 2 Nov) keep the old rules, except a guest on a note in that slot now wins over an old cancelled
+  booking (the WhatsApp catch: an online booking cancelled, the slot given to a WhatsApp guest, the old rule cancelled the
+  new guest's link).
+- System check step: "Guest links pair with their note…" and "Guest link follows Late session › Change".
+
 Costs: one SimplyBook read per booking change (120 days of bookings); Make only when a message actually moves. Staff can see the
 list and the last 30 changes with `/gm` `action=queue` (fields `follow`, `followLog`) and run a check with `action=follow`
 (`dry=1` shows what it would do). The engine's `/status?deep=1` shows counts only (no codes): `follow.links`, `bound`,

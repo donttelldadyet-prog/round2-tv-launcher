@@ -233,7 +233,8 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
       var mp = (j.msgs || []).filter(function (m) { return m.problem; });
       var was = !!editing; editing = null; $('editing').hidden = true; loadUp();
       show('<span class="okmsg"><b>' + (was ? 'Changed in SimplyBook ✓' : 'Added to SimplyBook ✓') + '</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrivesDay + ', ' + p.arrives + ' – ' + p.leavesDay + ', ' + p.guestEnd) +
-        ((j.msgs || []).length ? '<br>' + (mp.length ? '<span class="warn">TV messages: ' + esc(mp.map(function (m) { return m.problem; }).join('; ')) + ' – set them in Round2 messages.</span>' : 'TV messages set ✓') : ''));
+        ((j.msgs || []).length ? '<br>' + (mp.length ? '<span class="warn">TV messages: ' + esc(mp.map(function (m) { return m.problem; }).join('; ')) + ' – set them in Round2 messages.</span>' : 'TV messages set ✓') : '') +
+        (j.tied ? '<br>🔗 The guest link for this time is now tied to this session' : ''));
       ready = null; $('name').value = ''; $('pax').value = ''; $('start').value = ''; fillEnd();
       try { if (embed) parent.postMessage({ r2late: true }, location.origin); } catch (e) {}
     }).catch(function () { show('<span class="warn">Couldn’t reach the engine. Check SimplyBook before trying again.</span>'); });
