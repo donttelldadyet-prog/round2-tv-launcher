@@ -1,6 +1,6 @@
 {
-  "_readme": "Control centre › Systems › All systems reads this file. Keep it up to date whenever a system changes stage (live/test/build/planned/off/broken). Plain words – the owners read it. status: live = guests/staff use it now · test = built, being tested (test payments etc.) · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-10-31",
+  "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
+  "updated": "2026-11-02",
   "areas": [
     {
       "name": "Website & booking",
@@ -138,6 +138,12 @@
           "status": "off",
           "what": "The old Wix checkout. The Make scenario is still switched on but gets no orders.",
           "runs": "Make: [BACKEND] WIX PAID FOOD ORDER"
+        },
+        {
+          "name": "Food menu off Make (hybrid)",
+          "status": "planned",
+          "what": "Next: test orders and the 'Loot dropped' ack → Telegram move into the engine. The accounts-sheet row and the Drive print file stay on Make. Saves Make operations.",
+          "runs": "Booking engine – replaces Make 8214565 / 8216677"
         }
       ]
     },
@@ -176,15 +182,15 @@
         {
           "name": "Round2 messages to TVs",
           "status": "live",
-          "what": "Birthday, '10 minutes left', 'that's a wrap' etc. from the Notifications tab.",
-          "runs": "Firebase + booking engine timer"
+          "what": "Birthday, '10 minutes left', 'that's a wrap' etc. from TV messages › Round2 messages. Each message is tagged by who made it: gold ROUND2 (by hand, +1h, Late session), blue ⚙ AUTO WRAP-UP, grey GUEST. Messages 12am–6am count as the night before.",
+          "runs": "Booking engine (messages + timer) + Firebase"
         },
         {
           "name": "Guest messages (cue.round2.sg)",
           "status": "live",
           "check": "cue",
           "what": "Guests write their own TV message from a link; staff approve; it pops up on time.",
-          "runs": "cue.round2.sg + booking engine /gm + Make: [BACKEND] GUEST MESSAGE LINKS",
+          "runs": "cue.round2.sg + booking engine /gm (messages kept in the engine since 1 Nov; Make scenario off, kept as fallback)",
           "code": "round2-tv-launcher · cue/, manager/msg/, docs/guest-messages.md"
         },
         {
@@ -205,21 +211,46 @@
           "name": "In session: extend a session (+1/+2/+3h)",
           "status": "live",
           "check": "engine",
-          "what": "Control centre › In session shows today's bookings and WhatsApp notes per room. +1h/+2h/+3h adds 1-hour EXT notes in SimplyBook (Vale and Atlas block each other: the twin gets a SYSTEM BLOCK note), moves or adds 'About 10 minutes to go' and 'That's a wrap!', and the TV shows '+N CREDITS ADDED' with a coin dropping into a slot (no OK unless ticked). Checked before it happens; undo for 30 min; Test button shows the banner on one TV.",
+          "what": "Control centre › In session shows today's bookings and notes per room – after 5pm also tonight's after-midnight sessions. +1h/+2h/+3h: a booking or ordinary note gets ONE EXT note after it ('EXT till 1am · Amanda'), stretched on each +1h; a Late session note is stretched itself and its text changed ('late till 2am'). Vale/Atlas: the twin gets a SYSTEM BLOCK. Moves or adds 'About 10 minutes to go' / 'That's a wrap!', TV shows '+N CREDITS ADDED'. Undo for 30 min.",
           "runs": "Booking engine (Cloudflare) + TV app",
           "code": "round2-tv-launcher · docs/guest-messages.md \"In session\""
+        },
+        {
+          "name": "Late session",
+          "status": "live",
+          "what": "In session › Late session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too).",
+          "runs": "Booking engine + SimplyBook notes",
+          "code": "round2sg-home · docs/booking-times.md"
+        },
+        {
+          "name": "Upcoming late sessions (change / cancel)",
+          "status": "live",
+          "what": "Under Late session: every note-session after midnight or running past it, 45 days ahead. Change (time, night, room) or Cancel (tap twice) – the note, its TV messages and its SimplyBook label follow. Real bookings are changed in SimplyBook.",
+          "runs": "Booking engine"
+        },
+        {
+          "name": "After-midnight labels in SimplyBook",
+          "status": "live",
+          "what": "SimplyBook only shows 11am–12am. A session starting after 12am gets '↓ AFTER 12AM · name · times' at 11:30pm the night before; one running past 12am gets '↓ TILL 1AM · name'. Labels block nothing and nothing reads them; they follow every change.",
+          "runs": "Booking engine (every 30 min + on each change)"
+        },
+        {
+          "name": "Auto wrap-up",
+          "status": "test",
+          "what": "Switch in TV messages › Auto wrap-up (on since 2 Nov). Every session today gets 'About 10 minutes to go' and 'That's a wrap!' by itself, kept in step with new bookings, extensions, moves and cancellations; uses messages already set by hand instead of doubling; one session can be switched off. Switching off removes everything it scheduled; hand-made ones stay.",
+          "runs": "Booking engine – as Round2 messages (blue ⚙ tag)"
+        },
+        {
+          "name": "Clean-up of orphan wrap-up messages",
+          "status": "live",
+          "what": "Every 10 min and when SimplyBook reports a change: a '10 minutes to go' / 'That's a wrap!' whose booking or note no longer exists is cancelled (max 4 at once, as a safety stop).",
+          "runs": "Booking engine"
         },
         {
           "name": "Food alerts on the TV",
           "status": "test",
           "what": "'Order locked in' and 'Loot dropped' on the room's TV.",
           "runs": "Firebase"
-        },
-        {
-          "name": "Automatic 'time's up'",
-          "status": "planned",
-          "what": "Warn 10 min before and at the guest's end time from SimplyBook (booking end minus 15 min cleaning; late-night notes are readable too).",
-          "code": "round2sg-home · docs/booking-times.md"
         }
       ]
     },
@@ -229,9 +260,36 @@
         {
           "name": "Control centre",
           "status": "live",
-          "what": "This page: messages, themes, menu, website stats, systems and tests.",
+          "what": "staff.round2.sg – this page (Home Screen app, locked until the keys are pasted): sessions, messages, themes, menu, website stats, systems and tests.",
           "runs": "GitHub Pages",
           "code": "round2-tv-launcher · manager/"
+        },
+        {
+          "name": "Staff phone alerts (push)",
+          "status": "test",
+          "what": "Alerts tab: new / changed / cancelled bookings and a 1-hour reminder (bookings and notes) on this phone, with the room's character icon. Needs the app opened from the Home Screen (iOS 16.4+).",
+          "runs": "Booking engine (Web Push) + staff.round2.sg",
+          "code": "round2-tv-launcher · docs/staff-alerts.md"
+        },
+        {
+          "name": "One staff code for TV setup",
+          "status": "planned",
+          "what": "TV setup (Events, Rooms, Sounds, TV settings) asks for a GitHub key today. Replace it with one constant code through the engine, like every other tab."
+        },
+        {
+          "name": "Round2 vs Guest messages – review",
+          "status": "planned",
+          "what": "After a few days of use: do the two message lists still feel awkward? (Since 2 Nov: separate lists, colour tags, night-based dates.)"
+        },
+        {
+          "name": "New TV messages key",
+          "status": "planned",
+          "what": "Swap the Firebase TV messages key for a new one (security tidy-up, not urgent)."
+        },
+        {
+          "name": "Staff roll-out",
+          "status": "planned",
+          "what": "Give staff the control centre (Home Screen app + keys) once the owners are happy everything is stable."
         }
       ]
     }

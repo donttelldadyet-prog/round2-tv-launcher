@@ -689,9 +689,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div id="alBox"></div>
   </section>
 
+  <section id="tab-planned" hidden>
+    <h1>Planned</h1>
+    <p class="sub">What isn’t running yet: being built, decided and waiting, or ideas on the shelf. When one starts running it moves to All systems.</p>
+    <div class="sysleg" id="planLeg"></div>
+    <div class="sysfilter" id="planFilter"></div>
+    <div id="planList"><p class="hint">Loading…</p></div>
+  </section>
+
   <section id="tab-systems" hidden>
-    <h1>Systems</h1>
-    <p class="sub">Everything Round2 runs, and how far along each one is. The coloured checks are read live; the rest is kept up to date in the GitHub project (manager/systems.json).</p>
+    <h1>All systems</h1>
+    <p class="sub">Everything Round2 runs right now – including what’s still being tested, because it’s running. What’s not running yet is in <b>Planned</b>. The coloured checks are read live; the rest is kept up to date in the GitHub project (manager/systems.json).</p>
     <div class="card" id="sysSwitches"><h2 style="margin-top:0">Switches</h2><div id="swBody" class="hint">Loading…</div></div>
     <div class="sysleg" id="sysLeg"></div>
     <div class="sysfilter" id="sysFilter"></div>
@@ -1656,7 +1664,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var BOOK_TEST = 'https://donttelldadyet-prog.github.io/round2sg-home/slots/';
     var ST = { live: ['Live', 'var(--ok)'], test: ['Testing', 'var(--accent)'], build: ['Building', 'var(--focus)'], planned: ['Planned', '#B48CFF'],
       parked: ['On the shelf', 'var(--mute)'], off: ['Off', 'var(--mute)'], broken: ['Broken', 'var(--bad)'] };
-    var data = null, st = null, filt = 'all', pending = null;
+    var data = null, st = null, filt = 'all', pfilt = 'all', pending = null;
+    /* owner, 2 Nov: All systems = running (live, test, broken, off); Planned = not running yet (build, planned, parked) */
+    var RUN = ['live', 'test', 'broken', 'off'], PLAN = ['build', 'planned', 'parked'];
     function chip(k) { var x = ST[k] || ['?', 'var(--mute)']; return '<span class="st" style="--sc:' + x[1] + '">' + x[0] + '</span>'; }
     function status(deep) { return fetch(ENG + '/status' + (deep ? '?deep=1' : ''), { cache: 'no-store' }).then(function (r) { return r.json(); }); }
     function live(it) {
@@ -1666,14 +1676,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (it.check === 'release' && it._rel) return '<div class="live">Latest build: <b>' + esc(it._rel) + '</b></div>';
       return '';
     }
-    function render() {
+    function render() { draw(RUN, 'sys', filt); draw(PLAN, 'plan', pfilt); }
+    function draw(keep, pre, fl) {
       if (!data) return;
-      var counts = {}; data.areas.forEach(function (a) { a.items.forEach(function (it) { counts[it.status] = (counts[it.status] || 0) + 1; }); });
-      $('sysLeg').innerHTML = 'Updated ' + esc(data.updated) + ' · ' + Object.keys(ST).filter(function (k) { return counts[k]; }).map(function (k) { return chip(k) + ' ' + counts[k]; }).join(' ');
-      $('sysFilter').innerHTML = [['all', 'All']].concat(Object.keys(ST).filter(function (k) { return counts[k]; }).map(function (k) { return [k, ST[k][0]]; }))
-        .map(function (f) { return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (filt === f[0]) + '">' + f[1] + '</button>'; }).join('');
-      $('sysList').innerHTML = data.areas.map(function (a) {
-        var items = a.items.filter(function (it) { return filt === 'all' || it.status === filt; });
+      var counts = {}; data.areas.forEach(function (a) { a.items.forEach(function (it) { if (keep.indexOf(it.status) >= 0) counts[it.status] = (counts[it.status] || 0) + 1; }); });
+      $(pre + 'Leg').innerHTML = 'Updated ' + esc(data.updated) + ' · ' + keep.filter(function (k) { return counts[k]; }).map(function (k) { return chip(k) + ' ' + counts[k]; }).join(' ');
+      $(pre + 'Filter').innerHTML = [['all', 'All']].concat(keep.filter(function (k) { return counts[k]; }).map(function (k) { return [k, ST[k][0]]; }))
+        .map(function (f) { return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (fl === f[0]) + '">' + f[1] + '</button>'; }).join('');
+      $(pre + 'List').innerHTML = data.areas.map(function (a) {
+        var items = a.items.filter(function (it) { return keep.indexOf(it.status) >= 0 && (fl === 'all' || it.status === fl); });
         if (!items.length) return '';
         return '<div class="sysarea">' + esc(a.name) + '</div>' + items.map(function (it) {
           var c = (ST[it.status] || [0, 'var(--line2)'])[1];
@@ -1708,6 +1719,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     document.addEventListener('click', function (e) {
       var f = e.target.closest('[data-f]'); if (f && $('sysFilter').contains(f)) { filt = f.getAttribute('data-f'); render(); return; }
+      if (f && $('planFilter').contains(f)) { pfilt = f.getAttribute('data-f'); render(); return; }
       var w = e.target.closest('[data-sw]');
       if (w && !w.disabled) {
         var k = w.getAttribute('data-sw'), v = w.getAttribute('data-v');
@@ -2269,7 +2281,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'testbench', 'keys', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'testbench', 'keys', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
@@ -2279,7 +2291,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors']],
-    sys: [['alerts', 'Alerts'], ['tests', 'Test a TV'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['keys', 'Keys']],
+    sys: [['alerts', 'Alerts'], ['tests', 'Test a TV'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
     help: [['help', 'How it works'], ['stuck', 'If a TV is stuck']]
   };
   var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
@@ -2340,7 +2352,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
-    if (n === 'systems') Sys.open(); if (n === 'testbench') Sys.bench();
+    if (n === 'systems' || n === 'planned') Sys.open(); if (n === 'testbench') Sys.bench();
     if (n === 'keys') Keys.open(); else Keys.close();
     if (n === 'alerts') Alerts.open();
     if (n === 'autowrap') AutoWrap.open(); else AutoWrap.close();
