@@ -689,7 +689,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-keys" class="locked" hidden>
     <div class="gatehead"><img src="icon-192.png" alt=""><h1>Add your key</h1><p class="sub">This phone or computer isn’t set up yet. Paste the key the owner gave you into its box below and press Save. The control centre opens straight away, showing only the pages your key is for.</p>
       <div class="card" style="margin-top:14px"><h2 style="margin-top:0">Moving from the old address?</h2><p class="hint" style="margin:0 0 10px">On the old control centre: Tests &amp; systems › Keys › hold to unlock › <b>Copy keys for the new address</b>. Paste it here.</p>
-      <div class="row"><input class="tok" id="bundleIn" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="R2KEYS:…" aria-label="Copied keys" style="flex:1;min-width:200px"><button class="btn primary" type="button" id="bundleGo">Add all</button></div><p class="hint" id="bundleMsg" style="margin:8px 0 0"></p></div></div>
+      <div class="row"><textarea class="tok" id="bundleIn" rows="3" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="R2KEYS:…" aria-label="Copied keys" style="flex:1;min-width:200px;resize:vertical;font:inherit"></textarea><button class="btn primary" type="button" id="bundleGo">Add all</button></div><p class="hint" id="bundleMsg" style="margin:8px 0 0"></p></div></div>
     <h1>Keys</h1>
     <p class="sub">Every key the control centre uses, in one place. Each key switches on its own pages, on this phone or computer only. Give staff only the keys for the jobs they do: a page whose key isn't added here stays locked.</p>
     <div class="klock" id="keyLock"></div>
@@ -2065,7 +2065,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function init() {
       var L = $('keyLock');
       $('bundleGo').onclick = importBundle;
-      $('bundleIn').addEventListener('keydown', function (e) { if (e.key === 'Enter') importBundle(); });
+      $('bundleIn').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); importBundle(); } });
       L.addEventListener('pointerdown', holdStart);
       ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { L.addEventListener(ev, holdEnd); });
       L.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); holdStart(e); } });
