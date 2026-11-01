@@ -531,7 +531,21 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-insession" hidden>
     <div class="row" style="justify-content:space-between">
       <div><h1>In session</h1><p class="sub">Today’s rooms. After a guest pays for more time, press <b>+1h</b>, <b>+2h</b> or <b>+3h</b>. It adds the EXT notes in SimplyBook (Vale and Atlas block each other too), moves “About 10 minutes to go” and “That’s a wrap!” to the new end (or adds them), and the TV shows <b>+N CREDITS ADDED</b>. You check everything before it happens, and you can undo it for 30 minutes.</p></div>
-      <button class="btn" id="sRefresh">Refresh</button>
+      <div class="row"><button class="btn primary" id="lOpen" type="button">+ Late session</button><button class="btn" id="sRefresh">Refresh</button></div>
+    </div>
+    <div class="card" id="lCard" hidden style="max-width:760px;margin:12px 0">
+      <h2 style="margin-top:0">Late session</h2>
+      <p class="hint" style="margin-top:0">For WhatsApp or walk-in sessions, including ones past midnight (SimplyBook’s calendar stops at 12am). It writes one note into SimplyBook from arrival to the guest’s end + 15 min cleaning, with name and pax, so the reminders, +1h and “That’s a wrap!” all get the right times. Vale and Atlas block each other.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+        <label class="hint">Room<select id="lRoom" class="btn ghost" style="display:block;width:100%;text-transform:none;margin-top:4px"></select></label>
+        <label class="hint">Date (when they arrive)<input id="lDay" type="date" class="tok" style="display:block;width:100%;margin-top:4px"></label>
+        <label class="hint">Arrives<input id="lStart" type="time" step="900" class="tok" style="display:block;width:100%;margin-top:4px"></label>
+        <label class="hint">Guest leaves (before cleaning)<input id="lEnd" type="time" step="900" class="tok" style="display:block;width:100%;margin-top:4px"></label>
+        <label class="hint">Guest name<input id="lName" type="text" maxlength="40" class="tok" style="display:block;width:100%;margin-top:4px" autocomplete="off"></label>
+        <label class="hint">Pax<input id="lPax" type="number" min="1" max="20" inputmode="numeric" class="tok" style="display:block;width:100%;margin-top:4px"></label>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="lCheck" type="button">Check</button><button class="btn" id="lCancel" type="button">Close</button></div>
+      <div id="lPlan" class="hint" style="margin-top:10px"></div>
     </div>
     <div id="sKeyBox" class="banner" hidden>
       <span>This needs the guest messages staff code (same as Guest messages).</span>
@@ -1977,6 +1991,47 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var lg = new Image(); lg.alt = 'Round2';
     lg.onload = function () { var b = $('brand'); if (!b) return; b.className = 'brand logo'; b.innerHTML = ''; b.appendChild(lg); var sm = document.createElement('small'); sm.textContent = 'CONTROL CENTRE'; b.appendChild(sm); };
     lg.src = 'https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp';
+  }());
+
+  /* ---------- In session › Late session (engine /gm action=late, staff code): one SimplyBook note, past midnight too ---------- */
+  (function () {
+    var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', UNIT = [['5', 'Vale'], ['7', 'Kaeden'], ['8', 'Scarlett'], ['9', 'Kai'], ['10', 'Bella'], ['12', 'Atlas'], ['11', 'Maximillion']], plan = null;
+    function sgToday() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
+    function form() { return { unit: $('lRoom').value, day: $('lDay').value, start: $('lStart').value, end: $('lEnd').value, name: $('lName').value.trim(), pax: $('lPax').value }; }
+    function call(body) { body.staff = ls('r2.guestStaff') || ''; body.action = 'late'; return fetch(ENG, { method: 'POST', body: new URLSearchParams(body) }).then(function (r) { return r.json(); }); }
+    function show(h) { $('lPlan').innerHTML = h; }
+    function check() {
+      var f = form(); f.dry = '1'; show('Checking SimplyBook…'); plan = null;
+      call(f).then(function (j) {
+        if (!j || !j.ok) { show('<span style="color:var(--warn)">' + esc((j && j.error) || 'No answer') + '</span>'); return; }
+        var p = j.plan; plan = form();
+        var h = '<div class="card" style="margin:0"><b>' + esc(p.room) + ' · ' + esc(p.name) + ' · ' + p.pax + ' pax</b><br>Arrives ' + esc(p.arrives) + ', leaves ' + esc(p.guestEnd) + (p.nextDay ? ' (after midnight)' : '') + ' · ' + p.hours + 'h<br>' +
+          'SimplyBook note: ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning) · “' + esc(p.text) + '”' + (p.twin ? '<br>' + esc(p.twin) + ' gets a SYSTEM BLOCK for the same time.' : '');
+        if (p.clash && p.clash.length) h += '<p style="color:var(--warn);margin:10px 0 0"><b>Already in the calendar then:</b><br>' + p.clash.map(function (c) { return esc(c.room + ' · ' + c.what + ' · ' + c.name + ' · ' + c.from + '–' + c.to); }).join('<br>') + '</p>';
+        h += '<div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="lGo">' + (p.clash && p.clash.length ? 'Add anyway' : 'Add to SimplyBook') + '</button></div></div>';
+        show(h); $('lGo').onclick = function () { go(p.clash && p.clash.length); };
+      }).catch(function () { show('Couldn’t reach the engine.'); });
+    }
+    function go(force) {
+      if (!plan) return; var f = Object.assign({}, plan); if (force) f.force = 'yes';
+      $('lGo').disabled = true; show($('lPlan').innerHTML + '<p class="hint">Adding…</p>');
+      call(f).then(function (j) {
+        if (!j || !j.ok) { show('<span style="color:var(--warn)">' + esc((j && j.error) || (j && j.clash ? 'Something is already in the calendar then. Press Check again.' : 'No answer')) + '</span>'); return; }
+        toast('Added to SimplyBook: ' + j.plan.room + ' ' + j.plan.arrives + '–' + j.plan.guestEnd + '.');
+        $('lCard').hidden = true; show(''); plan = null; $('lName').value = ''; $('lPax').value = '';
+        var r = $('sRefresh'); if (r) r.click();
+      }).catch(function () { show('Couldn’t reach the engine. Check SimplyBook before trying again.'); });
+    }
+    document.addEventListener('click', function (e) {
+      var id = e.target && e.target.id;
+      if (id === 'lOpen') {
+        if (!$('lRoom').options.length) $('lRoom').innerHTML = UNIT.map(function (u) { return '<option value="' + u[0] + '">' + u[1] + '</option>'; }).join('');
+        if (!$('lDay').value) $('lDay').value = sgToday();
+        $('lCard').hidden = !$('lCard').hidden; show('');
+      } else if (id === 'lCheck') check();
+      else if (id === 'lCancel') { $('lCard').hidden = true; show(''); }
+    });
+    ['lRoom', 'lDay', 'lStart', 'lEnd', 'lName', 'lPax'].forEach(function (k) { var el = $(k); if (el) el.addEventListener('input', function () { plan = null; if ($('lGo')) show(''); }); });
   }());
 
   /* ---------- Alerts on this phone: web push from the Cloudflare engine (/push/*), docs/staff-alerts.md ----------
