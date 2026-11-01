@@ -17,7 +17,7 @@ Needs the guest messages staff code on the phone (Keys).
 | `soon` | Cron every 10 min, 9:45am–2am SG only: a session 50–62 min away (not if keyed in within the hour), bookings **and** calendar notes | **🎀 VALE · Indra · in 1 hour** · Arrives 11am · 3h (till 2pm) · 2 pax (pax decides room set-up and controllers; from the booking field, or "4 pax" written in a note) |
 
 - Room icon = the character's icon from the booking page, in the room colour where an emoji exists: 🎀 Vale, 🍃 Kaeden,
-  🪐 Scarlett, 🗻 Kai, 🔮 Bella, ⛵ Atlas, 🏎️ Max (iPhone always shows the app icon itself).
+  🪐 Scarlett, 🏔️ Kai, 🔮 Bella, ⛵ Atlas, 🏎️ Max (iPhone always shows the app icon itself).
 - Rate: Peak / Off-peak / EB / EB+peak (Early Bird on a peak day), from the SimplyBook service.
 - Money: our own booking page's record ("paid online"), else SimplyBook's invoice ("paid" / "NOT PAID"), else the
   room's price for that day and length ("price").
