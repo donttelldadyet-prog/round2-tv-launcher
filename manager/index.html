@@ -2052,7 +2052,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function dropMenuKey() { try { var g = JSON.parse(localStorage.getItem('r2gh') || 'null'); if (g && g.token) { delete g.token; localStorage.setItem('r2gh', JSON.stringify(g)); } } catch (e) {} }   /* the menu editor's own copy of the GitHub key */
     function importBundle() {
       /* tolerant: finds R2KEYS:… anywhere in what was pasted (a whole chat message, line breaks, spaces) */
-      var raw = $('bundleIn').value.replace(/\s+/g, ''), m = $('bundleMsg'), o, hit = /R2KEYS:([A-Za-z0-9+\/=_-]+)/i.exec(raw), v = hit ? hit[1] : raw;
+      var raw = $('bundleIn').value, m = $('bundleMsg'), o, hit = /R2KEYS:\s*([A-Za-z0-9+\/=_-]+)/i.exec(raw) || /R2KEYS:([A-Za-z0-9+\/=_-]+)/i.exec(raw.replace(/\s+/g, '')), v = hit ? hit[1] : raw.replace(/\s+/g, '');
       v = v.replace(/-/g, '+').replace(/_/g, '/');
       try { o = JSON.parse(decodeURIComponent(escape(atob(v)))); } catch (e) { o = null; }
       var ok = o && LIST.filter(function (k) { return typeof o[k.store] === 'string' && o[k.store]; });
