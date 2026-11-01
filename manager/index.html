@@ -390,6 +390,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 .hsbe { background: #ffc96b; padding: 6px; } .hsbn { background: #fde3b8; padding: 6px; font-weight: 700; color: #7a5a18; }
 .hsbf { text-align: center; padding: 5px; color: #9aa0b0; font-style: italic; }
 .hphone { background: #0e0c14; border: 1px solid var(--line2); border-radius: 18px; padding: 10px; max-width: 340px; margin: 4px 0 12px; display: grid; gap: 8px; }
+.hsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 12px; }
+.hpath { display: flex; flex-direction: column; align-items: stretch; gap: 4px; border: 1px dashed var(--line2); padding: 8px; }
+.hpath > em { text-align: center; font-style: normal; color: var(--accent); font-weight: 700; }
+.hpath .hstep { max-width: none; }
+.hpl { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); font-weight: 700; text-align: center; margin-bottom: 2px; }
 .hpn { background: rgba(255,255,255,.08); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; } .hpn span { color: var(--mute); } .hchip.blue { background: #8EC5FF; border-color: #8EC5FF; color: #0b0914; font-weight: 700; } .hchip.grey { color: var(--mute); }
 .klock { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; max-width: 760px; }
 .khold { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
@@ -793,7 +798,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="hjump" id="hJump">
       <a href="#h-basics">⭐ Basics</a><a href="#h-phone">📱 Set up</a><a href="#h-extend">⏱️ +1h</a><a href="#h-late">🌙 Late</a>
       <a href="#h-latechange">✏️ Move / cancel</a><a href="#h-labels">↓ Labels</a><a href="#h-r2">💬 TV messages</a><a href="#h-auto">⚙ Auto wrap-up</a>
-      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food</a><a href="#h-themes">🎨 TV looks</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
+      <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food orders</a><a href="#h-themes">🎨 TV looks</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
     </div>
 
     <details class="hcard" id="h-basics" open><summary><span class="hi">⭐</span>The basics</summary>
@@ -881,9 +886,21 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <p class="tip">Turn on: Tests &amp; systems › <b>Alerts</b>. Only works from the Home Screen icon. Press <b>Test</b> to try.</p>
     </details>
 
-    <details class="hcard" id="h-food"><summary><span class="hi">🍕</span>Food menu</summary>
-      <div class="hflow"><div class="hstep"><i>📱</i>Guest orders + pays</div><em>›</em><div class="hstep"><i>🧾</i>Kitchen (Telegram)</div><em>›</em><div class="hstep"><i>📺</i>TV: Order locked in</div><em>›</em><div class="hstep ok"><i>🍕</i>TV: Loot dropped!</div></div>
-      <p class="tip">Change items or prices: Food menu › <b>Edit the menu</b> › Publish. Try it free: <b>Test an order</b>.</p>
+    <details class="hcard" id="h-food"><summary><span class="hi">🍕</span>Food orders – what happens</summary>
+      <div class="hflow"><div class="hstep ok"><i>📱</i>Guest orders + pays from the room</div></div>
+      <p class="hh">Then two things happen at once 👇</p>
+      <div class="hsplit">
+        <div class="hpath"><div class="hpl">🍕 Madd Pizza</div>
+          <div class="hstep"><i>🧾</i>Order pops up in their Telegram group</div><em>↓</em>
+          <div class="hstep"><i>👨‍🍳</i>They cook it</div><em>↓</em>
+          <div class="hstep"><i>👆</i>They press “Food is at the pickup point”</div></div>
+        <div class="hpath"><div class="hpl">📺 Room TV</div>
+          <div class="hstep"><i>🔒</i>“ORDER LOCKED IN” pops up straight away</div><em>↓</em>
+          <div class="hstep"><i>⏳</i>Guest waits…</div></div>
+      </div>
+      <p class="hh">When Madd Pizza presses the button 👇</p>
+      <div class="hflow"><div class="hstep"><i>📺</i>TV: “LOOT DROPPED!” food is on the rack outside</div><em>›</em><div class="hstep"><i>👍</i>Guest presses OK</div><em>›</em><div class="hstep ok"><i>💬</i>Telegram is told they’ve seen it</div></div>
+      <p class="tip">Change items or prices: Food menu › <b>Edit the menu</b> › Publish. Try the whole thing free (no payment, marked SIMULATED for the kitchen): <b>Test an order</b>.</p>
     </details>
 
     <details class="hcard" id="h-themes"><summary><span class="hi">🎨</span>TV looks: events, backgrounds, sounds</summary>
