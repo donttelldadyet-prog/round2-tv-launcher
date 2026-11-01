@@ -396,7 +396,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 .htv.staff .htvh { color: var(--accent); }
 .htvr { display: grid; grid-template-columns: minmax(150px, 46%) 1fr; gap: 8px; padding: 7px 10px; border-top: 1px solid rgba(255,255,255,.05); }
 .htvr span { font-weight: 700; } .htvr em { font-style: normal; color: var(--mute); }
-.htvr.lock span { color: var(--accent); } .htvr.hot { background: rgba(242,194,27,.1); }
+.htvr.lock span { color: var(--accent); }
+.htv.adv { border-color: var(--warn); } .htv.adv .htvh { color: var(--warn); } .htvr.hot { background: rgba(242,194,27,.1); }
 .hrooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; margin: 0 0 14px; max-width: 760px; }
 .hrooms a { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; background: var(--panel); border: 1px solid var(--line2); border-bottom: 3px solid var(--rc); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 700; }
 .hrooms a i { font-style: normal; font-size: 22px; }
@@ -943,14 +944,26 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <div class="htvr"><span>⬆️ Update app</span><em>install the newest Round2 version</em></div>
         <div class="htvr"><span>🎬 Check for new themes</span><em>fetch new event backgrounds now</em></div>
         <div class="htvr hot"><span>🏠 Home button</span><em><b>OPENS ROUND2</b> (normal) or <b>TV HOME</b> / <b>LG HOME</b> (the TV’s own)</em></div>
-        <div class="htvr"><span>⚡ Open when TV turns on</span><em>LG rooms: start on Round2 or not</em></div>
-        <div class="htvr"><span>🤖 Android home screen</span><em>Sony / TCL / Prism+: the TV’s own home for 5 min</em></div>
         <div class="htvr"><span>🌙 TV screensaver on the menu</span><em>keep the TV’s screensaver away, or let the TV decide</em></div>
-        <div class="htvr"><span>🍕 Food alerts over apps</span><em>food pop-ups even inside Netflix etc.</em></div>
-        <div class="htvr"><span>📡 AirPlay receiver</span><em>Bella: install / update AirPlay</em></div>
         <div class="htvr"><span>⚙️ TV settings · ℹ️ About</span><em>the TV’s own settings · its name and version</em></div>
       </div>
-      <p class="tip">Some rows only show on the TVs they apply to. Changed something by mistake? It stays until you change it back – nothing resets by itself.</p>
+      <p class="hh">Only on some TVs</p>
+      <div class="htv">
+        <div class="htvh">🤖 KAI · KAEDEN · MAX · ATLAS (Android)</div>
+        <div class="htvr"><span>🤖 Android home screen</span><em>the TV’s own home for 5 min</em></div>
+        <div class="htvr"><span>💬 Pop-ups over apps</span><em>lets food alerts and room messages pop up over Netflix, YouTube and HDMI – keep it ON</em></div>
+      </div>
+      <div class="htv">
+        <div class="htvh">🌀 SCARLETT · VALE · BELLA (LG)</div>
+        <div class="htvr"><span>⚡ Open when TV turns on</span><em>start on Round2 at power-on, or not</em></div>
+        <div class="htvr"><span>🛠️ Advanced (owner only)</span><em>a separate page, see below ⚠️</em></div>
+      </div>
+      <div class="htv adv">
+        <div class="htvh">⚠️ ADVANCED · LG only · owner only</div>
+        <div class="htvr"><span>📡 AirPlay receiver</span><em>installs or updates our own AirPlay on <b>Bella</b> (its LG can’t get LG’s). Downloads and installs on the TV – only when the owner says so.</em></div>
+        <div class="htvr"><span>🩺 Diagnostics</span><em>shows the TV’s technical log on screen, for the owner to photograph and send to Claude when something is broken. Changes nothing.</em></div>
+      </div>
+      <p class="tip">⚠️ <b>Advanced is for the owner.</b> Staff: no need to open it. Some rows only show on the TVs they apply to. Changed something by mistake? It stays until you change it back – nothing resets by itself.</p>
     </details>
 
     <details class="hcard" id="h-check"><summary><span class="hi">✅</span>Is everything working?</summary>
