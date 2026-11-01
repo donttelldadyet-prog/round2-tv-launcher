@@ -421,7 +421,8 @@ details.past .list { margin-top: 10px; }
   var ORDER = { ontv: 0, scheduled: 1, open: 2 };
   function render() {
     var live = [], past = [];
-    lastList.forEach(function (x) { var s = state(x); (s === 'cancelled' || s === 'ended' ? past : live).push(x); });
+    /* guests' links only: Round2's own messages (R2…, "About 10 minutes to go", "That's a wrap!") live in Round2 messages (owner, 1 Nov) */
+    lastList.forEach(function (x) { if (/^R2/.test(x.key)) return; var s = state(x); (s === 'cancelled' || s === 'ended' ? past : live).push(x); });
     /* filters: one chip per date that has links, and one per room */
     var days = {}, rooms = {};
     live.forEach(function (x) { var k = dayKey(x.data.start); days[k] = (days[k] || 0) + 1; rooms[x.data.room] = (rooms[x.data.room] || 0) + 1; });

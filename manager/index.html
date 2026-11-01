@@ -1416,7 +1416,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function topic(r) { return r === 'maximillion' ? 'max' : r; }
     function roomOf(t) { return t === 'max' ? 'maximillion' : t; }
     function parts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
-    function dayKey(ms) { var p = parts(ms); return p.year + '-' + p.month + '-' + p.day; }
+    /* the shop's day runs until we sleep (owner, 1 Nov): messages 12am–6am belong to the night before, and before 6am
+       "today" is still last night */
+    function dayKey(ms) { var p = parts(ms - 6 * 3600e3); return p.year + '-' + p.month + '-' + p.day; }
     function clock(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).toLowerCase(); }
     function gKey() { return ls('r2.guestStaff') || ''; }
     function load() {
