@@ -106,3 +106,16 @@ No OK needed: big banner 1 min, small banner 45 s, then never again.
   5-minute reminder; credit banner waiting in line.
 
 Redraw the pictures from the mermaid blocks above (`mmdc -i x.mmd -o x.png -b '#06050A'`) when a rule changes.
+
+## Is the TV listening? (check-ins, 1 Nov 2026)
+
+Each TV writes `/r2/<key>/<room>/helper = {t, tv, v, failsafe}` every 5 minutes: Android from `FoodAlerts` (`heartbeat`),
+LG from the helper (`round2d.sh heartbeat`, in the `msg_tick` loop). Control centre › Round2 messages › On the TVs now shows
+a chip per room: green ✓, red "offline since …" (no check-in for 12 min: TV off, no internet, or the helper/app isn't
+running – it won't get messages), red "Homebrew failsafe", grey "not reporting yet" (older app version).
+
+**LG Homebrew failsafe** (Bella, 1 Nov): after a crash or power cut during start-up, Homebrew Channel skips all start-up
+add-ons on the next boot (`/var/luna/preferences/webosbrew_failsafe`), so the helper, the Home button and power-on all
+stopped working until someone opened Round2 Home. The helper now clears that flag whenever it starts (`clear_failsafe`,
+also on every `ensure` from the menu) and logs it. Staff: if a TV shows the Homebrew failsafe notice, press OK and open
+Round2 Home once.

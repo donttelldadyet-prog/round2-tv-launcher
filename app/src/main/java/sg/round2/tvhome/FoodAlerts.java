@@ -199,10 +199,33 @@ public class FoodAlerts extends Service {
         new Thread(this::listen, "food-alerts").start();
         new Thread(this::listenMsg, "room-messages").start();
         main.post(msgTick);   // a message waiting from before a restart
+        main.post(heartbeat);   // check-in for the control centre (On the TVs now)
         try { registerReceiver(screenOn, new android.content.IntentFilter(Intent.ACTION_SCREEN_ON)); } catch (Exception ignored) { }
     }
 
     @Override public int onStartCommand(Intent i, int flags, int id) { return START_STICKY; }
+
+    /* Check-in: every 5 minutes /r2/<key>/<room>/helper = {t, tv, v}. The control centre shows a TV as offline when it
+       hasn't checked in for 12 minutes (the app was stopped, no network, or the TV is off). */
+    private final Runnable heartbeat = new Runnable() {
+        @Override public void run() {
+            main.removeCallbacks(this);
+            final String room = prefs(FoodAlerts.this).getString("room", "");
+            if (enabled() && !room.isEmpty()) new Thread(new Runnable() { @Override public void run() {
+                HttpURLConnection h = null;
+                try {
+                    h = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/helper.json").openConnection();
+                    h.setConnectTimeout(15_000); h.setReadTimeout(15_000);
+                    h.setDoOutput(true); h.setRequestMethod("PUT");
+                    h.setRequestProperty("Content-Type", "application/json");
+                    h.getOutputStream().write(new JSONObject().put("t", new JSONObject().put(".sv", "timestamp")).put("tv", "android").put("v", BuildConfig.VERSION_NAME).toString().getBytes("UTF-8"));
+                    h.getResponseCode();
+                } catch (Exception ignored) { }
+                finally { if (h != null) h.disconnect(); }
+            } }, "heartbeat").start();
+            main.postDelayed(this, 5 * 60_000L);
+        }
+    };
 
     @Override
     public void onDestroy() { try { unregisterReceiver(screenOn); } catch (Exception ignored) { } if (inst == this) inst = null; running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }

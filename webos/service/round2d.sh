@@ -342,10 +342,32 @@ stream_watch() {
     fi
   done
 }
+# Check-in: every 5 minutes the helper writes /r2/<key>/<room>/helper = {t, tv, v, failsafe}. The control centre
+# (Round2 messages > On the TVs now) shows a TV as offline when it hasn't checked in for 12 minutes (Bella, 1 Nov: the
+# helper didn't start all morning and nobody could tell).
+heartbeat() {
+  now=$(date +%s); l=$(cat "$CFG/hb.last" 2>/dev/null || echo 0)
+  [ $(( now - l )) -ge 300 ] || return 0
+  echo "$now" > "$CFG/hb.last"
+  set -- $(cat "$CFG/food" 2>/dev/null); [ -n "$1" ] && [ -n "$2" ] || return 0
+  v=$(sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p' /media/developer/apps/usr/palm/applications/sg.round2.tvhome/appinfo.json 2>/dev/null | head -n 1)
+  fs=false; [ -e "$FAILSAFE" ] && fs=true
+  curl -s -m 15 $K -X PUT -H 'Content-Type: application/json' \
+    -d "{\"t\":{\".sv\":\"timestamp\"},\"tv\":\"lg\",\"v\":\"$v\",\"failsafe\":$fs}" "$FB/r2/$2/$1/helper.json" >/dev/null 2>&1
+}
+# Homebrew Channel's failsafe mode (after a crash or power cut while the TV was starting): it skips every start-up
+# add-on, ours included, so the TV comes on as a plain LG (Bella, 1 Nov). When Round2 Home opens and starts us, clear it
+# so the next start-up is normal again.
+FAILSAFE=/var/luna/preferences/webosbrew_failsafe
+clear_failsafe() {
+  [ -e "$FAILSAFE" ] || return 0
+  rm -f "$FAILSAFE" && log "Homebrew was in failsafe mode (start-up add-ons skipped): cleared, next start-up is normal"
+}
 msg_tick() {    # every 3 s: is the message due, and is something other than Round2 Home in front?
   while :; do
     sleep 3
     stream_watch
+    heartbeat
     food_again
     [ -f "$CFG/msg.cur" ] || continue
     line=$(cat "$CFG/msg.cur"); id=$(printf '%s\n' "$line" | field id)
@@ -419,6 +441,7 @@ case "$1" in
   msgack) msg_ack "$2"; exit 0 ;;
   msgpage) msg_alert "$2"; exit 0 ;;   # NEXT pressed on a message pop-up
   ensure)                                   # Round2 Home calls this on every start: keep one up-to-date copy running
+    clear_failsafe
     cmp -s "$SELF" "$CFG/round2d.sh" 2>/dev/null || cp "$SELF" "$CFG/round2d.sh"
     if running && [ "$(cat "$CFG/sum" 2>/dev/null)" = "$(sum)" ]; then exit 0; fi ;;
   boot|start|"") ;;
@@ -434,6 +457,7 @@ stop
 sum > "$CFG/sum"
 [ "$SELF" = "$CFG/round2d.sh" ] || cp "$SELF" "$CFG/round2d.sh"   # a fixed path for the Home button setting
 log "helper started ($1)"
+rm -f "$CFG/hb.last"; clear_failsafe
 date +%s > "$CFG/menukey"
 watch_apps </dev/null >/dev/null 2>&1 &
 A=$!
