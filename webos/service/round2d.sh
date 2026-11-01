@@ -235,8 +235,9 @@ watch_food() {
   while :; do
     set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
     if [ -z "$room" ] || [ -z "$key" ]; then sleep 30; continue; fi
-    ev=""
+    ev=""; touch "$CFG/food.alive"
     curl -sN -m 3600 $K -H 'Accept: text/event-stream' "$FB/r2/$key/$room/last.json" 2>/dev/null | while read -r line; do
+      touch "$CFG/food.alive"
       case "$line" in
         event:*) ev=${line#event: } ;;
         data:*)
@@ -327,9 +328,24 @@ food_again() {  # Loot dropped not OK'd and not on screen (TV was off, a message
   menu_front && return 0                                                  # the menu brings it back itself
   food_show ready "$no" "$(printf '%s\n' "$p" | field items)" reminder
 }
+# A Wi-Fi blip can leave the Firebase stream silently dead (no error, nothing arrives) until curl's 1-hour limit: messages
+# and food alerts sent meanwhile never came (Bella, 1 Nov: "Sending… is the TV on?" while the TV was on). Firebase sends a
+# keep-alive every ~30 s, so no line for 2 minutes = dead line: kill that curl and the watcher reconnects in 5 s (and gets
+# the current message straight away).
+stream_watch() {
+  now=$(date +%s)
+  for w in msg:msg.json food:last.json; do
+    f="$CFG/${w%%:*}.alive"; [ -f "$f" ] || continue
+    a=$(date -r "$f" +%s 2>/dev/null || echo "$now")
+    if [ $(( now - a )) -gt 120 ]; then
+      pkill -f "curl -sN .*/${w#*:}" 2>/dev/null; touch "$f"; log "${w%%:*} stream silent for 2 min: reconnecting"
+    fi
+  done
+}
 msg_tick() {    # every 3 s: is the message due, and is something other than Round2 Home in front?
   while :; do
     sleep 3
+    stream_watch
     food_again
     [ -f "$CFG/msg.cur" ] || continue
     line=$(cat "$CFG/msg.cur"); id=$(printf '%s\n' "$line" | field id)
@@ -358,8 +374,9 @@ watch_msg() {
   while :; do
     set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
     if [ -z "$room" ] || [ -z "$key" ]; then sleep 30; continue; fi
-    ev=""
+    ev=""; touch "$CFG/msg.alive"
     curl -sN -m 3600 $K -H 'Accept: text/event-stream' "$FB/r2/$key/$room/msg.json" 2>/dev/null | while read -r line; do
+      touch "$CFG/msg.alive"                                   # Firebase sends keep-alives every ~30 s: the line is alive
       case "$line" in
         event:*) ev=${line#event: } ;;
         data:*)
