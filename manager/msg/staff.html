@@ -80,6 +80,15 @@ label.f input, label.f select { width: 100%; -webkit-appearance: none; appearanc
 .made .for { font-weight: 700; font-size: 15px; }
 .made .copied { color: var(--ok); font-weight: 700; }
 .made.stale { opacity: .45; pointer-events: none; }
+.who { display: grid; gap: 6px; }
+.who .wl { display: grid; gap: 6px; }
+.who button { text-align: left; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); padding: 10px 12px; font-size: 14px; display: grid; gap: 2px; }
+.who button[aria-pressed="true"] { border-color: var(--ok); box-shadow: inset 4px 0 0 var(--ok); background: var(--panel2); }
+.who button small { color: var(--mute); font-size: 12px; }
+.who .wait { border: 1px dashed var(--line2); padding: 10px 12px; font-size: 14px; }
+.who .wait b { color: var(--accent); }
+.who .near { font-size: 13px; color: var(--mute); }
+.who .near a { color: var(--ink); cursor: pointer; text-decoration: underline; }
 .dup { border: 1px solid var(--bad); padding: 10px; display: grid; gap: 8px; font-size: 14px; }
 .made textarea { width: 100%; min-height: 104px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font: 14px/1.45 var(--f); resize: vertical; }
 
@@ -171,6 +180,7 @@ details.past .list { margin-top: 10px; }
         <label class="f">Date<input type="date" id="date"></label>
         <label class="f">Starts<select id="time"></select></label>
       </div>
+      <div class="who" id="who" hidden></div>
       <label class="f">Booking name (staff only)<input type="text" id="label" maxlength="60" autocomplete="off" placeholder="e.g. Jay · WhatsApp"></label>
       <div class="sum" id="sum"></div>
       <div class="dup" id="dup" hidden></div>
@@ -269,6 +279,44 @@ details.past .list { margin-top: 10px; }
   $('rooms').addEventListener('click', function (e) { var b = e.target.closest('button[data-r]'); if (b) { room = b.getAttribute('data-r'); drawRooms(); sum(); } });
   ['date', 'time'].forEach(function (id) { $(id).addEventListener('input', sum); $(id).addEventListener('change', sum); });
 
+  /* Who's the link for (owner, 2 Nov): the engine shows what's in SimplyBook at this room + start time, and the link is
+     tied to the one picked – a booking, or a note (WhatsApp / late-session guest). It then follows it: moved → the
+     message moves, deleted/cancelled → the message is cancelled. Nothing there yet → the link waits for one. */
+  var slot = null, pick = '', slotSig2 = '', slotT = null, waitOk = '';
+  function whoSig() { return room + '|' + (startMs() || ''); }
+  function whoLine(x) { return (x.kind === 'booking' ? '📅 Online booking · ' : '📝 Note · ') + esc(x.name || 'guest'); }
+  function drawWho() {
+    var w = $('who'); if (!slot || slot.sig !== whoSig()) { w.hidden = true; return; }
+    w.hidden = false;
+    if (slot.err) { w.innerHTML = '<span class="lbl">Who’s it for</span><div class="wait">Couldn’t check SimplyBook (' + esc(slot.err) + '). You can still make the link: it pairs with whatever is booked at this time.</div>'; return; }
+    var h = '<span class="lbl">Who’s it for</span>';
+    if (slot.exact.length) {
+      h += '<div class="wl">' + slot.exact.map(function (x) { return '<button type="button" data-k="' + x.key + '" aria-pressed="' + (pick === x.key) + '">' + whoLine(x) + '<small>' + clock(x.s) + '–' + clock(x.guestEnd) + ' · its message follows it if it moves or is cancelled</small></button>'; }).join('') +
+        '<button type="button" data-k="none" aria-pressed="' + (pick === 'none') + '">Someone else (not booked yet)<small>the link waits for their booking or note at this time</small></button></div>';
+    } else {
+      h += '<div class="wait"><b>Nothing booked in ' + esc(ROOMS[room][0]) + ' at ' + clock(startMs()) + ' yet.</b> The link will wait, and pair with the booking or note once it’s in SimplyBook at exactly this time.</div>';
+    }
+    if (slot.others.length) h += '<div class="near">Also in ' + esc(ROOMS[room][0]) + ' that day: ' + slot.others.map(function (x) { return '<a data-s="' + x.s + '">' + clock(x.s) + ' ' + esc((x.name || '').slice(0, 24)) + '</a>'; }).join(' · ') + '</div>';
+    w.innerHTML = h;
+  }
+  function loadWho() {
+    clearTimeout(slotT); var sg = whoSig(), s = startMs(); pick = ''; waitOk = '';
+    if (!s || !key()) { slot = null; drawWho(); return; }
+    slotT = setTimeout(function () {
+      slot = { sig: sg, loading: true, exact: [], others: [] }; $('who').hidden = false; $('who').innerHTML = '<span class="lbl">Who’s it for</span><div class="near">Checking SimplyBook…</div>';
+      call({ action: 'slot', staff: key(), room: room, start: s }).then(function (j) {
+        if (sg !== whoSig()) return;
+        slot = { sig: sg, exact: j.exact || [], others: j.others || [] }; if (slot.exact.length === 1) pick = slot.exact[0].key; drawWho();
+      }, function (er) { if (sg !== whoSig()) return; slot = { sig: sg, err: er.message, exact: [], others: [] }; drawWho(); });
+    }, 350);
+  }
+  $('who').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-k]'); if (b) { pick = b.getAttribute('data-k'); stale(); drawWho(); return; }
+    var a = e.target.closest('a[data-s]'); if (a) { var t = +a.getAttribute('data-s'), p = new Date(t + 8 * 3600e3).toISOString(); $('date').value = p.slice(0, 10); $('time').innerHTML = timeOpts(p.slice(11, 16)); $('time').value = p.slice(11, 16); sum(); stale(); loadWho(); }
+  });
+  $('rooms').addEventListener('click', function (e) { if (e.target.closest('button[data-r]')) loadWho(); });
+  ['date', 'time'].forEach(function (id) { $(id).addEventListener('change', loadWho); });
+
   /* Failsafe: making and copying is one step, so the clipboard always gets the link that was just made.
      Any change to room, date, time or name hides the last link, so an old one can't be copied by mistake. */
   var madeFor = '', dupOk = '', madeLock = false, busy = false;
@@ -291,6 +339,11 @@ details.past .list { margin-top: 10px; }
     if (!key()) { m.className = 'msg bad'; m.textContent = 'Add the staff code first.'; return; }
     if (!s) { m.className = 'msg bad'; m.textContent = 'Pick the date and start time.'; return; }
     if (s < Date.now() - 3 * 3600000) { m.className = 'msg bad'; m.textContent = 'That start time is in the past. Check the date.'; return; }
+    if (slot && slot.sig === whoSig() && !slot.err) {
+      if (slot.loading) { m.textContent = 'Still checking SimplyBook… tap again in a second.'; return; }
+      if (slot.exact.length && !pick) { m.className = 'msg bad'; m.textContent = 'Pick who the link is for (under “Who’s it for”).'; return; }
+      if (!slot.exact.length && waitOk !== slotSig()) { waitOk = slotSig(); m.className = 'msg bad'; m.textContent = 'Nothing is booked at this time yet. Check the date and time – or tap again to make a waiting link.'; $('mkGo').textContent = 'Make waiting link & copy'; return; }
+    }
     var dups = liveSameSlot(s);
     if (dups.length && dupOk !== slotSig()) {
       dupOk = slotSig();
@@ -300,7 +353,7 @@ details.past .list { margin-top: 10px; }
       $('dup').hidden = false; $('mkGo').textContent = 'Make another link & copy'; return;
     }
     busy = true; $('dup').hidden = true; $('made').hidden = true; $('mkGo').disabled = true; m.textContent = 'Making the link…';
-    var sig = slotSig(), job = call({ action: 'create', staff: key(), room: r, start: s, label: $('label').value.trim() });
+    var sig = slotSig(), job = call({ action: 'create', staff: key(), room: r, start: s, label: $('label').value.trim(), pair: pick || '' });
     var textP = job.then(function (j) { return inviteText(j.code, s, r); });
     /* Start the copy inside the tap (iPhone Safari only allows that), with the text arriving once Make answers. */
     var copyP;
@@ -312,7 +365,7 @@ details.past .list { margin-top: 10px; }
     if (!copyP) copyP = textP.then(function (t) { return navigator.clipboard.writeText(t); });
     job.then(function (j) {
       if (sig !== slotSig()) { m.className = 'msg bad'; m.textContent = 'Details changed while making it. The link was made for ' + ROOMS[r][0] + ', ' + day(s) + ' ' + clock(s) + '. Check the list.'; list(); return; }
-      showMade(j.code, s, r);
+      showMade(j.code, s, r, j.paired);
       lastList.push({ key: j.code, data: { room: r, start: s, end: s + 10800000, status: 'open', label: $('label').value.trim() } });   /* counts for the duplicate check straight away */
       madeLock = true;
       list();
@@ -325,8 +378,9 @@ details.past .list { margin-top: 10px; }
       if (madeLock) { $('mkGo').disabled = true; $('mkGo').textContent = 'Link made ✓ · change the booking to make another'; }
       else { $('mkGo').disabled = false; $('mkGo').textContent = 'Make link & copy message'; } });
   });
-  function showMade(code, s, r) {
-    $('madeFor').textContent = ROOMS[r][0] + ' · ' + day(s) + ' · starts ' + clock(s) + ($('label').value.trim() ? ' · ' + $('label').value.trim() : '');
+  function showMade(code, s, r, paired) {
+    $('madeFor').textContent = ROOMS[r][0] + ' · ' + day(s) + ' · starts ' + clock(s) + ($('label').value.trim() ? ' · ' + $('label').value.trim() : '') +
+      (paired === 'booking' ? ' · 🔗 tied to the online booking' : paired === 'note' ? ' · 🔗 tied to the SimplyBook note' : paired === 'waiting' ? ' · ⏳ waiting for its booking' : '');
     $('invite').value = inviteText(code, s, r);
     $('linkText').textContent = shareUrl(code); $('openGuest').href = guestUrl(code); $('made').hidden = false;
   }
@@ -502,7 +556,7 @@ details.past .list { margin-top: 10px; }
   /* start: the next half hour, in Singapore time */
   var nx = Date.now() + 30 * 60000; nx -= nx % (30 * 60000); var p = sgParts(nx);
   $('date').value = p.year + '-' + p.month + '-' + p.day; $('time').innerHTML = timeOpts(p.hour + ':' + p.minute);
-  drawRooms(); sum();
+  drawRooms(); sum(); loadWho();
   $('keyBox').hidden = !!key();
   var listOn = !document.documentElement.classList.contains('v-make');
   /* refresh only while someone can see this page (not in a hidden control-centre tab or a background browser tab).
