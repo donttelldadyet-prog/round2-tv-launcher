@@ -6,6 +6,14 @@ Merged into `main` on 29 Oct 2026 (it was built on the `feature/guest-messages` 
 
 Guests write their own birthday, anniversary, celebration or note message for the room TV. It works for bookings from any channel (WhatsApp, Telegram, TikTok, SimplyBook, walk-in), because staff send a link instead of the guest messaging a bot.
 
+> **1 Nov 2026 – messages no longer use Make.** Guest messages AND Round2 (staff) messages are stored and sent by the
+> Cloudflare engine itself (round2sg-home `worker/round2-book.js`, Durable Object table `msgs`, method `msgAct`): same
+> actions, checks and answers as the old Make scenario, same codes (cue.round2.sg links unchanged), and `push` writes to
+> the room's TV in Firebase directly. The 59 live links were copied over at 11pm on 1 Nov; Make's
+> [BACKEND] GUEST MESSAGE LINKS (8249444) is switched OFF but kept (data store 237603) as a fallback. Switch back if ever
+> needed: `/gm` action `msgmode` set=off (staff code) and switch the Make scenario on. Where this page says "Make" below,
+> read "the engine" from 1 Nov.
+
 ## How it works
 
 1. **Staff make a link after the booking is paid.** On the staff page, pick the room, date and start time; there's no end time. Make creates an 8-character random code tied to that room and start.
