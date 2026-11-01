@@ -642,8 +642,6 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-late" hidden>
     <h1>Late session</h1>
     <p class="sub">Key in a WhatsApp or walk-in session, including past midnight.</p>
-    <div class="card" style="max-width:760px"><b>Its own Home Screen button</b><p class="hint" style="margin:6px 0 10px">This app hides Safari’s Share button, so: copy the link, open <b>Safari</b>, paste it in the address bar, then Share › <b>Add to Home Screen</b>. The address is <b>staff.round2.sg/late/</b>.</p>
-      <button class="btn" type="button" id="lateCopy">Copy link</button></div>
     <iframe class="gframe" title="Late session" data-src="late/?embed=1"></iframe>
   </section>
 
@@ -2861,7 +2859,6 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       else if (n === 'guestmsgs') try { fr.contentWindow.document.getElementById('refresh').click(); } catch (e) {}
     }
   }
-  document.addEventListener('click', function (e) { if (e.target && e.target.id === 'lateCopy') { var u = 'https://staff.round2.sg/late/'; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(function () { toast('Copied. Open Safari, paste it, then Share › Add to Home Screen.'); }, function () { prompt('Copy this, then open it in Safari:', u); }); } });
   window.addEventListener('message', function (e) { if (e.origin === location.origin && e.data && e.data.r2late) toast('Added to SimplyBook. In session shows it on the next refresh.'); });
   /* the guest pages report their height, so they sit in the tab without a scrollbar of their own */
   window.addEventListener('message', function (e) {
