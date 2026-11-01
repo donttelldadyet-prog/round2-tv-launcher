@@ -209,6 +209,9 @@ label.f input[type=text], label.f input[type=url], label.f input[type=date], lab
 .agroom .ag { margin: 0 10px 8px; }
 .ag.st-shown { box-shadow: inset 3px 0 0 var(--rc); }
 .ag .chip.stc { background: transparent; }
+/* who made it (owner, 2 Nov): Round2 by hand = gold outline, Auto wrap-up = filled sky blue, guest = plain */
+.ag .chip.src-r2 { border-color: var(--accent); color: var(--accent); }
+.ag .chip.src-auto { border-color: #8EC5FF; background: #8EC5FF; color: #0b0914; font-weight: 700; }
 .ag.st-shown .chip.stc { color: #ffd23f; border-color: #ffd23f; }
 .ag.st-acked .chip.stc { color: #5BE37D; border-color: #5BE37D; }
 .ag.st-ended .chip.stc, .ag.st-done .chip.stc { opacity: .7; }
@@ -1504,8 +1507,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return '<details class="agroom" style="--rc:' + R.c + '"' + (closedRooms[r] ? '' : ' open') + ' data-agroom="' + r + '"><summary><b>' + esc(R.name) + '</b><span class="hint">' + mine.length + ' message' + (mine.length > 1 ? 's' : '') +
           (live ? ' · <span style="color:#ffd23f">' + live + ' on screen</span>' : '') + (next ? ' · ' + next + ' coming up' : '') + '</span></summary>' +
           mine.map(function (x) {
-            return '<div class="ag st-' + x.st + '" style="--rc:' + R.c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span>' +
-              '<span class="chip">' + (x.src === 'r2' ? (x.label === 'Auto wrap-up' ? '⚙ Auto wrap-up' : 'Round2') : 'Guest') + '</span><span class="chip stc">' + ST[x.st] + (x.st === 'acked' && x.ackT ? ' ' + esc(clock(x.ackT)) : '') + '</span></div>' +
+            var auto = x.src === 'r2' && x.label === 'Auto wrap-up';
+            return '<div class="ag st-' + x.st + (auto ? ' auto' : '') + '" style="--rc:' + R.c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span>' +
+              '<span class="chip ' + (auto ? 'src-auto' : x.src === 'r2' ? 'src-r2' : 'src-guest') + '">' + (auto ? '⚙ Auto wrap-up' : x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="chip stc">' + ST[x.st] + (x.st === 'acked' && x.ackT ? ' ' + esc(clock(x.ackT)) : '') + '</span></div>' +
               '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
           }).join('') + '</details>';
       }).join('') : '<p class="hint">' + (cat[0] === 'history' ? 'Nothing finished yet today.' : n(CATS[4]) ? 'Nothing coming up. Finished messages are in Today’s history.' : 'Nothing scheduled for this day.') + '</p>';
