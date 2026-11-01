@@ -706,6 +706,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div id="sysList"><p class="hint">Loading…</p></div>
   </section>
 
+  <section id="tab-syscheck" hidden>
+    <h1>System check</h1>
+    <p class="sub">Runs the whole system end to end, like a real night: booking prices, the food menu, guest links, TVs reporting in, Late session, +1h, Undo, Change, Vale ↔ Atlas, SimplyBook labels, today’s messages and TV setup. Run it after any new feature, so new parts don’t quietly break old ones.</p>
+    <div class="card"><b>Safe to run any time.</b> <span class="hint">Test sessions are called ZZTEST and go in at 3–6am on a date about 6 weeks ahead, so nothing shows on a TV and no guest is affected; they’re removed at the end. Takes about a minute.</span>
+      <div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="scGo">Run full check</button></div><p class="hint" id="scWhen" style="margin:8px 0 0"></p></div>
+    <p id="scSum"></p>
+    <div id="scList"></div>
+  </section>
+
   <section id="tab-testbench" hidden>
     <h1>Test bench</h1>
     <p class="sub">Try every part of Round2 safely. Each card says what's real and what isn't.</p>
@@ -2037,6 +2046,199 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   }());
 
   /* ---------- TV messages › Auto wrap-up (engine /gm action=auto): the switch + today's sessions ---------- */
+  /* ---------- System check (owner, 2 Nov) ----------
+     One button that runs the whole system end to end, the way a real night would, so a new feature can't quietly break
+     an older one. FOR EVERY FUTURE CHANGE: run this before and after, and ADD A STEP here for any new feature that talks
+     to another part (see docs/system-check.md). Safe by design: test sessions are named ZZTEST, sit at 3–6am on a date
+     ~6 weeks ahead (no TV messages, no +credits banner, no real guests), and are all removed at the end, also on failure.
+     Needs the Guest messages staff code (and the TV messages key for the TV check). */
+  var SysCheck = (function () {
+    var ENG = 'https://round2-book.donttelldadyet.workers.dev', GM = ENG + '/gm', FB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/';
+    var running = false, rows = [];
+    function key() { return ls('r2.guestStaff') || ''; }
+    function gm(o) { return fetch(GM, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: key() }, o)) }).then(function (r) { return r.json(); }); }
+    function guest(o) { return fetch(GM, { method: 'POST', body: new URLSearchParams(o) }).then(function (r) { return r.json(); }); }
+    function J(u, o) { return fetch(ENG + u, o).then(function (r) { return r.json(); }); }
+    function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+    function sgMs(d, hm) { return Date.parse(d + 'T' + hm + ':00+08:00'); }
+    function addD(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+    function sgToday() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
+    function ago(t) { var m = Math.round((Date.now() - t) / 60000); return m < 60 ? m + ' min ago' : m < 2880 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; }
+    function draw() {
+      var n = { ok: 0, warn: 0, bad: 0 }; rows.forEach(function (r) { if (n[r.st] !== undefined) n[r.st]++; });
+      $('scSum').innerHTML = rows.length ? (running ? 'Running… ' : '') + '<b class="cok">' + n.ok + ' passed</b> · <b class="cwarn">' + n.warn + ' to look at</b> · <b class="cbad">' + n.bad + ' failed</b>' : '';
+      $('scList').innerHTML = rows.map(function (r) {
+        var ic = r.st === 'ok' ? '✅' : r.st === 'warn' ? '⚠️' : r.st === 'bad' ? '❌' : '⏳';
+        return '<div class="card" style="margin:6px 0;padding:10px 12px;border-left:4px solid ' + (r.st === 'ok' ? 'var(--ok)' : r.st === 'warn' ? 'var(--warn)' : r.st === 'bad' ? 'var(--bad)' : 'var(--line2)') + '"><b>' + ic + ' ' + esc(r.name) + '</b>' +
+          (r.note ? '<div class="hint" style="margin-top:2px">' + esc(r.note) + '</div>' : '') + '</div>';
+      }).join('');
+    }
+    /* one step: fn returns a note (pass), or throws {warn:'…'} / Error('…') */
+    function step(name, fn) {
+      var r = { name: name, st: 'run', note: '' }; rows.push(r); draw();
+      return Promise.resolve().then(fn).then(function (note) { r.st = 'ok'; r.note = note || ''; }, function (e) { r.st = e && e.warn ? 'warn' : 'bad'; r.note = (e && (e.warn || e.message)) || String(e); }).then(draw);
+    }
+    function must(c, msg) { if (!c) throw new Error(msg); }
+    function warnIf(c, msg) { if (c) throw { warn: msg }; }
+    /* ---- the test night: 6 weeks ahead, rooms free between 3am and 7am ---- */
+    var T = {};
+    function findNight() {
+      var tries = 0;
+      function go(d) {
+        return Promise.all([['11', '03:00', '06:00'], ['10', '03:30', '06:30'], ['5', '03:00', '06:00']].map(function (x) {
+          return gm({ action: 'late', unit: x[0], day: d, start: x[1], end: x[2], name: 'ZZTEST', pax: '1', msgs: 'no', dry: '1' });
+        })).then(function (js) {
+          if (js.every(function (j) { return j.ok && !j.plan.clash.length; })) return d;
+          if (++tries > 6) throw new Error('No free test night found 6–7 weeks ahead.');
+          return go(addD(d, 1));
+        });
+      }
+      return go(addD(sgToday(), 42));
+    }
+    function sessOf(day, unit) {
+      return gm({ action: 'insess', day: day }).then(function (j) { var R = Object.keys(j.rooms || {}).map(function (k) { return j.rooms[k]; }).filter(function (r) { return String(r.unit) === String(unit); })[0]; return R ? R.sessions.filter(function (s) { return /ZZTEST/.test(s.name); }) : []; });
+    }
+    function cleanup() {
+      return gm({ action: 'latelist' }).then(function (j) {
+        return (j.sessions || []).filter(function (x) { return /^ZZTEST/.test(x.text); }).reduce(function (pr, x) { return pr.then(function () { return gm({ action: 'latecancel', id: x.id, day: x.day }); }); }, Promise.resolve());
+      }).then(function () { return T.night ? gm({ action: 'shadow', from: addD(T.night, -1), n: '2' }) : null; }).catch(function () {});
+    }
+    function run() {
+      if (running) return; if (!key()) { toast('Add the Guest messages staff code first (Keys).'); return; }
+      running = true; rows = []; T = {}; $('scGo').disabled = true; draw();
+      var today = sgToday();
+      var chain = Promise.resolve()
+      /* 1. engine + keys */
+      .then(function () { return step('Booking engine is up, keys are in', function () {
+        return J('/status').then(function (s) {
+          must(s.simplybook && s.sbSecret, 'SimplyBook keys missing in Cloudflare.'); must(s.tvKey, 'TV key missing in Cloudflare.'); must(s.guestMessages, 'Guest messages not set up.');
+          return 'Payments ' + String(s.payments).toUpperCase() + ' · booking page ' + (s.booking === 'simplybook' ? 'SAFE MODE' : 'new') + (s.staffAlerts ? '' : ' · Telegram staff alerts not set up (planned)');
+        }); }); })
+      .then(function () { return step('SimplyBook answers (login + all 7 rooms)', function () {
+        return J('/selftest').then(function (j) { must(j.sbLogin, 'SimplyBook login failed.'); must((j.rooms || []).length === 7, 'Expected 7 rooms, got ' + (j.rooms || []).length + '.'); return j.rooms.join(', '); }); }); })
+      .then(function () { return step('Public holidays loaded (this year and next)', function () {
+        return J('/ph').then(function (ph) { var y = +today.slice(0, 4); must(ph.some(function (d) { return d.slice(0, 4) === String(y); }), 'No ' + y + ' holidays.'); warnIf(!ph.some(function (d) { return d.slice(0, 4) === String(y + 1); }), 'No ' + (y + 1) + ' holidays yet – peak prices on those days would be wrong.'); return ph.filter(function (d) { return d >= today; }).slice(0, 3).join(', ') + '…'; }); }); })
+      /* 2. background jobs */
+      .then(function () { return step('Background jobs running (every 10 min)', function () {
+        return gm({ action: 'auto' }).then(function (a) {
+          warnIf(!a.cronLast, 'No heartbeat yet (it appears within 10 minutes of the 2 Nov update).');
+          must(Date.now() - a.cronLast < 25 * 60e3, 'Last run ' + ago(a.cronLast) + ' – the 10-minute timer looks stuck.');
+          warnIf(a.last && (a.last.problems || []).length, 'Auto wrap-up reported: ' + (a.last.problems || []).join('; '));
+          warnIf(a.orphanLast && (a.orphanLast.problems || []).length, 'Message clean-up reported: ' + (a.orphanLast.problems || []).join('; '));
+          return 'Last run ' + ago(a.cronLast) + ' · Auto wrap-up ' + (a.on ? 'ON' : 'off');
+        }); }); })
+      /* 3. booking page: slot board vs checkout price */
+      .then(function () { return step('Booking page prices = checkout prices', function () {
+        var d = addD(today, 3), n = 0;
+        return J('/day?date=' + d).then(function (b) {
+          must(!b.failed, 'The slot board couldn’t read SimplyBook.');
+          var checks = []; Object.keys(b.rooms).forEach(function (u) { var s = b.rooms[u][0]; if (s) checks.push([u, s, 3], [u, s, s.maxH]); });
+          warnIf(!checks.length, 'No free slots on ' + d + ' to compare.');
+          return checks.reduce(function (pr, c) { return pr.then(function () {
+            var hh = ('0' + Math.floor(c[1].m / 60)).slice(-2) + ':' + ('0' + c[1].m % 60).slice(-2);
+            return fetch(ENG + '/quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: d, unit: +c[0], time: hh, hours: c[2] }) }).then(function (r) { return r.json(); }).then(function (q) {
+              must(q.total === c[1].prices[c[2]], 'Room ' + c[0] + ' ' + hh + ' ' + c[2] + 'h: board says $' + c[1].prices[c[2]] + ', checkout $' + q.total + '.'); must(q.free, 'Room ' + c[0] + ' ' + hh + ' shows free but checkout says taken.'); n++;
+            }); }); }, Promise.resolve()).then(function () { return n + ' prices match on ' + d + (b.peak ? ' (peak)' : ''); });
+        }); }); })
+      /* 4. food menu */
+      .then(function () { return step('Food menu: engine reads the menu and checks prices', function () {
+        return fetch('https://donttelldadyet-prog.github.io/round2sg-home/menu/menu.json?v=' + Date.now()).then(function (r) { return r.json(); }).then(function (m) {
+          var k = Object.keys(m.prices.pc).filter(function (x) { return x !== 'test-item' && m.prices.pc[x] > 0; })[0];
+          return fetch(ENG + '/menu/checkout', { method: 'POST', body: new URLSearchParams({ order: JSON.stringify({ room: 'Max', items: [{ k: k, q: 1 }], shown_total: 0.01 }) }) }).then(function (r) { return r.json(); }).then(function (j) {
+            must(/prices changed/i.test(j.error || ''), 'Expected “prices changed”, got: ' + (j.error || JSON.stringify(j)).slice(0, 80)); return Object.keys(m.prices.pc).length + ' items · a wrong total is refused before payment';
+          });
+        }); }); })
+      /* 5. guest message link, full life */
+      .then(function () { return step('Guest message link: make → open → write → queue → cancel', function () {
+        var st = sgMs(addD(today, 40), '14:00'), code;
+        return gm({ action: 'create', room: 'max', start: String(st), label: 'ZZTEST system check' }).then(function (c) { must(c.ok, 'Create: ' + c.error); code = c.code; return guest({ action: 'get', code: code }); })
+          .then(function (g) { must(g.link && g.link.status === 'open', 'Guest can’t open the link.'); return guest({ action: 'submit', code: code, kind: 'birthday', to: 'Test', from: 'System check', title: 'Happy birthday, Test!', text: 'System check', at: String(st + 15 * 60e3) }); })
+          .then(function (s) { must(s.ok, 'Guest submit: ' + s.error); return gm({ action: 'queue' }); })
+          .then(function (q) { must(q.queue.some(function (x) { return x.code === code; }), 'Not in the message timer.'); return gm({ action: 'cancel', code: code }); })
+          .then(function () { return wait(800); }).then(function () { return Promise.all([gm({ action: 'queue' }), guest({ action: 'get', code: code })]); })
+          .then(function (r) { must(!r[0].queue.some(function (x) { return x.code === code; }), 'Still in the timer after cancel.'); must(/cancelled/i.test(r[1].error || ''), 'Guest isn’t told it’s cancelled.'); return 'Link ' + code + ' went all the way through and was cancelled'; });
+      }); })
+      /* 6. TVs reporting in */
+      .then(function () { return step('TVs reporting in', function () {
+        var mk = ls('r2m.msgKey'); warnIf(!mk, 'Add the TV messages key on this phone to check the TVs.');
+        var rooms = ['vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'max'];
+        return Promise.all(rooms.map(function (r) { return Promise.all([fetch(FB + mk + '/' + r + '/msgShown.json').then(function (x) { return x.json(); }).catch(function () { return null; }), fetch(FB + mk + '/' + r + '/msgAck.json').then(function (x) { return x.json(); }).catch(function () { return null; })]); })).then(function (all) {
+          var stale = [], seen = [];
+          all.forEach(function (a, i) { var t = Math.max((a[0] && a[0].t) || 0, (a[1] && a[1].t) || 0); (Date.now() - t > 2 * 86400e3 ? stale : seen).push(rooms[i] + (t ? ' ' + ago(t) : ' never')); });
+          warnIf(stale.length, 'Not heard from in 2+ days: ' + stale.join(', ') + '. TV off, unplugged or offline? (Others: ' + seen.join(', ') + ')');
+          return seen.join(' · ');
+        });
+      }); })
+      /* 7. the test night */
+      .then(function () { return step('Test night free (3–7am, ~6 weeks ahead)', function () { return findNight().then(function (d) { T.night = addD(d, -1); T.day = d; return 'Using the night of ' + T.night + ' (sessions at 3am on ' + d + ')'; }); }); })
+      .then(function () { return step('Late session: write the note, In session and the list see it', function () {
+        return gm({ action: 'late', unit: '11', day: T.day, start: '03:00', end: '05:00', name: 'ZZTEST max', pax: '2', msgs: 'yes' }).then(function (j) {
+          must(j.ok, 'Late session: ' + (j.error || 'refused')); T.max = j.notes[0].id; return Promise.all([sessOf(T.day, 11), gm({ action: 'latelist' })]);
+        }).then(function (r) {
+          must(r[0].length === 1, 'In session sees ' + r[0].length + ' test sessions in Max (expected 1).');
+          var x = (r[1].sessions || []).filter(function (s) { return /^ZZTEST max/.test(s.text); }); must(x.length === 1, 'Upcoming late sessions sees ' + x.length + '.'); T.maxS = r[0][0]; return 'Max 3–5am · note “' + x[0].text + '”';
+        }); }); })
+      .then(function () { return step('+1h on a late note: note stretched, text rewritten, no EXT note', function () {
+        return gm({ action: 'extend', day: T.day, key: T.maxS.key, hours: '1', end: String(T.maxS.sbEnd), msgs: 'no', force: 'yes' }).then(function (j) {
+          must(j.ok, '+1h: ' + (j.error || 'refused')); must(j.plan.note.main.late, 'It went the EXT-note way instead.'); T.ext = j.id; return sessOf(T.day, 11);
+        }).then(function (s) { must(s.length === 1 && /late till 6am/.test(s[0].name) && !s[0].ext.length, 'After +1h: ' + (s[0] ? s[0].name + ', EXT notes ' + s[0].ext.length : 'session missing')); return '“' + s[0].name + '”'; });
+      }); })
+      .then(function () { return step('Undo puts it back', function () {
+        return gm({ action: 'extundo', id: T.ext }).then(function (j) { must(j.ok, 'Undo: ' + (j.error || 'refused')); return sessOf(T.day, 11); })
+          .then(function (s) { must(s.length === 1 && /late till 5am/.test(s[0].name), 'After undo: ' + (s[0] ? s[0].name : 'session missing')); return '“' + s[0].name + '”'; });
+      }); })
+      .then(function () { return step('Change: Max → Bella moves everything', function () {
+        return gm({ action: 'late', unit: '10', day: T.day, start: '03:30', end: '05:30', name: 'ZZTEST max', pax: '2', msgs: 'yes', replace: T.max, oldDay: T.day }).then(function (j) {
+          must(j.ok && j.replaced, 'Change: ' + (j.error || 'refused')); return Promise.all([sessOf(T.day, 11), sessOf(T.day, 10)]);
+        }).then(function (r) { must(!r[0].length, 'Max still has the old session.'); must(r[1].length === 1, 'Bella has ' + r[1].length + '.'); return 'Max empty · Bella 3:30–5:30am'; });
+      }); })
+      .then(function () { return step('Vale ↔ Atlas: twin blocked, +1h stretches both', function () {
+        return gm({ action: 'late', unit: '5', day: T.day, start: '03:00', end: '05:00', name: 'ZZTEST vale', pax: '4', msgs: 'yes' }).then(function (j) {
+          must(j.ok && j.notes.length === 2, 'Expected 2 notes (Vale + Atlas SYSTEM BLOCK), got ' + (j.notes ? j.notes.length : j.error)); return gm({ action: 'late', unit: '12', day: T.day, start: '04:00', end: '05:00', name: 'ZZTEST atlas', pax: '1', msgs: 'no', dry: '1' });
+        }).then(function (d) { must(d.plan.clash.length, 'Atlas shows free while Vale is in use.'); return sessOf(T.day, 5); })
+          .then(function (s) { return gm({ action: 'extend', day: T.day, key: s[0].key, hours: '1', end: String(s[0].sbEnd), msgs: 'no', force: 'yes' }); })
+          .then(function (j) { must(j.ok && j.plan.note.twin && j.plan.note.twin.late, 'The twin room wasn’t stretched with it.'); return 'Atlas blocked, both stretched to 6am'; });
+      }); })
+      .then(function () { return step('SimplyBook labels for after-midnight sessions', function () {
+        return gm({ action: 'shadow', from: T.night, n: '1' }).then(function (j) { must(j.ok, 'Label sync: ' + j.error); must(j.kept + j.made >= 2, 'Expected labels for the test sessions, found ' + (j.kept + j.made) + '.'); return (j.kept + j.made) + ' “↓ AFTER 12AM” labels on the night of ' + T.night; });
+      }); })
+      .then(function () { return step('Cancel removes notes, messages and labels', function () {
+        return cleanup().then(function () { return Promise.all([gm({ action: 'latelist' }), gm({ action: 'shadow', from: T.night, n: '1' })]); }).then(function (r) {
+          must(!(r[0].sessions || []).some(function (x) { return /^ZZTEST/.test(x.text); }), 'Test sessions are still there.'); return 'All test sessions gone · labels left on the test night: ' + r[1].kept;
+        });
+      }); })
+      /* 8. messages: nothing orphaned, nothing doubled today */
+      .then(function () { return step('Today’s TV messages: no doubles, nothing orphaned', function () {
+        return Promise.all([gm({ action: 'list' }), gm({ action: 'orphans', dry: '1' })]).then(function (r) {
+          var now = Date.now(), seen = {}, dup = [];
+          (r[0].links || []).forEach(function (x) { var d = x.data; if (!/^R2/.test(x.key) || d.status === 'cancelled' || d.at <= now || d.at > now + 86400e3) return; var k = d.room + d.kind + Math.round(d.at / 300e3); if (seen[k]) dup.push(d.room + ' ' + d.kind); seen[k] = 1; });
+          must(!dup.length, 'Doubled: ' + dup.join(', ')); warnIf((r[1].gone || []).length, (r[1].gone || []).length + ' message(s) belong to a booking that’s gone (cleaned up within 10 min).');
+          return Object.keys(seen).length + ' upcoming “10 minutes / That’s a wrap” in the next 24 h, none doubled';
+        });
+      }); })
+      /* 9. GitHub through the engine */
+      .then(function () { return step('TV setup can save (GitHub through the engine)', function () {
+        return fetch(ENG + '/gh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staff: key(), path: '/repos/donttelldadyet-prog/round2-tv-launcher' }) }).then(function (r) { return r.json().then(function (j) { return [r.status, j]; }); }).then(function (x) {
+          warnIf(x[0] === 503, 'The engine’s GitHub key (GH_TOKEN) isn’t in Cloudflare yet – TV setup still uses a personal key.'); must(x[0] === 200 && x[1].permissions && x[1].permissions.push, 'GitHub said ' + x[0] + ': ' + (x[1].message || '')); return 'Can save themes, rooms, sounds and the menu';
+        });
+      }); })
+      /* 10. pages */
+      .then(function () { return step('Public pages reachable', function () {
+        var urls = ['https://www.round2.sg/', 'https://book.round2.sg/', 'https://menu.round2.sg/', 'https://cue.round2.sg/', 'https://staff.round2.sg/late/'], bad = [];
+        return Promise.all(urls.map(function (u) { return fetch(u, { mode: 'no-cors', cache: 'no-store' }).catch(function () { bad.push(u); }); })).then(function () { must(!bad.length, 'Can’t reach: ' + bad.join(', ')); return urls.length + ' pages up'; });
+      }); });
+      chain.catch(function () {}).then(cleanup).then(function () {
+        running = false; $('scGo').disabled = false; draw();
+        try { ls('r2.sysCheckLast', JSON.stringify({ t: Date.now(), rows: rows })); } catch (e) {}
+      });
+    }
+    function open() {
+      if (!rows.length) { try { var l = JSON.parse(ls('r2.sysCheckLast') || 'null'); if (l) { rows = l.rows; $('scWhen').textContent = 'Last run ' + ago(l.t) + ' on this phone.'; } } catch (e) {} draw(); }
+    }
+    $('scGo').onclick = run;
+    return { open: open };
+  }());
+
   var AutoWrap = (function () {
     var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, busy = false, RN = { vale: 'vale', kaeden: 'kaeden', scarlett: 'scarlett', bella: 'bella', kai: 'kai', atlas: 'atlas', max: 'maximillion' };
     function key() { return ls('r2.guestStaff') || ''; }
@@ -2301,7 +2503,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'testbench', 'keys', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
@@ -2311,7 +2513,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors']],
-    sys: [['alerts', 'Alerts'], ['tests', 'Test a TV'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
+    sys: [['alerts', 'Alerts'], ['tests', 'Test a TV'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
     help: [['help', 'How it works'], ['stuck', 'If a TV is stuck']]
   };
   var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
@@ -2372,7 +2574,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
-    if (n === 'systems' || n === 'planned') Sys.open(); if (n === 'testbench') Sys.bench();
+    if (n === 'systems' || n === 'planned') Sys.open(); if (n === 'syscheck') SysCheck.open(); if (n === 'testbench') Sys.bench();
     if (n === 'keys') Keys.open(); else Keys.close();
     if (n === 'alerts') Alerts.open();
     if (n === 'autowrap') AutoWrap.open(); else AutoWrap.close();
