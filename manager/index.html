@@ -689,7 +689,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-keys" class="locked" hidden>
     <div class="gatehead"><img src="icon-192.png" alt=""><h1>Add your key</h1><p class="sub">This phone or computer isn’t set up yet. Paste the key the owner gave you into its box below and press Save. The control centre opens straight away, showing only the pages your key is for.</p>
       <div class="card" style="margin-top:14px"><h2 style="margin-top:0">Moving from the old address?</h2><p class="hint" style="margin:0 0 10px">On the old control centre: Tests &amp; systems › Keys › hold to unlock › <b>Copy keys for the new address</b>. Paste it here.</p>
-      <div class="row"><input class="tok" id="bundleIn" type="password" autocomplete="off" placeholder="R2KEYS:…" aria-label="Copied keys" style="flex:1;min-width:200px"><button class="btn primary" type="button" id="bundleGo">Add all</button></div><p class="hint" id="bundleMsg" style="margin:8px 0 0"></p></div></div>
+      <div class="row"><input class="tok" id="bundleIn" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="R2KEYS:…" aria-label="Copied keys" style="flex:1;min-width:200px"><button class="btn primary" type="button" id="bundleGo">Add all</button></div><p class="hint" id="bundleMsg" style="margin:8px 0 0"></p></div></div>
     <h1>Keys</h1>
     <p class="sub">Every key the control centre uses, in one place. Each key switches on its own pages, on this phone or computer only. Give staff only the keys for the jobs they do: a page whose key isn't added here stays locked.</p>
     <div class="klock" id="keyLock"></div>
@@ -2051,12 +2051,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function dropMenuKey() { try { var g = JSON.parse(localStorage.getItem('r2gh') || 'null'); if (g && g.token) { delete g.token; localStorage.setItem('r2gh', JSON.stringify(g)); } } catch (e) {} }   /* the menu editor's own copy of the GitHub key */
     function importBundle() {
-      var v = $('bundleIn').value.trim(), m = $('bundleMsg'), o;
-      try { o = JSON.parse(decodeURIComponent(escape(atob(v.replace(/^R2KEYS:/, ''))))); } catch (e) { o = null; }
+      /* tolerant: finds R2KEYS:… anywhere in what was pasted (a whole chat message, line breaks, spaces) */
+      var raw = $('bundleIn').value.replace(/\s+/g, ''), m = $('bundleMsg'), o, hit = /R2KEYS:([A-Za-z0-9+\/=_-]+)/i.exec(raw), v = hit ? hit[1] : raw;
+      v = v.replace(/-/g, '+').replace(/_/g, '/');
+      try { o = JSON.parse(decodeURIComponent(escape(atob(v)))); } catch (e) { o = null; }
       var ok = o && LIST.filter(function (k) { return typeof o[k.store] === 'string' && o[k.store]; });
       if (!ok || !ok.length) { m.textContent = 'That doesn’t look like copied keys. Copy them again on the old address.'; return; }
       ok.forEach(function (k) { ls(k.store, o[k.store]); });
-      ls('r2m.tab', 'home'); location.reload();
+      m.textContent = 'Added ' + ok.length + ' key(s). Opening…';
+      ls('r2m.tab', 'home'); setTimeout(function () { location.reload(); }, 400);
     }
     var ready = false;
     function init() {
