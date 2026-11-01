@@ -1817,6 +1817,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           '<li>Messages: ' + mv(P.wrapup, 'About 10 minutes to go') + '; ' + mv(P.timeup, 'That’s a wrap!') + '.</li>' +
           '<li>TV: “' + esc(P.banner.title) + '” – ' + (P.banner.ack ? 'stays until someone presses OK' : 'closes by itself, no OK needed') + '.</li></ul>' +
           (P.clash.length ? '<ul class="warnl">' + P.clash.map(function (c) { return '<li>Clashes with ' + esc(c.what) + ' in ' + esc(c.room) + ' (' + t(c.s) + ' – ' + t(c.e) + ').</li>'; }).join('') + '<li>Only extend anyway if you’ve sorted that out.</li></ul>' : '') +
+          '<label style="display:flex;gap:10px;align-items:center;margin:0 0 10px"><input type="checkbox" id="sMsgs" checked style="width:20px;height:20px"> Add “About 10 minutes to go” / “That’s a wrap!” if there are none (ones already there always move to the new end)</label>' +
           '<label style="display:flex;gap:10px;align-items:center;font-weight:600"><input type="checkbox" id="sPaid" style="width:20px;height:20px"> The guest has paid for +' + n + ' hour' + (n > 1 ? 's' : '') + ' (I’ve checked the payment)</label>' +
           '<div class="row"><button class="btn primary" id="sGo" disabled>' + (P.clash.length ? 'Extend anyway' : 'Yes, extend') + '</button><button class="btn" id="sBack">Back</button></div>';
         /* two confirmations: tick "paid", press once, then press again within 8 s */
@@ -1834,7 +1835,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function closeReview() { pend = null; $('sReview').hidden = true; $('sReview').innerHTML = ''; }
     function go() {
       if (!pend) return; var p = pend; $('sGo').disabled = true; $('sBack').disabled = true; $('sGo').textContent = 'Extending…';
-      call({ action: 'extend', key: p.key, hours: p.hours, ack: p.ack, end: p.end, force: p.clash ? 'yes' : '' }).then(function (j) {
+      call({ action: 'extend', key: p.key, hours: p.hours, ack: p.ack, end: p.end, force: p.clash ? 'yes' : '', msgs: $('sMsgs') && !$('sMsgs').checked ? 'no' : 'yes' }).then(function (j) {
         if (!j || !j.ok) { $('sReview').innerHTML = '<div>Not extended: ' + esc((j && j.error) || (j && j.clash ? 'it clashes with something now. Refresh and check.' : 'no answer')) + '</div><div class="row"><button class="btn" id="sBack">Close</button></div>'; $('sBack').onclick = closeReview; load(); return; }
         var d = j.done || {};
         closeReview();

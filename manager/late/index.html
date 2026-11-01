@@ -67,6 +67,7 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
       <label>Pax<input id="pax" type="number" min="1" max="20" inputmode="numeric"></label>
     </div>
     <label style="margin-top:12px">Guest name<input id="name" type="text" maxlength="40" autocomplete="off" autocapitalize="words"></label>
+    <label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;color:var(--ink)"><input id="msgs" type="checkbox" checked style="width:22px;height:22px;min-height:0;margin:0;flex:none"><span>Also put “About 10 minutes to go” and “That’s a wrap!” on the room’s TV<br><span class="hint">Only for sessions starting within 24 hours. Turn off if someone already set them.</span></span></label>
     <div class="row"><button class="btn primary" id="check" type="button">Check</button><button class="btn" id="clear" type="button">Clear</button></div>
     <div id="plan" class="hint plan" style="margin-top:12px"></div>
   </div>
@@ -89,7 +90,7 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
   function drawRooms() {
     $('rooms').innerHTML = ROOMS.map(function (r) { return '<button type="button" data-u="' + r[0] + '" style="--rc:' + r[2] + '" aria-pressed="' + (r[0] === unit) + '">' + r[1] + '</button>'; }).join('');
   }
-  function form() { return { unit: unit, day: $('day').value, start: $('start').value, end: $('end').value, name: $('name').value.trim(), pax: $('pax').value }; }
+  function form() { return { unit: unit, day: $('day').value, start: $('start').value, end: $('end').value, name: $('name').value.trim(), pax: $('pax').value, msgs: $('msgs').checked ? 'yes' : 'no' }; }
   function call(body) {
     body.staff = key(); body.action = 'late';
     return fetch(ENG, { method: 'POST', body: new URLSearchParams(body) }).then(function (r) { return r.json(); }).then(function (j) {
@@ -107,7 +108,8 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
       var h = '<div class="card" style="margin:0;border-top-color:' + (clash ? 'var(--warn)' : 'var(--ok)') + '"><b>' + esc(p.room) + ' · ' + esc(p.name) + ' · ' + p.pax + ' pax</b><br>' +
         'Arrives ' + esc(p.arrives) + ', leaves ' + esc(p.guestEnd) + (p.nextDay ? ' (after midnight)' : '') + ' · ' + p.hours + 'h<br>' +
         'SimplyBook note: ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.nextDay ? '. After midnight it shows at the top of the next day in SimplyBook.' : '') +
-        (p.twin ? '<br>' + esc(p.twin) + ' gets a SYSTEM BLOCK for the same time.' : '');
+        (p.twin ? '<br>' + esc(p.twin) + ' gets a SYSTEM BLOCK for the same time.' : '') +
+        '<br>TV: ' + (p.msgs === 'off' ? 'no messages added.' : p.msgs === 'later' ? 'messages not added – the session starts more than 24 hours from now. Use +1h or Round2 messages nearer the time.' : '“About 10 minutes to go” at ' + esc(p.msgs.wrapup) + ', “That’s a wrap!” at ' + esc(p.msgs.timeup) + '.');
       if (clash) h += '<p class="warn" style="margin:10px 0 0"><b>Already in the calendar then:</b><br>' + p.clash.map(function (c) { return esc(c.room + ' · ' + c.what + ' · ' + c.name + ' · ' + c.from + '–' + c.to); }).join('<br>') + '</p>';
       h += '<div class="row"><button class="btn primary" type="button" id="go">' + (clash ? 'Add anyway' : 'Add to SimplyBook') + '</button></div></div>';
       show(h); $('go').onclick = function () { go(clash); };
@@ -119,13 +121,15 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px;
     call(f).then(function (j) {
       if (!j || !j.ok) { show('<span class="warn">' + esc((j && j.error) || (j && j.clash ? 'Something is already in the calendar then. Press Check again.' : 'No answer')) + '</span>'); return; }
       var p = j.plan;
-      show('<span class="okmsg"><b>Added to SimplyBook ✓</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrives + '–' + p.guestEnd));
+      var mp = (j.msgs || []).filter(function (m) { return m.problem; });
+      show('<span class="okmsg"><b>Added to SimplyBook ✓</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrives + '–' + p.guestEnd) +
+        ((j.msgs || []).length ? '<br>' + (mp.length ? '<span class="warn">TV messages: ' + esc(mp.map(function (m) { return m.problem; }).join('; ')) + ' – set them in Round2 messages.</span>' : 'TV messages set ✓') : ''));
       ready = null; $('name').value = ''; $('pax').value = ''; $('start').value = ''; $('end').value = '';
       try { if (embed) parent.postMessage({ r2late: true }, location.origin); } catch (e) {}
     }).catch(function () { show('<span class="warn">Couldn’t reach the engine. Check SimplyBook before trying again.</span>'); });
   }
   $('rooms').addEventListener('click', function (e) { var u = e.target.getAttribute && e.target.getAttribute('data-u'); if (u) { unit = u; ready = null; drawRooms(); show(''); } });
-  ['day', 'start', 'end', 'name', 'pax'].forEach(function (k) { $(k).addEventListener('input', function () { if (ready) { ready = null; show(''); } }); });
+  ['day', 'start', 'end', 'name', 'pax', 'msgs'].forEach(function (k) { $(k).addEventListener(k === 'msgs' ? 'change' : 'input', function () { if (ready) { ready = null; show(''); } }); });
   $('check').onclick = check;
   $('clear').onclick = function () { unit = ''; drawRooms(); ['start', 'end', 'name', 'pax'].forEach(function (k) { $(k).value = ''; }); $('day').value = sgToday(); ready = null; show(''); };
   $('keySave').onclick = function () { var v = $('key').value.trim(); if (v.length < 8) return; ls('r2.guestStaff', v); $('key').value = ''; gate(); };
