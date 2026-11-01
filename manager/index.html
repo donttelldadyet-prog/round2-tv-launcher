@@ -950,7 +950,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   function toast(m) { var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
   function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   /* Singapore date, whatever the device's own time zone (time check 2 Nov): a laptop abroad or a TV set to UTC must agree */
-  function sgNow() { var x = new Date(Date.now() + 8 * 3600e3); return new Date(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), 12); }
+  /* ONE CLOCK (owner, 2 Nov): the engine's time (Cloudflare /time), not this phone's own clock */
+  var clockOff = 0; try { clockOff = Number(localStorage.getItem('r2.clockOff')) || 0; } catch (e) {}
+  (function () { var t0 = Date.now(); fetch('https://round2-book.donttelldadyet.workers.dev/time', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+    var t1 = Date.now(); if (j && j.t && t1 - t0 < 5000) { clockOff = Math.round(j.t + (t1 - t0) / 2 - t1); try { localStorage.setItem('r2.clockOff', String(clockOff)); } catch (e) {} } }).catch(function () {}); }());
+  function sgNow() { var x = new Date(Date.now() + clockOff + 8 * 3600e3); return new Date(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), 12); }
   function today() { return ymd(sgNow()); }
   function nice(s) { if (!s) return ''; var d = new Date(s + 'T12:00:00'); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined }); }
   function b64utf8(s) { return btoa(unescape(encodeURIComponent(s))); }
@@ -2117,6 +2121,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(s.simplybook && s.sbSecret, 'SimplyBook keys missing in Cloudflare.'); must(s.tvKey, 'TV key missing in Cloudflare.'); must(s.guestMessages, 'Guest messages not set up.');
           return 'Payments ' + String(s.payments).toUpperCase() + ' · booking page ' + (s.booking === 'simplybook' ? 'SAFE MODE' : 'new') + (s.staffAlerts ? '' : ' · Telegram staff alerts not set up (planned)');
         }); }); })
+      .then(function () { return step('One clock: the engine’s time is reachable (TVs and this page set themselves by it)', function () {
+        var t0 = Date.now(); return J('/time').then(function (j) { var t1 = Date.now(), off = Math.round((j.t + (t1 - t0) / 2 - t1) / 1000);
+          must(j.t && j.today, 'No time from the engine.'); return 'Engine: ' + j.sg + ' (Singapore), shop night ' + j.night + ' · this phone’s own clock is ' + (Math.abs(off) <= 2 ? 'spot on' : Math.abs(off) + ' s ' + (off > 0 ? 'slow' : 'fast')) + ' – ignored'; }); }); })
       .then(function () { return step('SimplyBook answers (login + all 7 rooms)', function () {
         return J('/selftest').then(function (j) { must(j.sbLogin, 'SimplyBook login failed.'); must((j.rooms || []).length === 7, 'Expected 7 rooms, got ' + (j.rooms || []).length + '.'); return j.rooms.join(', '); }); }); })
       .then(function () { return step('Public holidays loaded (this year and next)', function () {

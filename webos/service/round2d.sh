@@ -168,6 +168,16 @@ watch_power() {
 FB=https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app
 ACK=https://hook.eu1.make.com/ks522ziapwremxa35kdtan6h6l1oxe17
 num() { sed -n "s/.*\"$1\" *: *\([0-9][0-9]*\).*/\1/p"; }
+# ONE CLOCK (owner, 2 Nov): message and food-alert times run on the booking engine's clock (Cloudflare /time), not the
+# TV's own. clock_sync stores the difference in seconds; snow = the TV's time + that difference.
+ENGINE_TIME=https://round2-book.donttelldadyet.workers.dev/time
+clock_sync() {
+  command -v curl >/dev/null 2>&1 || return 0
+  a=$(date +%s); r=$(curl -s -m 8 "$ENGINE_TIME" 2>/dev/null || curl -s -k -m 8 "$ENGINE_TIME" 2>/dev/null); b=$(date +%s)
+  t=$(printf '%s\n' "$r" | num t); [ -n "$t" ] && [ $((b - a)) -le 5 ] || return 0
+  echo $(( t / 1000 - (a + b) / 2 )) > "$CFG/clock.off"
+}
+snow() { echo $(( $(date +%s) + $(cat "$CFG/clock.off" 2>/dev/null || echo 0) )); }
 clean() { tr -d "\\\\\"'"; }   # no quotes or backslashes: safe inside the luna-send JSON below
 # --- Round2 Alerts (sg.round2.alerts, from Homebrew Channel): the Round2 card over other apps instead of LG's pop-ups.
 # Without it installed, LG's own pop-ups are used, so nothing is ever missed.
@@ -247,7 +257,7 @@ watch_food() {
           [ -n "$t" ] || continue
           [ "$t" -le "$(cat "$CFG/food.t" 2>/dev/null || echo 0)" ] && continue
           echo "$t" > "$CFG/food.t"
-          age=$(( $(date +%s) - t / 1000 ))
+          age=$(( $(snow) - t / 1000 ))
           case "$type" in
             received) [ "$age" -le 180 ] || continue ;;
             ready) [ "$age" -le 3600 ] || continue
@@ -373,7 +383,7 @@ msg_tick() {    # every 3 s: is the message due, and is something other than Rou
     line=$(cat "$CFG/msg.cur"); id=$(printf '%s\n' "$line" | field id)
     [ -n "$id" ] || continue
     [ "$id" = "$(cat "$CFG/msg.done" 2>/dev/null)" ] && continue
-    now=$(date +%s); a=$(printf '%s\n' "$line" | num at); u=$(printf '%s\n' "$line" | num until)
+    now=$(snow); a=$(printf '%s\n' "$line" | num at); u=$(printf '%s\n' "$line" | num until)
     at=$(( ${a:-0} / 1000 )); until=$(( ${u:-0} / 1000 ))
     [ "$until" -gt 0 ] || until=$(( at + 10800 ))
     [ "$now" -ge "$at" ] || continue
@@ -459,6 +469,7 @@ sum > "$CFG/sum"
 log "helper started ($1)"
 rm -f "$CFG/hb.last"; clear_failsafe
 date +%s > "$CFG/menukey"
+( while :; do clock_sync; sleep 1800; done ) </dev/null >/dev/null 2>&1 &   # the engine's clock, every 30 min
 watch_apps </dev/null >/dev/null 2>&1 &
 A=$!
 watch_power </dev/null >/dev/null 2>&1 &

@@ -1702,8 +1702,21 @@ window.R2_TV = {
     if (a !== 'rain' && a !== 'storm' && a !== 'off' && !upSound(a)) a = 'rain';
     return a;
   }
-  /* Singapore date even on a TV whose clock zone isn't set to Singapore (time check 2 Nov) */
-  function today() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
+  /* ONE CLOCK (owner, 2 Nov): the TV's own clock may be wrong or in another zone, so everything time-based – when a message
+     shows and ends, food alerts, theme dates, the clock on screen – runs on the booking engine's time (Cloudflare /time).
+     The TV measures the difference once and every 30 min, remembers it, and adds it to its own clock. */
+  var clockOff = 0; try { clockOff = Number(localStorage.getItem('r2.clockOff')) || 0; } catch (e) {}
+  var r2Now = window.r2Now = function () { return Date.now() + clockOff; };
+  function syncClock() {
+    try {
+      var t0 = Date.now(), x = new XMLHttpRequest(); x.open('GET', 'https://round2-book.donttelldadyet.workers.dev/time', true); x.timeout = 8000;
+      x.onload = function () { try { var j = JSON.parse(x.responseText), t1 = Date.now(); if (j && j.t && t1 - t0 < 5000) { clockOff = Math.round(j.t + (t1 - t0) / 2 - t1); try { localStorage.setItem('r2.clockOff', String(clockOff)); } catch (e) {} } } catch (e) {} };
+      x.send();
+    } catch (e) {}
+  }
+  syncClock(); setInterval(syncClock, 30 * 60 * 1000);
+  /* Singapore date by the engine's clock (time check 2 Nov) */
+  function today() { return new Date(r2Now() + 8 * 3600e3).toISOString().slice(0, 10); }
   function themeWalls() {
     var out = [], d = today();
     for (var i = 0; i < THEMES.length; i++) {
@@ -2447,7 +2460,7 @@ window.R2_TV = {
     function keyOk() { return /^[A-Za-z0-9]{12,}$/.test(KEY); }
     function nativeOn() { try { return Device.kind() === 'android' && window.R2Android.foodAlerts && window.R2Android.foodAlerts() === '1'; } catch (e) { return false; } }
     function topicRoom(key) { return key === 'maximillion' ? 'max' : key; }
-    function clock() { try { return new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+    function clock() { var d = new Date(r2Now() + 8 * 3600e3); return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2); }
     function show(p, reminder) {
       if (!p || !TEXT[p.type]) return;
       var t = TEXT[p.type], el = $('food');
@@ -2517,7 +2530,7 @@ window.R2_TV = {
         store('r2.foodT.' + room, String(d.t));
         var p = { type: d.type, no: String(d.no || ''), items: String(d.items || '').slice(0, 300) };
         if (/^R2-/.test(d.ref || '')) p.ref = d.ref;
-        var age = (Date.now() - d.t) / 1000;
+        var age = (r2Now() - d.t) / 1000;
         if ((p.type === 'received' && age > 180) || (p.type === 'ready' && age > 3600)) return;
         if (p.type !== 'received' && p.type !== 'ready') return;
         if (p.type === 'ready') { store('r2.foodReady', JSON.stringify(p)); remindLater(p); addUnacked(p.ref); }
@@ -2652,7 +2665,7 @@ window.R2_TV = {
       if (!d.ack) hideTimer = setTimeout(function () { hide(true); }, 60000);
       /* one that needs OK still goes at its cut-off (That's a wrap +15 min, 10-min reminder +4 min, credit banner +20 min,
          others +3 h): the big banner closes by itself then, like the small one over apps (Max, 31 Oct) */
-      else { var cut = times(d).until - Date.now(); hideTimer = setTimeout(function () { if (cur === d) { hide(false); clearTimeout(timer); } }, Math.max(0, Math.min(cut, 2147483000))); }
+      else { var cut = times(d).until - r2Now(); hideTimer = setTimeout(function () { if (cur === d) { hide(false); clearTimeout(timer); } }, Math.max(0, Math.min(cut, 2147483000))); }
     }
     /* rooted LG: tell the helper straight away (it shows messages over other apps), so it never shows this one again */
     function tellHelper(id) {
@@ -2662,7 +2675,7 @@ window.R2_TV = {
     var viaHelper = false;   /* rooted LG: the helper decides when and where a message shows, and hands the menu its card */
     function show(d, again) {
       if (!d || !d.id || (cur && cur.id === d.id)) return;
-      if (Date.now() > times(d).until) return;   /* past its cut-off: never shown again */
+      if (r2Now() > times(d).until) return;   /* past its cut-off: never shown again */
       if (d.helper) { render(d, again); return; }
       if (done(d.id)) return;
       if (!d.ack) tellHelper(d.id);                       /* no OK needed: seen once is enough */
@@ -2701,7 +2714,7 @@ window.R2_TV = {
     function tick() {
       clearTimeout(timer);
       var d = pending(); if (!d || done(d.id)) return;
-      var t = times(d), now = Date.now();
+      var t = times(d), now = r2Now();
       if (now > t.until) { store('r2.msg', ''); return; }
       if (now < t.at) { timer = setTimeout(tick, Math.min(t.at - now, 60000)); return; }
       var l = link();
@@ -3124,8 +3137,7 @@ window.R2_TV = {
 
   function tick() {
     var s;
-    try { s = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit' }); }
-    catch (e) { var d = new Date(); s = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+    var d = new Date(r2Now() + 8 * 3600e3); s = ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);   /* Singapore time, engine clock */
     $('clock').textContent = s;
   }
 

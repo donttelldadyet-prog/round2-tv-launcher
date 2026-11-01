@@ -196,6 +196,8 @@ public class FoodAlerts extends Service {
         if (!enabled()) { stopSelf(); return; }
         inst = this;
         running = true;
+        Clock.load(this);
+        new Thread(() -> { while (running) { Clock.sync(FoodAlerts.this); try { Thread.sleep(30 * 60_000L); } catch (InterruptedException e) { return; } } }, "engine-clock").start();
         new Thread(this::listen, "food-alerts").start();
         new Thread(this::listenMsg, "room-messages").start();
         main.post(msgTick);   // a message waiting from before a restart
@@ -279,7 +281,7 @@ public class FoodAlerts extends Service {
             if (t <= prefs(this).getLong("since", 0)) return;                // already shown
             prefs(this).edit().putLong("since", t).apply();
             String type = d.optString("type");
-            long age = System.currentTimeMillis() / 1000 - t / 1000;
+            long age = Clock.now() / 1000 - t / 1000;
             if ("received".equals(type) && age > 180) return;            // old news after a reconnect
             if ("ready".equals(type) && age > 3600) return;
             if (!"received".equals(type) && !"ready".equals(type)) return;
@@ -640,7 +642,8 @@ public class FoodAlerts extends Service {
             String j = prefs(c).getString("msg", null);
             if (j == null) return null;
             JSONObject d = new JSONObject(j);
-            long now = System.currentTimeMillis(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
+            Clock.load(c);
+            long now = Clock.now(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
             return now >= at && now <= until ? j : null;
         } catch (Exception e) { return null; }
     }
@@ -655,7 +658,7 @@ public class FoodAlerts extends Service {
             try {
                 JSONObject d = new JSONObject(j);
                 String id = d.optString("id");
-                long now = System.currentTimeMillis(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
+                long now = Clock.now(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
                 if (now > until) { p.edit().remove("msg").apply(); if (card != null && id.equals(msgCardId)) { hideCard(); msgCardId = null; } return; }
                 if (now < at) { main.postDelayed(this, Math.min(at - now, 60_000)); return; }
                 if (card != null && id.equals(msgCardId)) { main.postDelayed(this, Math.max(1_000, Math.min(MSG_REPEAT_MS, until - now + 1_000))); return; }   // still on screen

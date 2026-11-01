@@ -13,6 +13,11 @@ and relies on us to keep everything consistent, so:
 4. **Tell the owner in plain words** what the check showed. Its purpose is a real-world test that new work fits the old
    code – not a formality.
 
+## One clock (owner, 2 Nov 2026)
+Everything time-based runs on the booking engine's clock (Cloudflare `/time`), never a device's own: the LG web app
+(`r2Now()`), the LG helper (`snow`), the Android app (`Clock.now()`), the control centre (`clockOff`). Each measures the
+difference every 30 min and adds it. New time-based code must use these, not `Date.now()` / `System.currentTimeMillis()`.
+
 ## What it covers (2 Nov 2026)
 Engine up + keys · SimplyBook login and the 7 rooms · public holidays · booking page price = checkout price · food menu read +
 price check · guest message link full life (make → open → write → timer → cancel) · TVs reporting in (msgShown/msgAck) ·

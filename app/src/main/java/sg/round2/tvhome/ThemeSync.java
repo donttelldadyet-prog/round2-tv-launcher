@@ -13,8 +13,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -35,11 +33,14 @@ final class ThemeSync {
     private static final int EARLY_DAYS = 14;   // download this many days before a theme starts
 
     final File dir;
+    private final Context app;
     private volatile boolean running;
 
     interface Done { void done(String json); }
 
     ThemeSync(Context ctx) {
+        app = ctx.getApplicationContext();
+        Clock.load(app);
         dir = new File(ctx.getFilesDir(), "themes");
         //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
@@ -77,6 +78,7 @@ final class ThemeSync {
         running = true;
         new Thread(new Runnable() {
             @Override public void run() {
+                Clock.sync(app);   // theme dates by the engine's clock
                 try { doSync(room == null ? "" : room); } catch (Exception ignored) { }
                 running = false;
                 if (cb != null) cb.done(cached());
@@ -92,10 +94,7 @@ final class ThemeSync {
         if (ts == null) return;
         write(new File(dir, "themes.json"), body);
 
-        SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-        String today = f.format(Calendar.getInstance().getTime());
-        Calendar soon = Calendar.getInstance(); soon.add(Calendar.DATE, EARLY_DAYS);
-        String horizon = f.format(soon.getTime());
+        String today = Clock.sgDate(0), horizon = Clock.sgDate(EARLY_DAYS);   // Singapore dates by the engine's clock (2 Nov)
 
         Set<String> keep = new HashSet<>(), wantSound = new HashSet<>();
         keep.add("themes.json");
