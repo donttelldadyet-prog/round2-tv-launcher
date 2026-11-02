@@ -266,6 +266,13 @@
           "what": "Built 2 Nov (owner's Plan A). Tonight = every message tonight (guest, Round2, Auto wrap-up) per room and booking, finished bookings folded away; Send = the form only; Guest links = make + list on one page; Calendar = later days. TVs tab = status tiles + Update now + Test a TV; Home shows 'x of 7 TVs on'.",
           "runs": "Control centre (manager/index.html: Cal.tonight, Msgs.status)",
           "code": "round2-tv-launcher manager/index.html"
+        },
+        {
+          "name": "Smoother transitions",
+          "status": "planned",
+          "what": "Owner is thinking it over (2 Nov). Ideas, best first: 1) pause the background while a transition plays (test on one LG first); 2) Rise moves the menu as one piece instead of ~15 parts; 3) each TV checks its own smoothness at start-up and switches itself to Fade if it drops frames ('lite mode' on its TV tile); 4) open the app at the same moment as the animation (with 3). Warp, Flash and Lightning + ship were removed 2 Nov for being heavy/unused.",
+          "runs": "TV app (web/index.html: dive/arrive, Home animations)",
+          "code": "round2-tv-launcher web/index.html"
         }
       ]
     },
