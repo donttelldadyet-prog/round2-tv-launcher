@@ -58,3 +58,14 @@ in Round2 messages (that list is Make's); the Auto wrap-up tab is where to see t
 ## Next alert ideas
 Food order paid / food at pickup; Loot dropped not OK'd after 10 min; TV offline or Homebrew failsafe in opening hours;
 guest message not shown; Madd payout approval. Add the kind to `PUSH_KINDS` (engine) and `KINDS` (control centre).
+
+## Compact layout (owner, 2 Nov 2026)
+Little room in an iPhone banner, so details are one line and extras go at the end, only when they matter:
+- **New booking:** `Sun 15 Nov, 11am–2pm · 3h · S$35 paid (EB+peak) · 2 pax · 13d ahead` – the end is `⚡ in 3h` (or `in 45m`)
+  for a same-day booking, `Nd ahead` otherwise (none when the "⏰ Starts in N min" line is already there).
+- **1 hour before:** `5:30pm–8:30pm · 3h · 2 pax` + `🧹 prev out 4:45pm` when the previous group (this room or its twin)
+  is still in at reminder time + the guest's TV message for this room + start: `🎂 7:15pm` (💞 anniversary, 🎉 celebrate,
+  💬 note) when written, `🔗 msg not written` when only the link was sent. Notes keep their text on the next line.
+- Engine: `soonMsg`, `soonExtra`, `bookingAlert`; `/push/preview {kind:'soon', key, day}` shows one session's reminder
+  (System check step "1-hour reminder shows the guest message").
+
