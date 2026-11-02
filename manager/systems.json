@@ -56,7 +56,7 @@
         {
           "name": "Mirror rooms in the engine (+ alert if a block fails)",
           "status": "planned",
-          "what": "To do: move the Atlas ↔ Vale blocking from Make into the Cloudflare engine. No Make operations, and staff get a Telegram alert when a block can't be made (twin room taken, late-night past SimplyBook's hours, or a service that isn't mirrored). Best done together with the staff booking alerts.",
+          "what": "To do: move the Atlas ↔ Vale blocking from Make into the Cloudflare engine. No Make operations, and staff get a phone alert (control centre alerts) when a block can't be made (twin room taken, late-night past SimplyBook's hours, or a service that isn't mirrored).",
           "runs": "Booking engine (Cloudflare) – replaces Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
         },
         {
@@ -64,12 +64,6 @@
           "status": "build",
           "what": "A line in SimplyBook's confirmation email that opens the guest's booking page. Needs the booking-code variable added to the email template.",
           "runs": "SimplyBook email template + engine /b/<code>"
-        },
-        {
-          "name": "Staff booking alerts (Telegram)",
-          "status": "planned",
-          "what": "A separate 'Round2 Bookings' bot + staff group gets every booking and cancellation. Never the Madd Pizza group.",
-          "runs": "Booking engine"
         },
         {
           "name": "Online rescheduling",
