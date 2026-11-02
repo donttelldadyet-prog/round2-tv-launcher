@@ -225,7 +225,7 @@ footer .keys { display: flex; gap: 30px; }
 .tile.art.on .nm { opacity: 1; background: var(--room); color: var(--room-ink); padding: 8px 16px; }
 
 /* ---------- transitions (Options > Transition: Warp / Dive / Off) ---------- */
-#flash, #warp, #veil, #dim, #ship { pointer-events: none; }
+#flash, #warp, #veil, #dim { pointer-events: none; }
 /* lightning: a violet-white flash like the strikes in the scene loops */
 #flash { opacity: 0; background: radial-gradient(70% 90% at var(--fx, 50%) var(--fy, 40%), #fff 0%, #d9c8ff 30%, rgba(160,120,255,.5) 60%, rgba(60,40,140,0) 100%); }
 @keyframes strike { 0% { opacity: 0 } 10% { opacity: .75 } 22% { opacity: .15 } 34% { opacity: .55 } 100% { opacity: 0 } }
@@ -289,8 +289,7 @@ footer .keys { display: flex; gap: 30px; }
 .go-push #dim { opacity: 1; transition: opacity .18s linear .06s; }
 
 /* ---- Home animations (coming back to the menu) ---- */
-/* Rise: the cinematic entry without the lightning and the ship */
-.entering.calm #ship, .entering.calm #flash { animation: none !important; opacity: 0; }
+/* Rise: the menu slides and rises in (the old "Lightning + ship" was removed 2 Nov – owner: "we don't even use it") */
 /* Neon flicker: the menu switches on like a neon sign */
 .enter-flicker #ui { animation: flick .8s steps(1, end) both; }
 .enter-flicker #dim { animation: entryDim .5s ease-out both; }
@@ -309,13 +308,8 @@ footer .keys { display: flex; gap: 30px; }
 @keyframes settle { from { transform: scale(1.08) } to { transform: none } }
 @keyframes fadeUp { from { opacity: 0 } to { opacity: 1 } }
 
-/* Home animation: lightning, a ship skims past the camera, the menu powers on */
-#ship { position: absolute; left: 0; top: 0; width: 1100px; height: 300px; opacity: 0; }
-.entering #ship { will-change: transform; }
 .entering #dim { animation: entryDim .5s ease-out both; }
 
-.entering #flash { animation: strike .32s linear .1s both; }
-.entering #ship { animation: flyby .95s cubic-bezier(.35, .05, .55, 1) .2s both; }
 .entering header, .entering footer { animation: rise .4s var(--ease) .5s both; }
 .entering #items .mi { animation: slideIn .34s var(--ease) both; }
 .entering .hl { animation: slideIn .34s var(--ease) .5s both; }
@@ -328,7 +322,6 @@ footer .keys { display: flex; gap: 30px; }
 .entering .panel .eyebrow, .entering .panel .divider { animation: rise .34s var(--ease) .46s both; }
 @keyframes entryDim { from { opacity: 1 } to { opacity: 0 } }
 @keyframes entryWorld { from { transform: scale(1.14) } to { transform: none } }
-@keyframes flyby { 0% { opacity: 1; transform: translate(2150px, 600px) scale(.6) rotate(-3deg) } 100% { opacity: 1; transform: translate(-2250px, -280px) scale(2.5) rotate(-10deg) } }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-44px) } to { opacity: 1; transform: none } }
 @keyframes rise { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: none } }
 .snap * { transition: none !important; }
@@ -432,7 +425,7 @@ footer .keys { display: flex; gap: 30px; }
 
 @media (prefers-reduced-motion: reduce) {
   #world, #ui, .panel, .wallrows, .grid, .mi, #bgA, #bgB { transition: none !important; }
-  .swap, #warp, #warp .rays, #veil, #flash, #ship, #crt b, #blinds i, .entering *, .settle *, .enter-flicker *, .enter-crt * { animation: none !important; }
+  .swap, #warp, #warp .rays, #veil, #flash, #crt b, #blinds i, .entering *, .settle *, .enter-flicker *, .enter-crt * { animation: none !important; }
 }
 </style>
 
@@ -527,23 +520,6 @@ footer .keys { display: flex; gap: 30px; }
   <div id="blinds" class="layer" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div id="crt" class="layer" aria-hidden="true"><b class="t"></b><b class="b"></b><b class="line"></b></div>
   <div id="veil" class="layer" aria-hidden="true"></div>
-  <svg id="ship" viewBox="0 0 1100 300" aria-hidden="true">
-    <defs>
-      <linearGradient id="shTrail" x1="0" x2="1"><stop offset="0" stop-color="#e8fffb" stop-opacity=".95"/><stop offset=".18" style="stop-color: var(--room)" stop-opacity=".85"/><stop offset="1" style="stop-color: var(--room)" stop-opacity="0"/></linearGradient>
-      <linearGradient id="shHull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3358"/><stop offset=".45" stop-color="#15111f"/><stop offset="1" stop-color="#06050a"/></linearGradient>
-      <radialGradient id="shEng"><stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#b8fff3"/><stop offset="1" style="stop-color: var(--room)" stop-opacity="0"/></radialGradient>
-    </defs>
-    <rect x="600" y="122" width="500" height="26" fill="url(#shTrail)"/>
-    <rect x="600" y="160" width="430" height="14" fill="url(#shTrail)" opacity=".7"/>
-    <path d="M330 176 L520 252 L612 252 L566 182 Z" fill="#0d0b16" stroke="#b8fff3" stroke-opacity=".35" stroke-width="2"/>
-    <path d="M436 102 L538 46 L594 48 L562 106 Z" fill="#1a1528" stroke="#b8fff3" stroke-opacity=".35" stroke-width="2"/>
-    <path d="M18 150 L300 116 L470 94 L604 102 L648 126 L648 180 L604 192 L420 194 L300 180 Z" fill="url(#shHull)" stroke="#b8fff3" stroke-opacity=".55" stroke-width="2"/>
-    <path d="M150 136 L300 121 L334 133 L172 147 Z" fill="#9ffaea" opacity=".85"/>
-    <path d="M70 154 L590 142" style="stroke: var(--room)" stroke-width="4" opacity=".9"/>
-    <circle cx="648" cy="136" r="30" fill="url(#shEng)"/>
-    <circle cx="648" cy="170" r="20" fill="url(#shEng)"/>
-    <circle cx="560" cy="250" r="5" fill="#ff3b5c"/><circle cx="560" cy="50" r="4" fill="#ffffff"/>
-  </svg>
   <div id="toast" role="status" hidden></div>
   <div id="msg" role="alert" hidden><div class="fx" id="msgFx"></div><div class="box">
     <div class="icon" id="msgIcon"></div><div class="tag" id="msgTag"></div>
@@ -1012,11 +988,11 @@ window.R2_TV = {
     { id: 'flash', name: 'Flash', ms: 240 }, { id: 'off', name: 'Off', ms: 0 }
   ];
   /* Home animations: what plays when someone comes back to the menu */
-  var ENTRIES = [{ id: 'cinematic', name: 'Lightning + ship', ms: 1700 }, { id: 'rise', name: 'Rise', ms: 1300 },
+  var ENTRIES = [{ id: 'rise', name: 'Rise', ms: 1300 },
     { id: 'flicker', name: 'Neon flicker', ms: 900 }, { id: 'crt', name: 'CRT power-on', ms: 800 }, { id: 'off', name: 'Off', ms: 400 }];
   function entryStyle() {
     var v = prefs.entry;
-    if (v === 'on' || !v) return roomKey === 'kai' ? 'cinematic' : 'rise';   /* the ship belongs to Kai's mountain scene */
+    if (v === 'on' || !v || v === 'cinematic') return 'rise';   /* "Lightning + ship" removed 2 Nov: anyone who had it gets Rise */
     for (var i = 0; i < ENTRIES.length; i++) if (ENTRIES[i].id === v) return v;
     return 'rise';
   }
@@ -2879,7 +2855,7 @@ window.R2_TV = {
     addCls('snap'); clearAnim(); void st.offsetWidth; dropCls('snap');
     var es = entryStyle();
     if (es !== 'off') {
-      var cls = es === 'cinematic' ? ['entering'] : es === 'rise' ? ['entering', 'calm'] : ['enter-' + es];
+      var cls = es === 'rise' ? ['entering'] : ['enter-' + es];
       for (var ci = 0; ci < cls.length; ci++) addCls(cls[ci]);
       entryTimer = setTimeout(function () { for (var cj = 0; cj < cls.length; cj++) dropCls(cls[cj]); }, fxEntryMs(es));
     } else {
