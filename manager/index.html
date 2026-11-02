@@ -2609,6 +2609,22 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             return 'Tied on making · waiting link tied by Late session · Pair moved Kai 6:30 → Max 5:30 · note deleted → its 2 links cancelled';
           });
       }); })
+      /* the 1-hour phone reminder reads the guest's link (owner, 2 Nov): "🔗 msg not written" until the guest writes, then
+         the message's icon + time – compact, at the end of the details line */
+      .then(function () { return step('1-hour reminder shows the guest message (🔗 not written → 🎂 time)', function () {
+        must(T.linkA && T.max, 'No test link from the pairing step.');
+        var pv = function () { return fetch(ENG + '/push/preview', { method: 'POST', body: JSON.stringify({ staff: key(), kind: 'soon', key: 'n' + T.max, day: T.day }) }).then(function (r) { return r.json(); }); };
+        var first;
+        return pv().then(function (a) {
+          must(a.msg, 'Reminder preview: ' + (a.error || 'no answer')); first = a.msg.body;
+          must(/^3am–5am · 2h · 2 pax/.test(first), 'Reminder details look different: “' + first + '”.');
+          must(/🔗 msg not written/.test(first), 'Reminder doesn’t say the guest hasn’t written yet: “' + first + '”.');
+          return guest({ action: 'submit', code: T.linkA, kind: 'birthday', to: 'Test', from: 'System check', title: 'Happy birthday, Test!', text: 'System check', at: String(sgMs(T.day, '03:15')) });
+        }).then(function (g) { must(g.ok, 'Guest submit: ' + g.error); return pv(); }).then(function (b) {
+          must(b.msg && /🎂 3:15am/.test(b.msg.body), 'After the guest wrote it, the reminder says: “' + (b.msg ? b.msg.body : b.error) + '”.');
+          return '“' + first.split('\n')[0] + '” → “' + b.msg.body.split('\n')[0] + '”';
+        });
+      }); })
       .then(function () { return step('Change: Max → Bella moves everything', function () {
         return gm({ action: 'late', unit: '10', day: T.day, start: '03:30', end: '05:30', name: 'ZZTEST max', pax: '2', msgs: 'yes', replace: T.max, oldDay: T.day }).then(function (j) {
           must(j.ok && j.replaced, 'Change: ' + (j.error || 'refused')); return Promise.all([sessOf(T.day, 11), sessOf(T.day, 10)]);
