@@ -2637,10 +2637,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var mk = ls('r2m.msgKey'); warnIf(!mk, 'Add the TV messages key on this phone to check the TVs.');
         var rooms = ['vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'max'], now = Date.now();
         var g = function (r, n) { return fetch(FB + mk + '/' + r + '/' + n + '.json').then(function (x) { return x.json(); }).catch(function () { return null; }); };
-        return Promise.all(rooms.map(function (r) { return Promise.all([g(r, 'msg'), g(r, 'msgShown'), g(r, 'msgAck'), g(r, 'helper')]); })).then(function (all) {
-          var stuck = [], ok = 0;
+        /* the latest message due in the last 3 h per room: from the engine's list (one already replaced on the TV by the next
+           counts too) or the TV's own slot (sent straight from Round2 messages) */
+        return Promise.all([gm({ action: 'list' })].concat(rooms.map(function (r) { return Promise.all([g(r, 'msg'), g(r, 'msgShown'), g(r, 'msgAck'), g(r, 'helper')]); }))).then(function (res) {
+          var list = (res[0].links || []).filter(function (x) { var d = x.data; return d && d.status === 'approved' && d.onTv === 'yes' && +d.at <= now - 2 * 60000 && +d.at >= now - 3 * 3600000; });
+          var all = res.slice(1), stuck = [], ok = 0;
           all.forEach(function (a, i) {
-            var m = a[0], sh = a[1], ak = a[2], hb = a[3];
+            var m = a[0], sh = a[1], ak = a[2], hb = a[3], R = rooms[i];
+            list.forEach(function (x) { if (x.data.room === R && (!m || !m.at || m.at > now - 2 * 60000 || +x.data.at > m.at)) m = { id: x.data.id, at: +x.data.at, title: x.data.title }; });
             if (!m || !m.at || m.at > now - 2 * 60000 || m.at < now - 3 * 3600000) return;          /* nothing due in the last 3 h */
             if (!hb || !hb.t || now - hb.t > 12 * 60000) return;                                     /* offline: "TVs reporting in" covers it */
             if ((ak && ak.id === m.id) || (sh && (sh.id === m.id || sh.t >= m.at - 60000))) { ok++; return; }
