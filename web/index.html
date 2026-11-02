@@ -225,17 +225,13 @@ footer .keys { display: flex; gap: 30px; }
 .tile.art.on .nm { opacity: 1; background: var(--room); color: var(--room-ink); padding: 8px 16px; }
 
 /* ---------- transitions (Options > Transition: Warp / Dive / Off) ---------- */
-#flash, #veil, #dim { pointer-events: none; }
-/* lightning: a violet-white flash like the strikes in the scene loops */
-#flash { opacity: 0; background: radial-gradient(70% 90% at var(--fx, 50%) var(--fy, 40%), #fff 0%, #d9c8ff 30%, rgba(160,120,255,.5) 60%, rgba(60,40,140,0) 100%); }
-@keyframes strike { 0% { opacity: 0 } 10% { opacity: .75 } 22% { opacity: .15 } 34% { opacity: .55 } 100% { opacity: 0 } }
+#dim { pointer-events: none; }
 #dim { opacity: 0; background: #06050a; }
 
 /* Warp was removed 2 Nov (owner: "so bad performance wise"): it enlarged a 3400px picture over the playing background,
    too much for the TVs' graphics. Anyone who had it gets Fade. */
-#veil { opacity: 0; background: radial-gradient(55% 65% at var(--fx, 50%) var(--fy, 50%), #effffc 0%, var(--room) 28%, #06050a 72%); }
+#veil { opacity: 0; }   /* the start-up cover stays clear, as it has been since the transitions used this id too */
 /* no zooming of the background anywhere (it made people dizzy): transitions fade and slide only */
-@keyframes veil { 0% { opacity: 0 } 50% { opacity: 0 } 80% { opacity: .9 } 100% { opacity: 1 } }
 
 /* Dive: a calm push into the logo and a fade */
 
@@ -271,10 +267,7 @@ footer .keys { display: flex; gap: 30px; }
 .go-blinds #blinds i:nth-child(6) { animation-delay: .1s }  .go-blinds #blinds i:nth-child(7) { animation-delay: .12s }
 .go-blinds #blinds i:nth-child(8) { animation-delay: .14s }
 @keyframes blind { from { transform: scaleY(0) } to { transform: scaleY(1.02) } }
-/* Flash: a camera-flash white-out in the room's colour */
-.go-flash #ui { opacity: 0; transition: opacity .1s linear; }
-.go-flash #veil { animation: flashOut .26s ease-out both; }
-@keyframes flashOut { 0% { opacity: 0 } 25% { opacity: 1 } 100% { opacity: 1 } }
+/* Flash removed 2 Nov (owner) – a full-screen glow, the heaviest left after Warp; Flash users get Fade */
 /* Push: the menu lifts away upwards */
 .go-push #ui { opacity: 0; transform: translateY(-90px); transition: opacity .2s linear, transform .22s cubic-bezier(.6, 0, .9, .4); }
 .go-push #dim { opacity: 1; transition: opacity .18s linear .06s; }
@@ -416,7 +409,7 @@ footer .keys { display: flex; gap: 30px; }
 
 @media (prefers-reduced-motion: reduce) {
   #world, #ui, .panel, .wallrows, .grid, .mi, #bgA, #bgB { transition: none !important; }
-  .swap, #veil, #flash, #crt b, #blinds i, .entering *, .settle *, .enter-flicker *, .enter-crt * { animation: none !important; }
+  .swap, #crt b, #blinds i, .entering *, .settle *, .enter-flicker *, .enter-crt * { animation: none !important; }
 }
 </style>
 
@@ -506,10 +499,8 @@ footer .keys { display: flex; gap: 30px; }
   </div>
 
   <div id="dim" class="layer" aria-hidden="true"></div>
-  <div id="flash" class="layer" aria-hidden="true"></div>
   <div id="blinds" class="layer" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div id="crt" class="layer" aria-hidden="true"><b class="t"></b><b class="b"></b><b class="line"></b></div>
-  <div id="veil" class="layer" aria-hidden="true"></div>
   <div id="toast" role="status" hidden></div>
   <div id="msg" role="alert" hidden><div class="fx" id="msgFx"></div><div class="box">
     <div class="icon" id="msgIcon"></div><div class="tag" id="msgTag"></div>
@@ -974,7 +965,7 @@ window.R2_TV = {
   var FX = [
     { id: 'fade', name: 'Fade', ms: 200 }, { id: 'slide', name: 'Slide', ms: 220 }, { id: 'push', name: 'Push', ms: 220 },
     { id: 'glitch', name: 'Glitch', ms: 260 }, { id: 'crt', name: 'CRT', ms: 300 }, { id: 'blinds', name: 'Blinds', ms: 330 },
-    { id: 'flash', name: 'Flash', ms: 240 }, { id: 'off', name: 'Off', ms: 0 }
+    { id: 'off', name: 'Off', ms: 0 }
   ];
   /* Home animations: what plays when someone comes back to the menu */
   var ENTRIES = [{ id: 'rise', name: 'Rise', ms: 1300 },
@@ -1027,7 +1018,7 @@ window.R2_TV = {
     var vol = readPref('ambVol') || '5';
     vol = { low: '3', med: '5', high: '8' }[vol] || vol;                    /* older builds had Low / Medium / High */
     var fx = readPref('fx') || 'fade';
-    if (fx === 'dive' || fx === 'zoom' || fx === 'warp') fx = 'fade';       /* the zooming transitions and Warp were removed */
+    if (fx === 'dive' || fx === 'zoom' || fx === 'warp' || fx === 'flash') fx = 'fade';   /* the zooming transitions, Warp and Flash were removed */
     return { fx: fx, entry: readPref('entry') || 'on', sound: readPref('sound') || 'neon',
       amb: readPref('amb') || 'rain', ambVol: vol, cards: readPref('cards') || 'auto' };
   }
