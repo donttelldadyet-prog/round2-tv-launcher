@@ -46,6 +46,8 @@ public class HomeWatch extends Service {
     private UsageStatsManager usm;
     private Set<String> homes;
     private String front = "";
+    /** what's on screen (owner, 2 Nov): the app in front and since when (Clock time), for the check-in */
+    static volatile String nowFront = ""; static volatile long nowFrontAt = 0;
     private long lastQuery, lastRedirect;
     private final long[] recent = new long[6];
     private int recentAt;
@@ -183,6 +185,7 @@ public class HomeWatch extends Service {
         }
         if (newest == null) return;
         boolean wasHome = homes.contains(front);
+        if (!newest.equals(front)) { nowFront = newest; nowFrontAt = Clock.now() - (now - newestAt); FoodAlerts.beatSoon(); }
         front = newest;
         if (!homes.contains(newest) || newestAt <= lastRedirect) return;
         if (wasHome && now - newestAt > 3000) return;            // old news from the overlap

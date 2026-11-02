@@ -80,7 +80,7 @@ watch_apps() {
       id=$(echo "$line" | field appId)
       [ -z "$id" ] && continue
       case "$id" in sg.round2.alerts*) continue ;; esac   # our pop-up card floats over the app; that app is still in front
-      [ "$id" != "$prev" ] && { log "front $id"; echo "$id" > "$CFG/front"; }   # for Staff tools > Home helper check, and food alerts
+      [ "$id" != "$prev" ] && { log "front $id"; echo "$id" > "$CFG/front"; rm -f "$CFG/hb.last"; }   # for Staff tools > Home helper check, food alerts, and the check-in (what's on screen, 2 Nov)
       case "$id" in "$APP"|com.webos.app.home|com.webos.app.launcher|com.webos.surfacemanager*|"") ;; *) last_app=$id ;; esac
       if [ "$id" = "$APP" ] && [ "$id" != "$prev" ]; then   # the guest is back on the menu: anything still waiting for OK
         rm -f "$CFG/msg.last"                                  # an unread message: shown again within seconds
@@ -363,8 +363,10 @@ heartbeat() {
   set -- $(cat "$CFG/food" 2>/dev/null); [ -n "$1" ] && [ -n "$2" ] || return 0
   v=$(sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p' /media/developer/apps/usr/palm/applications/sg.round2.tvhome/appinfo.json 2>/dev/null | head -n 1)
   fs=false; [ -e "$FAILSAFE" ] && fs=true
+  # what's on screen (owner, 2 Nov): the app or input in front and since when – the control centre names it (HDMI 1 = PS4…)
+  fr=$(tr -cd 'A-Za-z0-9._-' < "$CFG/front" 2>/dev/null); fa=$(date -r "$CFG/front" +%s 2>/dev/null || echo 0)
   curl -s -m 15 $K -X PUT -H 'Content-Type: application/json' \
-    -d "{\"t\":{\".sv\":\"timestamp\"},\"tv\":\"lg\",\"v\":\"$v\",\"failsafe\":$fs}" "$FB/r2/$2/$1/helper.json" >/dev/null 2>&1
+    -d "{\"t\":{\".sv\":\"timestamp\"},\"tv\":\"lg\",\"v\":\"$v\",\"failsafe\":$fs,\"front\":\"$fr\",\"frontAt\":$(( fa + $(cat "$CFG/clock.off" 2>/dev/null || echo 0) ))000}" "$FB/r2/$2/$1/helper.json" >/dev/null 2>&1
 }
 # Homebrew Channel's failsafe mode (after a crash or power cut while the TV was starting): it skips every start-up
 # add-on, ours included, so the TV comes on as a plain LG (Bella, 1 Nov). When Round2 Home opens and starts us, clear it

@@ -220,7 +220,9 @@ public class FoodAlerts extends Service {
                     h.setConnectTimeout(15_000); h.setReadTimeout(15_000);
                     h.setDoOutput(true); h.setRequestMethod("PUT");
                     h.setRequestProperty("Content-Type", "application/json");
-                    h.getOutputStream().write(new JSONObject().put("t", new JSONObject().put(".sv", "timestamp")).put("tv", "android").put("v", BuildConfig.VERSION_NAME).toString().getBytes("UTF-8"));
+                    JSONObject o = new JSONObject().put("t", new JSONObject().put(".sv", "timestamp")).put("tv", "android").put("v", BuildConfig.VERSION_NAME);
+                    if (!HomeWatch.nowFront.isEmpty()) o.put("front", HomeWatch.nowFront).put("frontAt", HomeWatch.nowFrontAt);   /* what's on screen (2 Nov) */
+                    h.getOutputStream().write(o.toString().getBytes("UTF-8"));
                     h.getResponseCode();
                 } catch (Exception ignored) { }
                 finally { if (h != null) h.disconnect(); }
@@ -228,6 +230,14 @@ public class FoodAlerts extends Service {
             main.postDelayed(this, 5 * 60_000L);
         }
     };
+
+    /** a check-in now (the app in front changed), at most every 20 s */
+    private static long lastBeatSoon = 0;
+    static void beatSoon() {
+        final FoodAlerts f = inst; long n = System.currentTimeMillis();
+        if (f == null || n - lastBeatSoon < 20_000) return;
+        lastBeatSoon = n; f.main.post(f.heartbeat);
+    }
 
     @Override
     public void onDestroy() { try { unregisterReceiver(screenOn); } catch (Exception ignored) { } if (inst == this) inst = null; running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }

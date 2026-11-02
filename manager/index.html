@@ -166,7 +166,7 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 @media (min-width: 900px) { .tvgrid { grid-template-columns: repeat(4, 1fr); } }
 .tvt { border: 1px solid var(--line); border-left: 3px solid var(--rc); background: var(--bg); padding: 7px 10px; min-width: 0; }
 .tvt b { display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--rc); }
-.tvt span { display: block; font-size: 12px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tvt span { display: block; font-size: 12px; color: var(--mute); }
 .tvt.ok span { color: var(--ok); } .tvt.bad { border-color: var(--bad); border-left-color: var(--rc); } .tvt.bad span { color: var(--bad); font-weight: 700; white-space: normal; }
 #mRooms.roompick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 #mRooms.roompick button { padding: 10px 2px; font-size: 12px; letter-spacing: .06em; text-align: center; min-width: 0; }
@@ -1523,6 +1523,19 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       });
     }
     function clock2(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).replace(/\s/g, '').toLowerCase(); }
+    /* what's on screen (owner, 2 Nov): the TV's check-in names the app or input in front; PS4 is on HDMI 1 (Bella and Atlas
+       HDMI 2, Max HDMI 4 – same as Round2 Home's room list) */
+    var PSPORT = { bella: 2, atlas: 2, maximillion: 4 };
+    function frontName(r, id) {
+      id = String(id || ''); if (!id) return '';
+      var h = id.match(/^com\.webos\.app\.hdmi(\d)/); if (h) return +h[1] === (PSPORT[r] || 1) ? 'PS4' : 'HDMI ' + h[1];
+      var N = [[/^sg\.round2\.tvhome/, 'Round2 menu'], [/youtube/i, 'YouTube'], [/netflix/i, 'Netflix'], [/disney/i, 'Disney+'], [/amazon|primevideo/i, 'Prime Video'],
+        [/spotify/i, 'Spotify'], [/twitch/i, 'Twitch'], [/^com\.webos\.app\.livetv/, 'TV channels'], [/^com\.webos\.app\.(home|launcher)|tvlauncher|launcherx/, 'TV home screen'],
+        [/settings/i, 'TV settings'], [/tvinput|inputsource|tvcenter|dtv\.tvx|^com\.google\.android\.tv$|livechannels/i, 'TV input (PS4?)'], [/airplay/i, 'AirPlay']];
+      for (var i = 0; i < N.length; i++) if (N[i][0].test(id)) return N[i][1];
+      var last = id.split('.').pop(); return last.charAt(0).toUpperCase() + last.slice(1);
+    }
+    function ago2(ms) { var m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : ''); }
     function nice2(ms) { var d = new Date(ms); return d.toLocaleString(undefined, { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
     function status() {
       if (!key()) { $('mStat').innerHTML = '<p class="hint">Add the TV messages key above to see what each TV is showing.</p>'; return; }
@@ -1568,7 +1581,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           if (!h || !h.t) return t('', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
           if (h.failsafe) return t('bad', 'Failsafe · open Round2 Home');
           if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
-          return t('ok', '✓ Online');
+          var fn = frontName(x.r, h.front);
+          return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= Date.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : ''));
         }).join('');
         var off = list.some(function (x) { return x.hb && x.hb.t && (x.hb.failsafe || Date.now() - x.hb.t > 12 * 60000); });
         $('mStat').innerHTML = '<div class="tvgrid">' + hbs + '</div><div class="hbrow">' + (off ? '<p class="hint" style="margin:0">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won\u2019t get messages. Open Round2 Home on that TV to restart it.</p>' : '') + '</div>' +
@@ -2652,6 +2666,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           });
           warnIf(stuck.length, 'Online but not shown: ' + stuck.join(', ') + '. Check what’s on that TV’s screen (another input, a game?) and open Round2 Home on it.');
           return ok ? ok + ' message(s) due in the last 3 h, all shown' : 'Nothing was due on an online TV in the last 3 h';
+        });
+      }); })
+      /* the TV tiles say what's on screen (owner, 2 Nov): each TV's check-in carries the app/input in front – LG 1.0.225+,
+         Android with the Home button watcher on. A TV on an older version just doesn't say (it needs updating). */
+      .then(function () { return step('TVs say what’s on screen (PS4, YouTube, Round2 menu…)', function () {
+        var mk = ls('r2m.msgKey'); warnIf(!mk, 'Add the TV messages key on this phone to check the TVs.');
+        var rooms = ['vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'max'], now = Date.now();
+        return Promise.all(rooms.map(function (r) { return fetch(FB + mk + '/' + r + '/helper.json').then(function (x) { return x.json(); }).catch(function () { return null; }); })).then(function (hs) {
+          var yes = [], no = [];
+          hs.forEach(function (h, i) { if (!h || !h.t || now - h.t > 12 * 60000) return; (h.front ? yes : no).push(rooms[i] + (h.front ? '' : ' (' + h.tv + ' ' + h.v + ')')); });
+          warnIf(no.length, 'Not saying yet – update the TV app: ' + no.join(', ') + (yes.length ? ' · OK: ' + yes.join(', ') : ''));
+          return yes.length ? 'Online TVs report it: ' + yes.join(', ') : 'No TV online right now';
         });
       }); })
       /* 7. the test night */
