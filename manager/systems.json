@@ -262,7 +262,7 @@
         {
           "name": "Remote TV updates (Update now from the control centre)",
           "status": "parked",
-          "what": "On the shelf until the owner is back at the shop (2 Nov). No automatic updates: an Update now button per TV, refused while a session is on or due. LG installs straight away; Android only downloads, and staff press Install in Staff tools (never in front of guests). Staff tools switch per TV: updates from the control centre Allowed / Not allowed (allowed by default).",
+          "what": "On the shelf until the owner is back at the shop (2 Nov). No automatic updates: an Update now button per TV, refused while a session is on or due. LG installs straight away; Android only downloads, and staff press Install in Staff tools (never in front of guests). Staff tools switch per TV: updates from the control centre Allowed / Not allowed (allowed by default). TV off = button greyed out (\"TV is off – switch it on first\"); nothing is queued for when it comes back on.",
           "runs": "—",
           "code": "—"
         }
