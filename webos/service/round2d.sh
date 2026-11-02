@@ -366,7 +366,7 @@ heartbeat() {
   # what's on screen (owner, 2 Nov): the app or input in front and since when – the control centre names it (HDMI 1 = PS4…)
   fr=$(tr -cd 'A-Za-z0-9._-' < "$CFG/front" 2>/dev/null); fa=$(date -r "$CFG/front" +%s 2>/dev/null || echo 0)
   curl -s -m 15 $K -X PUT -H 'Content-Type: application/json' \
-    -d "{\"t\":{\".sv\":\"timestamp\"},\"tv\":\"lg\",\"v\":\"$v\",\"failsafe\":$fs,\"front\":\"$fr\",\"frontAt\":$(( fa + $(cat "$CFG/clock.off" 2>/dev/null || echo 0) ))000}" "$FB/r2/$2/$1/helper.json" >/dev/null 2>&1
+    -d "{\"t\":{\".sv\":\"timestamp\"},\"tv\":\"lg\",\"v\":\"$v\",\"failsafe\":$fs,\"ru\":$( [ -f "$CFG/remote.off" ] && echo false || echo true ),\"front\":\"$fr\",\"frontAt\":$(( fa + $(cat "$CFG/clock.off" 2>/dev/null || echo 0) ))000}" "$FB/r2/$2/$1/helper.json" >/dev/null 2>&1
 }
 # Homebrew Channel's failsafe mode (after a crash or power cut while the TV was starting): it skips every start-up
 # add-on, ours included, so the TV comes on as a plain LG (Bella, 1 Nov). When Round2 Home opens and starts us, clear it
@@ -376,11 +376,87 @@ clear_failsafe() {
   [ -e "$FAILSAFE" ] || return 0
   rm -f "$FAILSAFE" && log "Homebrew was in failsafe mode (start-up add-ons skipped): cleared, next start-up is normal"
 }
+# --- Remote updates (owner, 2 Nov: "Update now" from the control centre) ---
+# The control centre asks the engine, which only goes ahead when this TV is online, its room has no session now or within
+# 10 minutes, and Staff tools › "Updates from the control centre" allows it (remote.off = not allowed). The engine writes
+# /r2/<key>/<room>/cmd = {"id","do":"update","at"}. Homebrew Channel downloads round2-home.ipk and checks its SHA-256
+# before anything is replaced; LG's toast says not to switch off; progress goes to /r2/<key>/<room>/update =
+# {state: installing | done | failed | uptodate | locked, v, t}. This helper lives outside the app, so if an install is cut
+# off (TV switched off) the next start-up finds Round2 Home missing and puts it back (upd_resume).
+LGJSON=https://staff.round2.sg/lg.json
+APPINFO=/media/developer/apps/usr/palm/applications/$APP/appinfo.json
+upd_put() {   # $1 state, $2 version / note
+  set -- "$1" "$2" $(cat "$CFG/food" 2>/dev/null)
+  [ -n "$3" ] && [ -n "$4" ] && curl -s -m 15 $K -X PUT -H 'Content-Type: application/json' \
+    -d "{\"state\":\"$1\",\"v\":\"$2\",\"t\":{\".sv\":\"timestamp\"}}" "$FB/r2/$4/$3/update.json" >/dev/null 2>&1
+}
+app_ver() { sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p' "$APPINFO" 2>/dev/null | head -n 1; }
+lg_pkg() {    # the newest Round2 Home in our Homebrew listing: "version ipkUrl sha256"
+  curl -s -m 20 $K "$LGJSON" 2>/dev/null | awk -v id="$APP" '
+    function val(k,   t) { if (!match($0, "\"" k "\": *\"[^\"]*\"")) return ""; t = substr($0, RSTART, RLENGTH); sub(/^[^:]*: *"/, "", t); sub(/"$/, "", t); return t }
+    index($0, "\"" id "\"") { on = 1 }
+    on && v == "" { v = val("version") }
+    on && u == "" { u = val("ipkUrl") }
+    on && h == "" { h = val("sha256") }
+    on && v != "" && u != "" && h != "" { print v, u, h; exit }'
+}
+do_update() {   # $1 remote | repair
+  if ! mkdir "$CFG/updating" 2>/dev/null; then
+    [ -n "$(find "$CFG/updating" -maxdepth 0 -mmin -10 2>/dev/null)" ] && return 0   # one is already under way
+    rm -rf "$CFG/updating"; mkdir "$CFG/updating" 2>/dev/null
+  fi
+  why=$1; set -- $(lg_pkg)
+  if [ -z "$3" ]; then upd_put failed "couldn't read the update list"; log "update ($why): no listing"; rm -rf "$CFG/updating"; return 1; fi
+  cur=$(app_ver)
+  if [ "$why" = remote ] && [ "$cur" = "$1" ]; then upd_put uptodate "$cur"; log "update: already $cur"; rm -rf "$CFG/updating"; return 0; fi
+  echo "$1 $2 $3" > "$CFG/upd.want"
+  upd_put installing "$1"; log "update ($why): ${cur:-none} -> $1"
+  luna-send -n 1 luna://com.webos.notification/createToast \
+    "{\"sourceId\":\"$APP\",\"message\":\"Updating Round2 Home · please don’t switch the TV off (about a minute)\"}" >/dev/null 2>&1
+  rm -f "$CFG/upd.out"
+  luna-send -i luna://org.webosbrew.hbchannel.service/install "{\"ipkUrl\":\"$2\",\"ipkHash\":\"$3\",\"id\":\"$APP\",\"subscribe\":true}" > "$CFG/upd.out" 2>&1 &
+  lp=$!; n=0
+  while [ $n -lt 100 ]; do
+    sleep 3; n=$((n + 1))
+    grep -q -E '"finished" *: *true|"returnValue" *: *false|"errorText"' "$CFG/upd.out" 2>/dev/null && break
+  done
+  kill $lp 2>/dev/null
+  if grep -q -E '"returnValue" *: *false|"errorText"' "$CFG/upd.out" 2>/dev/null; then
+    upd_put failed "$(field errorText < "$CFG/upd.out" | head -n 1 | tr -d '"\\' | cut -c1-80)"; log "update to $1 failed: $(head -c 200 "$CFG/upd.out")"; rm -f "$CFG/upd.want"
+  fi
+  rm -rf "$CFG/updating"
+  upd_resume
+}
+upd_resume() {   # an update was asked for: say how it ended, or put Round2 Home back if it was cut off
+  if [ ! -f "$CFG/upd.want" ]; then [ -f "$APPINFO" ] && return 0; log "Round2 Home missing: installing it again"; do_update repair; return; fi
+  set -- $(cat "$CFG/upd.want" 2>/dev/null); cur=$(app_ver)
+  if [ -n "$cur" ] && [ "$cur" = "$1" ]; then upd_put done "$cur"; log "update done: $cur"; rm -f "$CFG/upd.want"; return 0; fi
+  [ -d "$CFG/updating" ] && [ -n "$(find "$CFG/updating" -maxdepth 0 -mmin -10 2>/dev/null)" ] && return 0   # still installing
+  if [ -z "$cur" ]; then log "Round2 Home missing after an update: installing it again"; do_update repair; return; fi
+  upd_put failed "still $cur"; log "update to $1 didn't finish (still $cur)"; rm -f "$CFG/upd.want"
+}
+cmd_poll() {   # every 20 s: anything from the control centre?
+  now=$(date +%s); l=$(cat "$CFG/cmd.last" 2>/dev/null || echo 0)
+  [ $(( now - l )) -ge 20 ] || return 0
+  echo "$now" > "$CFG/cmd.last"
+  [ -f "$CFG/upd.want" ] && upd_resume
+  set -- $(cat "$CFG/food" 2>/dev/null); [ -n "$1" ] && [ -n "$2" ] || return 0
+  c=$(curl -s -m 10 $K "$FB/r2/$2/$1/cmd.json" 2>/dev/null); cid=$(printf '%s\n' "$c" | field id)
+  [ -n "$cid" ] && [ "$cid" != "$(cat "$CFG/cmd.done" 2>/dev/null)" ] || return 0
+  echo "$cid" > "$CFG/cmd.done"
+  ca=$(printf '%s\n' "$c" | num at); [ $(( $(snow) - ${ca:-0} / 1000 )) -le 600 ] || return 0   # older than 10 min: ignore
+  case "$(printf '%s\n' "$c" | field do)" in
+    update)
+      if [ -f "$CFG/remote.off" ]; then upd_put locked "$(app_ver)"; log "remote update refused (Staff tools: not allowed)"
+      else ( do_update remote ) </dev/null >/dev/null 2>&1 & fi ;;
+  esac
+}
 msg_tick() {    # every 3 s: is the message due, and is something other than Round2 Home in front?
   while :; do
     sleep 3
     stream_watch
     heartbeat
+    cmd_poll
     food_again
     [ -f "$CFG/msg.cur" ] || continue
     line=$(cat "$CFG/msg.cur"); id=$(printf '%s\n' "$line" | field id)
@@ -488,6 +564,7 @@ T=$!
 printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$A" "$P" "$F" "$M" "$T" "$V" > "$CFG/pids"
 rm -rf "$CFG/starting"
 [ "$1" = "boot" ] && first_open </dev/null >/dev/null 2>&1 &
+( sleep 45; K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"; upd_resume ) </dev/null >/dev/null 2>&1 &   # an update cut off last time?
 # keep the log short
 [ -f "$CFG/log.txt" ] && [ "$(wc -l < "$CFG/log.txt")" -gt 300 ] && { tail -n 100 "$CFG/log.txt" > "$CFG/log.tmp"; mv "$CFG/log.tmp" "$CFG/log.txt"; }
 exit 0

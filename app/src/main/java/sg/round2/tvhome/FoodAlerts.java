@@ -202,6 +202,7 @@ public class FoodAlerts extends Service {
         new Thread(this::listenMsg, "room-messages").start();
         main.post(msgTick);   // a message waiting from before a restart
         main.post(heartbeat);   // check-in for the control centre (On the TVs now)
+        main.postDelayed(cmdPoll, 30_000);   // "Update now" from the control centre
         try { registerReceiver(screenOn, new android.content.IntentFilter(Intent.ACTION_SCREEN_ON)); } catch (Exception ignored) { }
     }
 
@@ -222,12 +223,64 @@ public class FoodAlerts extends Service {
                     h.setRequestProperty("Content-Type", "application/json");
                     JSONObject o = new JSONObject().put("t", new JSONObject().put(".sv", "timestamp")).put("tv", "android").put("v", BuildConfig.VERSION_NAME);
                     if (!HomeWatch.nowFront.isEmpty()) o.put("front", HomeWatch.nowFront).put("frontAt", HomeWatch.nowFrontAt);   /* what's on screen (2 Nov) */
+                    o.put("ru", remoteAllowed(FoodAlerts.this));
                     h.getOutputStream().write(o.toString().getBytes("UTF-8"));
                     h.getResponseCode();
                 } catch (Exception ignored) { }
                 finally { if (h != null) h.disconnect(); }
             } }, "heartbeat").start();
             main.postDelayed(this, 5 * 60_000L);
+        }
+    };
+
+    /* Remote updates (owner, 2 Nov): the control centre's "Update now" (sent by the engine only when this TV is online and
+       its room has no session now or within 10 min) writes /r2/<key>/<room>/cmd = {"id","do":"update","at"}. Android below
+       12 can't install without someone pressing Install, and an Install screen must never pop up in front of guests, so
+       here it only CHECKS: a newer version → /update {state:"ready"}, and staff install it from Staff tools › Update app. */
+    static boolean remoteAllowed(Context c) { return c.getSharedPreferences("r2home", MODE_PRIVATE).getBoolean("remoteUpd", true); }
+    private void putUpdate(String room, String state, String v) {
+        HttpURLConnection h = null;
+        try {
+            h = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/update.json").openConnection();
+            h.setConnectTimeout(15_000); h.setReadTimeout(15_000); h.setDoOutput(true); h.setRequestMethod("PUT");
+            h.setRequestProperty("Content-Type", "application/json");
+            h.getOutputStream().write(new JSONObject().put("state", state).put("v", v).put("t", new JSONObject().put(".sv", "timestamp")).toString().getBytes("UTF-8"));
+            h.getResponseCode();
+        } catch (Exception ignored) { }
+        finally { if (h != null) h.disconnect(); }
+    }
+    private final Runnable cmdPoll = new Runnable() {
+        @Override public void run() {
+            main.removeCallbacks(this);
+            final String room = prefs(FoodAlerts.this).getString("room", "");
+            if (enabled() && !room.isEmpty()) new Thread(new Runnable() { @Override public void run() {
+                HttpURLConnection h = null;
+                try {
+                    h = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/cmd.json").openConnection();
+                    h.setConnectTimeout(15_000); h.setReadTimeout(15_000);
+                    java.io.InputStream in = h.getInputStream(); java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream(); byte[] buf = new byte[2048]; int n;
+                    while ((n = in.read(buf)) > 0) b.write(buf, 0, n);
+                    String t = b.toString("UTF-8").trim();
+                    if (t.isEmpty() || "null".equals(t)) return;
+                    JSONObject c = new JSONObject(t); String id = c.optString("id", "");
+                    if (id.isEmpty() || id.equals(prefs(FoodAlerts.this).getString("cmdDone", ""))) return;
+                    prefs(FoodAlerts.this).edit().putString("cmdDone", id).apply();
+                    if (Math.abs(Clock.now() - c.optLong("at", 0)) > 10 * 60_000L || !"update".equals(c.optString("do"))) return;
+                    final Updater u = new Updater(FoodAlerts.this);
+                    if (!remoteAllowed(FoodAlerts.this)) { putUpdate(room, "locked", u.current()); return; }
+                    putUpdate(room, "checking", u.current());
+                    u.check(new Updater.Report() { @Override public void report(final JSONObject o) {
+                        new Thread(new Runnable() { @Override public void run() {
+                            String st = o.optString("state");
+                            if ("available".equals(st)) putUpdate(room, "ready", o.optString("latest"));
+                            else if ("latest".equals(st)) putUpdate(room, "uptodate", u.current());
+                            else putUpdate(room, "failed", "couldn't reach GitHub");
+                        } }).start();
+                    } });
+                } catch (Exception ignored) { }
+                finally { if (h != null) h.disconnect(); }
+            } }, "cmd-poll").start();
+            main.postDelayed(this, 30_000L);
         }
     };
 

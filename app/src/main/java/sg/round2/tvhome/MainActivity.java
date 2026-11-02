@@ -412,6 +412,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void foodSeen(String no) { FoodAlerts.seen(act, no); }
 
+        /** Staff tools > Updates from the control centre: "1" = allowed (default), "0" = this TV only updates from Staff tools. */
+        @JavascriptInterface
+        public String remoteUpd() { return FoodAlerts.remoteAllowed(act) ? "1" : "0"; }
+
+        @JavascriptInterface
+        public void setRemoteUpd(final boolean on) { act.getSharedPreferences("r2home", Context.MODE_PRIVATE).edit().putBoolean("remoteUpd", on).apply(); }
+
         /** Staff tools > TV screensaver: "1" = the menu keeps the TV's screensaver away (default). */
         @JavascriptInterface
         public String blockSaver() { return MainActivity.blockSaver(act) ? "1" : "0"; }

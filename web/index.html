@@ -726,7 +726,7 @@ window.R2_TV = {
      and when Home is pressed in another app (webos/service/round2d.sh), and updates install from the menu ---- */
   var LGRoot = (function () {
     var HB = 'luna://org.webosbrew.hbchannel.service/', CFG = '/var/lib/webosbrew/round2', HOOK = '/var/lib/webosbrew/init.d/round2';
-    var st = { ok: false, checked: false, poweron: true, home: true, saverblock: true };
+    var st = { ok: false, checked: false, poweron: true, home: true, saverblock: true, remote: true };
     var svc = (function () {   /* this app's service folder, next to the app on the TV */
       var m = /^(\/.+)\/applications\/sg\.round2\.tvhome\//.exec(decodeURIComponent(location.pathname || ''));
       return (m ? m[1] : '/media/developer/apps/usr/palm') + '/services/sg.round2.tvhome.service';
@@ -789,7 +789,7 @@ window.R2_TV = {
     }
     function startHelper(cb) {
       exec(hook() + ' && (command -v setsid >/dev/null 2>&1 && setsid sh "' + svc + '/round2d.sh" ensure || sh "' + svc + '/round2d.sh" ensure) </dev/null >/dev/null 2>&1; ls ' + CFG, function (out) {
-        if (out !== null) { st.poweron = !/poweron\.off/.test(out); st.home = !/home\.off/.test(out); st.saverblock = !/saverblock\.off/.test(out); }
+        if (out !== null) { st.poweron = !/poweron\.off/.test(out); st.home = !/home\.off/.test(out); st.saverblock = !/saverblock\.off/.test(out); st.remote = !/remote\.off/.test(out); }
         if (out !== null) { homeKey(); elevate(); setTimeout(syncPartners, 20000); }   /* after the menu has settled */
         if (cb) cb(out !== null);
       });
@@ -1824,6 +1824,9 @@ window.R2_TV = {
   var inTools = false, inAdv = false;   /* Staff tools › Advanced (owner, 2 Nov): AirPlay receiver + Diagnostics, kept one step away */
   function aHomeSwitchable() { try { return window.R2Android.homeGuardSwitchable && window.R2Android.homeGuardSwitchable() === '1'; } catch (e) { return false; } }
   function aHomeState() { try { return window.R2Android.homeHelper(); } catch (e) { return 'off'; } }
+  /* Staff tools › Updates from the control centre (owner, 2 Nov): ALLOWED (default) lets the owner press Update now
+     from his phone (the engine still refuses while a session is on or due within 10 min); NOT ALLOWED freezes this TV */
+  function aRemoteOn() { try { return window.R2Android.remoteUpd() !== '0'; } catch (e) { return true; } }
   function aSaverOn() { try { return window.R2Android.blockSaver() === '1'; } catch (e) { return false; } }
   function aFoodState() { try { return window.R2Android.foodOverlay ? window.R2Android.foodOverlay() : 'na'; } catch (e) { return 'na'; } }
   function setRows() {
@@ -1834,8 +1837,13 @@ window.R2_TV = {
     if (inTools && isStaff()) return [
       { act: 'room',  label: 'This TV\u2019s room', hint: room.name.toUpperCase() + ' \u203A' },
       { act: 'update', label: 'Update app', hint: updHint() },
-      { act: 'themesNow', label: 'Check for new themes', hint: 'NOW \u203A' }
     ].concat(LGRoot.state.ok ? [
+      { act: 'lgRemote', label: 'Updates from the control centre', hint: '\u2039 ' + (LGRoot.state.remote ? 'ALLOWED' : 'NOT ALLOWED') + ' \u203A' }
+    ] : window.R2Android && window.R2Android.remoteUpd ? [
+      { act: 'aRemote', label: 'Updates from the control centre', hint: '\u2039 ' + (aRemoteOn() ? 'ALLOWED' : 'NOT ALLOWED') + ' \u203A' }
+    ] : []).concat([
+      { act: 'themesNow', label: 'Check for new themes', hint: 'NOW \u203A' }
+    ]).concat(LGRoot.state.ok ? [
       { act: 'lgPower', label: 'Open when TV turns on', hint: '\u2039 ' + (LGRoot.state.poweron ? 'ON' : 'OFF') + ' \u203A' },
       { act: 'lgHome', label: 'Home button', hint: '\u2039 ' + (LGRoot.state.home ? 'OPENS ROUND2' : 'LG HOME') + ' \u203A' },
       { act: 'lgSaver', label: 'TV screensaver on the menu', hint: '\u2039 ' + (LGRoot.state.saverblock ? 'OFF (KEPT AWAY)' : 'ON (TV DECIDES)') + ' \u203A' },
@@ -1992,6 +2000,13 @@ window.R2_TV = {
       LGRoot.setFlag(nm, on, function (ok) { if (!ok) toast('The TV didn\u2019t accept that. Is Homebrew Channel still installed?'); });
       Sfx.play('move');
       if (act === 'lgHome') toast(on ? 'Home now opens Round2. Press Home 3 times quickly for LG\u2019s home.' : 'Home now opens LG\u2019s home screen.');
+    }
+    else if (act === 'lgRemote' || act === 'aRemote') {
+      var ro = act === 'lgRemote' ? !LGRoot.state.remote : !aRemoteOn();
+      if (act === 'lgRemote') LGRoot.setFlag('remote', ro, function (ok) { if (!ok) toast('The TV didn\u2019t accept that. Is Homebrew Channel still installed?'); });
+      else try { window.R2Android.setRemoteUpd(ro); } catch (e) {}
+      Sfx.play('move');
+      toast(ro ? 'The owner can update this TV from the control centre (never during a session).' : 'This TV only updates from here (Update app).');
     }
     else if (act === 'lgSaver' || act === 'aSaver') {
       var sv = act === 'lgSaver' ? !LGRoot.state.saverblock : !aSaverOn();
