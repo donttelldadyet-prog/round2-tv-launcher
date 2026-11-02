@@ -275,6 +275,7 @@ details.awdone .awc { opacity: .55; grid-template-columns: 1fr; }
 .tnr.fin { opacity: .55; }
 .tnr .src { font-size: 11px; padding: 1px 6px; border: 1px solid var(--line2); color: var(--mute); margin-right: 4px; }
 .tnr .src.r2 { border-color: var(--accent); color: var(--accent); } .tnr .src.auto { border-color: #8EC5FF; background: #8EC5FF; color: #0b0914; font-weight: 700; }
+details.tnold { margin: 0 10px 8px; } details.tnold > summary { cursor: pointer; font-size: 13px; color: var(--mute); padding: 4px 0; }
 .tnquiet { font-size: 13px; color: var(--mute); margin: 4px 0 0; }
 #homeTvs { margin: 0 0 14px; }
 #homeTvs button { width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid #60A5FA; color: var(--ink); font: inherit; font-size: 14px; padding: 10px 14px; cursor: pointer; }
@@ -1997,15 +1998,20 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (!xs.length && !ss.length) { quiet.push(R.name); return ''; }
         var g = ss.map(function (S) { return { S: S, xs: [] }; }), other = [];
         xs.forEach(function (x) { var S = sessFor(ss, x), e = S && g.filter(function (y) { return y.S === S; })[0]; if (e) e.xs.push(x); else other.push(x); });
+        /* finished bookings fold away at the bottom (owner, 2 Nov: what's on now and next comes first); one still has a message
+           showing or not shown stays up */
+        var past = function (e) { return e.S.guestEnd < R2Day.now() && !e.xs.some(function (x) { return x.st === 'shown' || x.st === 'unconf'; }); }, old = g.filter(past);
+        var bk = function (e) {
+          var nm = String(e.S.name || '').replace(/\s+/g, ' ').trim(), note = e.S.k === 'n', done = e.S.guestEnd < R2Day.now();
+          return '<div class="tnbk' + (done ? ' none' : '') + '"><div class="bh"><b>' + esc((note ? '📝 ' : '') + (nm.length > 36 ? nm.slice(0, 34) + '…' : nm || 'No name')) + '</b><span class="hint">' + esc(clock(e.S.start) + '–' + clock(e.S.guestEnd)) + (done ? ' · finished' : e.S.start <= R2Day.now() ? ' · <span style="color:var(--ok)">in now</span>' : '') + '</span></div>' +
+            (e.xs.length ? e.xs.map(tnRow).join('') : '<div class="tnr fin"><span></span><span class="tt hint">No messages</span></div>') + '</div>';
+        };
         var live = xs.filter(function (x) { return x.st === 'shown'; }).length, warn = xs.filter(function (x) { return x.st === 'unconf'; }).length;
         return '<div class="tnroom" style="--rc:' + R.c + '"><h3>' + esc(R.name) + '<span class="hint">' + (ss.length ? ss.length + ' booking' + (ss.length > 1 ? 's' : '') : 'no bookings') +
           (live ? ' · <span style="color:#ffd23f">' + live + ' on screen</span>' : '') + (warn ? ' · <span style="color:var(--warn)">⚠️ ' + warn + ' not shown</span>' : '') + '</span></h3>' +
-          g.map(function (e) {
-            var nm = String(e.S.name || '').replace(/\s+/g, ' ').trim(), note = e.S.k === 'n', past = e.S.guestEnd < R2Day.now();
-            return '<div class="tnbk' + (past ? ' none' : '') + '"><div class="bh"><b>' + esc((note ? '📝 ' : '') + (nm.length > 36 ? nm.slice(0, 34) + '…' : nm || 'No name')) + '</b><span class="hint">' + esc(clock(e.S.start) + '–' + clock(e.S.guestEnd)) + (past ? ' · finished' : '') + '</span></div>' +
-              (e.xs.length ? e.xs.map(tnRow).join('') : '<div class="tnr fin"><span></span><span class="tt hint">No messages</span></div>') + '</div>';
-          }).join('') +
-          (other.length ? '<div class="tnbk none"><div class="bh">Not tied to a booking</div>' + other.map(tnRow).join('') + '</div>' : '') + '</div>';
+          g.filter(function (e) { return !past(e); }).map(bk).join('') +
+          (other.length ? '<div class="tnbk none"><div class="bh">Not tied to a booking</div>' + other.map(tnRow).join('') + '</div>' : '') +
+          (old.length ? '<details class="tnold"><summary>' + (old.length === g.length ? 'All done tonight · ' : 'Finished earlier · ') + old.length + ' booking' + (old.length > 1 ? 's' : '') + '</summary>' + old.map(bk).join('') + '</details>' : '') + '</div>';
       }).join('');
       el.innerHTML = (h || '<p class="hint">Nothing on the TVs tonight yet.</p>') + (quiet.length && h ? '<p class="tnquiet">Nothing tonight: ' + esc(quiet.join(', ')) + '</p>' : '');
       $('tnFoot').textContent = (guestErr ? guestErr + ' ' : '') + 'Updates every minute (a guest pressing OK within seconds). Later days: Calendar.';
