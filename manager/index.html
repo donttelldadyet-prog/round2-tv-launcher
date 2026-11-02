@@ -626,6 +626,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div style="display:grid;gap:18px">
         <div><h2 style="margin-top:0">Preview</h2><div class="mprev" id="mPrev"></div></div>
         <div><div class="row" style="justify-content:space-between"><h2 style="margin:0">On the TVs now</h2><button class="btn ghost" id="mRefresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
+          <p class="hint" style="margin:6px 0 0">⬆️ <b>Update now</b> won’t send if the TV is off, its Staff tools say updates are NOT ALLOWED, or the room (or its twin) has a session now or starting within 10 minutes.</p>
           <div class="mstat" id="mStat" style="margin-top:10px"></div></div>
       </div>
     </div>
@@ -1788,7 +1789,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (tu) {
           if (!gKey()) { toast('Needs the Guest messages staff code (Keys).'); return; }
           var nm = ROOMS[tu].name;
-          if (!confirm('Update ' + nm + '’s TV now?\n\nOnly if nobody is in the room. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.')) return;
+          if (!confirm('Update ' + nm + '’s TV now?\n\nIt won’t send if the TV is off, updates are NOT ALLOWED in its Staff tools, or the room (or its twin) has a session now or within 10 minutes. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.')) return;
           e.target.disabled = true; e.target.textContent = 'Sending…';
           fetch(HOOK, { method: 'POST', body: new URLSearchParams({ staff: gKey(), action: 'tvupdate', room: tu, by: 'control centre' }) }).then(function (r) { return r.json(); })
             .then(function (j) { toast(j.ok ? nm + ': update sent' + (j.tv === 'android' ? ' – it will say Ready, then Install in Staff tools.' : ' – watch the tile.') : nm + ': ' + (j.error || 'not sent')); status(); setTimeout(status, 20000); setTimeout(status, 60000); setTimeout(status, 120000); },
