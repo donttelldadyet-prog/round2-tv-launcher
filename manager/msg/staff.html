@@ -95,6 +95,9 @@ label.f input, label.f select { width: 100%; -webkit-appearance: none; appearanc
 .pick button { text-align: left; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); padding: 9px 11px; font-size: 14px; display: grid; gap: 2px; border-left: 4px solid var(--rc, var(--line2)); }
 .pick button[aria-pressed="true"] { border-color: var(--ok); background: var(--panel2); }
 .pick button small { color: var(--mute); font-size: 12px; }
+.stgblock { margin: 14px 0 6px; } .stgh { font-size: 15px; letter-spacing: .12em; text-transform: uppercase; border-bottom: 2px solid var(--line2); padding-bottom: 6px; margin: 18px 0 8px; }
+.stg-open .stgh { border-color: var(--accent); } .stg-scheduled .stgh { border-color: #6aa8ff; } .stg-ontv .stgh { border-color: var(--ok); }
+.chips.stg button[disabled] { opacity: .4; }
 .dup { border: 1px solid var(--bad); padding: 10px; display: grid; gap: 8px; font-size: 14px; }
 .made textarea { width: 100%; min-height: 104px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line2); color: var(--ink); font: 14px/1.45 var(--f); resize: vertical; }
 
@@ -238,7 +241,7 @@ details.past .list { margin-top: 10px; }
   var TAGS = { birthday: 'Birthday', anniversary: 'Anniversary', celebrate: 'Celebration', note: 'A message for you' };
   var $ = function (id) { return document.getElementById(id); };
   var laterMap = {};   /* "Show again at…" times kept by the booking engine: code → ms */
-  var room = 'vale', lastList = [], open = null, fDay = 'all', fRoom = 'all', calMonth = null;   /* open: { a: 'move'|'now'|'cancel', code, room } */
+  var room = 'vale', lastList = [], open = null, fDay = 'all', fRoom = 'all', fSt = 'all', calMonth = null;   /* open: { a: 'move'|'now'|'cancel', code, room } */
 
   var lg = new Image(); lg.alt = 'Round2'; lg.onload = function () { $('brand').innerHTML = ''; $('brand').appendChild(lg); }; lg.src = LOGO;
 
@@ -517,25 +520,39 @@ details.past .list { margin-top: 10px; }
     var dayKeys = Object.keys(days).sort();
     var dayHasPast = lastList.some(function (x) { return dayKey(x.data.start) === fDay; });
     if (fDay !== 'all' && !days[fDay] && !/^\d{4}-\d{2}-\d{2}$/.test(fDay) && !dayHasPast) fDay = 'all';
-    var shown = live.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
+    var inDR = live.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
+    /* by stage (owner, 2 Nov): waiting for the guest to write · scheduled (written, waiting for its time) · on the TV */
+    var STG = [['open', '⏳ Waiting for guest'], ['scheduled', '📅 Scheduled'], ['ontv', '📺 On the TV']], cnt = {};
+    inDR.forEach(function (x) { var st = state(x); cnt[st] = (cnt[st] || 0) + 1; });
+    if (fSt !== 'all' && !cnt[fSt]) fSt = 'all';
+    var shown = inDR.filter(function (x) { return fSt === 'all' || state(x) === fSt; });
     var html = calendarHtml(live) + '<div class="filters">' +
       '<div class="chips" role="group" aria-label="Date"><button type="button" data-fday="all" aria-pressed="' + (fDay === 'all') + '">All dates<span class="n">' + live.length + '</span></button>' +
         (fDay !== 'all' && dayKeys.indexOf(fDay) < 0 ? dayKeys.concat([fDay]).sort() : dayKeys).map(function (k) { return '<button type="button" data-fday="' + k + '" aria-pressed="' + (fDay === k) + '">' + esc(dayName(k).replace(/ · .*$/, function (m) { return /Today|Tomorrow/.test(dayName(k)) ? '' : m; })) + '<span class="n">' + (days[k] || 0) + '</span></button>'; }).join('') + '</div>' +
       '<div class="chips rf" role="group" aria-label="Room"><button type="button" data-froom="all" aria-pressed="' + (fRoom === 'all') + '">All rooms</button>' +
         Object.keys(ROOMS).map(function (k) { return '<button type="button" data-froom="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (fRoom === k) + '">' + ROOMS[k][0] + (rooms[k] ? '<span class="n">' + rooms[k] + '</span>' : '') + '</button>'; }).join('') + '</div></div>';
+    html += '<div class="chips stg" role="group" aria-label="Stage"><button type="button" data-fst="all" aria-pressed="' + (fSt === 'all') + '">All<span class="n">' + inDR.length + '</span></button>' +
+      STG.map(function (g) { return '<button type="button" data-fst="' + g[0] + '" aria-pressed="' + (fSt === g[0]) + '"' + (cnt[g[0]] ? '' : ' disabled') + '>' + g[1] + '<span class="n">' + (cnt[g[0]] || 0) + '</span></button>'; }).join('') + '</div>';
     if (!shown.length) html += '<div class="empty">' + (live.length ? 'No links for this date and room.' : 'No upcoming links. Make one in \u201CMake a guest link\u201D after a booking is paid.') + '</div>';
-    /* by date, then by room (in the usual room order), then by start time */
-    var byDay = {};
-    shown.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || {}); (byDay[k][x.data.room] = byDay[k][x.data.room] || []).push(x); });
-    Object.keys(byDay).sort().forEach(function (k) {
-      var n = 0; Object.keys(byDay[k]).forEach(function (r) { n += byDay[k][r].length; });
-      html += '<section class="day" id="day-' + k + '"><h2>' + esc(dayName(k)) + ' <span class="n">' + n + '</span></h2>';
-      Object.keys(ROOMS).concat(Object.keys(byDay[k]).filter(function (r) { return !ROOMS[r]; })).forEach(function (r) {
-        var xs = byDay[k][r]; if (!xs) return;
-        xs.sort(function (a, b) { return a.data.start - b.data.start || ORDER[state(a)] - ORDER[state(b)]; });
-        html += '<div class="rgroup" style="--rc:' + (ROOMS[r] ? ROOMS[r][1] : '#F2C21B') + '"><div class="rh">' + esc(ROOMS[r] ? ROOMS[r][0] : r) + '</div><div class="list">' + xs.map(itemHtml).join('') + '</div></div>';
+    /* each stage its own block (All), then by date, then by room, then by start time */
+    function block(xs0) {
+      var html = '', byDay = {};
+      xs0.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || {}); (byDay[k][x.data.room] = byDay[k][x.data.room] || []).push(x); });
+      Object.keys(byDay).sort().forEach(function (k) {
+        var n = 0; Object.keys(byDay[k]).forEach(function (r) { n += byDay[k][r].length; });
+        html += '<section class="day" id="day-' + k + '"><h2>' + esc(dayName(k)) + ' <span class="n">' + n + '</span></h2>';
+        Object.keys(ROOMS).concat(Object.keys(byDay[k]).filter(function (r) { return !ROOMS[r]; })).forEach(function (r) {
+          var xs = byDay[k][r]; if (!xs) return;
+          xs.sort(function (a, b) { return a.data.start - b.data.start || ORDER[state(a)] - ORDER[state(b)]; });
+          html += '<div class="rgroup" style="--rc:' + (ROOMS[r] ? ROOMS[r][1] : '#F2C21B') + '"><div class="rh">' + esc(ROOMS[r] ? ROOMS[r][0] : r) + '</div><div class="list">' + xs.map(itemHtml).join('') + '</div></div>';
+        });
+        html += '</section>';
       });
-      html += '</section>';
+      return html;
+    }
+    STG.forEach(function (g) {
+      var xs = shown.filter(function (x) { return state(x) === g[0]; }); if (!xs.length) return;
+      html += '<div class="stgblock stg-' + g[0] + '"><h2 class="stgh">' + g[1] + ' <span class="n">' + xs.length + '</span></h2>' + block(xs) + '</div>';
     });
     past = past.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
     if (past.length) {
@@ -560,6 +577,7 @@ details.past .list { margin-top: 10px; }
       render(); return;
     }
     var f = e.target.closest('button[data-fday], button[data-froom]');
+    var fs = e.target.closest('button[data-fst]'); if (fs) { fSt = fs.getAttribute('data-fst'); render(); return; }
     if (f) { if (f.hasAttribute('data-fday')) fDay = f.getAttribute('data-fday'); else fRoom = f.getAttribute('data-froom'); render(); return; }
     var b = e.target.closest('button[data-a]'); if (!b) return;
     var a = b.getAttribute('data-a'), c = b.getAttribute('data-c');
