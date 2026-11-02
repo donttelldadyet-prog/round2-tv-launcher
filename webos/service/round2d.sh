@@ -430,6 +430,26 @@ do_update() {   # $1 remote | repair
     grep -q -E '"finished" *: *true|"returnValue" *: *false|"errorText"' "$CFG/upd.out" 2>/dev/null && break
   done
   kill $lp 2>/dev/null
+  # Homebrew Channel's installer didn't answer (Bella, 2 Nov: "Service Unavailable"): install it ourselves, the way
+  # Homebrew does underneath – download, check the SHA-256, hand it to webOS's own installer
+  if grep -q -E '"returnValue" *: *false|"errorText"' "$CFG/upd.out" 2>/dev/null; then
+    log "Homebrew install failed ($(field errorText < "$CFG/upd.out" | head -n 1 | cut -c1-60)): installing directly"
+    rm -f /tmp/r2up.ipk
+    if curl -sL -m 240 $K -o /tmp/r2up.ipk "$2" 2>/dev/null && [ "$(sha256sum /tmp/r2up.ipk 2>/dev/null | cut -d' ' -f1)" = "$3" ]; then
+      luna-send -i luna://com.webos.appInstallService/dev/install "{\"id\":\"$APP\",\"ipkUrl\":\"/tmp/r2up.ipk\",\"subscribe\":true}" > "$CFG/upd.out2" 2>&1 &
+      lp=$!; n=0
+      while [ $n -lt 60 ]; do
+        sleep 3; n=$((n + 1))
+        [ "$(app_ver)" = "$1" ] && break
+        grep -q -E '"returnValue" *: *false|"errorText"|"failed"' "$CFG/upd.out2" 2>/dev/null && break
+      done
+      kill $lp 2>/dev/null; rm -f /tmp/r2up.ipk
+      if [ "$(app_ver)" = "$1" ]; then rm -f "$CFG/upd.out"; log "installed directly: $1"
+      else cp "$CFG/upd.out2" "$CFG/upd.out" 2>/dev/null; log "direct install failed: $(head -c 200 "$CFG/upd.out2")"; fi
+    else
+      rm -f /tmp/r2up.ipk; log "direct install: download or SHA-256 check failed"
+    fi
+  fi
   if grep -q -E '"returnValue" *: *false|"errorText"' "$CFG/upd.out" 2>/dev/null; then
     upd_put failed "$(field errorText < "$CFG/upd.out" | head -n 1 | tr -d '"\\' | cut -c1-80)"; log "update to $1 failed: $(head -c 200 "$CFG/upd.out")"; rm -f "$CFG/upd.want"
   fi
