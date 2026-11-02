@@ -351,14 +351,6 @@
       ]
     },
     {
-      "id": "halloween",
-      "name": "HALLOWEEN",
-      "source": "sound-halloween-mvmqzrqk.mp3",
-      "rooms": [
-        "all"
-      ]
-    },
-    {
       "id": "mystery-box",
       "name": "MYSTERY BOX",
       "source": "sound-mystery-box-mvmr0fb4.mp3",
