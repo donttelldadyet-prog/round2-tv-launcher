@@ -2495,14 +2495,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       .then(function () { return step('Public holidays loaded (this year and next)', function () {
         return J('/ph').then(function (ph) { var y = +today.slice(0, 4); must(ph.some(function (d) { return d.slice(0, 4) === String(y); }), 'No ' + y + ' holidays.'); warnIf(!ph.some(function (d) { return d.slice(0, 4) === String(y + 1); }), 'No ' + (y + 1) + ' holidays yet – peak prices on those days would be wrong.'); return ph.filter(function (d) { return d >= today; }).slice(0, 3).join(', ') + '…'; }); }); })
       /* 2. background jobs */
-      .then(function () { return step('Background jobs running (every 10 min)', function () {
+      /* the "in 1 hour" phone reminder lands exactly 1 hour before (with SimplyBook's own reminder email) only while the timer
+         runs every 5 minutes – bookings start on the quarter hour (owner, 2 Nov) */
+      .then(function () { return step('Background jobs running (every 5 min, so “in 1 hour” lands exactly 1 h before)', function () {
         return gm({ action: 'auto' }).then(function (a) {
-          warnIf(!a.cronLast, 'No heartbeat yet (it appears within 10 minutes of the 2 Nov update).');
-          must(Date.now() - a.cronLast < 25 * 60e3, 'Last run ' + ago(a.cronLast) + ' – the 10-minute timer looks stuck.');
+          warnIf(!a.cronLast, 'No heartbeat yet (it appears within 5 minutes of an update).');
+          must(Date.now() - a.cronLast < 15 * 60e3, 'Last run ' + ago(a.cronLast) + ' – the timer looks stuck.');
+          var gap = a.cronPrev ? Math.round((a.cronLast - a.cronPrev) / 60e3) : 0;
+          must(!gap || gap <= 6, 'The timer runs every ' + gap + ' min – the 1-hour reminders need it every 5 min (Cloudflare › round2-book › Triggers: */5 * * * *).');
           var ap = (a.last && a.last.problems) || [], op = (a.orphanLast && a.orphanLast.problems) || [];
           warnIf(ap.length, 'Auto wrap-up reported: ' + ap.join('; '));
           warnIf(op.length, 'Message clean-up reported: ' + op.join('; '));
-          return 'Last run ' + ago(a.cronLast) + ' · Auto wrap-up ' + (a.on ? 'ON' : 'off');
+          return 'Last run ' + ago(a.cronLast) + (gap ? ' · every ' + gap + ' min' : '') + ' · Auto wrap-up ' + (a.on ? 'ON' : 'off');
         }); }); })
       /* 3. booking page: slot board vs checkout price */
       .then(function () { return step('Booking page prices = checkout prices', function () {

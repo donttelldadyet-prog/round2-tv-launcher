@@ -14,7 +14,7 @@ Needs the guest messages staff code on the phone (Keys).
 | Kind | When | Example |
 |---|---|---|
 | `booking` | SimplyBook callback (`/sb/notify/<key>`): create / change / cancel | Bold: **⛵ ATLAS · Clarence Tia**. Below – new: (⏰ Starts in N min) Sat 14 Nov, 11am–2pm · 3h · S$35 paid (EB+peak) · 2 pax; cancelled: ❌ CANCELLED + the freed time; moved: 🔁 MOVED · was … · now … (engine remembers each booking's last times, table `bkseen`; `/push/seed` filled it for existing bookings); otherwise ✏️ CHANGED + new details |
-| `soon` | Cron every 10 min, 9:45am–2am SG only: a session 50–62 min away (not if keyed in within the hour), bookings **and** calendar notes | **🎀 VALE · Indra · in 1 hour** · Arrives 11am · 3h (till 2pm) · 2 pax (pax decides room set-up and controllers; from the booking field, or "4 pax" written in a note) |
+| `soon` | Cron every 5 min (since 2 Nov; other jobs stay on 10), 9:45am–7am SG: a session **exactly 1 hour** away (55–61 min window, lands on the quarter-hour start, same time as SimplyBook's own 1-hour reminder email) (not if keyed in within the hour), bookings **and** calendar notes | **🎀 VALE · Indra · in 1 hour** · Arrives 11am · 3h (till 2pm) · 2 pax (pax decides room set-up and controllers; from the booking field, or "4 pax" written in a note) |
 
 - Room icon = the character's icon from the booking page, in the room colour where an emoji exists: 🎀 Vale, 🍃 Kaeden,
   🪐 Scarlett, 🏔️ Kai, 🔮 Bella, ⛵ Atlas, 🏎️ Max (iPhone always shows the app icon itself).
