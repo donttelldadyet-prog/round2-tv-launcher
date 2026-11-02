@@ -802,7 +802,7 @@ window.R2_TV = {
       },
       updateInstall: function () {
         if (!rel) { updater.updateCheck(); return; }
-        exec('mkdir -p ' + CFG + ' && touch ' + CFG + '/relaunch', function () {   /* the helper reopens the menu afterwards */
+        exec('mkdir -p ' + CFG + ' && echo ' + String(rel.v).replace(/[^0-9.]/g, '') + ' > ' + CFG + '/relaunch', function () {   /* the helper reopens the menu once this version is in */
           WebOS.call(HB + 'install', { ipkUrl: rel.url, ipkHash: rel.hash, id: 'sg.round2.tvhome', subscribe: true }, function (r) {
             if (r.returnValue === false || r.errorText) { exec('rm -f ' + CFG + '/relaunch'); window.r2Update({ state: 'failed', current: current() }); return; }
             if (r.progress !== undefined && r.progress < 99) window.r2Update({ state: 'downloading', pct: Math.round(r.progress), latest: rel.v, current: current() });

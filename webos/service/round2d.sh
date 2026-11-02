@@ -105,11 +105,20 @@ watch_apps() {
         :*|*:"$APP"|"$APP":*|*:com.webos.app.home|*:com.webos.app.launcher|com.webos.app.home:*|com.webos.app.launcher:*) ;;
         *) [ "$prev" != "$id" ] && ( sleep 2; alerts_running || { rm -f "$CFG/card.up" "$CFG/msg.last" "$CFG/food.last"; log "app switch: card gone, shows again"; } ) & ;;
       esac
-      if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then          # Round2 Home just updated itself
-        rm -f "$CFG/relaunch"; sleep 1; launch update; prev=$APP; continue
+      # Round2 Home is updating itself (Staff tools › Update app). It used to reopen the moment it closed – while Homebrew
+      # was still installing – so webOS closed it again and it opened a second time (owner, 2 Nov: "the loading screen
+      # twice … the first time the rain plays"). Now: wait until the new version is really in (the file holds it), then
+      # open once. Until then LG's home doesn't bring the menu back either (upd.hold).
+      if [ -f "$CFG/relaunch" ] && [ "$id" != "$APP" ]; then
+        want=$(cat "$CFG/relaunch" 2>/dev/null); rm -f "$CFG/relaunch"; touch "$CFG/upd.hold"
+        ( n=0; while [ $n -lt 40 ]; do v=$(app_ver); [ -n "$v" ] && { [ -z "$want" ] || [ "$v" = "$want" ]; } && break; sleep 3; n=$((n + 1)); done
+          sleep 3; rm -f "$CFG/upd.hold"; log "update in: ${v:-?}"; launch update ) &
+        prev=$APP; continue
       fi
       case "$id" in
         com.webos.app.home|com.webos.app.launcher)
+          # an update is installing: the menu opens once, when it's done (not now and again after)
+          if [ -n "$(find "$CFG/upd.hold" "$CFG/updating" -maxdepth 0 -mmin -5 2>/dev/null)" ]; then prev=$id; continue; fi
           if [ -f "$CFG/lghome" ]; then rm -f "$CFG/lghome"; prev=$id; continue; fi   # opened on purpose (Home x3)
           if on home; then
             if [ "$prev" = "$APP" ]; then
@@ -426,6 +435,8 @@ do_update() {   # $1 remote | repair
   fi
   rm -rf "$CFG/updating"
   upd_resume
+  # open the menu once, now the new version is in (LG's home was held back while it installed)
+  [ -f "$APPINFO" ] && [ "$(cat "$CFG/front" 2>/dev/null)" != "$APP" ] && { sleep 2; launch update; }
 }
 upd_resume() {   # an update was asked for: say how it ended, or put Round2 Home back if it was cut off
   if [ ! -f "$CFG/upd.want" ]; then [ -f "$APPINFO" ] && return 0; log "Round2 Home missing: installing it again"; do_update repair; return; fi
