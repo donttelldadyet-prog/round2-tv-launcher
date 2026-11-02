@@ -165,6 +165,13 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .kxr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
 .kxr .kn { font-weight: 700; } .kxr .kd { font-size: 13px; color: var(--mute); } .kxr .kc { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .kxr .kc input { width: 140px; }
+.sgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.sbox { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--rc); padding: 8px 10px; }
+.sbh { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; } .sbh b { color: var(--rc); letter-spacing: .1em; text-transform: uppercase; font-size: 13px; } .sbh span { color: var(--mute); font-size: 12px; }
+.srow { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.srow .sn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .srow i { font-style: normal; font-size: 12px; color: var(--mute); } .srow .snw { color: var(--warn); }
+.srow .splay { width: 28px; height: 28px; flex: none; border: 1px solid var(--line2); background: var(--bg); color: var(--ink); cursor: pointer; font-size: 11px; display: grid; place-items: center; } .srow .splay.off { color: var(--mute); cursor: default; }
+.srow .sed { background: none; border: none; color: var(--mute); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }
 .tvgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 4px 0 8px; }
 @media (min-width: 900px) { .tvgrid { grid-template-columns: repeat(4, 1fr); } }
 .tvt { border: 1px solid var(--line); border-left: 3px solid var(--rc); background: var(--bg); padding: 7px 10px; min-width: 0; }
@@ -1155,6 +1162,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <select id="fAmb"></select>
         <span class="hint">Plays on the home screen with this theme (guests can still change it). New sounds: the Sounds tab.</span>
       </label>
+      <div class="f" id="fSndBox"><span class="f">Or a sound just for this event</span>
+        <input type="file" id="fSnd" accept="audio/*">
+        <span class="hint" id="fSndInfo">Plays while the event is live, and is removed by itself once the event has ended.</span></div>
       <label class="switch" id="fTakeBox"><input type="checkbox" id="fTake" checked>
         <span>Switch rooms to it automatically<br><span class="hint">Off: only adds it to the TV's Background list.</span></span></label>
       <div class="f">
@@ -1215,9 +1225,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <span class="hint">MP3, WAV, M4A or OGG, up to 20 MB and 3 minutes. GitHub evens out the volume and blends the end into the start so it loops with no gap.</span>
       <audio id="sPrev" controls preload="none" style="width:100%" hidden></audio>
     </div>
-    <div class="f"><span class="f">Rooms</span><div class="roompick" id="sRooms"></div></div>
+    <div class="f"><span class="f">Rooms</span><div class="roompick" id="sndRooms"></div></div>
     <div class="foot" style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
-      <span class="msg" id="sMsg" style="margin-right:auto;color:var(--bad);font-size:14px;align-self:center"></span>
+      <span class="msg" id="sndMsg" style="margin-right:auto;color:var(--bad);font-size:14px;align-self:center"></span>
       <button type="button" class="btn danger" id="sDelete" hidden>Remove</button>
       <button type="button" class="btn ghost" id="sCancel">Cancel</button>
       <button type="button" class="btn primary" id="sSave">Save &amp; publish</button>
@@ -1397,7 +1407,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           var o = /^(.+)\.ogg$/.exec(a.name); if (o) published['snd:' + o[1]] = a.updated_at;
         });
       }).catch(function () { published = {}; })
-    ]).then(renderAll);
+    ]).then(function () { renderAll(); pruneEventSounds(); });
   }
 
   /* ---------- sign in ---------- */
@@ -3406,6 +3416,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     checkClash();
   });
+  var pendingSnd = null;
+  $('fSnd').onchange = function () {
+    var f = $('fSnd').files[0]; pendingSnd = null; if (!f) return;
+    if (f.size > 20 * 1048576) { $('fSndInfo').textContent = 'Too big (' + Math.round(f.size / 1048576) + ' MB). Keep it under 20 MB.'; $('fSnd').value = ''; return; }
+    pendingSnd = f; $('fSndInfo').textContent = f.name + ' · ' + Math.max(0.1, Math.round(f.size / 1048576 * 10) / 10) + ' MB – plays while the event is live, removed when it ends.';
+  };
   function openEditor(i, preset) {
     editing = i; pendingFile = null; $('fFile').value = ''; $('fileInfo').textContent = ''; $('edMsg').textContent = '';
     var t = i >= 0 ? data.themes[i] : (preset || {});
@@ -3431,6 +3447,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     $('fAmb').innerHTML = '<option value="">The room\u2019s own setting</option><option value="rain">Rain</option><option value="storm">Storm (rain and thunder)</option>' +
       (data.sounds || []).map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.name || x.id) + '</option>'; }).join('') + '<option value="off">Silence</option>';
     $('fAmb').value = t.ambience || '';
+    /* an event's own sound (owner, 2 Nov): uploaded here, played while the event is live, removed when it ends */
+    pendingSnd = null; $('fSnd').value = ''; $('fSndBox').hidden = bg;
+    var evS = (data.sounds || []).filter(function (x) { return x.event && x.event === t.id; })[0];
+    $('fSndInfo').textContent = evS ? 'Now: ' + (evS.name || evS.id) + ' – choose a file only to replace it. Removed by itself once the event has ended.' : 'Plays while the event is live, and is removed by itself once the event has ended.';
     frame = { zoom: (t.frame && t.frame.zoom) || 1, x: t.frame && t.frame.x != null ? t.frame.x : .5, y: t.frame && t.frame.y != null ? t.frame.y : .5 };
     vw = 16; vh = 9;
     $('edDelete').hidden = i < 0;
@@ -3479,10 +3499,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     msg.textContent = '';
     busy(true, pendingFile ? 'Uploading video…' : 'Publishing…');
     var step = Promise.resolve();
+    var evSnd = null, oldSndFile = null;
+    if (t.kind === 'event' && pendingSnd) {
+      var sid = t.id + '-sound', sx = (/\.([a-z0-9]{2,4})$/i.exec(pendingSnd.name) || ['', 'mp3'])[1].toLowerCase(), sf = 'sound-' + sid + '-' + Date.now().toString(36) + '.' + sx;
+      evSnd = { id: sid, name: name + ' (event sound)', source: sf, rooms: [], event: t.id };
+      var prevS = (data.sounds || []).filter(function (x) { return x.id === sid; })[0]; oldSndFile = prevS && prevS.source;
+      t.ambience = sid;
+      step = step.then(function () { return readFileB64(pendingSnd); }).then(function (b) { return putFile('themes/' + sf, b, 'Event sound for ' + name + ' (Theme manager)'); });
+    }
     if (ed.src === 'file' && pendingFile) {
       var ext = (/\.(mp4|mov|webm)$/i.exec(pendingFile.name) || ['', 'mp4'])[1].toLowerCase();
       var fname = t.id + '-' + Date.now().toString(36) + '.' + ext;
-      step = readFileB64(pendingFile).then(function (b64) { return putFile('themes/' + fname, b64, 'Theme video for ' + name + ' (Theme manager)'); })
+      step = step.then(function () { return readFileB64(pendingFile); }).then(function (b64) { return putFile('themes/' + fname, b64, 'Theme video for ' + name + ' (Theme manager)'); })
         .then(function () { t.source = fname; });
     }
     step.then(function () {
@@ -3496,6 +3524,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }).then(function () {
       if (clashes(t, editing).length) { var e3 = new Error('Someone just added a theme that clashes with this one. Check the dates and try again.'); throw e3; }
       if (editing >= 0) data.themes[editing] = t; else data.themes.push(t);
+      if (evSnd) { data.sounds = (data.sounds || []).filter(function (x) { return x.id !== evSnd.id; }); data.sounds.push(evSnd); }
       return commitThemes((old ? 'Update theme: ' : 'New theme: ') + name + ' (Theme manager)');
     }).then(function (sha) {
       $('ed').close(); busy(false); renderAll(); watch(sha, name);
@@ -3509,9 +3538,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var t = data.themes[editing]; if (!t) return;
     if (!confirm('Remove "' + (t.name || t.id) + '"? TVs stop showing it and delete the video.')) return;
     busy(true, 'Removing…');
-    var src = t.source;
+    var src = t.source, evGone = (data.sounds || []).filter(function (x) { return x.event === t.id; });
     data.themes.splice(editing, 1);
+    if (evGone.length) { data.sounds = data.sounds.filter(function (x) { return x.event !== t.id; }); if (!data.sounds.length) delete data.sounds; }
     commitThemes('Remove theme: ' + (t.name || t.id) + ' (Theme manager)').then(function (sha) {
+      evGone.forEach(function (x) { delFile(x.source, 'Remove the sound of a removed event'); });
       if (src && !/^https?:/.test(src) && !data.themes.some(function (x) { return x.source === src; })) {   // tidy up an uploaded video
         gh('/contents/themes/' + encodeURIComponent(src) + '?ref=main').then(function (j) {
           return gh('/contents/themes/' + encodeURIComponent(src), { method: 'DELETE', body: { message: 'Remove unused theme video ' + src, sha: j.sha, branch: 'main' } });
@@ -3578,32 +3609,73 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       .then(function () { $('rddSave').disabled = false; });
   };
 
+  function delFile(src, why) {
+    if (!src || /^https?:/.test(src)) return;
+    gh('/contents/themes/' + encodeURIComponent(src) + '?ref=main').then(function (j) {
+      return gh('/contents/themes/' + encodeURIComponent(src), { method: 'DELETE', body: { message: why + ': ' + src, sha: j.sha, branch: 'main' } });
+    }).catch(function () {});
+  }
+  /* an event's own sound goes when the event has ended (owner, 2 Nov) – checked each time TV setup opens; one commit */
+  var pruned = false;
+  function pruneEventSounds() {
+    if (pruned) return; pruned = true;
+    var d = today(), gone = (data.sounds || []).filter(function (x) {
+      if (!x.event) return false;
+      var t = data.themes.filter(function (y) { return y.id === x.event; })[0];
+      return !t || (t.until && t.until < d);
+    });
+    if (!gone.length) return;
+    commitLatest(function (latest) {
+      var ids = gone.map(function (x) { return x.id; });
+      latest.sounds = (latest.sounds || []).filter(function (x) { return ids.indexOf(x.id) < 0; }); if (!latest.sounds.length) delete latest.sounds;
+      latest.themes.forEach(function (t) { if (ids.indexOf(t.ambience) >= 0) delete t.ambience; });
+    }, 'Remove sounds of ended events: ' + gone.map(function (x) { return x.name || x.id; }).join(', ') + ' (Theme manager)').then(function () {
+      gone.forEach(function (x) { delFile(x.source, 'Remove the sound of an ended event'); }); renderAll();
+    }).catch(function () { pruned = false; });
+  }
+
   /* ---------- ambience sounds ---------- */
   function soundName(id) {
     if (id === 'rain') return 'Rain'; if (id === 'storm') return 'Storm'; if (id === 'off') return 'Silence';
     var f = (data.sounds || []).filter(function (x) { return x.id === id; })[0]; return f ? f.name || f.id : id;
   }
+  /* Sounds page (owner, 2 Nov: "too long – categorise per room, easily glanceable"): one compact box per room, plus Every
+     room and Event sounds; ▶ plays it here, Edit opens it */
+  var sndAudio = null;
   function renderSounds() {
     var list = data.sounds || [];
     if (!list.length) { $('sndList').innerHTML = '<div class="empty">No sounds yet. Press <b>+ New sound</b> to upload one.</div>'; return; }
-    $('sndList').innerHTML = list.map(function (x, i) {
-      var pub = published['snd:' + x.id];
-      var rooms = (x.rooms || ['all']).indexOf('all') >= 0 ? '<span class="chip">All rooms</span>' :
-        x.rooms.map(function (r) { return ROOMS[r] ? '<span class="chip room" style="--rc:' + ROOMS[r].c + '">' + esc(ROOMS[r].name) + '</span>' : ''; }).join('');
-      var used = data.themes.filter(function (t) { return t.ambience === x.id; }).map(function (t) { return t.name || t.id; });
-      return '<article class="card"><h3 style="margin:0 0 6px">' + esc(x.name || x.id) + '</h3><div class="meta">' + rooms +
-        (pub ? '' : '<span class="chip pending">Not on TVs yet</span>') + (used.length ? '<span class="chip">Used by ' + esc(used.join(', ')) + '</span>' : '') + '</div>' +
-        (pub ? '<audio controls preload="none" style="width:100%;margin:8px 0" src="' + DL + encodeURIComponent(x.id) + '.ogg?v=' + encodeURIComponent(pub) + '"></audio>' : '') +
-        '<div class="row"><button class="btn" data-sedit="' + i + '">Edit</button></div></article>';
-    }).join('');
+    var row = function (x) {
+      var i = list.indexOf(x), pub = published['snd:' + x.id], used = data.themes.filter(function (t) { return t.ambience === x.id && !x.event; }).map(function (t) { return t.name || t.id; });
+      return '<div class="srow">' + (pub ? '<button type="button" class="splay" data-splay="' + esc(x.id) + '" data-v="' + esc(pub) + '" aria-label="Play">▶</button>' : '<span class="splay off" title="Not on the TVs yet">…</span>') +
+        '<span class="sn">' + esc(x.name || x.id) + (pub ? '' : ' <i class="snw">not on TVs yet</i>') + (used.length ? ' <i class="snu">· ' + esc(used.join(', ')) + '</i>' : '') + '</span>' +
+        '<button type="button" class="sed" data-sedit="' + i + '">Edit</button></div>';
+    };
+    var box = function (title, color, xs, note) { return xs.length ? '<div class="sbox" style="--rc:' + color + '"><div class="sbh"><b>' + esc(title) + '</b><span>' + xs.length + '</span></div>' + (note ? '<p class="hint" style="margin:0 0 4px">' + note + '</p>' : '') + xs.map(row).join('') + '</div>' : ''; };
+    var ev = list.filter(function (x) { return x.event; }), plain = list.filter(function (x) { return !x.event; });
+    var every = plain.filter(function (x) { return (x.rooms || ['all']).indexOf('all') >= 0; });
+    var h = box('Every room', '#F4F1FB', every) + Object.keys(ROOMS).map(function (k) {
+      return box(ROOMS[k].name, ROOMS[k].c, plain.filter(function (x) { return (x.rooms || ['all']).indexOf('all') < 0 && x.rooms.indexOf(k) >= 0; }));
+    }).join('') + box('Event sounds', '#F2C21B', ev, 'Play while their event is live; removed when it ends.');
+    var empty = Object.keys(ROOMS).filter(function (k) { return !plain.some(function (x) { return (x.rooms || ['all']).indexOf('all') >= 0 || x.rooms.indexOf(k) >= 0; }); }).map(function (k) { return ROOMS[k].name; });
+    $('sndList').innerHTML = '<div class="sgrid">' + h + '</div>' + (empty.length ? '<p class="hint">Only Rain and Storm in: ' + esc(empty.join(', ')) + '.</p>' : '');
   }
+  $('sndList').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-splay]'); if (!b) return;
+    var id = b.getAttribute('data-splay'), playing = sndAudio && sndAudio._id === id && !sndAudio.paused;
+    if (sndAudio) { sndAudio.pause(); [].forEach.call(document.querySelectorAll('[data-splay]'), function (x) { x.textContent = '▶'; }); }
+    if (playing) return;
+    sndAudio = new Audio(DL + encodeURIComponent(id) + '.ogg?v=' + encodeURIComponent(b.getAttribute('data-v'))); sndAudio._id = id;
+    sndAudio.play().catch(function () { toast('Couldn’t play it here.'); }); b.textContent = '■';
+    sndAudio.onended = function () { b.textContent = '▶'; };
+  });
   var sed = { i: -1, src: 'file', rooms: ['all'], file: null };
   function renderSoundRooms() {
     var all = sed.rooms.indexOf('all') >= 0;
-    $('sRooms').innerHTML = '<button type="button" data-r="all" style="--rc:#F4F1FB" aria-pressed="' + all + '">All rooms</button>' +
+    $('sndRooms').innerHTML = '<button type="button" data-r="all" style="--rc:#F4F1FB" aria-pressed="' + all + '">All rooms</button>' +
       Object.keys(ROOMS).map(function (k) { return '<button type="button" data-r="' + k + '" style="--rc:' + ROOMS[k].c + '" aria-pressed="' + (all || sed.rooms.indexOf(k) >= 0) + '">' + ROOMS[k].name + '</button>'; }).join('');
   }
-  $('sRooms').addEventListener('click', function (e) {
+  $('sndRooms').addEventListener('click', function (e) {
     var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return;
     if (r === 'all') sed.rooms = sed.rooms.indexOf('all') >= 0 ? [] : ['all'];
     else {
@@ -3634,8 +3706,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     setSeg('#sSrc', 'data-src', sed.src); $('sFileRow').hidden = sed.src !== 'file'; $('sLink').hidden = sed.src !== 'link';
     var pub = i >= 0 && published['snd:' + x.id];
     $('sPrev').hidden = !pub; if (pub) $('sPrev').src = DL + encodeURIComponent(x.id) + '.ogg';
-    $('sDelete').hidden = i < 0; $('sMsg').textContent = '';
-    renderSoundRooms(); $('sed').showModal(); $('sName').focus();
+    $('sDelete').hidden = i < 0; $('sndMsg').textContent = '';
+    renderSoundRooms(); $('sndRooms').parentNode.hidden = !!x.event; $('sed').showModal(); $('sName').focus();
   }
   $('addSound').onclick = function () { openSound(-1); };
   $('sndList').addEventListener('click', function (e) { var i = e.target.getAttribute('data-sedit'); if (i != null) openSound(+i); });
@@ -3655,13 +3727,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     });
   }
   $('sSave').onclick = function () {
-    var name = $('sName').value.trim(), link = $('sLink').value.trim(), msg = $('sMsg');
+    var name = $('sName').value.trim(), link = $('sLink').value.trim(), msg = $('sndMsg');
     var old = sed.i >= 0 ? data.sounds[sed.i] : null;
     if (!name) { msg.textContent = 'Give it a name.'; return; }
-    if (!sed.rooms.length) { msg.textContent = 'Pick at least one room.'; return; }
+    if (!sed.rooms.length && !(old && old.event)) { msg.textContent = 'Pick at least one room.'; return; }
     if (sed.src === 'link' && !/^https:\/\/\S+$/.test(link)) { msg.textContent = 'Paste the link (it starts with https://).'; return; }
     if (sed.src === 'file' && !sed.file && !(old && old.source && !/^https?:/.test(old.source))) { msg.textContent = 'Choose a sound file.'; return; }
-    var x = { id: old ? old.id : soundSlug(name), name: name, source: sed.src === 'link' ? link : (old ? old.source : ''), rooms: sed.rooms.slice() };
+    var x = { id: old ? old.id : soundSlug(name), name: name, source: sed.src === 'link' ? link : (old ? old.source : ''), rooms: old && old.event ? [] : sed.rooms.slice() };
+    if (old && old.event) x.event = old.event;   /* an event's own sound stays tied to its event */
     $('sSave').disabled = true; $('sSave').textContent = sed.file ? 'Uploading…' : 'Publishing…';
     var step = Promise.resolve();
     if (sed.src === 'file' && sed.file) {
@@ -3694,7 +3767,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return gh('/contents/themes/' + encodeURIComponent(x.source), { method: 'DELETE', body: { message: 'Remove unused sound file ' + x.source, sha: j.sha, branch: 'main' } });
       }).catch(function () {});
       $('sed').close(); renderAll(); watch(sha, x.name, true);
-    }).catch(function (e) { $('sMsg').textContent = 'Couldn\u2019t remove: ' + e.message; load(); });
+    }).catch(function (e) { $('sndMsg').textContent = 'Couldn\u2019t remove: ' + e.message; load(); });
   };
 
   /* ---------- settings: staff PIN, guests, TV addresses ---------- */
