@@ -162,6 +162,9 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .hbrow { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
 .hbrow .hint { flex-basis: 100%; }
 /* Round2 messages tidy (owner, 2 Nov "clean these up, neater"): equal tiles instead of ragged chips */
+.kxr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.kxr .kn { font-weight: 700; } .kxr .kd { font-size: 13px; color: var(--mute); } .kxr .kc { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.kxr .kc input { width: 140px; }
 .tvgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 4px 0 8px; }
 @media (min-width: 900px) { .tvgrid { grid-template-columns: repeat(4, 1fr); } }
 .tvt { border: 1px solid var(--line); border-left: 3px solid var(--rc); background: var(--bg); padding: 7px 10px; min-width: 0; }
@@ -840,6 +843,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <p class="sub">Every key the control centre uses, in one place. Each key switches on its own pages, on this phone or computer only. Give staff only the keys for the jobs they do: a page whose key isn't added here stays locked.</p>
     <div class="klock" id="keyLock"></div>
     <div class="keys" id="keyList"></div>
+    <div class="card" id="kExp" style="max-width:760px;margin-top:14px">
+      <h2 style="margin-top:0">Expiry dates</h2>
+      <p class="hint" style="margin:0 0 10px">Phones with booking or 1-hour alerts get a reminder <b>14, 7, 3 and 1 days</b> before a key runs out, and on the day. The GitHub key in Cloudflare fills in its own date; type one to override it.</p>
+      <div id="kExpList"><p class="hint">Needs the Guest messages staff code on this device.</p></div>
+      <div class="row" data-edit style="margin-top:10px"><input class="tok" id="kExpName" placeholder="Another key, e.g. HitPay live key" style="flex:2;min-width:180px"><input type="date" id="kExpDate" style="flex:1;min-width:140px"><button class="btn" type="button" id="kExpAdd">Add</button></div>
+      <p class="hint" id="kExpMsg" style="margin:6px 0 0"></p>
+    </div>
     <div class="card" style="max-width:760px;margin-top:14px">
       <h2 style="margin-top:0">Not kept here</h2>
       <p class="hint" style="margin:0">The safe-mode switch password and PIN (Test bench) are typed each time and never saved. The TV staff PIN is changed under <b>TV setup › TV settings</b>.</p>
@@ -2793,6 +2803,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           warnIf(x[0] === 503, 'The engine’s GitHub key (GH_TOKEN) isn’t in Cloudflare yet – TV setup still uses a personal key.'); must(x[0] === 200 && x[1].permissions && x[1].permissions.push, 'GitHub said ' + x[0] + ': ' + (x[1].message || '')); return 'Can save themes, rooms, sounds and the menu';
         });
       }); })
+      /* keys that run out (owner, 2 Nov: warn 2 weeks before): GitHub's own date for GH_TOKEN, plus any the owner typed */
+      .then(function () { return step('Keys not about to expire (2-week warning)', function () {
+        return gm({ action: 'keyexp', do: 'check' }).then(function (j) {
+          must(j.ok, 'Expiry list: ' + (j.error || 'no answer'));
+          var K = j.keys || [], bad = K.filter(function (k) { return !k.ok || (k.days != null && k.days < 0); }), soon = K.filter(function (k) { return k.ok && k.days != null && k.days >= 0 && k.days <= 14; });
+          must(!bad.length, bad.map(function (k) { return k.label + (k.ok ? ' expired ' + k.date : ' isn’t working'); }).join(', ') + ' – swap in a new key (Keys page).');
+          warnIf(soon.length, soon.map(function (k) { return k.label + ' expires in ' + k.days + ' day' + (k.days === 1 ? '' : 's') + ' (' + k.date + ')'; }).join(', ') + ' – make a new one before then.');
+          return K.length ? K.map(function (k) { return k.label + (k.days != null ? ': ' + k.days + ' days left' : ': no expiry date'); }).join(' · ') : 'No keys with an expiry date yet';
+        });
+      }); })
       /* 10. pages */
       .then(function () { return step('Public pages reachable', function () {
         var urls = ['https://www.round2.sg/', 'https://book.round2.sg/', 'https://menu.round2.sg/', 'https://cue.round2.sg/', 'https://staff.round2.sg/late/'], bad = [];
@@ -3073,7 +3093,36 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         ls('r2m.tab', 'keys'); location.reload();
       };
     }
-    return { open: function () { if (!ready) { ready = true; init(); } setLock(!gated()); draw(); }, close: function () { if (ready) setLock(true); } };
+    /* expiry dates (owner, 2 Nov: "a 2 week warning before"): kept in the engine (gm keyexp) so every phone sees the same list */
+    var EXP = 'https://round2-book.donttelldadyet.workers.dev/gm', expT = 0;
+    function expCall(o) { return fetch(EXP, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: ls('r2.guestStaff') || '', action: 'keyexp' }, o || {})) }).then(function (r) { return r.json(); }); }
+    function expDraw(j) {
+      if (!j || !j.ok) { $('kExpList').innerHTML = '<p class="hint">' + esc((j && j.error) || 'Couldn’t load.') + '</p>'; return; }
+      var nice = function (d) { return new Intl.DateTimeFormat('en-SG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(d + 'T00:00:00Z')).replace(/,/g, ''); };
+      $('kExpList').innerHTML = (j.keys || []).length ? j.keys.map(function (k) {
+        var c = !k.ok ? ['var(--bad)', 'Not working'] : k.days == null ? ['var(--mute)', 'No date'] : k.days < 0 ? ['var(--bad)', 'Expired'] : k.days <= 14 ? ['var(--warn)', k.days === 0 ? 'Today' : k.days + ' days left'] : ['var(--ok)', k.days + ' days left'];
+        return '<div class="kxr"><div class="kn">' + esc(k.label) + '</div><div class="kd">' + (k.date ? 'Expires ' + esc(nice(k.date)) + (k.typed ? '' : ' · from GitHub') : k.name === 'GH_TOKEN' ? 'GitHub hasn’t said yet (no expiry, or not checked)' : 'No date') + '</div>' +
+          '<div class="kc"><span class="st" style="--sc:' + c[0] + '">' + c[1] + '</span><span data-edit style="display:contents"><input type="date" data-kxd="' + esc(k.name) + '" value="' + esc(k.typed ? k.date : '') + '" aria-label="Expiry date"><button class="btn ghost" type="button" data-kxs="' + esc(k.name) + '" style="padding:4px 10px;font-size:12px">Save</button>' +
+          (k.name !== 'GH_TOKEN' || k.typed ? '<button class="btn ghost" type="button" data-kxx="' + esc(k.name) + '" style="padding:4px 10px;font-size:12px">' + (k.name === 'GH_TOKEN' ? 'Use GitHub’s' : 'Remove') + '</button>' : '') + '</span></div></div>';
+      }).join('') : '<p class="hint">No dates yet. Once the GitHub key is in Cloudflare it appears here by itself.</p>';
+    }
+    function expLoad(o) {
+      if (!ls('r2.guestStaff')) { $('kExpList').innerHTML = '<p class="hint">Needs the Guest messages staff code on this device.</p>'; return; }
+      if (!o && Date.now() - expT < 20000) return; expT = Date.now();
+      expCall(o || { do: 'check' }).then(expDraw, function () { $('kExpList').innerHTML = '<p class="hint">Couldn’t reach the engine.</p>'; });
+    }
+    var expReady = false;
+    function expInit() {
+      if (expReady) return; expReady = true;
+      $('kExp').addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('button'); if (!b) return;
+        var n = b.getAttribute('data-kxs') || b.getAttribute('data-kxx');
+        if (b.id === 'kExpAdd') { var nm = $('kExpName').value.trim(), d = $('kExpDate').value; if (!nm || !d) { $('kExpMsg').textContent = 'Type the key’s name and pick its expiry date.'; return; } $('kExpMsg').textContent = ''; expLoad({ do: 'set', name: nm, label: nm, date: d }); $('kExpName').value = ''; $('kExpDate').value = ''; return; }
+        if (b.hasAttribute('data-kxs')) { var inp = $('kExp').querySelector('input[data-kxd="' + n + '"]'); expLoad({ do: 'set', name: n, date: inp ? inp.value : '' }); return; }
+        if (b.hasAttribute('data-kxx')) { if (n !== 'GH_TOKEN' && !confirm('Remove this date?')) return; expLoad({ do: 'del', name: n }); }
+      });
+    }
+    return { open: function () { if (!ready) { ready = true; init(); } setLock(!gated()); draw(); expInit(); expLoad(); }, close: function () { if (ready) setLock(true); } };
   }());
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
