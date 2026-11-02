@@ -63,9 +63,10 @@ guest message not shown; Madd payout approval. Add the kind to `PUSH_KINDS` (eng
 Little room in an iPhone banner, so details are one line and extras go at the end, only when they matter:
 - **New booking:** `Sun 15 Nov, 11am–2pm · 3h · S$35 paid (EB+peak) · 2 pax · 13d ahead` – the end is `⚡ in 3h` (or `in 45m`)
   for a same-day booking, `Nd ahead` otherwise (none when the "⏰ Starts in N min" line is already there).
-- **1 hour before:** `5:30pm–8:30pm · 3h · 2 pax` + `🧹 prev out 4:45pm` when the previous group (this room or its twin)
-  is still in at reminder time + the guest's TV message for this room + start: `🎂 7:15pm` (💞 anniversary, 🎉 celebrate,
-  💬 note) when written, `🔗 msg not written` when only the link was sent. Notes keep their text on the next line.
+- **1 hour before:** line 1 `5:30pm–8:30pm · 3h · 2 pax`; line 2 only when there's something to do (owner: "prev out" was
+  hard to read): `🧹 Last group leaves 4:45pm` when the previous group (this room or its twin) is still in at reminder time,
+  and the guest's TV message for this room + start: `🎂 Message 7:15pm` (💞 anniversary, 🎉 celebrate, 💬 note) when
+  written, `🔗 Message not written yet` when only the link was sent. Notes keep their text on the last line.
 - Engine: `soonMsg`, `soonExtra`, `bookingAlert`; `/push/preview {kind:'soon', key, day}` shows one session's reminder
   (System check step "1-hour reminder shows the guest message").
 

@@ -214,6 +214,11 @@ label.f input[type=text], label.f input[type=url], label.f input[type=date], lab
 .agroom[open] > summary::before { transform: rotate(90deg); }
 .agroom > summary b { letter-spacing: .14em; text-transform: uppercase; color: var(--rc); font-size: 14px; }
 .agroom .ag { margin: 0 10px 8px; }
+.agbk { margin: 4px 10px 8px; border: 1px solid var(--line); background: var(--bg); }
+.agbk > .bh { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 7px 10px; font-size: 13px; border-bottom: 1px solid var(--line); }
+.agbk > .bh b { color: var(--ink); } .agbk > .bh .hint { font-size: 12px; }
+.agbk .ag { margin: 6px 8px; }
+.agbk.none > .bh { color: var(--mute); }
 .ag.st-shown { box-shadow: inset 3px 0 0 var(--rc); }
 .ag .chip.stc { background: transparent; }
 /* who made it (owner, 2 Nov): Round2 by hand = gold outline, Auto wrap-up = filled sky blue, guest = plain */
@@ -912,9 +917,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     </details>
 
     <details class="hcard" id="h-alerts"><summary><span class="hi">🔔</span>Booking alerts on your phone</summary>
-      <div class="hphone"><div class="hpn"><b>⛵ ATLAS · Amir</b><span>Sun 8 Nov, 7pm–10pm · 3h · S$49 paid (Peak) · 4 pax · 6d ahead</span></div><div class="hpn"><b>🎀 VALE · karen · in 1 hour</b><span>7pm–10pm · 3h · 2 pax · 🧹 prev out 6:45pm · 🎂 7:15pm</span></div></div>
+      <div class="hphone"><div class="hpn"><b>⛵ ATLAS · Amir</b><span>Sun 8 Nov, 7pm–10pm · 3h · S$49 paid (Peak) · 4 pax · 6d ahead</span></div><div class="hpn"><b>🎀 VALE · karen · in 1 hour</b><span>7pm–10pm · 3h · 2 pax<br>🧹 Last group leaves 6:45pm · 🎂 Message 7:15pm</span></div></div>
       <p>New, changed and cancelled bookings (<b>⚡ in 3h</b> = same day, <b>6d ahead</b> = booked early), plus a reminder <b>exactly 1 hour before</b> each guest, with SimplyBook’s email.</p>
-      <p>On the reminder: <b>🧹 prev out 6:45pm</b> = the room isn’t free yet · <b>🎂 7:15pm</b> = their TV message pops up then · <b>🔗 msg not written</b> = link sent, guest hasn’t written it.</p>
+      <p>Second line of the reminder, only when there’s something to do: <b>🧹 Last group leaves 6:45pm</b> = the room isn’t free yet · <b>🎂 Message 7:15pm</b> = their TV message pops up then · <b>🔗 Message not written yet</b> = link sent, guest hasn’t written it.</p>
       <p class="tip">Turn on: Tests &amp; systems › <b>Alerts</b>. Only works from the Home Screen icon. Press <b>Test</b> to try.</p>
     </details>
 
@@ -1740,6 +1745,23 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var HOOK = 'https://round2-book.donttelldadyet.workers.dev/gm'   /* Round2 booking engine (Cloudflare) in front of the Make guest messages webhook – docs/guest-messages.md "Front door" */;
     var FB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app';
     var TZ = 'Asia/Singapore', month = null, pick = null, items = [], ready = false, guestErr = '', seq = 0, view = 'live', timer = null;
+    /* which booking each message belongs to (owner, 2 Nov): the night's sessions from In session (engine insess), kept 5 min
+       per night so the 1-minute refresh doesn't ask SimplyBook every time */
+    var sessBy = {};
+    function needSess(k) {
+      var c = sessBy[k]; if (!gKey() || (c && (c.loading || R2Day.now() - c.t < 300000))) return;
+      sessBy[k] = { t: R2Day.now(), loading: true, rooms: c && c.rooms };
+      fetch(HOOK, { method: 'POST', body: new URLSearchParams({ action: 'insess', staff: gKey(), day: k }) }).then(function (r) { return r.json(); })
+        .then(function (j) { sessBy[k] = { t: R2Day.now(), rooms: j && j.rooms ? j.rooms : (c && c.rooms) }; draw(); }, function () { sessBy[k] = { t: R2Day.now(), rooms: c && c.rooms }; });
+    }
+    /* a message's booking: its own wrap-up codes first, then the session whose time it falls in (from 30 min before the
+       start to 20 min after the guest end) */
+    function sessFor(list, x) {
+      var byCode = list.filter(function (S) { var m = S.msgs || {}; return x.code && ((m.wrapup && m.wrapup.code === x.code) || (m.timeup && m.timeup.code === x.code)); })[0];
+      if (byCode) return byCode;
+      var hit = list.filter(function (S) { return x.at >= S.start - 30 * 60000 && x.at <= S.guestEnd + 20 * 60000; });
+      return hit.sort(function (a, b) { return Math.abs(x.at - a.start) - Math.abs(x.at - b.start); })[0] || null;
+    }
     try { view = localStorage.getItem('r2m.calView') || 'active'; } catch (e) {}
     if (view === 'all' || view === 'live') view = 'active';
     function topic(r) { return r === 'maximillion' ? 'max' : r; }
@@ -1815,8 +1837,25 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var CATS = [['active', 'Active', ['waiting', 'queued', 'delivered', 'shown']], ['now', 'On screen now', ['shown']], ['next', 'Coming up', ['queued', 'delivered']], ['waiting', 'Guest still writing', ['waiting']],
       ['history', 'Today’s history', ['acked', 'done', 'ended']]];
     var closedRooms = {}; try { closedRooms = JSON.parse(localStorage.getItem('r2m.calClosed') || '{}') || {}; } catch (e) {}
+    function agRow(x) {
+      var auto = x.src === 'r2' && x.label === 'Auto wrap-up';
+      return '<div class="ag st-' + x.st + (auto ? ' auto' : '') + '" style="--rc:' + ROOMS[x.room].c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span>' +
+        '<span class="chip ' + (auto ? 'src-auto' : x.src === 'r2' ? 'src-r2' : 'src-guest') + '">' + (auto ? '⚙ Auto wrap-up' : x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="chip stc">' + ST[x.st] + (x.st === 'acked' && x.ackT ? ' ' + esc(clock(x.ackT)) : '') + '</span></div>' +
+        '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
+    }
+    function grouped(mine, r) {
+      var c = sessBy[pick || dayKey(R2Day.now())], room = c && c.rooms && c.rooms[topic(r)];
+      if (!room) return mine.map(agRow).join('');
+      var list = room.sessions || [], g = [], other = [];
+      mine.forEach(function (x) { var S = sessFor(list, x); if (!S) { other.push(x); return; } var e = g.filter(function (y) { return y.S === S; })[0]; if (!e) g.push(e = { S: S, xs: [] }); e.xs.push(x); });
+      g.sort(function (a, b) { return a.S.start - b.S.start; });
+      return g.map(function (e) {
+        var nm = String(e.S.name || '').replace(/\s+/g, ' ').trim(), note = e.S.k === 'n';
+        return '<div class="agbk"><div class="bh"><b>' + esc((note ? '📝 ' : '') + (nm.length > 36 ? nm.slice(0, 34) + '…' : nm || 'No name')) + '</b><span class="hint">' + esc(clock(e.S.start) + '–' + clock(e.S.guestEnd)) + '</span></div>' + e.xs.map(agRow).join('') + '</div>';
+      }).join('') + (other.length ? '<div class="agbk none"><div class="bh">Not tied to a booking</div>' + other.map(agRow).join('') + '</div>' : '');
+    }
     function drawDay(by) {
-      var k = pick || dayKey(R2Day.now()), all = (by[k] || []).slice();
+      var k = pick || dayKey(R2Day.now()), all = (by[k] || []).slice(); needSess(k);
       var cat = CATS.filter(function (c) { return c[0] === view; })[0] || CATS[0];
       var n = function (c) { return c[2] ? all.filter(function (x) { return c[2].indexOf(x.st) >= 0; }).length : all.length; };
       if (cat[0] !== 'active' && cat[0] !== 'history' && !n(cat)) cat = CATS[0];   /* nothing left in that group (e.g. the last one was OK'd): back to Active */
@@ -1832,12 +1871,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var live = mine.filter(function (x) { return x.st === 'shown'; }).length, next = mine.filter(function (x) { return x.st === 'queued' || x.st === 'delivered'; }).length;
         return '<details class="agroom" style="--rc:' + R.c + '"' + (closedRooms[r] ? '' : ' open') + ' data-agroom="' + r + '"><summary><b>' + esc(R.name) + '</b><span class="hint">' + mine.length + ' message' + (mine.length > 1 ? 's' : '') +
           (live ? ' · <span style="color:#ffd23f">' + live + ' on screen</span>' : '') + (next ? ' · ' + next + ' coming up' : '') + '</span></summary>' +
-          mine.map(function (x) {
-            var auto = x.src === 'r2' && x.label === 'Auto wrap-up';
-            return '<div class="ag st-' + x.st + (auto ? ' auto' : '') + '" style="--rc:' + R.c + '"><div class="top"><span class="tm">' + esc(clock(x.at)) + '</span>' +
-              '<span class="chip ' + (auto ? 'src-auto' : x.src === 'r2' ? 'src-r2' : 'src-guest') + '">' + (auto ? '⚙ Auto wrap-up' : x.src === 'r2' ? 'Round2' : 'Guest') + '</span><span class="chip stc">' + ST[x.st] + (x.st === 'acked' && x.ackT ? ' ' + esc(clock(x.ackT)) : '') + '</span></div>' +
-              '<div class="t">' + esc(x.title || (x.st === 'waiting' ? 'Link sent' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</div></div>';
-          }).join('') + '</details>';
+          grouped(mine, r) + '</details>';
       }).join('') : '<p class="hint">' + (cat[0] === 'history' ? 'Nothing finished yet today.' : n(CATS[4]) ? 'Nothing coming up. Finished messages are in Today’s history.' : 'Nothing scheduled for this day.') + '</p>';
       h += '<p class="hint">Each TV shows one message at a time; queued ones go out a few minutes before their time. Updates every minute. <a href="#" data-goguest="1">Manage guest messages</a></p>';
       $('cDay').innerHTML = h;
@@ -2612,18 +2646,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }); })
       /* the 1-hour phone reminder reads the guest's link (owner, 2 Nov): "🔗 msg not written" until the guest writes, then
          the message's icon + time – compact, at the end of the details line */
-      .then(function () { return step('1-hour reminder shows the guest message (🔗 not written → 🎂 time)', function () {
+      .then(function () { return step('1-hour reminder shows the guest message (🔗 not written yet → 🎂 Message time)', function () {
         must(T.linkA && T.max, 'No test link from the pairing step.');
         var pv = function () { return fetch(ENG + '/push/preview', { method: 'POST', body: JSON.stringify({ staff: key(), kind: 'soon', key: 'n' + T.max, day: T.day }) }).then(function (r) { return r.json(); }); };
         var first;
         return pv().then(function (a) {
           must(a.msg, 'Reminder preview: ' + (a.error || 'no answer')); first = a.msg.body;
-          must(/^3am–5am · 2h · 2 pax/.test(first), 'Reminder details look different: “' + first + '”.');
-          must(/🔗 msg not written/.test(first), 'Reminder doesn’t say the guest hasn’t written yet: “' + first + '”.');
+          must(/^3am–5am · 2h · 2 pax\n/.test(first), 'Reminder details look different: “' + first + '”.');
+          must(/🔗 Message not written yet/.test(first), 'Reminder doesn’t say the guest hasn’t written yet: “' + first + '”.');
           return guest({ action: 'submit', code: T.linkA, kind: 'birthday', to: 'Test', from: 'System check', title: 'Happy birthday, Test!', text: 'System check', at: String(sgMs(T.day, '03:15')) });
         }).then(function (g) { must(g.ok, 'Guest submit: ' + g.error); return pv(); }).then(function (b) {
-          must(b.msg && /🎂 3:15am/.test(b.msg.body), 'After the guest wrote it, the reminder says: “' + (b.msg ? b.msg.body : b.error) + '”.');
-          return '“' + first.split('\n')[0] + '” → “' + b.msg.body.split('\n')[0] + '”';
+          must(b.msg && /🎂 Message 3:15am/.test(b.msg.body), 'After the guest wrote it, the reminder says: “' + (b.msg ? b.msg.body : b.error) + '”.');
+          return '“' + first.replace('\n', ' / ') + '” → “' + b.msg.body.replace('\n', ' / ') + '”';
         });
       }); })
       .then(function () { return step('Change: Max → Bella moves everything', function () {
