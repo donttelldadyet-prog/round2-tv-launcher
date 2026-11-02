@@ -2269,7 +2269,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           y(j.sbLogin === 'ok', 'SimplyBook staff login ' + esc(j.sbLogin)) + y(j.sbPublic === 'ok', 'SimplyBook public calendar ' + esc(j.sbPublic)) +
           '<span class="cwarn">●</span><span>Payments: <b>' + j.payments.toUpperCase() + '</b> · booking: <b>' + (j.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</b></span>' +
           y(j.kitchenBot, 'Kitchen Telegram bot set') + y(j.guestMessages, 'Guest messages set') + y(j.menuSheet, 'Menu → accounts sheet set') +
-          y(j.sbSecret, 'SimplyBook secret key set') + y(j.liveKeys, 'Live HitPay key in Cloudflare') + y(j.switchSet, 'Switch passwords set') + y(j.staffAlerts, 'Staff booking alerts (Telegram)') +
+          y(j.sbSecret, 'SimplyBook secret key set') + y(j.liveKeys, 'Live HitPay key in Cloudflare') + y(j.switchSet, 'Switch passwords set') +
           '<span class="hint">●</span><span>TV messages waiting in the timer: ' + (j.timerQueue == null ? '?' : j.timerQueue) + '</span>';
         $('tbWhen').textContent = 'Checked ' + new Date().toLocaleTimeString(undefined, { timeZone: 'Asia/Singapore' });
       }, function () { $('tbChk').innerHTML = '<span class="cbad">✖</span><span>The booking engine didn’t answer.</span>'; });
@@ -2625,7 +2625,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       .then(function () { return step('Booking engine is up, keys are in', function () {
         return J('/status').then(function (s) {
           must(s.simplybook && s.sbSecret, 'SimplyBook keys missing in Cloudflare.'); must(s.tvKey, 'TV key missing in Cloudflare.'); must(s.guestMessages, 'Guest messages not set up.');
-          return 'Payments ' + String(s.payments).toUpperCase() + ' · booking page ' + (s.booking === 'simplybook' ? 'SAFE MODE' : 'new') + (s.staffAlerts ? '' : ' · Telegram staff alerts not set up (planned)');
+          return 'Payments ' + String(s.payments).toUpperCase() + ' · booking page ' + (s.booking === 'simplybook' ? 'SAFE MODE' : 'new');
         }); }); })
       /* an interrupted run (page closed, key removed, phone asleep) can leave ZZTEST notes and links behind and trip up this
          one – clear them first (2 Nov) */
