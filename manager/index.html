@@ -214,6 +214,15 @@ label.f input[type=text], label.f input[type=url], label.f input[type=date], lab
 .agroom[open] > summary::before { transform: rotate(90deg); }
 .agroom > summary b { letter-spacing: .14em; text-transform: uppercase; color: var(--rc); font-size: 14px; }
 .agroom .ag { margin: 0 10px 8px; }
+/* Auto wrap-up list (owner, 2 Nov "messy, clean up"): one fixed layout – name + Skip on top, times + status under */
+.awc { max-width: 760px; margin: 6px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--rc); display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; }
+.awc .nm { font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .awc .nm b { color: var(--rc); }
+.awc .sk { grid-row: 1 / span 2; grid-column: 2; background: none; border: 1px solid var(--line2); color: var(--mute); font: inherit; font-size: 12px; padding: 6px 10px; cursor: pointer; }
+.awc .sk:hover { color: var(--ink); }
+.awc .ln { font-size: 13px; color: var(--mute); display: flex; gap: 8px; flex-wrap: wrap; } .awc .ok { color: var(--ok); } .awc .offc { color: var(--warn); }
+.awc.off { opacity: .7; }
+details.awdone > summary { cursor: pointer; color: var(--mute); font-size: 13px; padding: 8px 0; }
+details.awdone .awc { opacity: .55; grid-template-columns: 1fr; }
 .agbk { margin: 4px 10px 8px; border: 1px solid var(--line); background: var(--bg); }
 .agbk > .bh { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 7px 10px; font-size: 13px; border-bottom: 1px solid var(--line); }
 .agbk > .bh b { color: var(--ink); } .agbk > .bh .hint { font-size: 12px; }
@@ -906,7 +915,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <div class="hmini"><div class="hbig">🤝</div><b>Never doubles</b><span>already set one by hand? it uses yours</span></div>
         <div class="hmini"><div class="hbig">⚪</div><b>OFF</b><span>removes everything it planned – yours stay</span></div>
       </div>
-      <p class="tip">Skip one guest: TV messages › Auto wrap-up › <b>Auto off for this one</b>.</p>
+      <p class="tip">Skip one guest: TV messages › Auto wrap-up › <b>Skip</b> on their row (<b>Turn on</b> undoes it).</p>
     </details>
 
     <details class="hcard" id="h-guest"><summary><span class="hi">🎂</span>Guest writes their own TV message</summary>
@@ -2745,18 +2754,22 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('awSwitch').innerHTML = '<div class="row" style="justify-content:space-between;align-items:center"><div><b style="font-size:18px">' + (on ? 'On' : 'Off') + '</b>' +
         '<div class="hint">' + (on ? 'The engine adds and keeps these messages in sync by itself. Each one is also in <b>Round2 messages</b> (marked “Auto wrap-up”) – coming up, on screen, OK’d, today’s history.' : 'Nothing is added automatically. +1h, Late session and Round2 messages still work as before.') + (j.t ? ' Switched ' + (on ? 'on' : 'off') + ' ' + new Date(j.t).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (j.by ? ' by ' + esc(j.by) : '') + '.' : '') + '</div></div>' +
         '<button class="btn ' + (on ? '' : 'primary') + '" type="button" data-aw="' + (on ? 'off' : 'on') + '">' + (on ? 'Turn off' : 'Turn on') + '</button></div>';
-      var L = j.sessions || [];
-      $('awList').innerHTML = L.length ? L.map(function (x) {
-        var R = ROOMS[RN[x.room]] || { name: x.room, c: '#888' }, st;
-        if (x.done) st = '<span class="hint">Ended ' + tm(x.guestEnd) + '</span>';
-        else if (x.off) st = '<span class="chip">Auto off</span>';
-        else if (x.msgs && (x.msgs.w || x.msgs.t)) st = '<span class="chip" style="color:var(--ok)">' + (x.msgs.own ? (x.msgs.wSent ? '10-min sent ✓' : '✓ ' + tm(x.msgs.wAt || x.guestEnd - 600000)) + ' & ' + (x.msgs.tSent ? 'wrap sent ✓' : tm(x.msgs.tAt || x.guestEnd)) : '✓ set by hand') + '</span>';
-        else st = '<span class="hint">' + (on ? 'Adding…' : 'No messages yet') + '</span>';
-        return '<div class="card" style="max-width:760px;margin:8px 0;padding:10px 12px;border-left:4px solid ' + R.c + ';opacity:' + (x.done ? .55 : 1) + '"><div class="row" style="justify-content:space-between;align-items:center;margin:0">' +
-          '<div><b>' + esc(R.name) + '</b> · ' + esc(x.name || (x.k === 'n' ? 'note' : 'guest')) + '<div class="hint">' + tm(x.s) + '–' + tm(x.guestEnd) + (x.k === 'n' ? ' · note' : '') + '</div></div>' +
-          '<div style="text-align:right">' + st + (x.done ? '' : '<br><button class="btn ghost" type="button" style="padding:4px 10px;font-size:11px;margin-top:4px" data-awk="' + esc(x.key) + '" data-aws="' + (x.off ? 'on' : 'off') + '">' + (x.off ? 'Turn auto on' : 'Auto off for this one') + '</button>') + '</div></div></div>';
-      }).join('') : '<p class="hint">No sessions today yet.</p>';
-      var l = j.last; $('awLast').textContent = l && l.t ? 'Last change ' + tm(l.t) + ': ' + [l.made && l.made + ' added', l.moved && l.moved + ' moved', l.cancelled && l.cancelled + ' cancelled', l.adopted && l.adopted + ' already set'].filter(Boolean).join(', ') + ((l.problems || []).length ? ' · ' + l.problems.join('; ') : '') + '.' : '';
+      var L = (j.sessions || []).slice().sort(function (a, b) { return a.s - b.s; });
+      var card = function (x) {
+        var R = ROOMS[RN[x.room]] || { name: x.room, c: '#888' }, m = x.msgs, st;
+        if (x.done) st = '<span>ended ' + tm(x.guestEnd) + '</span>';
+        else if (x.off) st = '<span class="offc">Auto off – no messages</span>';
+        else if (m && (m.w || m.t)) st = '<span class="ok">' + (m.own ? '✓ ' + (m.wSent ? '10-min sent' : tm(m.wAt || x.guestEnd - 600000)) + ' & ' + (m.tSent ? 'wrap sent' : tm(m.tAt || x.guestEnd)) : '✓ set by hand') + '</span>';
+        else st = '<span>' + (on ? 'adding…' : 'no messages') + '</span>';
+        return '<div class="awc' + (x.off ? ' off' : '') + '" style="--rc:' + R.c + '"><div class="nm"><b>' + esc(R.name) + '</b> · ' + esc(x.name || (x.k === 'n' ? 'note' : 'guest')) + '</div>' +
+          (x.done ? '' : '<button class="sk" type="button" data-awk="' + esc(x.key) + '" data-aws="' + (x.off ? 'on' : 'off') + '">' + (x.off ? 'Turn on' : 'Skip') + '</button>') +
+          '<div class="ln"><span>' + tm(x.s) + '–' + tm(x.guestEnd) + (x.k === 'n' ? ' · note' : '') + '</span>' + st + '</div></div>';
+      };
+      var up = L.filter(function (x) { return !x.done; }), fin = L.filter(function (x) { return x.done; });
+      $('awList').innerHTML = (up.length ? up.map(card).join('') : '<p class="hint">' + (L.length ? 'All of today’s sessions are finished.' : 'No sessions today yet.') + '</p>') +
+        (fin.length ? '<details class="awdone"><summary>Finished today (' + fin.length + ')</summary>' + fin.map(card).join('') + '</details>' : '');
+      var l = j.last, did = l ? [l.made && l.made + ' added', l.moved && l.moved + ' moved', l.cancelled && l.cancelled + ' cancelled', l.adopted && l.adopted + ' already set'].filter(Boolean) : [];
+      $('awLast').textContent = l && l.t ? 'Last check ' + tm(l.t) + ' · ' + (did.length ? did.join(', ') : 'nothing to change') + ((l.problems || []).length ? ' · ' + l.problems.join('; ') : '') : '';
     }
     function load(extra) {
       if (!key()) { $('awSwitch').innerHTML = '<p class="hint" style="margin:0">Needs the guest messages staff code (Tests &amp; systems › Keys).</p>'; $('awList').innerHTML = ''; return; }
