@@ -2508,6 +2508,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           warnIf(op.length, 'Message clean-up reported: ' + op.join('; '));
           return 'Last run ' + ago(a.cronLast) + (gap ? ' · every ' + gap + ' min' : '') + ' · Auto wrap-up ' + (a.on ? 'ON' : 'off');
         }); }); })
+      /* SimplyBook's shared servers allow about 5,000 API requests a day (owner, 2 Nov: "is that too intensive?"). The engine
+         counts every request it makes (bookings page, alerts, timer, screens); this run itself adds a few hundred. */
+      .then(function () { return step('SimplyBook requests today (limit about 5,000 a day)', function () {
+        return gm({ action: 'auto' }).then(function (a) {
+          var n = a.sbToday || 0, y = a.sbYesterday;
+          must(n < 4800, n + ' requests to SimplyBook today – about to hit its daily limit. Bookings and alerts may start failing.');
+          warnIf(n > 3500, n + ' requests to SimplyBook today – over 70% of its daily limit.');
+          return n + ' so far today' + (y ? ' · ' + y + ' yesterday' : '') + ' · limit about 5,000';
+        }); }); })
       /* 3. booking page: slot board vs checkout price */
       .then(function () { return step('Booking page prices = checkout prices', function () {
         var d = addD(today, 3), n = 0;
