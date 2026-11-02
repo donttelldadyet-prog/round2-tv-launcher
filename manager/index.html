@@ -170,6 +170,8 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .tvt { border: 1px solid var(--line); border-left: 3px solid var(--rc); background: var(--bg); padding: 7px 10px; min-width: 0; }
 .tvt b { display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--rc); }
 .tvt span { display: block; font-size: 12px; color: var(--mute); }
+.tvt .tvv { color: var(--mute) !important; font-weight: 400 !important; margin-top: 3px; } .tvt .tvv i { font-style: normal; } .tvt .tvv .uo { color: var(--ok); } .tvt .tvv .uw { color: var(--warn); } .tvt .tvv .ub { color: var(--bad); }
+.tvt .tvu { margin-top: 4px; background: none; border: 1px solid var(--accent); color: var(--accent); font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; }
 .tvt.ok span { color: var(--ok); } .tvt.bad { border-color: var(--bad); border-left-color: var(--rc); } .tvt.bad span { color: var(--bad); font-weight: 700; white-space: normal; }
 #mRooms.roompick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 #mRooms.roompick button { padding: 10px 2px; font-size: 12px; letter-spacing: .06em; text-align: center; min-width: 0; }
@@ -1545,13 +1547,26 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       for (var i = 0; i < N.length; i++) if (N[i][0].test(id)) return N[i][1];
       var last = id.split('.').pop(); return last.charAt(0).toUpperCase() + last.slice(1);
     }
+    /* remote updates (owner, 2 Nov): each tile shows the TV's version, Update now when there's a newer one (engine checks:
+       TV on, allowed on the TV, no session now or within 10 min), and how the last update went */
+    var LATEST = null;
+    function latest() { if (LATEST === null) { LATEST = ''; fetch('lg.json?v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { LATEST = ((j.packages || [])[0] || {}).manifest.version || ''; }).catch(function () { LATEST = null; }); } return LATEST || ''; }
+    function newerV(a, b) { var x = String(a).split('.'), y = String(b).split('.'); for (var i = 0; i < Math.max(x.length, y.length); i++) { var d = (+x[i] || 0) - (+y[i] || 0); if (d) return d > 0; } return false; }
+    var UPD = { sent: 'Update sent…', checking: 'Checking…', installing: 'Installing – don’t switch off', done: '✓ Updated', uptodate: 'Already up to date', ready: 'Ready – Staff tools › Update app › Install', failed: 'Update didn’t finish', locked: 'Locked on the TV' };
+    function updLine(x) {
+      var h = x.hb || {}, u = x.upd, L = latest(), now = Date.now(), on = h.t && now - h.t < 12 * 60000, out = [];
+      if (h.v) out.push('v' + esc(h.v));
+      if (u && u.t && now - u.t < 60 * 60000 && UPD[u.state]) out.push('<i class="' + (u.state === 'failed' || u.state === 'locked' ? 'ub' : u.state === 'done' || u.state === 'uptodate' ? 'uo' : 'uw') + '">' + UPD[u.state] + (u.state === 'done' && u.v ? ' to ' + esc(u.v) : u.state === 'failed' && u.v ? ': ' + esc(u.v) : '') + '</i>');
+      else if (L && h.v && newerV(L, h.v)) out.push(!on ? '<i class="ub">' + esc(L) + ' out · TV is off</i>' : h.ru === false ? '<i class="ub">' + esc(L) + ' out · locked on the TV</i>' : '<button type="button" class="tvu" data-tvu="' + x.r + '">Update to ' + esc(L) + '</button>');
+      return out.length ? '<span class="tvv">' + out.join(' · ') + '</span>' : '';
+    }
     function ago2(ms) { var m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : ''); }
     function nice2(ms) { var d = new Date(ms); return d.toLocaleString(undefined, { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
     function status() {
       if (!key()) { $('mStat').innerHTML = '<p class="hint">Add the TV messages key above to see what each TV is showing.</p>'; return; }
       Promise.all(Object.keys(ROOMS).map(function (r) {
-        return Promise.all([req('GET', url(r, 'msg')), req('GET', url(r, 'msgShown')), req('GET', url(r, 'msgAck')), req('GET', url(r, 'helper')).catch(function () { return null; })])
-          .then(function (a) { return { r: r, m: a[0], shown: a[1], ack: a[2], hb: a[3] }; }).catch(function () { return { r: r, err: true }; });
+        return Promise.all([req('GET', url(r, 'msg')), req('GET', url(r, 'msgShown')), req('GET', url(r, 'msgAck')), req('GET', url(r, 'helper')).catch(function () { return null; }), req('GET', url(r, 'update')).catch(function () { return null; })])
+          .then(function (a) { return { r: r, m: a[0], shown: a[1], ack: a[2], hb: a[3], upd: a[4] }; }).catch(function () { return { r: r, err: true }; });
       })).then(function (list) {
         /* each row says when it goes by itself: a message on screen at its cut-off (That's a wrap 15 min, 10-min reminder
            4 min, …; one without OK after a minute), and a finished one (acknowledged / expired) drops off this list
@@ -1587,7 +1602,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }).join('');
         /* TV check-ins (each TV's app/helper writes /helper every 5 min): offline after 12 min = it won't get messages */
         var hbs = list.filter(function (x) { return !x.err; }).map(function (x) {
-          var R = ROOMS[x.r], h = x.hb, now = Date.now(), t = function (cls, txt) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b><span>' + txt + '</span></div>'; };
+          var R = ROOMS[x.r], h = x.hb, now = Date.now(), t = function (cls, txt) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b><span>' + txt + '</span>' + updLine(x) + '</div>'; };
           if (!h || !h.t) return t('', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
           if (h.failsafe) return t('bad', 'Failsafe · open Round2 Home');
           if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
@@ -1757,6 +1772,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         ls('r2m.msgKey', v); $('mKeyBox').hidden = true; toast('Saved on this computer.'); status();
       };
       $('mStat').addEventListener('click', function (e) {
+        var tu = e.target.getAttribute && e.target.getAttribute('data-tvu');
+        if (tu) {
+          if (!gKey()) { toast('Needs the Guest messages staff code (Keys).'); return; }
+          var nm = ROOMS[tu].name;
+          if (!confirm('Update ' + nm + '’s TV now?\n\nOnly if nobody is in the room. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.')) return;
+          e.target.disabled = true; e.target.textContent = 'Sending…';
+          fetch(HOOK, { method: 'POST', body: new URLSearchParams({ staff: gKey(), action: 'tvupdate', room: tu, by: 'control centre' }) }).then(function (r) { return r.json(); })
+            .then(function (j) { toast(j.ok ? nm + ': update sent' + (j.tv === 'android' ? ' – it will say Ready, then Install in Staff tools.' : ' – watch the tile.') : nm + ': ' + (j.error || 'not sent')); status(); setTimeout(status, 20000); setTimeout(status, 60000); setTimeout(status, 120000); },
+              function () { toast('Couldn’t reach the engine.'); status(); });
+          return;
+        }
         var c = e.target.getAttribute && e.target.getAttribute('data-mcancel'), rs = e.target.getAttribute && e.target.getAttribute('data-mresend');
         if (c) { req('DELETE', url(c, 'msg')).then(function () { toast('Removed from ' + ROOMS[c].name + '\u2019s TV.'); status(); }).catch(function (er) { toast('Couldn\u2019t remove: ' + er.message); }); }
         if (rs) {
