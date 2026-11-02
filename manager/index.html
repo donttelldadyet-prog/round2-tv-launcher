@@ -1567,8 +1567,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var h = x.hb || {}, u = x.upd, L = latest(), now = Date.now(), on = h.t && now - h.t < 12 * 60000, out = [];
       if (h.v) out.push('v' + esc(h.v));
       if (u && u.t && now - u.t < 60 * 60000 && UPD[u.state]) out.push('<i class="' + (u.state === 'failed' || u.state === 'locked' ? 'ub' : u.state === 'done' || u.state === 'uptodate' ? 'uo' : 'uw') + '">' + UPD[u.state] + (u.state === 'done' && u.v ? ' to ' + esc(u.v) : u.state === 'failed' && u.v ? ': ' + esc(u.v) : '') + '</i>');
-      else if (L && h.v && newerV(L, h.v)) out.push(!on ? '<i class="ub">' + esc(L) + ' out · TV is off</i>' : h.ru === false ? '<i class="ub">' + esc(L) + ' out · locked on the TV</i>' : '<button type="button" class="tvu" data-tvu="' + x.r + '">Update to ' + esc(L) + '</button>');
-      return out.length ? '<span class="tvv">' + out.join(' · ') + '</span>' : '';
+      else if (L && h.v && newerV(L, h.v)) out.push(!on ? '<i class="ub">' + esc(L) + ' out · TV is off</i>' : h.ru === false ? '<i class="ub">' + esc(L) + ' out · locked on the TV</i>'
+        : !newerV(h.v, '1.0.225') ? '<i class="uw">' + esc(L) + ' out · update by hand once (remote updates start from 1.0.226)</i>'   /* older TVs don't listen for Update now */
+        : '<button type="button" class="tvu" data-tvu="' + x.r + '">Update to ' + esc(L) + '</button>');
+      return out.length ? '<span class="tvv">' + out.join(' · ').replace(' · <button', '<br><button') + '</span>' : '';
     }
     function ago2(ms) { var m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : ''); }
     function nice2(ms) { var d = new Date(ms); return d.toLocaleString(undefined, { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
