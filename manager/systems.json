@@ -251,6 +251,20 @@
           "status": "test",
           "what": "'Order locked in' and 'Loot dropped' on the room's TV.",
           "runs": "Firebase"
+        },
+        {
+          "name": "TV tiles say what's on screen",
+          "status": "test",
+          "what": "Round2 messages › On the TVs now shows what each TV has in front (PS4, YouTube, Round2 menu…) and for how long. Built 2 Nov (TV app 1.0.225); each TV shows it once it's updated. Same update fixes LG TVs reporting the wrong message as 'shown'.",
+          "runs": "LG helper + Android app check-ins → control centre",
+          "code": "round2-tv-launcher · webos/service/round2d.sh, app/…/HomeWatch.java, manager/index.html"
+        },
+        {
+          "name": "TVs update themselves",
+          "status": "parked",
+          "what": "On the shelf until the owner is back at the shop (2 Nov). Android 12+ already installs a found update when switched off; older Android needs Install pressed. LG: 'when switched off' won't work (Quick Start+ is off, so the TV powers right down). Favoured: an 'Update now' button per TV in the control centre, refused while a session is on or due, plus a Staff tools switch.",
+          "runs": "—",
+          "code": "—"
         }
       ]
     },
