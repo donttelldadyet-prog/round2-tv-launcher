@@ -261,10 +261,10 @@
         },
         {
           "name": "Remote TV updates (Update now from the control centre)",
-          "status": "parked",
-          "what": "On the shelf until the owner is back at the shop (2 Nov). No automatic updates: an Update now button per TV, refused while a session is on or starts within 10 min. LG installs straight away; Android only downloads, and staff press Install in Staff tools (never in front of guests). Staff tools switch per TV: updates from the control centre Allowed / Not allowed (allowed by default). TV off = button greyed out (\"TV is off – switch it on first\"); nothing is queued for when it comes back on. LG: download + check first, then a ~30 s install with an on-screen 'Updating – please don't switch off' notice; tile shows Downloading / Installing / Updated / didn't finish; if cut off, the helper reinstalls Round2 Home on the next start-up.",
-          "runs": "—",
-          "code": "—"
+          "status": "test",
+          "what": "Built 2 Nov (TV app 1.0.226; works on a TV once it has 1.0.226). Update now on each TV tile (Round2 messages › On the TVs now), refused while the TV is off, locked in its Staff tools, or its room has a session now or within 10 min. LG installs by itself (download + SHA-256 check first, 'don't switch off' notice, progress on the tile, reinstalls itself on start-up if cut off). Android only gets it ready – staff press Install in Staff tools › Update app.",
+          "runs": "Engine (tvupdate) + LG helper / Android app (cmd, update in Firebase)",
+          "code": "round2sg-home worker (tvUpdate) · round2-tv-launcher webos/service/round2d.sh, app/…/FoodAlerts.java, manager/index.html"
         }
       ]
     },
