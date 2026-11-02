@@ -18,6 +18,26 @@ Everything time-based runs on the booking engine's clock (Cloudflare `/time`), n
 (`r2Now()`), the LG helper (`snow`), the Android app (`Clock.now()`), the control centre (`clockOff`). Each measures the
 difference every 30 min and adds it. New time-based code must use these, not `Date.now()` / `System.currentTimeMillis()`.
 
+## Screens follow the 7am rule (owner, 2 Nov 2026)
+Owner, after In session's "Extensions today" kept last night's +1h until 24 hours had passed: *"how did we not catch that
+… as the system gets more complicated we need to catch these sort of interactions."* The engine was tested; the screens
+weren't. So now:
+
+- **`manager/r2day.js` is the only place a control-centre screen works out a day:** `R2Day.now()` (engine clock),
+  `R2Day.night(ms)` (before 7am = the night before), `R2Day.tonight()`, `R2Day.addDays()`. Every page loads it.
+- **Every list that files things under a day, or shows "today / tonight", registers** with `R2Day.list(name, { night,
+  today })`, passing the exact functions it draws with. Registered now: TV themes › today, Round2 messages, In session ›
+  Extensions today, In session › History, Guest messages, Late session › date.
+- **System check › "Screens follow the 7am rule"** opens Guest messages and Late session in hidden frames, collects every
+  registered list and runs it at 6:59am, 7:00am, 12:01am, 11:59pm, noon and New Year: each must land on the right night.
+  A list in its `NEED` array that stops registering fails the step. It also checks all three pages share one clock.
+- **System check › "Watchdog"** reads the code of the control centre, Guest messages, Late session and the TV page
+  (published as `src/tv-web.txt` by pages.yml) and flags "24 hours" maths, calendar dates without the 7am shift, the
+  device's own calendar/clock, and "today from Date.now()". A line that's right on purpose carries a `day-ok: why` note
+  (on it or the line above). It would have flagged the old Extensions-today filter.
+- **New list?** Use `R2Day`, register it, and add its name to `NEED`. New page? Load `r2day.js` and add it to the
+  watchdog's `FILES` (and to the frames if it has lists).
+
 ## What it covers (2 Nov 2026)
 Engine up + keys · SimplyBook login and the 7 rooms · public holidays · booking page price = checkout price · food menu read +
 price check · guest message link full life (make → open → write → timer → cancel) · TVs reporting in (msgShown/msgAck) ·

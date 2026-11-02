@@ -4,7 +4,7 @@ name: Theme manager website
 on:
   push:
     branches: [main]
-    paths: ['manager/**', '.github/workflows/pages.yml']
+    paths: ['manager/**', 'web/index.html', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -25,6 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # the TV page's code, as plain text, for System check › watchdog (one clock + 7am rule)
+      - run: mkdir -p manager/src && cp web/index.html manager/src/tv-web.txt
       - uses: actions/upload-pages-artifact@v3
         with:
           path: manager

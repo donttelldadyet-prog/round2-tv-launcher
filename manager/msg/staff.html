@@ -217,6 +217,7 @@ details.past .list { margin-top: 10px; }
   </section>
 </main>
 
+<script src="../r2day.js"></script>
 <script>
 /* which part to show, set before the page draws: ?view=make (the iPhone shortcut), ?view=list, &embed=1 inside the control centre */
 (function () {
@@ -472,16 +473,17 @@ details.past .list { margin-top: 10px; }
     return h + '</article>';
   }
   /* the shop night (owner, 2 Nov): a link for a session before 7am is filed under the night before, like every other screen */
-  function dayKey(ms) { var p = sgParts(ms - 7 * 3600e3); return p.year + '-' + p.month + '-' + p.day; }
+  function dayKey(ms) { return R2Day.night(ms); }
+  R2Day.list('Guest messages', { night: dayKey, today: dayKey });
   function dayName(k) {
-    var today = dayKey(Date.now()), tmr = dayKey(Date.now() + 86400000), ms = Date.parse(k + 'T12:00:00+08:00');
+    var today = dayKey(R2Day.now()), tmr = R2Day.addDays(today, 1), ms = Date.parse(k + 'T12:00:00+08:00');
     var d = fmt(ms, { weekday: 'short', day: 'numeric', month: 'short' });
     return k === today ? 'Today · ' + d : k === tmr ? 'Tomorrow · ' + d : d;
   }
   /* Month calendar: days with a message queued for a TV are highlighted, one dot per link in that room's colour
      (filled = message waiting to pop up or on the TV, ring = link sent, guest hasn't written yet). Tap a day to filter. */
   function calendarHtml(live) {
-    var now = Date.now(), tp = sgParts(now), today = dayKey(now);
+    var now = R2Day.now(), tp = sgParts(now), today = dayKey(now);
     if (!calMonth) calMonth = tp.year + '-' + tp.month;
     var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7);
     var first = new Date(Date.UTC(y, m - 1, 1)), lead = (first.getUTCDay() + 6) % 7, dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -493,7 +495,7 @@ details.past .list { margin-top: 10px; }
       ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dow">' + d + '</div>'; }).join('');
     var cells = Math.ceil((lead + dim) / 7) * 7;
     for (var i = 0; i < cells; i++) {
-      var dt = new Date(Date.UTC(y, m - 1, 1 + i - lead)), k = dt.toISOString().slice(0, 10), xs = byDay[k] || [];
+      var dt = new Date(Date.UTC(y, m - 1, 1 + i - lead)), k = dt.toISOString().slice(0, 10) /* day-ok: calendar grid */, xs = byDay[k] || [];
       var queued = xs.filter(function (x) { var st = state(x); return st === 'scheduled' || st === 'ontv'; }).length;
       var cls = 'd' + (dt.getUTCMonth() !== m - 1 ? ' out' : '') + (k < today ? ' past' : '') + (k === today ? ' today' : '') + (queued ? ' has' : '');
       xs.sort(function (a, b) { return a.data.start - b.data.start; });

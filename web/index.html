@@ -2264,7 +2264,8 @@ window.R2_TV = {
   function liftVeil(ms) { if (veilDone) return; veilDone = true; setTimeout(function () { var v = $('veil'); if (v) v.className = 'layer off'; }, ms || 0); }
   setTimeout(function () { liftVeil(0); }, 6000);   /* never stay dark */
   /* the background player's last events, for Staff tools > Diagnostics */
-  function bgLog(m) { var d = new Date(); window.r2BgLog = (window.r2BgLog || []).concat(('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2) + ' ' + m).slice(-14); }
+  function bgLog(m) { var d = new Date();   /* day-ok: log timestamps only */
+    window.r2BgLog = (window.r2BgLog || []).concat(('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2) + ' ' + m).slice(-14); }
   function showWall(w) {
     if (!w || (shownWall && shownWall.id === w.id && shownWall.room === roomKey && shownWall.video === w.video)) return;
     shownWall = { id: w.id, room: roomKey, video: w.video };

@@ -117,6 +117,8 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .extcols h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .exthist .nh { font-size: 12px; font-weight: 700; color: var(--mute); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 2px; }
 .exthist div.row1 { opacity: .85; }
+.exthist details.more { margin-top: 10px; } .exthist details.more summary { cursor: pointer; font-size: 13px; color: var(--mute); padding: 6px 0; }
+.exthist details.more > div, .exthist details.more > p { margin-top: 6px; }
 .sessrec div { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px; }
 .review { border: 2px solid var(--accent); background: var(--panel2); padding: 14px 16px; display: grid; gap: 10px; }
 .review.now { border-color: var(--bad); }
@@ -617,7 +619,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="extcols">
       <div><h2>Extensions today <button class="btn ghost" id="sClear" hidden style="padding:4px 10px;font-size:12px">Clear finished</button></h2>
         <div class="sessrec" id="sRecent"><p class="hint">None yet.</p></div></div>
-      <div><h2>History <span class="hint" style="font-weight:400">last 14 nights</span></h2>
+      <div><h2>History <span class="hint" style="font-weight:400">last 2 nights · More: up to 14</span></h2>
         <div class="sessrec exthist" id="sHist"><p class="hint">Nothing yet.</p></div></div>
     </div>
     <h2>Test</h2>
@@ -1199,6 +1201,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
 <div class="toast" id="toast" role="status" hidden></div>
 
+<script src="r2day.js"></script>
 <script>
 (function () {
   'use strict';
@@ -1224,14 +1227,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   function gated() { return !['r2m.token', 'r2m.msgKey', 'r2.guestStaff', 'r2m.simCode'].some(function (k) { return ls(k); }); }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
   function toast(m) { var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
-  function ymd(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function ymd(d) {   /* day-ok: formats a date it's given */
+   return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   /* Singapore date, whatever the device's own time zone (time check 2 Nov): a laptop abroad or a TV set to UTC must agree */
   /* ONE CLOCK (owner, 2 Nov): the engine's time (Cloudflare /time), not this phone's own clock */
   var clockOff = 0; try { clockOff = Number(localStorage.getItem('r2.clockOff')) || 0; } catch (e) {}
   (function () { var t0 = Date.now(); fetch('https://round2-book.donttelldadyet.workers.dev/time', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
     var t1 = Date.now(); if (j && j.t && t1 - t0 < 5000) { clockOff = Math.round(j.t + (t1 - t0) / 2 - t1); try { localStorage.setItem('r2.clockOff', String(clockOff)); } catch (e) {} } }).catch(function () {}); }());
   /* the shop night (owner, 2 Nov): before 7am "today" is still last night – theme dates follow it like the TVs do */
-  function sgNow() { var x = new Date(Date.now() + clockOff + 8 * 3600e3 - 7 * 3600e3); return new Date(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), 12); }
+  function themeToday(now) { return R2Day.night(now); }
+  R2Day.list('TV themes › today', { today: themeToday });
+  function sgNow() { var k = themeToday(R2Day.now()); return new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10), 12); }
   function today() { return ymd(sgNow()); }
   function nice(s) { if (!s) return ''; var d = new Date(s + 'T12:00:00'); return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined }); }
   function b64utf8(s) { return btoa(unescape(encodeURIComponent(s))); }
@@ -1739,7 +1745,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function roomOf(t) { return t === 'max' ? 'maximillion' : t; }
     function parts(ms) { var p = {}; new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; }); return p; }
     /* the shop night (owner, 2 Nov): messages before 7am belong to the night before, and before 7am "today" is still last night */
-    function dayKey(ms) { var p = parts(ms - 7 * 3600e3); return p.year + '-' + p.month + '-' + p.day; }
+    function dayKey(ms) { return R2Day.night(ms); }
+    R2Day.list('Round2 messages', { night: dayKey, today: dayKey });
     function clock(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).toLowerCase(); }
     function gKey() { return ls('r2.guestStaff') || ''; }
     function load() {
@@ -1779,7 +1786,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       });
     }
     function draw() {
-      var now = Date.now(), tp = parts(now), today = dayKey(now);
+      var now = R2Day.now(), tp = parts(now), today = dayKey(now);
       if (!month) month = tp.year + '-' + tp.month;
       var y = +month.slice(0, 4), m = +month.slice(5, 7), first = new Date(Date.UTC(y, m - 1, 1)), lead = (first.getUTCDay() + 6) % 7, dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
       var by = {}; items.forEach(function (x) { var k = dayKey(x.at); (by[k] = by[k] || []).push(x); });
@@ -1787,7 +1794,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         '</b><button type="button" data-cm="1" aria-label="Next month">›</button></div><div class="grid">' +
         ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dow">' + d + '</div>'; }).join('');
       for (var i = 0, n = Math.ceil((lead + dim) / 7) * 7; i < n; i++) {
-        var dt = new Date(Date.UTC(y, m - 1, 1 + i - lead)), k = dt.toISOString().slice(0, 10), xs = (by[k] || []).sort(function (a, b) { return a.at - b.at; });
+        var dt = new Date(Date.UTC(y, m - 1, 1 + i - lead)), k = dt.toISOString().slice(0, 10) /* day-ok: calendar grid */, xs = (by[k] || []).sort(function (a, b) { return a.at - b.at; });
         var queued = xs.some(function (x) { return x.st === 'queued' || x.st === 'delivered'; });
         h += '<button type="button" class="d' + (dt.getUTCMonth() !== m - 1 ? ' out' : '') + (k < today ? ' past' : '') + (k === today ? ' today' : '') + (queued ? ' has' : '') + '" data-cd="' + k + '" aria-pressed="' + (pick === k) + '">' +
           '<span class="num">' + dt.getUTCDate() + '</span><span class="dots">' + xs.map(function (x) { return '<i class="dot' + (x.src === 'r2' ? ' r2' : '') + (x.st === 'waiting' ? ' wait' : '') + '" style="--rc:' + ROOMS[x.room].c + '"></i>'; }).join('') + '</span></button>';
@@ -1808,7 +1815,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       ['history', 'Today’s history', ['acked', 'done', 'ended']]];
     var closedRooms = {}; try { closedRooms = JSON.parse(localStorage.getItem('r2m.calClosed') || '{}') || {}; } catch (e) {}
     function drawDay(by) {
-      var k = pick || dayKey(Date.now()), all = (by[k] || []).slice();
+      var k = pick || dayKey(R2Day.now()), all = (by[k] || []).slice();
       var cat = CATS.filter(function (c) { return c[0] === view; })[0] || CATS[0];
       var n = function (c) { return c[2] ? all.filter(function (x) { return c[2].indexOf(x.st) >= 0; }).length : all.length; };
       if (cat[0] !== 'active' && cat[0] !== 'history' && !n(cat)) cat = CATS[0];   /* nothing left in that group (e.g. the last one was OK'd): back to Active */
@@ -1862,7 +1869,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var SCREEN = { home: 'Main menu', rooms: 'Rooms', loadout: 'Loadout', how: 'How to play', find: 'Find us', info: 'FAQ / rules', booking: 'Booking form', board: 'Booking page: looking', board_room: 'Booking page: picking a time', board_details: 'Booking page: details', board_paying: 'Booking page: paying' };
     var OUT = { out_wa: 'WhatsApp', out_tg: 'Telegram', out_ig: 'Instagram', out_tiktok: 'TikTok', out_maps: 'Google Maps', out_email: 'Email', out_phone: 'Phone call', out_simplybook: 'SimplyBook (new tab)',
       gallery: 'Opened a room gallery', loadout: 'Loadout', how: 'How to play', find: 'Find us', info_faq: 'FAQ', info_rules: 'House rules', info_about: 'About', info_privacy: 'Privacy', dev_m: 'On a phone', dev_d: 'On a computer' };
-    function sgDay(ms) { return new Date(ms + 8 * 3600e3).toISOString().slice(0, 10); }
+    function sgDay(ms) { return new Date(ms + 8 * 3600e3).toISOString().slice(0, 10); }   /* day-ok: website visitors are counted by calendar day */
     function pretty(step) { step = step.replace(/_/g, ' '); return step.charAt(0).toUpperCase() + step.slice(1); }
     function rows(list, max) {
       max = max || Math.max.apply(null, list.map(function (x) { return x[1]; }).concat([1]));
@@ -1882,7 +1889,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }).catch(function (e) { $('wErr').hidden = false; $('wErr').textContent = 'Couldn’t read the visitor numbers (' + e.message + '). If this says 401, the Firebase rule for /web isn’t in yet (docs/site-stats.md).'; });
     }
     function stats() {
-      var from = sgDay(Date.now() - (range - 1) * 864e5);
+      var from = sgDay(Date.now() - (range - 1) * 864e5);   /* day-ok: website stats range */
       fetch(DB + '/days.json?orderBy=%22$key%22&startAt=%22' + from + '%22', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) {
         var sum = {}, perDay = {};
         Object.keys(d || {}).forEach(function (day) { var x = d[day] || {}; perDay[day] = x.visit || 0; Object.keys(x).forEach(function (k) { sum[k] = (sum[k] || 0) + (Number(x[k]) || 0); }); });
@@ -1925,7 +1932,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (!window.EventSource) return;
       var on = function (es, fn) { ['put', 'patch'].forEach(function (ev) { es.addEventListener(ev, fn); }); streams.push(es); };
       on(new EventSource(DB + '/live.json'), function () { clearTimeout(dLive); dLive = setTimeout(liveNow, 400); });
-      on(new EventSource(DB + '/days/' + sgDay(Date.now()) + '.json'), function () { clearTimeout(dStats); dStats = setTimeout(stats, 800); });
+      on(new EventSource(DB + '/days/' + sgDay(Date.now()) + '.json'), function () {   /* day-ok: website visitors, calendar day */ clearTimeout(dStats); dStats = setTimeout(stats, 800); });
     }
     function unlisten() { streams.forEach(function (es) { try { es.close(); } catch (e) {} }); streams = []; }
     return {
@@ -2125,7 +2132,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           /* greyed out: that many hours would run into the next booking/note (in this room or its twin). Past 11:15pm
              stays possible (late sessions are agreed on WhatsApp) but is marked, and the check box asks again. */
           /* 11:15pm of the shop night (12am–11am starts belong to the night before), on the guest end – same rule as the engine */
-          var close = Date.parse(new Date(x.start - 7 * 3600000 + 8 * 3600000).toISOString().slice(0, 10) + 'T23:15:00+08:00');   /* 7am shop-night rule */
+          var close = Date.parse(R2Day.night(x.start) + 'T23:15:00+08:00');   /* 7am shop-night rule */
           if (x.st !== 'done') h += '<div class="plus">' + [1, 2, 3].map(function (n) {
             var blocked = gap !== null && n > gap, late = x.guestEnd + n * 3600000 > close + 60000;
             return '<button class="btn' + (late && !blocked ? ' late' : '') + '" data-ext="' + n + '" data-room="' + rk + '" data-key="' + esc(x.key) + '"' + (blocked ? ' disabled title="Runs into the next booking at ' + t(x.nextAt) + '"' : late ? ' title="Goes past 11:15pm"' : '') + '>+' + n + 'h' + (late && !blocked ? '<small>late</small>' : '') + '</button>';
@@ -2136,20 +2143,24 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }).join('');
       /* this shop night only (owner, 2 Nov: "I thought it would disappear because it's a new day"): +1h pressed before 7am
          belongs to the night before and drops off at 7am like every other screen; the System check's ZZTEST ones never show */
-      var nightOf = function (ms) { return new Date(ms + 8 * 3600000 - 7 * 3600000).toISOString().slice(0, 10); };
+      var nightOf = exNight;
       var all = (j.recent || []).filter(function (r) { return !/^(ZZ\s?TEST|TEST\b)/i.test(r.name || ''); });   /* System check + Claude's own tests */
       var rec = all.filter(function (r) { return nightOf(r.t) === j.day && !r.cleared; });
       /* Clear finished (owner, 2 Nov): only entries whose session is over (or undone); they move to History */
       var done = rec.filter(function (r) { return r.undone || r.guestEnd < now; });
       $('sClear').hidden = !done.length; $('sClear').textContent = 'Clear finished (' + done.length + ')'; $('sClear').setAttribute('data-ids', done.map(function (r) { return r.id; }).join(','));
-      /* History: earlier nights and cleared ones, newest first, grouped by night (at most 40 shown) */
-      var hist = all.filter(function (r) { return nightOf(r.t) < j.day || (nightOf(r.t) === j.day && r.cleared); }).slice(0, 40), lastN = '';
-      $('sHist').innerHTML = hist.length ? hist.map(function (r) {
-        var n = nightOf(r.t), hd = n !== lastN ? '<p class="nh">' + esc(n === j.day ? 'Tonight (cleared)' : new Intl.DateTimeFormat('en-SG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(n + 'T00:00:00Z'))) + '</p>' : ''; lastN = n;
-        var R = ROOMS[RK[r.room]] || { c: '#888', name: r.room };
-        return hd + '<div class="row1"><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · ended ' + t(r.guestEnd) + ' <span class="hint">(pressed ' + t(r.t) + ')</span>' +
-          (r.undone ? ' <span class="chip ended">Undone</span>' : '') + '</div>';
-      }).join('') : '<p class="hint">Nothing yet.</p>';
+      /* History (owner, 2 Nov): tonight's cleared ones + the 2 nights before stay open; nights 3–14 fold under "More" */
+      var hist = all.filter(function (r) { return exNight(r.t) < j.day || (exNight(r.t) === j.day && r.cleared); }), near = R2Day.addDays(j.day, -2);
+      var hRow = function (r) { var R = ROOMS[RK[r.room]] || { c: '#888', name: r.room };
+        return '<div class="row1"><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · ended ' + t(r.guestEnd) + ' <span class="hint">(pressed ' + t(r.t) + ')</span>' +
+          (r.undone ? ' <span class="chip ended">Undone</span>' : '') + '</div>'; };
+      var hGroup = function (rows) { var out = '', lastN = '';
+        rows.forEach(function (r) { var n = exNight(r.t); if (n !== lastN) { out += '<p class="nh">' + esc(n === j.day ? 'Tonight (cleared)' : (n === R2Day.addDays(j.day, -1) ? 'Last night · ' : '') + new Intl.DateTimeFormat('en-SG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(n + 'T00:00:00Z'))) + '</p>'; lastN = n; } out += hRow(r); });
+        return out; };
+      var recent2 = hist.filter(function (r) { return exNight(r.t) >= near; }), older = hist.filter(function (r) { return exNight(r.t) < near; });
+      var nOlder = {}; older.forEach(function (r) { nOlder[exNight(r.t)] = 1; });
+      $('sHist').innerHTML = (recent2.length ? hGroup(recent2) : '<p class="hint">Nothing in the last 2 nights.</p>') +
+        (older.length ? '<details class="more"' + (histMore ? ' open' : '') + '><summary>More – ' + Object.keys(nOlder).length + ' earlier night' + (Object.keys(nOlder).length > 1 ? 's' : '') + ' (' + older.length + ')</summary>' + hGroup(older.slice(0, 60)) + '</details>' : '');
       $('sRecent').innerHTML = rec.length ? rec.map(function (r) {
         var canUndo = !r.undone && now - r.t < 30 * 60000;
         return '<div><span class="chip room" style="--rc:' + ROOMS[RK[r.room]].c + '">' + esc(ROOMS[RK[r.room]].name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · now ends ' + t(r.guestEnd) + ' <span class="hint">(' + t(r.t) + ')</span>' +
@@ -2158,6 +2169,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           (canUndo ? ' <button class="btn ghost" data-undo="' + esc(r.id) + '" style="padding:4px 10px;font-size:11px">Undo</button>' : '') + '</div>';
       }).join('') : '<p class="hint">None yet.</p>';
     }
+    var histMore = false;   /* keeps "More" open across the 1-minute refresh */
+    function exNight(ms) { return R2Day.night(ms); }   /* a +1h belongs to the shop night it was pressed in */
+    R2Day.list('In session › Extensions today', { night: exNight });
+    R2Day.list('In session › History', { night: exNight });
     function sessOf(rk, k) { var R = last && last.rooms[rk]; return R && R.sessions.filter(function (x) { return x.key === k; })[0]; }
     function review(rk, k, n) {
       var x = sessOf(rk, k); if (!x) return;
@@ -2204,6 +2219,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var b = e.target.closest && e.target.closest('[data-ext]'); if (b) review(b.getAttribute('data-room'), b.getAttribute('data-key'), +b.getAttribute('data-ext'));
     });
     $('sRooms').addEventListener('change', function (e) { var a = e.target.getAttribute && e.target.getAttribute('data-ack'); if (a) ackOn[a] = e.target.checked; });
+    $('sHist').addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('more')) histMore = e.target.open; }, true);
     $('sClear').onclick = function () {
       var ids = this.getAttribute('data-ids'); if (!ids) return; var b = this; b.disabled = true;
       call({ action: 'extclear', ids: ids }).then(function (j) { b.disabled = false; toast(j && j.ok ? 'Moved ' + j.cleared + ' to History' : 'Couldn’t clear: ' + ((j && j.error) || 'no answer')); load(); }, function () { b.disabled = false; toast('Couldn’t reach the engine.'); });
@@ -2363,8 +2379,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function J(u, o) { return fetch(ENG + u, o).then(function (r) { return r.json(); }); }
     function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
     function sgMs(d, hm) { return Date.parse(d + 'T' + hm + ':00+08:00'); }
-    function addD(d, n) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
-    function sgToday() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
+    function addD(d, n) { return R2Day.addDays(d, n); }
+    function sgToday() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }   /* day-ok: picks test dates weeks ahead */
     function ago(t) { var m = Math.round((Date.now() - t) / 60000); return m < 60 ? m + ' min ago' : m < 2880 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; }
     function draw() {
       var n = { ok: 0, warn: 0, bad: 0 }; rows.forEach(function (r) { if (n[r.st] !== undefined) n[r.st]++; });
@@ -2420,6 +2436,60 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var t0 = Date.now(); return J('/time').then(function (j) { var t1 = Date.now(), off = Math.round((j.t + (t1 - t0) / 2 - t1) / 1000);
           must(j.t && j.today, 'No time from the engine.');
           must(j.night === new Date(j.t + 8 * 3600e3 - 7 * 3600e3).toISOString().slice(0, 10), 'The engine’s shop night isn’t on the 7am rule (' + j.night + ').'); return 'Engine: ' + j.sg + ' (Singapore), shop night ' + j.night + ' · this phone’s own clock is ' + (Math.abs(off) <= 2 ? 'spot on' : Math.abs(off) + ' s ' + (off > 0 ? 'slow' : 'fast')) + ' – ignored'; }); }); })
+      /* every screen's day lists (owner, 2 Nov: "how did we not catch that the history list needed the new day rule?"):
+         each list registers the functions it draws with (r2day.js R2Day.list); here they get made-up times around 7am,
+         midnight and New Year. A list that's missing from the register fails too, so one can't quietly drop out. */
+      .then(function () { return step('Screens follow the 7am rule (every list that shows a day)', function () {
+        var NEED = ['TV themes › today', 'Round2 messages', 'In session › Extensions today', 'In session › History', 'Guest messages', 'Late session › date'];
+        var CASES = [['2026-11-03T06:59', '2026-11-02'], ['2026-11-03T07:00', '2026-11-03'], ['2026-11-03T00:01', '2026-11-02'], ['2026-11-02T23:59', '2026-11-02'],
+          ['2026-11-02T12:00', '2026-11-02'], ['2027-01-01T03:00', '2026-12-31'], ['2027-01-01T07:30', '2027-01-01']];
+        function frame(src) { return new Promise(function (ok) {
+          var f = document.createElement('iframe'); f.style.cssText = 'position:absolute;width:10px;height:10px;left:-9999px;visibility:hidden'; f.src = src; document.body.appendChild(f);
+          var n = 0, iv = setInterval(function () { var w = f.contentWindow, L = w && w.R2Day && w.R2Day.lists; if ((L && Object.keys(L).length) || ++n > 40) { clearInterval(iv); ok({ f: f, w: w }); } }, 250);
+        }); }
+        return Promise.all([frame('msg/staff.html?view=list&embed=1&check=1'), frame('late/?embed=1&check=1')]).then(function (fr) {
+          var lists = {}, clocks = [];
+          [{ w: window }].concat(fr).forEach(function (x) { var R = x.w && x.w.R2Day; if (!R) return; clocks.push(R.now()); Object.keys(R.lists).forEach(function (k) { lists[k] = R.lists[k]; }); });
+          fr.forEach(function (x) { x.f.remove(); });
+          var miss = NEED.filter(function (k) { return !lists[k]; }), bad = [];
+          Object.keys(lists).forEach(function (k) {
+            CASES.forEach(function (c) {
+              var t = Date.parse(c[0] + ':00+08:00'), L = lists[k];
+              if (L.night && L.night(t) !== c[1]) bad.push(k + ': ' + c[0].replace('T', ' ') + ' filed under ' + L.night(t) + ', should be ' + c[1]);
+              if (L.today && L.today(t) !== c[1]) bad.push(k + ': at ' + c[0].replace('T', ' ') + ' “today” is ' + L.today(t) + ', should be ' + c[1]);
+            });
+          });
+          must(!miss.length, 'Not registered any more (or the page didn’t load): ' + miss.join(', ') + '.');
+          must(!bad.length, bad.slice(0, 3).join(' · ') + (bad.length > 3 ? ' · +' + (bad.length - 3) + ' more' : ''));
+          var spread = Math.max.apply(null, clocks) - Math.min.apply(null, clocks);
+          must(spread < 3000, 'The screens don’t share one clock (' + Math.round(spread / 1000) + ' s apart).');
+          return Object.keys(lists).length + ' lists × ' + CASES.length + ' times (6:59am, 7am, just after midnight, New Year…) all on the right night · one clock on all 3 pages';
+        });
+      }); })
+      /* watchdog: reads the code of every screen (and the TV page) and flags day or time maths that doesn't go through
+         R2Day (or the TV's own 7am today()). A line that's fine on purpose says so with a "day-ok" note. */
+      .then(function () { return step('Watchdog: no screen works out days on its own', function () {
+        var FILES = [['Control centre', './'], ['Guest messages', 'msg/staff.html'], ['Late session', 'late/'], ['TV home screen', 'src/tv-web.txt']];
+        var OK = new RegExp(['day', 'ok'].join('-') + '|R2Day|7 \\* 3600'), RULES = [
+          [new RegExp(['864e5', '86400000', '86400e3', '24 \\* 3600000', '24 \\* 3600e3', '24 \\* 60 \\* 60'].join('|')), '“24 hours” maths'],
+          [new RegExp('toISOString\\(\\)\\.slice\\(0, ?10\\)'), 'a calendar date without the 7am rule'],
+          [new RegExp('\\.get(Date|Day|Hours)\\(\\)'), 'this device’s own calendar or clock'],
+          [new RegExp('\\b(dayKey|nightOf|sgDay|today)\\(\\s*Date\\.now\\(\\)'), 'today from this device’s clock']];   /* day-ok: the watchdog's own patterns */
+        return Promise.all(FILES.map(function (f) { return fetch(f[1] + (f[1].indexOf('?') < 0 ? '?' : '&') + 'v=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).catch(function () { return ''; }); })).then(function (src) {
+          var hits = [], lines = 0, gone = [];
+          src.forEach(function (txt, i) {
+            if (!txt) { gone.push(FILES[i][0]); return; }
+            var L = txt.split('\n'); lines += L.length;
+            L.forEach(function (ln, n) {
+              if (OK.test(ln) || OK.test(L[n - 1] || '')) return;
+              RULES.forEach(function (r) { if (r[0].test(ln)) hits.push(FILES[i][0] + ' line ' + (n + 1) + ': ' + r[1] + ' – “' + ln.trim().slice(0, 70) + '”'); });
+            });
+          });
+          warnIf(gone.length, 'Couldn’t read: ' + gone.join(', ') + '.');
+          warnIf(hits.length, hits.length + ' place(s) to look at (a new list may be ignoring the 7am rule): ' + hits.slice(0, 3).join(' · '));
+          return FILES.length + ' screens, ' + lines + ' lines read · all day maths goes through the shared 7am rule';
+        });
+      }); })
       .then(function () { return step('SimplyBook answers (login + all 7 rooms)', function () {
         return J('/selftest').then(function (j) { must(j.sbLogin, 'SimplyBook login failed.'); must((j.rooms || []).length === 7, 'Expected 7 rooms, got ' + (j.rooms || []).length + '.'); return j.rooms.join(', '); }); }); })
       .then(function () { return step('Public holidays loaded (this year and next)', function () {
@@ -2471,7 +2541,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var rooms = ['vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'max'];
         return Promise.all(rooms.map(function (r) { return Promise.all([fetch(FB + mk + '/' + r + '/msgShown.json').then(function (x) { return x.json(); }).catch(function () { return null; }), fetch(FB + mk + '/' + r + '/msgAck.json').then(function (x) { return x.json(); }).catch(function () { return null; })]); })).then(function (all) {
           var stale = [], seen = [];
-          all.forEach(function (a, i) { var t = Math.max((a[0] && a[0].t) || 0, (a[1] && a[1].t) || 0); (Date.now() - t > 2 * 86400e3 ? stale : seen).push(rooms[i] + (t ? ' ' + ago(t) : ' never')); });
+          all.forEach(function (a, i) { var t = Math.max((a[0] && a[0].t) || 0, (a[1] && a[1].t) || 0); (Date.now() - t > 2 * 86400e3 /* day-ok: how long ago */ ? stale : seen).push(rooms[i] + (t ? ' ' + ago(t) : ' never')); });
           /* Kaeden is under renovation (owner, 2 Nov): its SimplyBook block stays, but its TV should keep running like the others */
           warnIf(stale.length, 'Not heard from in 2+ days: ' + stale.join(', ') + '. TV off, unplugged or offline?' + (stale.some(function (x) { return /^kaeden/.test(x); }) ? ' (Kaeden is under renovation, but its TV should stay on and online, ready for reopening.)' : '') + ' Others: ' + seen.join(', '));
           return seen.join(' · ');
@@ -2563,7 +2633,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       .then(function () { return step('Today’s TV messages: no doubles, nothing orphaned', function () {
         return Promise.all([gm({ action: 'list' }), gm({ action: 'orphans', dry: '1' })]).then(function (r) {
           var now = Date.now(), seen = {}, dup = [];
-          (r[0].links || []).forEach(function (x) { var d = x.data; if (!/^R2/.test(x.key) || d.status === 'cancelled' || d.at <= now || d.at > now + 86400e3) return; var k = d.room + d.kind + Math.round(d.at / 300e3); if (seen[k]) dup.push(d.room + ' ' + d.kind); seen[k] = 1; });
+          (r[0].links || []).forEach(function (x) { var d = x.data; if (!/^R2/.test(x.key) || d.status === 'cancelled' || d.at <= now || d.at > now + 86400e3 /* day-ok: next 24 h */) return; var k = d.room + d.kind + Math.round(d.at / 300e3); if (seen[k]) dup.push(d.room + ' ' + d.kind); seen[k] = 1; });
           must(!dup.length, 'Doubled: ' + dup.join(', ')); warnIf((r[1].gone || []).length, (r[1].gone || []).length + ' message(s) belong to a booking that’s gone (cleaned up within 10 min).');
           return Object.keys(seen).length + ' upcoming “10 minutes / That’s a wrap” in the next 24 h, none doubled';
         });
@@ -3001,8 +3071,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   $('quick').addEventListener('click', function (e) {
     var q = e.target.getAttribute && e.target.getAttribute('data-q'); if (!q) return;
     var d = sgNow(), from = ymd(d), until = '';
-    if (q === 'now7') { var e7 = new Date(d); e7.setDate(d.getDate() + 6); until = ymd(e7); }
-    if (q === 'weekend') { var s = new Date(d); s.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7)); var su = new Date(s); su.setDate(s.getDate() + 1); from = ymd(s); until = ymd(su); if (d.getDay() === 0) { from = ymd(d); until = ymd(d); } }
+    if (q === 'now7') {   /* day-ok: d is the shop night's date (sgNow) */
+    var e7 = new Date(d); e7.setDate(d.getDate() + 6); until = ymd(e7); }
+    if (q === 'weekend') {   /* day-ok: shop-night date maths */
+    var s = new Date(d); s.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7)); var su = new Date(s); su.setDate(s.getDate() + 1); from = ymd(s); until = ymd(su); if (d.getDay() === 0) { from = ymd(d); until = ymd(d); } }
     if (q === 'month') { until = ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
     if (q === 'always') { from = ''; until = ''; }
     $('fFrom').value = from; $('fUntil').value = until; checkClash();
@@ -3060,7 +3132,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     tv.addEventListener('pointerup', end); tv.addEventListener('pointercancel', end);
     tv.addEventListener('wheel', function (e) { e.preventDefault(); frame.zoom = Math.min(3, Math.max(.25, frame.zoom * (e.deltaY < 0 ? 1.05 : 1 / 1.05))); place(); }, { passive: false });
   }());
-  function addDays(d, n) { var x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); }
+  function addDays(d, n) { var x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return ymd(x); }   /* day-ok: date maths */
   /* Two automatic themes can't run in the same room on the same day: find the clashes and offer fixes */
   function clashes(t, skip) {
     if (!t.takeover) return [];

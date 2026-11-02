@@ -7,6 +7,9 @@
 - **One clock:** all time-based code uses the engine's time (Cloudflare `/time`) via `r2Now()` (TV web), `snow` (LG helper),
   `Clock.now()` (Android), `clockOff` (control centre) – never the device's own clock. Times are Singapore time everywhere. The shop night: a session starting before 7am belongs to the night before, and every screen
   switches to the new day at 7am (owner, 2 Nov: staff wake ~10am and want today's list on the way in). Guest end = SimplyBook end − 15 min cleaning. Booking times go in 15-minute steps.
+- **Screens:** every control-centre day/“today” list uses `manager/r2day.js` (`R2Day.night`, `R2Day.now`) and registers with
+  `R2Day.list(...)`; the System check tests each one at 6:59am/7am and a watchdog flags day maths outside it
+  (`docs/system-check.md` "Screens follow the 7am rule").
 - The booking engine lives in the other repo: round2sg-home `worker/round2-book.js` (deployed to Cloudflare `round2-book`).
 - **Kaeden is under renovation (since ~30 Oct 2026, open-ended).** Its long "room blocked" note in SimplyBook stays – don't
   remove it or "fix" Kaeden having no free slots. Its TV should still run and report in like the others, ready for reopening.
