@@ -1612,7 +1612,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function updLine(x) {
       var h = x.hb || {}, u = x.upd, L = latest(), now = Date.now(), on = h.t && now - h.t < 12 * 60000, out = [];
       if (h.v) out.push('v' + esc(h.v));
-      if (u && u.t && now - u.t < 60 * 60000 && UPD[u.state]) out.push('<i class="' + (u.state === 'failed' || u.state === 'locked' ? 'ub' : u.state === 'done' || u.state === 'uptodate' ? 'uo' : 'uw') + '">' + UPD[u.state] + (u.state === 'done' && u.v ? ' to ' + esc(u.v) : u.state === 'failed' && u.v ? ': ' + esc(u.v) : '') + '</i>');
+      /* the last update's result shows for an hour; only one still under way hides the button (owner, 3 Nov: Bella's old
+         "didn't finish" kept the button away after it was updated by hand) */
+      var busy = u && u.t && now - u.t < 15 * 60000 && (u.state === 'sent' || u.state === 'checking' || u.state === 'installing');
+      if (u && u.t && now - u.t < 60 * 60000 && UPD[u.state] && !(u.state === 'failed' && h.v && u.v && h.v !== u.v && !/still/.test(u.v)))
+        out.push('<i class="' + (u.state === 'failed' || u.state === 'locked' ? 'ub' : u.state === 'done' || u.state === 'uptodate' ? 'uo' : 'uw') + '">' + UPD[u.state] + (u.state === 'done' && u.v ? ' to ' + esc(u.v) : u.state === 'failed' && u.v ? ': ' + esc(u.v) : '') + '</i>');
+      if (busy) {}
       else if (L && h.v && newerV(L, h.v)) out.push(!on ? '<i class="ub">' + esc(L) + ' out · TV is off</i>' : h.ru === false ? '<i class="ub">' + esc(L) + ' out · locked on the TV</i>'
         : !newerV(h.v, '1.0.225') ? '<i class="uw">' + esc(L) + ' out · update by hand once (remote updates start from 1.0.226)</i>'   /* older TVs don't listen for Update now */
         : '<button type="button" class="tvu" data-tvu="' + x.r + '">Update to ' + esc(L) + '</button>');
