@@ -2125,7 +2125,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (show.some(function (x) { return x.st !== 'done'; })) h += '<label class="ack"><input type="checkbox" data-ack="' + rk + '"' + (ackOn[rk] ? ' checked' : '') + '> Banner needs OK on the TV</label>';
         return h + '</article>';
       }).join('');
-      var rec = (j.recent || []).filter(function (r) { return now - r.t < 24 * 3600000; });
+      /* this shop night only (owner, 2 Nov: "I thought it would disappear because it's a new day"): +1h pressed before 7am
+         belongs to the night before and drops off at 7am like every other screen; the System check's ZZTEST ones never show */
+      var nightOf = function (ms) { return new Date(ms + 8 * 3600000 - 7 * 3600000).toISOString().slice(0, 10); };
+      var rec = (j.recent || []).filter(function (r) { return nightOf(r.t) === j.day && !/^ZZTEST/.test(r.name || ''); });
       $('sRecent').innerHTML = rec.length ? rec.map(function (r) {
         var canUndo = !r.undone && now - r.t < 30 * 60000;
         return '<div><span class="chip room" style="--rc:' + ROOMS[RK[r.room]].c + '">' + esc(ROOMS[RK[r.room]].name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · now ends ' + t(r.guestEnd) + ' <span class="hint">(' + t(r.t) + ')</span>' +
