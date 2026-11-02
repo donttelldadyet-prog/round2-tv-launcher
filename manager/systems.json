@@ -260,9 +260,9 @@
           "code": "round2-tv-launcher · webos/service/round2d.sh, app/…/HomeWatch.java, manager/index.html"
         },
         {
-          "name": "TVs update themselves",
+          "name": "Remote TV updates (Update now from the control centre)",
           "status": "parked",
-          "what": "On the shelf until the owner is back at the shop (2 Nov). Android 12+ already installs a found update when switched off; older Android needs Install pressed. LG: 'when switched off' won't work (Quick Start+ is off, so the TV powers right down). Favoured: an 'Update now' button per TV in the control centre, refused while a session is on or due, plus a Staff tools switch.",
+          "what": "On the shelf until the owner is back at the shop (2 Nov). No automatic updates: an Update now button per TV, refused while a session is on or due. LG installs straight away; Android only downloads, and staff press Install in Staff tools (never in front of guests). Staff tools switch per TV: updates from the control centre Allowed / Not allowed (allowed by default).",
           "runs": "—",
           "code": "—"
         }
