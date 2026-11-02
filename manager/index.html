@@ -2137,7 +2137,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       /* this shop night only (owner, 2 Nov: "I thought it would disappear because it's a new day"): +1h pressed before 7am
          belongs to the night before and drops off at 7am like every other screen; the System check's ZZTEST ones never show */
       var nightOf = function (ms) { return new Date(ms + 8 * 3600000 - 7 * 3600000).toISOString().slice(0, 10); };
-      var all = (j.recent || []).filter(function (r) { return !/^ZZTEST/.test(r.name || ''); });
+      var all = (j.recent || []).filter(function (r) { return !/^(ZZ\s?TEST|TEST\b)/i.test(r.name || ''); });   /* System check + Claude's own tests */
       var rec = all.filter(function (r) { return nightOf(r.t) === j.day && !r.cleared; });
       /* Clear finished (owner, 2 Nov): only entries whose session is over (or undone); they move to History */
       var done = rec.filter(function (r) { return r.undone || r.guestEnd < now; });
