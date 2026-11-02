@@ -40,6 +40,7 @@ header.top .wrap { display: flex; align-items: center; gap: 16px; padding-top: 1
 [data-group="home"], body[data-g="home"] { --c: #F2C21B; }
 [data-group="sess"], body[data-g="sess"] { --c: #4DB848; }
 [data-group="notif"], body[data-g="notif"] { --c: #FF6FAE; }
+[data-group="tvs"], body[data-g="tvs"] { --c: #60A5FA; }
 [data-group="themes"], body[data-g="themes"] { --c: #A78BFA; }
 [data-group="menu"], body[data-g="menu"] { --c: #F59E0B; }
 [data-group="web"], body[data-g="web"] { --c: #38BDF8; }
@@ -252,6 +253,34 @@ details.awdone .awc { opacity: .55; grid-template-columns: 1fr; }
 .agbk > .bh b { color: var(--ink); } .agbk > .bh .hint { font-size: 12px; }
 .agbk .ag { margin: 6px 8px; }
 .agbk.none > .bh { color: var(--mute); }
+/* Tonight (owner, 2 Nov "Plan A"): every message tonight, room by room, booking by booking */
+.tnbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 14px; }
+.tnbar .grow { flex: 1; min-width: 180px; }
+.tnaw { font-size: 13px; color: var(--mute); background: none; border: 1px solid var(--line2); padding: 6px 10px; cursor: pointer; font-family: inherit; }
+.tnaw b { color: var(--ok); } .tnaw.off b { color: var(--warn); }
+.tnroom { border: 1px solid var(--line); border-left: 4px solid var(--rc); background: var(--panel); margin: 0 0 12px; padding: 8px 0 4px; }
+.tnroom > h3 { margin: 0 12px 6px; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--rc); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.tnroom > h3 .hint { letter-spacing: 0; text-transform: none; font-weight: 400; }
+.tnbk { margin: 0 10px 8px; border: 1px solid var(--line); background: var(--bg); }
+.tnbk > .bh { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 7px 10px; font-size: 13px; }
+.tnbk > .bh b { color: var(--ink); } .tnbk.none > .bh { color: var(--mute); }
+.tnr { display: grid; grid-template-columns: 58px 1fr; gap: 2px 8px; padding: 7px 10px; border-top: 1px solid var(--line); font-size: 13px; }
+.tnr .tm { color: var(--ink); font-weight: 700; }
+.tnr .tt { min-width: 0; } .tnr .tt .hint { font-size: 12px; }
+.tnr .sc { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tnr .sc .stt { font-size: 12px; }
+.tnr .sc .stt.w { color: var(--warn); } .tnr .sc .stt.ok { color: var(--ok); } .tnr .sc .stt.live { color: #ffd23f; }
+.tnr .sc button { background: none; border: 1px solid var(--line2); color: var(--mute); font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; }
+.tnr .sc button:hover { color: var(--ink); } .tnr .sc button.dz { border-color: var(--bad); color: var(--bad); }
+.tnr.fin { opacity: .55; }
+.tnr .src { font-size: 11px; padding: 1px 6px; border: 1px solid var(--line2); color: var(--mute); margin-right: 4px; }
+.tnr .src.r2 { border-color: var(--accent); color: var(--accent); } .tnr .src.auto { border-color: #8EC5FF; background: #8EC5FF; color: #0b0914; font-weight: 700; }
+.tnquiet { font-size: 13px; color: var(--mute); margin: 4px 0 0; }
+#homeTvs { margin: 0 0 14px; }
+#homeTvs button { width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid #60A5FA; color: var(--ink); font: inherit; font-size: 14px; padding: 10px 14px; cursor: pointer; }
+#homeTvs .bad { color: var(--bad); } #homeTvs .w { color: var(--warn); }
+details.mtpl > summary { cursor: pointer; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); padding: 2px 0; }
+details.mtpl[open] > summary { margin-bottom: 8px; }
 .ag.st-shown { box-shadow: inset 3px 0 0 var(--rc); }
 .ag.st-unconf .chip.stc { color: var(--warn); border-color: var(--warn); }
 .ag .chip.stc { background: transparent; }
@@ -506,6 +535,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <button role="tab" aria-selected="true" data-group="home">Home</button>
     <button role="tab" aria-selected="false" data-group="sess">In session</button>
     <button role="tab" aria-selected="false" data-group="notif">TV messages</button>
+    <button role="tab" aria-selected="false" data-group="tvs">TVs</button>
     <button role="tab" aria-selected="false" data-group="themes">TV setup</button>
     <button role="tab" aria-selected="false" data-group="menu">Food menu</button>
     <button role="tab" aria-selected="false" data-group="web">Website</button>
@@ -541,6 +571,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-home" hidden>
     <h1>Control centre</h1>
     <p class="sub">Pick what you need. Each area has its own colour and icon, and that colour stays with you on every page inside it.</p>
+    <div id="homeTvs"></div>
     <div class="hub" id="hub"></div>
   </section>
 
@@ -568,9 +599,19 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="themes" id="sndList"></div>
   </section>
 
+  <section id="tab-tonight" hidden>
+    <h1>Tonight</h1>
+    <p class="sub">Every message on the TVs tonight in one place – guests’, Round2’s and Auto wrap-up – room by room, booking by booking. Switches to the new day at 7am.</p>
+    <div class="tnbar"><button type="button" class="tnaw" id="tnAuto" data-tab="autowrap">Auto wrap-up: …</button><span class="grow"></span>
+      <button type="button" class="btn primary" data-tab="messages">+ Message</button><button type="button" class="btn" data-tab="guestlink">+ Guest link</button></div>
+    <div id="tnKey" class="banner warn" hidden><div class="grow">Add the <b>staff code</b> (Keys) to see tonight’s messages.</div></div>
+    <div id="tnList"><p class="hint">Loading…</p></div>
+    <p class="hint" id="tnFoot"></p>
+  </section>
+
   <section id="tab-messages" hidden>
-    <h1>Messages</h1>
-    <p class="sub">Send a personal message to a room's TV (a birthday, an anniversary, a well done), or a friendly house reminder (volume, 10 minutes left, time's up). It pops up over whatever they're watching or playing, at the time you choose, with confetti or hearts in the room's colour.</p>
+    <h1>Send a message</h1>
+    <p class="sub">Pick what it is, the room and when. It pops up over whatever they’re watching or playing, in the room’s colour. To see what’s already on the TVs tonight, open <b>Tonight</b>.</p>
     <div id="mKeyBox" class="banner warn" hidden>
       <div class="grow"><b>One-time setup on this computer.</b> Paste the TV messages key (the same private code the food alerts use). It stays in this browser only and is never published.</div>
       <input class="tok" id="mKey" placeholder="TV messages key" autocomplete="off" style="max-width:280px">
@@ -578,8 +619,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     </div>
     <div class="msgs">
       <div class="card">
-        <div class="f"><span class="f">Room</span><div class="roompick" id="mRooms"></div></div>
-        <div class="f" id="mKind"><span class="f">Occasion</span>
+        <div class="f" id="mKind"><span class="f">What is it?</span>
           <div class="seg k4">
             <button type="button" data-k="birthday" aria-pressed="true">Birthday</button>
             <button type="button" data-k="anniversary" aria-pressed="false">Anniversary</button>
@@ -593,6 +633,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             <button type="button" data-k="timeup" aria-pressed="false">Time’s up</button>
           </div>
         </div>
+        <div class="f"><span class="f">Room</span><div class="roompick" id="mRooms"></div></div>
         <div class="row" style="align-items:flex-start">
           <label class="f" style="flex:1;min-width:180px">For (name, optional)<input type="text" id="mTo" maxlength="30" placeholder="e.g. Maya"></label>
           <label class="f" style="flex:1;min-width:180px">From<input type="text" id="mFrom" maxlength="40" value="The Round2 team"></label>
@@ -600,7 +641,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <label class="f">Headline<input type="text" id="mTitle" maxlength="40"></label>
         <label class="f">Message<textarea id="mText" maxlength="600"></textarea>
           <span class="hint"><span id="mCount">0</span>/600 · <span id="mPages"></span> · <button type="button" class="btn ghost" id="mDefault" style="padding:2px 8px;font-size:11px">Use the default message</button></span></label>
-        <div class="f"><span class="f">Saved messages</span>
+        <details class="mtpl"><summary>Saved messages &amp; defaults</summary><div class="f">
           <div class="tpls" id="mTpls"></div>
           <div class="row" style="margin-top:8px">
             <button type="button" class="btn ghost" id="mTplNew" style="padding:4px 10px;font-size:12px">Save this as a template…</button>
@@ -611,7 +652,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             <button type="button" class="btn primary" id="mTplOk">Save template</button><button type="button" class="btn" id="mTplCancel">Cancel</button>
           </div>
           <span class="hint">Shared by everyone using the control centre (saved with the themes, so it needs the GitHub key on this computer). Headlines are saved only if you typed your own.</span>
-        </div>
+        </div></details>
         <div class="f"><span class="f">When</span>
           <div class="seg" id="mWhen"><button type="button" data-w="now" aria-pressed="true">Now</button><button type="button" data-w="at" aria-pressed="false">At a set time</button></div>
           <label class="f" id="mAtBox" hidden>Show at (Singapore time)<input type="datetime-local" id="mAt"><span class="hint">Tip: within the first hour of their booking. It shows for up to 3 hours after this time. Set-time messages wait in the same queue as guest messages, so they don't overwrite each other.</span></label>
@@ -619,25 +660,25 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <label class="switch" id="mPairBox" hidden><input type="checkbox" id="mPair">
           <span>Also send “10 minutes left” 10 minutes before<br><span class="hint">Optional. Leave it off to send Time’s up on its own. Only with “At a set time”.</span></span></label>
         <label class="switch"><input type="checkbox" id="mAck" checked>
-          <span>Must be acknowledged<br><span class="hint">It stays on screen until someone presses OK, and comes back every 5 minutes until then. You'll see the tick here.</span></span></label>
+          <span>Must be acknowledged<br><span class="hint">It stays on screen until someone presses OK, and comes back every 5 minutes until then. You'll see the tick in Tonight.</span></span></label>
         <div class="row"><button class="btn primary" id="mSend">Check and send…</button><span class="hint" id="mMsg"></span></div>
         <div class="review" id="mReview" hidden></div>
       </div>
       <div style="display:grid;gap:18px">
         <div><h2 style="margin-top:0">Preview</h2><div class="mprev" id="mPrev"></div></div>
-        <div><div class="row" style="justify-content:space-between"><h2 style="margin:0">On the TVs now</h2><button class="btn ghost" id="mRefresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
-          <p class="hint" style="margin:6px 0 0">⬆️ <b>Update now</b> won’t send if the TV is off, its Staff tools say updates are NOT ALLOWED, or the room (or its twin) has a session now or starting within 10 minutes.</p>
-          <div class="mstat" id="mStat" style="margin-top:10px"></div></div>
       </div>
     </div>
-    <h2 style="margin-top:30px">Calendar</h2>
-    <p class="sub" style="margin:0">Every message scheduled for a TV, in the room’s colour: ■ Round2’s own, ● guests’. Tap a day to see it.</p>
+  </section>
+
+  <section id="tab-calendar" hidden>
+    <h1>Calendar</h1>
+    <p class="sub">Every message scheduled for a TV, in the room’s colour: ■ Round2’s own, ● guests’. Tap a day to see it.</p>
     <div id="cKeyBox" class="banner warn" hidden>
-      <div class="grow"><b>Show guest messages here too.</b> Paste the guest messages staff code (from the Project notes). It stays in this browser only.</div>
-      <input class="tok" id="cKey" placeholder="Guest messages staff code" autocomplete="off" style="max-width:240px">
+      <div class="grow"><b>Show guest messages here too.</b> Paste the staff code. It stays in this browser only.</div>
+      <input class="tok" id="cKey" placeholder="Staff code" autocomplete="off" style="max-width:240px">
       <button class="btn primary" id="cKeySave">Save</button>
     </div>
-    <div class="mcal">
+    <div class="mcal" style="margin-top:8px">
       <div class="card"><div class="cal" id="cCal"></div></div>
       <div class="agenda" id="cDay"></div>
     </div>
@@ -675,12 +716,6 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     </div>
   </section>
 
-  <section id="tab-guestmsgs" hidden>
-    <h1>Guest messages</h1>
-    <p class="sub">Messages guests wrote from their link, by date and room. They go to the TV by themselves at the time the guest picked. Change the time or room if a booking moves, or cancel anything you don't want shown.</p>
-    <iframe class="gframe" title="Guest messages" data-src="msg/staff.html?view=list&amp;embed=1"></iframe>
-  </section>
-
   <section id="tab-autowrap" hidden>
     <h1>Auto wrap-up</h1>
     <p class="sub">When on, every session today gets “About 10 minutes to go” and “That’s a wrap!” on its TV, by itself. Bookings and calendar notes, late sessions too. New, moved, extended or cancelled sessions are followed within 10 minutes (bookings straight away).</p>
@@ -697,9 +732,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   </section>
 
   <section id="tab-guestlink" hidden>
-    <h1>Make a guest link</h1>
-    <p class="sub">After a booking is paid: pick the room and start time, then send the guest the message it gives you. For your phone's home screen, open <a href="link/" target="_blank" rel="noopener">this page</a> and choose Share › Add to Home Screen.</p>
-    <iframe class="gframe" title="Make a guest link" data-src="msg/staff.html?view=make&amp;embed=1"></iframe>
+    <h1>Guest links</h1>
+    <p class="sub">Make a link for a paid booking and send it to the guest; they write their own TV message. Below: every link – waiting for the guest, scheduled, on the TV – to change the time or room, or cancel. Phone shortcut: open <a href="link/" target="_blank" rel="noopener">this page</a> › Share › Add to Home Screen.</p>
+    <iframe class="gframe" title="Guest links" data-src="msg/staff.html?embed=1"></iframe>
   </section>
 
   <section id="tab-website" hidden>
@@ -726,6 +761,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div class="card"><h2 style="margin-top:0">Other</h2><div id="bOther"></div></div>
     </div>
     <p class="hint" id="wNote"></p>
+  </section>
+
+  <section id="tab-tvs" hidden>
+    <div class="row" style="justify-content:space-between;align-items:flex-end"><h1 style="margin:0">TVs</h1><button class="btn ghost" type="button" id="tvRefresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
+    <p class="sub">Each room’s TV: on or off, what’s on screen, and its app version. Checks in every 5 minutes; updates here every 20 seconds.</p>
+    <div class="banner warn" id="tvKeyBox" hidden><div class="grow">Add the <b>TV messages key</b> (Keys) to see the TVs.</div></div>
+    <div id="tvTiles"></div>
+    <p class="hint">⬆️ <b>Update now</b> won’t send if the TV is off, its Staff tools say updates are NOT ALLOWED, or the room (or its twin) has a session now or starting within 10 minutes. Updating by hand on the TV always works.</p>
+    <p class="hint">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won’t get messages. Open Round2 Home on that TV to restart it, or see Help › If a TV is stuck.</p>
   </section>
 
   <section id="tab-tests" hidden>
@@ -933,7 +977,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     </details>
 
     <details class="hcard" id="h-r2"><summary><span class="hi">💬</span>Messages on the room TVs</summary>
-      <div class="hflow"><div class="hstep"><i>💬</i>Round2 messages</div><em>›</em><div class="hstep"><i>🚪</i>Room</div><em>›</em><div class="hstep"><i>🎉</i>Kind + text + time</div><em>›</em><div class="hstep ok"><i>📺</i>Send</div></div>
+      <div class="hflow"><div class="hstep"><i>💬</i>TV messages › Send</div><em>›</em><div class="hstep"><i>🚪</i>Room</div><em>›</em><div class="hstep"><i>🎉</i>Kind + text + time</div><em>›</em><div class="hstep ok"><i>📺</i>Send</div></div>
       <p class="hh">🏷️ Who made it</p>
       <div class="hkeys"><span><span class="hchip gold">ROUND2</span> us</span><span><span class="hchip blue">⚙ AUTO WRAP-UP</span> automatic</span><span><span class="hchip grey">GUEST</span> the guest</span></div>
       <p class="hh">🛤️ Its journey</p>
@@ -955,7 +999,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div class="hflow"><div class="hstep"><i>🔗</i>Make a guest link</div><em>›</em><div class="hstep"><i>💚</i>Send on WhatsApp</div><em>›</em><div class="hstep"><i>✍️</i>Guest writes it</div><em>›</em><div class="hstep ok"><i>📺</i>Pops up on time</div></div>
       <p><b>Who’s it for:</b> after picking the room and time, tap the booking or note that’s in SimplyBook then. The link sticks to it: <b>moved → the message moves</b>, <b>deleted or cancelled → the message is cancelled</b>.</p>
       <p><b>Made the link first?</b> Fine – it shows <b>⏳ Not tied yet</b> and ties itself once the booking or note is in at that exact time (Late session does it straight away). Different time by mistake? Tap <b>Pair with booking</b> in Guest messages. Still not tied 3 hours before? Your phone gets a heads-up.</p>
-      <p class="tip">See, move or cancel them in <b>Guest messages</b>: 🔗 = tied to its booking or note.</p>
+      <p class="tip">See them in <b>Tonight</b>; move or cancel them in <b>Guest links</b>: 🔗 = tied to its booking or note.</p>
     </details>
 
     <details class="hcard" id="h-alerts"><summary><span class="hi">🔔</span>Booking alerts on your phone</summary>
@@ -1529,7 +1573,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     /* real time: Firebase streams every change on the TVs' message nodes (a guest pressing OK, a message arriving),
        so "Acknowledged" shows within a second or two instead of at the next timed refresh */
     var streams = [], liveT = null;
-    function bump() { clearTimeout(liveT); liveT = setTimeout(function () { status(); try { Cal.open(); } catch (e) {} }, 800); }
+    function bump() { clearTimeout(liveT); liveT = setTimeout(function () { try { Cal.open(); } catch (e) {} }, 800); }
     function unlive() { streams.forEach(function (es) { try { es.close(); } catch (e) {} }); streams = []; clearTimeout(liveT); }
     function live() {
       unlive(); if (!key() || !window.EventSource) return;
@@ -1575,57 +1619,40 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function ago2(ms) { var m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : ''); }
     function nice2(ms) { var d = new Date(ms); return d.toLocaleString(undefined, { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
+    /* TVs page (owner, 2 Nov: own tab): one tile per room – check-in, what's on screen, version, Update now */
     function status() {
-      if (!key()) { $('mStat').innerHTML = '<p class="hint">Add the TV messages key above to see what each TV is showing.</p>'; return; }
+      $('tvKeyBox').hidden = !!key();
+      if (!key()) { $('tvTiles').innerHTML = ''; return; }
       Promise.all(Object.keys(ROOMS).map(function (r) {
-        return Promise.all([req('GET', url(r, 'msg')), req('GET', url(r, 'msgShown')), req('GET', url(r, 'msgAck')), req('GET', url(r, 'helper')).catch(function () { return null; }), req('GET', url(r, 'update')).catch(function () { return null; })])
-          .then(function (a) { return { r: r, m: a[0], shown: a[1], ack: a[2], hb: a[3], upd: a[4] }; }).catch(function () { return { r: r, err: true }; });
+        return Promise.all([req('GET', url(r, 'helper')).catch(function () { return null; }), req('GET', url(r, 'update')).catch(function () { return null; })])
+          .then(function (a) { return { r: r, hb: a[0], upd: a[1] }; }).catch(function () { return { r: r, err: true }; });
       })).then(function (list) {
-        /* each row says when it goes by itself: a message on screen at its cut-off (That's a wrap 15 min, 10-min reminder
-           4 min, …; one without OK after a minute), and a finished one (acknowledged / expired) drops off this list
-           30 minutes later. The full history stays in the calendar below. */
-        var GONE = 30 * 60000;
-        function inMin(ms) { var m = Math.max(1, Math.ceil(ms / 60000)); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : ''); }
-        function doneAt(x) {
-          var m = x.m, until = m.until || m.at + 3 * 3600000;
-          if (x.ack && x.ack.id === m.id) return x.ack.t || Date.now();
-          if (!m.ack && x.shown && (x.shown.id === m.id || x.shown.t >= m.at - 60000)) return (x.shown.t || m.at) + 60000;   /* no OK needed: off the screen after a minute */
-          if (Date.now() > until) return until;
-          return 0;
-        }
-        var html = list.filter(function (x) { if (x.err) return true; if (!x.m) return false; var d = doneAt(x); return !d || Date.now() < d + GONE; }).map(function (x) {
-          var R = ROOMS[x.r];
-          if (x.err) return '<article><div class="top"><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span><span class="chip pending">Couldn\u2019t check</span></div></article>';
-          var m = x.m, now = Date.now(), st;
-          /* shown = the TV confirmed it (its id, or – older LG helpers report the app's name instead – a confirmation at/after its time) */
-          var acked = x.ack && x.ack.id === m.id, shown = x.shown && (x.shown.id === m.id || (x.shown.t >= m.at - 60000 && x.shown.t <= (m.until || m.at + 3 * 3600000))), hbOk = x.hb && x.hb.t && Date.now() - x.hb.t < 12 * 60000;
-          if (acked) st = '<span class="chip ack">\u2713 Acknowledged ' + esc(nice2(x.ack.t)) + '</span>';
-          else if (now > (m.until || m.at + 3 * 3600000)) st = '<span class="chip ended">Expired</span>';
-          else if (shown) st = '<span class="chip live">Shown ' + esc(nice2(x.shown.t)) + (m.ack ? ' \u00B7 waiting for OK' : '') + '</span>';
-          else if (now < m.at) st = '<span class="chip soon">On the TV, shows at ' + esc(nice2(m.at)) + '</span>';
-          else st = '<span class="chip pending">' + (hbOk ? 'Due ' + esc(clock2(m.at)) + ' \u00B7 the TV hasn\u2019t shown it yet' : 'Due ' + esc(clock2(m.at)) + ' \u00B7 TV offline, can\u2019t show it') + '</span>';
-          var fin = doneAt(x), cut = m.until || m.at + 3 * 3600000;
-          st += fin ? '<span class="chip clock">Leaves this list in ' + inMin(fin + GONE - now) + '</span>'
-            : now >= m.at && (shown || m.ack) ? '<span class="chip clock">Closes by itself in ' + inMin(cut - now) + ' (' + esc(clock2(cut)) + ')</span>'
-            : now < m.at ? '<span class="chip clock">Closes by itself at ' + esc(clock2(m.ack ? cut : m.at + 60000)) + '</span>' : '';
-          return '<article><div class="top"><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span>' + st + '</div>' +
-            '<div class="t">' + esc(m.title || '') + '</div><div class="hint">' + esc((m.text || '').slice(0, 120)) + (m.from ? ' \u2014 ' + esc(m.from) : '') + '</div>' +
-            '<div class="row"><button class="btn ghost" data-mcancel="' + x.r + '" style="padding:4px 10px;font-size:11px">' + (acked || now > (m.until || 0) ? 'Clear' : 'Cancel') + '</button>' +
-            '<button class="btn ghost" data-mresend="' + x.r + '" style="padding:4px 10px;font-size:11px">Send again</button></div></article>';
-        }).join('');
-        /* TV check-ins (each TV's app/helper writes /helper every 5 min): offline after 12 min = it won't get messages */
-        var hbs = list.filter(function (x) { return !x.err; }).map(function (x) {
+        $('tvTiles').innerHTML = '<div class="tvgrid">' + list.map(function (x) {
           var R = ROOMS[x.r], h = x.hb, now = Date.now(), t = function (cls, txt) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b><span>' + txt + '</span>' + updLine(x) + '</div>'; };
+          if (x.err) return t('', 'Couldn’t check');
           if (!h || !h.t) return t('', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
           if (h.failsafe) return t('bad', 'Failsafe · open Round2 Home');
           if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
           var fn = frontName(x.r, h.front);
           return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= Date.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : ''));
-        }).join('');
-        var off = list.some(function (x) { return x.hb && x.hb.t && (x.hb.failsafe || Date.now() - x.hb.t > 12 * 60000); });
-        $('mStat').innerHTML = '<div class="tvgrid">' + hbs + '</div><div class="hbrow">' + (off ? '<p class="hint" style="margin:0">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won\u2019t get messages. Open Round2 Home on that TV to restart it.</p>' : '') + '</div>' +
-          (html || '<p class="hint">No messages on any TV right now.</p>');
-        $('mStat')._last = list;
+        }).join('') + '</div>';
+      });
+    }
+    var tvReady = false, tvTimer = null;
+    function tvInit() {
+      if (tvReady) return; tvReady = true;
+      $('tvRefresh').onclick = status;
+      $('tvTiles').addEventListener('click', function (e) {
+        var tu = e.target.getAttribute && e.target.getAttribute('data-tvu');
+        if (tu) {
+          if (!gKey()) { toast('Needs the staff code (Keys).'); return; }
+          var nm = ROOMS[tu].name;
+          if (!confirm('Update ' + nm + '’s TV now?\n\nIt won’t send if the TV is off, updates are NOT ALLOWED in its Staff tools, or the room (or its twin) has a session now or within 10 minutes. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.')) return;
+          e.target.disabled = true; e.target.textContent = 'Sending…';
+          fetch(HOOK, { method: 'POST', body: new URLSearchParams({ staff: gKey(), action: 'tvupdate', room: tu, by: 'control centre' }) }).then(function (r) { return r.json(); })
+            .then(function (j) { toast(j.ok ? nm + ': update sent' + (j.tv === 'android' ? ' – it will say Ready, then Install in Staff tools.' : ' – watch the tile.') : nm + ': ' + (j.error || 'not sent')); status(); setTimeout(status, 20000); setTimeout(status, 60000); setTimeout(status, 120000); },
+              function () { toast('Couldn’t reach the engine.'); status(); });
+        }
       });
     }
     /* Failsafe: nothing goes to a TV straight from the button. "Check and send" opens a review of exactly what will
@@ -1778,33 +1805,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }
       });
       $('mSend').onclick = send;
-      $('mRefresh').onclick = status;
       $('mKeySave').onclick = function () {
         var v = $('mKey').value.trim().replace(/[^A-Za-z0-9]/g, '');
         if (v.length < 12) { toast('That key looks too short.'); return; }
-        ls('r2m.msgKey', v); $('mKeyBox').hidden = true; toast('Saved on this computer.'); status();
+        ls('r2m.msgKey', v); $('mKeyBox').hidden = true; toast('Saved on this computer.');
       };
-      $('mStat').addEventListener('click', function (e) {
-        var tu = e.target.getAttribute && e.target.getAttribute('data-tvu');
-        if (tu) {
-          if (!gKey()) { toast('Needs the Guest messages staff code (Keys).'); return; }
-          var nm = ROOMS[tu].name;
-          if (!confirm('Update ' + nm + '’s TV now?\n\nIt won’t send if the TV is off, updates are NOT ALLOWED in its Staff tools, or the room (or its twin) has a session now or within 10 minutes. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.')) return;
-          e.target.disabled = true; e.target.textContent = 'Sending…';
-          fetch(HOOK, { method: 'POST', body: new URLSearchParams({ staff: gKey(), action: 'tvupdate', room: tu, by: 'control centre' }) }).then(function (r) { return r.json(); })
-            .then(function (j) { toast(j.ok ? nm + ': update sent' + (j.tv === 'android' ? ' – it will say Ready, then Install in Staff tools.' : ' – watch the tile.') : nm + ': ' + (j.error || 'not sent')); status(); setTimeout(status, 20000); setTimeout(status, 60000); setTimeout(status, 120000); },
-              function () { toast('Couldn’t reach the engine.'); status(); });
-          return;
-        }
-        var c = e.target.getAttribute && e.target.getAttribute('data-mcancel'), rs = e.target.getAttribute && e.target.getAttribute('data-mresend');
-        if (c) { req('DELETE', url(c, 'msg')).then(function () { toast('Removed from ' + ROOMS[c].name + '\u2019s TV.'); status(); }).catch(function (er) { toast('Couldn\u2019t remove: ' + er.message); }); }
-        if (rs) {
-          if (!e.target._armed) { e.target._armed = true; var o = e.target.textContent; e.target.textContent = 'Tap again to send to ' + ROOMS[rs].name + ' now'; setTimeout(function () { e.target._armed = false; e.target.textContent = o; }, 4000); return; }
-          var x = ($('mStat')._last || []).filter(function (y) { return y.r === rs; })[0]; if (!x || !x.m) return;
-          var m = JSON.parse(JSON.stringify(x.m)); m.id = 'm' + Date.now().toString(36); m.at = Date.now(); m.until = m.at + (m.kind === 'timeup' ? 15 * 60000 : m.kind === 'wrapup' ? 4 * 60000 : 3 * 3600000); m.t = { '.sv': 'timestamp' };
-          req('PUT', url(rs, 'msg'), m).then(function () { toast('Sent again to ' + ROOMS[rs].name + '.'); setTimeout(status, 1500); }).catch(function (er) { toast('Couldn\u2019t send: ' + er.message); });
-        }
-      });
       $('mText').value = defText(kind); preview(); renderTpls();
     }
     var ready = false;
@@ -1814,11 +1819,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         else if ($('mText').value.trim() === KINDS[kind].text) $('mText').value = defText(kind);   /* the saved defaults may have loaded since */
         renderTpls(); preview();
         $('mKeyBox').hidden = !!key();
-        status(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) status(); }, 20000);
-        try { Cal.open(); } catch (e) {}
-        live();
       },
-      close: function () { clearInterval(timer); unlive(); }
+      close: function () {},
+      tvsOpen: function () { tvInit(); status(); clearInterval(tvTimer); tvTimer = setInterval(function () { if (!document.hidden) status(); }, 20000); },
+      tvsClose: function () { clearInterval(tvTimer); },
+      live: live, unlive: unlive
     };
   }());
 
@@ -1962,10 +1967,69 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           (live ? ' · <span style="color:#ffd23f">' + live + ' on screen</span>' : '') + (next ? ' · ' + next + ' coming up' : '') + '</span></summary>' +
           grouped(mine, r) + '</details>';
       }).join('') : '<p class="hint">' + (cat[0] === 'history' ? 'Nothing finished yet today.' : n(CATS[4]) ? 'Nothing coming up. Finished messages are in Today’s history.' : 'Nothing scheduled for this day.') + '</p>';
-      h += '<p class="hint">Each TV shows one message at a time; queued ones go out a few minutes before their time. Updates every minute. <a href="#" data-goguest="1">Manage guest messages</a></p>';
+      h += '<p class="hint">Each TV shows one message at a time; queued ones go out a few minutes before their time. Updates every minute. <a href="#" data-goguest="1">Guest links</a></p>';
       $('cDay').innerHTML = h;
+      tonight();
+    }
+    /* Tonight (owner, 2 Nov "Plan A"): tonight's messages of every kind, by room, then by booking (In session's list),
+       each line with its state and what you can do with it. Finished ones stay, dimmed. */
+    var TN = { waiting: ['⏳ Waiting for the guest to write it', 'w'], queued: ['📅 Scheduled', ''], delivered: ['📅 On the TV, shows at its time', ''], shown: ['📺 Showing · waiting for OK', 'live'],
+      unconf: ['⚠️ Due · TV hasn’t shown it yet', 'w'], acked: ['✓ OK pressed', 'ok'], done: ['✓ Shown', 'ok'], ended: ['Ended without an OK', ''] };
+    var tnAuto = null;
+    function tnRow(x) {
+      var auto = x.src === 'r2' && x.label === 'Auto wrap-up', fin = x.st === 'acked' || x.st === 'done' || x.st === 'ended', st = TN[x.st] || [x.st, ''], btn = '';
+      if (!fin && x.code) btn = '<button type="button" data-tnchg="1">Change ›</button><button type="button" class="dz" data-tncan="' + esc(x.code) + '">Cancel</button>';
+      else if (!fin && !x.code) btn = '<button type="button" class="dz" data-tnoff="' + x.room + '">Take off the TV</button>';
+      return '<div class="tnr' + (fin ? ' fin' : '') + '"><span class="tm">' + esc(clock(x.at)) + '</span><span class="tt"><span class="src' + (auto ? ' auto' : x.src === 'r2' ? ' r2' : '') + '">' + (auto ? 'Auto' : x.src === 'r2' ? 'Round2' : 'Guest') + '</span>' +
+        esc(x.title || (x.st === 'waiting' ? 'Guest link' + (x.label ? ' · ' + x.label : '') : '')) + (x.who ? ' <span class="hint">for ' + esc(x.who) + '</span>' : '') + '</span>' +
+        '<span class="sc"><span class="stt ' + st[1] + '">' + st[0] + (x.st === 'acked' && x.ackT ? ' ' + esc(clock(x.ackT)) : '') + '</span>' + btn + '</span></div>';
+    }
+    function tonight() {
+      var el = $('tnList'); if (!el || $('tab-tonight').hidden) return;
+      $('tnKey').hidden = !!gKey();
+      if (tnAuto) { $('tnAuto').innerHTML = 'Auto wrap-up: <b>' + (tnAuto.on ? 'ON' : 'OFF') + '</b> ›'; $('tnAuto').className = 'tnaw' + (tnAuto.on ? '' : ' off'); }
+      if (!gKey()) { el.innerHTML = ''; return; }
+      var k = dayKey(R2Day.now()), c = sessBy[k]; needSess(k);
+      var mine = items.filter(function (x) { return dayKey(x.at) === k; }), quiet = [];
+      var h = Object.keys(ROOMS).map(function (r) {
+        var R = ROOMS[r], xs = mine.filter(function (x) { return x.room === r; }).sort(function (a, b) { return a.at - b.at; });
+        var ss = (c && c.rooms && c.rooms[topic(r)] && c.rooms[topic(r)].sessions || []).slice().sort(function (a, b) { return a.start - b.start; });
+        if (!xs.length && !ss.length) { quiet.push(R.name); return ''; }
+        var g = ss.map(function (S) { return { S: S, xs: [] }; }), other = [];
+        xs.forEach(function (x) { var S = sessFor(ss, x), e = S && g.filter(function (y) { return y.S === S; })[0]; if (e) e.xs.push(x); else other.push(x); });
+        var live = xs.filter(function (x) { return x.st === 'shown'; }).length, warn = xs.filter(function (x) { return x.st === 'unconf'; }).length;
+        return '<div class="tnroom" style="--rc:' + R.c + '"><h3>' + esc(R.name) + '<span class="hint">' + (ss.length ? ss.length + ' booking' + (ss.length > 1 ? 's' : '') : 'no bookings') +
+          (live ? ' · <span style="color:#ffd23f">' + live + ' on screen</span>' : '') + (warn ? ' · <span style="color:var(--warn)">⚠️ ' + warn + ' not shown</span>' : '') + '</span></h3>' +
+          g.map(function (e) {
+            var nm = String(e.S.name || '').replace(/\s+/g, ' ').trim(), note = e.S.k === 'n', past = e.S.guestEnd < R2Day.now();
+            return '<div class="tnbk' + (past ? ' none' : '') + '"><div class="bh"><b>' + esc((note ? '📝 ' : '') + (nm.length > 36 ? nm.slice(0, 34) + '…' : nm || 'No name')) + '</b><span class="hint">' + esc(clock(e.S.start) + '–' + clock(e.S.guestEnd)) + (past ? ' · finished' : '') + '</span></div>' +
+              (e.xs.length ? e.xs.map(tnRow).join('') : '<div class="tnr fin"><span></span><span class="tt hint">No messages</span></div>') + '</div>';
+          }).join('') +
+          (other.length ? '<div class="tnbk none"><div class="bh">Not tied to a booking</div>' + other.map(tnRow).join('') + '</div>' : '') + '</div>';
+      }).join('');
+      el.innerHTML = (h || '<p class="hint">Nothing on the TVs tonight yet.</p>') + (quiet.length && h ? '<p class="tnquiet">Nothing tonight: ' + esc(quiet.join(', ')) + '</p>' : '');
+      $('tnFoot').textContent = (guestErr ? guestErr + ' ' : '') + 'Updates every minute (a guest pressing OK within seconds). Later days: Calendar.';
+    }
+    function tnInit() {
+      $('tab-tonight').addEventListener('click', function (e) {
+        var t = e.target.closest && e.target.closest('[data-tab]'); if (t) { tab(t.getAttribute('data-tab')); scrollTo(0, 0); return; }
+        if (e.target.closest && e.target.closest('[data-tnchg]')) { tab('guestlink'); scrollTo(0, 0); return; }
+        var cn = e.target.getAttribute && e.target.getAttribute('data-tncan'), off = e.target.getAttribute && e.target.getAttribute('data-tnoff'), b = e.target;
+        if (cn || off) {
+          if (!b._armed) { b._armed = true; var o = b.textContent; b.textContent = 'Tap again to confirm'; setTimeout(function () { b._armed = false; b.textContent = o; }, 4000); return; }
+          b.disabled = true;
+          var job = cn ? fetch(HOOK, { method: 'POST', body: new URLSearchParams({ action: 'cancel', staff: gKey(), code: cn }) }).then(function (r) { return r.json(); }).then(function (j) { if (j && j.error) throw new Error(j.error); })
+            : fetch(FB + '/r2/' + (ls('r2m.msgKey') || '') + '/' + topic(off) + '/msg.json', { method: 'DELETE' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
+          job.then(function () { toast(cn ? 'Cancelled.' : 'Taken off ' + ROOMS[off].name + '’s TV.'); load(); }, function (er) { b.disabled = false; toast('Couldn’t do that: ' + er.message); });
+        }
+      });
+    }
+    function tnAutoLoad() {
+      if (!gKey()) return;
+      fetch(HOOK, { method: 'POST', body: new URLSearchParams({ action: 'auto', staff: gKey() }) }).then(function (r) { return r.json(); }).then(function (j) { if (j && j.ok) { tnAuto = j; tonight(); } }).catch(function () {});
     }
     function init() {
+      tnInit();
       $('cCal').addEventListener('click', function (e) {
         var b = e.target.closest && e.target.closest('button'); if (!b) return;
         if (b.hasAttribute('data-cm')) { var y = +month.slice(0, 4), m = +month.slice(5, 7) + Number(b.getAttribute('data-cm')); if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } month = y + '-' + ('0' + m).slice(-2); draw(); }
@@ -1973,17 +2037,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       });
       $('cDay').addEventListener('click', function (e) {
         var v = e.target.closest && e.target.closest('[data-cv]'); if (v) { view = v.getAttribute('data-cv'); try { localStorage.setItem('r2m.calView', view); } catch (x) {} draw(); return; }
-        var a = e.target.closest && e.target.closest('[data-goguest]'); if (a) { e.preventDefault(); tab('guestmsgs'); window.scrollTo(0, 0); } });
+        var a = e.target.closest && e.target.closest('[data-goguest]'); if (a) { e.preventDefault(); tab('guestlink'); window.scrollTo(0, 0); } });
       $('cDay').addEventListener('toggle', function (e) {
         var r = e.target.getAttribute && e.target.getAttribute('data-agroom'); if (!r) return;
         if (e.target.open) delete closedRooms[r]; else closedRooms[r] = 1;
         try { localStorage.setItem('r2m.calClosed', JSON.stringify(closedRooms)); } catch (x) {}
       }, true);
       /* keep it current while the Messages tab is open (a guest pressing OK moves it to "Acknowledged") */
-      timer = setInterval(function () { if (!document.hidden && !$('tab-messages').hidden) load(); }, 60000);
+      timer = setInterval(function () { if (!document.hidden && (!$('tab-tonight').hidden || !$('tab-calendar').hidden)) load(); }, 60000);
       $('cKeySave').onclick = function () { var v = $('cKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('cKey').value = ''; load(); };
     }
-    return { open: function () { if (!ready) { ready = true; init(); } load(); }, items: function () { return items.slice(); } };
+    return { open: function (n) { if (!ready) { ready = true; init(); } if (n === 'tonight') tnAutoLoad(); load(); }, items: function () { return items.slice(); } };
   }());
 
   /* ---------- Website visitors: read from Firebase /web, written by the round2sg-home page (docs/site-stats.md) ---------- */
@@ -2877,7 +2941,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function draw(j) {
       var on = j.on;
       $('awSwitch').innerHTML = '<div class="row" style="justify-content:space-between;align-items:center"><div><b style="font-size:18px">' + (on ? 'On' : 'Off') + '</b>' +
-        '<div class="hint">' + (on ? 'The engine adds and keeps these messages in sync by itself. Each one is also in <b>Round2 messages</b> (marked “Auto wrap-up”) – coming up, on screen, OK’d, today’s history.' : 'Nothing is added automatically. +1h, Late session and Round2 messages still work as before.') + (j.t ? ' Switched ' + (on ? 'on' : 'off') + ' ' + new Date(j.t).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (j.by ? ' by ' + esc(j.by) : '') + '.' : '') + '</div></div>' +
+        '<div class="hint">' + (on ? 'The engine adds and keeps these messages in sync by itself. Each one is also in <b>Tonight</b> (marked “Auto”), under its booking.' : 'Nothing is added automatically. +1h, Late session and Round2 messages still work as before.') + (j.t ? ' Switched ' + (on ? 'on' : 'off') + ' ' + new Date(j.t).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + (j.by ? ' by ' + esc(j.by) : '') + '.' : '') + '</div></div>' +
         '<button class="btn ' + (on ? '' : 'primary') + '" type="button" data-aw="' + (on ? 'off' : 'on') + '">' + (on ? 'Turn off' : 'Turn on') + '</button></div>';
       var L = (j.sessions || []).slice().sort(function (a, b) { return a.s - b.s; });
       var card = function (x) {
@@ -3015,10 +3079,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
        and the menu editor too; the personal GitHub key is only a backup, last */
     var LIST = [
       { id: 'staff', name: 'Staff code (main key)', store: 'r2.guestStaff', ph: 'Staff code',
-        opens: [['insession', 'In session (+1h)'], ['late', 'Late session'], ['autowrap', 'Auto wrap-up'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link'], ['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings'], ['foodmenu', 'Edit the menu'], ['alerts', 'Alerts on this phone'], ['syscheck', 'System check']],
+        opens: [['insession', 'In session (+1h)'], ['late', 'Late session'], ['tonight', 'Tonight'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up'], ['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings'], ['foodmenu', 'Edit the menu'], ['alerts', 'Alerts on this phone'], ['syscheck', 'System check']],
         about: 'Everything day-to-day: extending and late sessions, wrap-up and guest messages, TV setup (backgrounds, events, sounds) and the food menu editor, phone alerts, and Update now on the TV tiles. Give it to staff who run the shop.' },
       { id: 'msg', name: 'TV messages key', store: 'r2m.msgKey', ph: 'TV messages key',
-        opens: [['messages', 'Round2 messages + TVs now'], ['tests', 'Test a TV']],
+        opens: [['messages', 'Send a message'], ['tvs', 'TVs'], ['tests', 'Test a TV']],
         about: 'Sends birthday notes and house reminders straight to the room TVs, and shows what each TV is doing (online, what’s on screen, version). It’s the same private code the food alerts use.' },
       { id: 'sim', name: 'Menu test code', store: 'r2m.simCode', ph: 'Menu test code',
         opens: [['simorder', 'Test an order'], ['testbench', 'Test bench (booking in test mode)']],
@@ -3168,27 +3232,29 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'messages', 'guestmsgs', 'guestlink', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
     home: [['home', 'Overview']],
     sess: [['insession', 'In session'], ['late', 'Late session']],
-    notif: [['messages', 'Round2 messages'], ['autowrap', 'Auto wrap-up'], ['guestmsgs', 'Guest messages'], ['guestlink', 'Make a guest link']],
+    notif: [['tonight', 'Tonight'], ['messages', 'Send'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up']],
+    tvs: [['tvs', 'Status'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors']],
-    sys: [['alerts', 'Alerts'], ['tests', 'Test a TV'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
+    sys: [['alerts', 'Alerts'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
     help: [['help', 'How it works'], ['tvhelp', 'On the TV'], ['stuck', 'If a TV is stuck']]
   };
   var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
     home: ['Home', '<path d="M3 11l9-7 9 7v9h-6v-6H9v6H3z"/>'],
     sess: ['In session', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 'Rooms running today. Add extra hours after a guest pays, and key in late or walk-in sessions.'],
-    notif: ['TV messages', '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>', 'Send birthday notes and house reminders to a room’s TV. See, move or cancel the messages guests wrote, and make guest links.'],
+    notif: ['TV messages', '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>', 'Tonight: every message on the TVs, room by room. Send birthday notes and house reminders, make guest links, and see later days on the calendar.'],
+    tvs: ['TVs', '<rect x="2" y="5" width="20" height="13" rx="1"/><path d="M9 21h6"/><circle cx="12" cy="11.5" r="2.5"/>', 'Is each TV on, what’s on screen and its app version. Update a TV from here, or send it a test.'],
     themes: ['TV setup', '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>', 'How the TVs look and behave: event backgrounds, each room’s default look, ambience sounds, staff PIN and app updates.'],
     menu: ['Food menu', '<path d="M4 11h16a8 8 0 0 1-16 0z"/><path d="M9 4v4M12 3v5M15 4v4"/>', 'Edit the room food menu and prices, and run a test order through the kitchen and TV chain.'],
     web: ['Website', '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/>', 'Who is on round2.sg right now, the busy hours, and how far people get towards booking.'],
-    sys: ['Tests & systems', '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>', 'Check one TV, try booking and food orders safely, see the status of everything Round2 runs, and add the keys that switch each part on.'],
+    sys: ['Tests & systems', '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>', 'Phone alerts, try booking and food orders safely, see the status of everything Round2 runs, and add the keys that switch each part on.'],
     help: ['Help', '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5M12 16.8v.2"/>', 'How themes work, installing this as an app, and what to do if a TV is stuck.']
   };
   function ico(g) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + AREAS[g][1] + '</svg>'; }
@@ -3215,8 +3281,20 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       t = setTimeout(function () { t = null; go(false); }, 350);
     });
   }());
+  /* Home: one line about the TVs (owner, 2 Nov) – needs the TV messages key */
+  function homeTvs() {
+    var k = ls('r2m.msgKey') || '', el = $('homeTvs'); if (!k) { el.innerHTML = ''; return; }
+    var FBH = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/' + k + '/', top = function (r) { return r === 'maximillion' ? 'max' : r; };
+    Promise.all(Object.keys(ROOMS).map(function (r) { return fetch(FBH + top(r) + '/helper.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }).then(function (h) { return { r: r, h: h }; }); }))
+      .then(function (L) {
+        var now = Date.now(), on = L.filter(function (x) { return x.h && x.h.t && now - x.h.t < 12 * 60000 && !x.h.failsafe; }), off = L.filter(function (x) { return on.indexOf(x) < 0 && x.r !== 'kaeden'; });
+        el.innerHTML = '<button type="button" data-tab="tvs">📺 ' + on.length + ' of ' + L.length + ' TVs on' + (off.length ? ' · <span class="bad">off: ' + esc(off.map(function (x) { return ROOMS[x.r].name; }).join(', ')) + '</span>' : '') + ' ›</button>';
+      });
+  }
+  $('homeTvs').addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-tab]')) { tab('tvs'); scrollTo(0, 0); } });
   function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'home'; }
   function tab(n) {
+    if (n === 'guestmsgs') n = 'guestlink';   /* old name (alerts, bookmarks) */
     if (TABS.indexOf(n) < 0) n = 'home';
     document.body.classList.toggle('gated', gated());
     if (gated()) n = 'keys';
@@ -3236,6 +3314,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (needGh) return;
     if (n === 'settings') renderSettings();
     if (n === 'messages') Msgs.open(); else Msgs.close();
+    if (n === 'tvs') Msgs.tvsOpen(); else Msgs.tvsClose();
+    if (n === 'tonight' || n === 'calendar') { Cal.open(n); Msgs.live(); } else Msgs.unlive();
+    if (n === 'home') homeTvs();
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
@@ -3245,10 +3326,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'autowrap') AutoWrap.open(); else AutoWrap.close();
     if (n === 'foodmenu') openMenuEditor();
     if (n === 'simorder') Sim.open();
-    if (n === 'guestmsgs' || n === 'guestlink' || n === 'late') {   /* the guest messages pages, shown inside this tab (loaded the first time it's opened) */
+    if (n === 'guestlink' || n === 'late') {   /* the guest messages pages, shown inside this tab (loaded the first time it's opened) */
       var fr = $('tab-' + n).querySelector('iframe');
       if (!fr.getAttribute('src')) fr.setAttribute('src', fr.getAttribute('data-src'));
-      else if (n === 'guestmsgs') try { fr.contentWindow.document.getElementById('refresh').click(); } catch (e) {}
+      else if (n === 'guestlink') try { fr.contentWindow.document.getElementById('refresh').click(); } catch (e) {}
     }
   }
   window.addEventListener('message', function (e) { if (e.origin === location.origin && e.data && e.data.r2late) toast('Added to SimplyBook. In session shows it on the next refresh.'); });
@@ -3854,7 +3935,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* ---------- start ---------- */
   (function () {   /* a tapped alert opens staff.round2.sg/?tab=insession, or messages an open window */
-    function want(u) { try { var t = new URL(u, location.href).searchParams.get('tab'); return t && TABS.indexOf(t) >= 0 ? t : null; } catch (e) { return null; } }
+    function want(u) { try { var t = new URL(u, location.href).searchParams.get('tab'); if (t === 'guestmsgs') t = 'guestlink'; return t && TABS.indexOf(t) >= 0 ? t : null; } catch (e) { return null; } }
     var t = want(location.href); if (t) { ls('r2m.tab', t); history.replaceState(null, '', location.pathname); }
     if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function (e) { var w = e.data && e.data.r2open && want(e.data.r2open); if (w) { tab(w); scrollTo(0, 0); } });
   }());
