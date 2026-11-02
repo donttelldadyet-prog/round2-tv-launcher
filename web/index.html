@@ -78,7 +78,7 @@ html.native .bg-glow, html.native #bgA, html.native #bgB { display: none; }
 #ui { transition: transform .26s cubic-bezier(.55, 0, .85, .35), opacity .2s linear; }
 /* animation hints only while a transition runs, so idle frames stay a single flat layer */
 
-.go-warp #ui, .go-dive #ui, .go-fade #ui, .go-zoom #ui, .go-slide #ui, .go-glitch #ui, .go-push #ui, .settle #ui { will-change: transform, opacity; }
+.go-dive #ui, .go-fade #ui, .go-zoom #ui, .go-slide #ui, .go-glitch #ui, .go-push #ui, .settle #ui { will-change: transform, opacity; }
 .go-crt #crt b, .enter-crt #crt b, .go-blinds #blinds i { will-change: transform; }
 
 header { position: absolute; top: 34px; left: 72px; right: 64px; display: flex; align-items: center; justify-content: space-between; }
@@ -225,25 +225,16 @@ footer .keys { display: flex; gap: 30px; }
 .tile.art.on .nm { opacity: 1; background: var(--room); color: var(--room-ink); padding: 8px 16px; }
 
 /* ---------- transitions (Options > Transition: Warp / Dive / Off) ---------- */
-#flash, #warp, #veil, #dim { pointer-events: none; }
+#flash, #veil, #dim { pointer-events: none; }
 /* lightning: a violet-white flash like the strikes in the scene loops */
 #flash { opacity: 0; background: radial-gradient(70% 90% at var(--fx, 50%) var(--fy, 40%), #fff 0%, #d9c8ff 30%, rgba(160,120,255,.5) 60%, rgba(60,40,140,0) 100%); }
 @keyframes strike { 0% { opacity: 0 } 10% { opacity: .75 } 22% { opacity: .15 } 34% { opacity: .55 } 100% { opacity: 0 } }
 #dim { opacity: 0; background: #06050a; }
 
-/* Warp: light streams out of the logo as the camera jumps toward it, ending in a teal bloom */
-#warp { opacity: 0; overflow: hidden; }
-/* the rays are drawn once into a small canvas at start-up; the transition only enlarges that picture (cheap on slow TVs) */
-#warp .rays { position: absolute; left: var(--fx, 50%); top: var(--fy, 50%); width: 3400px; height: 3400px; margin: -1700px 0 0 -1700px; transform: scale(.12); }
-.go-warp #warp .rays { will-change: transform; }
+/* Warp was removed 2 Nov (owner: "so bad performance wise"): it enlarged a 3400px picture over the playing background,
+   too much for the TVs' graphics. Anyone who had it gets Fade. */
 #veil { opacity: 0; background: radial-gradient(55% 65% at var(--fx, 50%) var(--fy, 50%), #effffc 0%, var(--room) 28%, #06050a 72%); }
 /* no zooming of the background anywhere (it made people dizzy): transitions fade and slide only */
-.go-warp #ui { opacity: 0; transition: opacity .12s linear; }
-.go-warp #warp { animation: on .4s linear both; }
-.go-warp #warp .rays { animation: rays .42s cubic-bezier(.45, 0, .9, .4) both; }
-.go-warp #veil { animation: veil .42s ease-in both; }
-@keyframes on { 0% { opacity: 0 } 20% { opacity: 1 } 100% { opacity: 1 } }
-@keyframes rays { from { transform: scale(.12) rotate(0deg) } to { transform: scale(1.5) rotate(10deg) } }
 @keyframes veil { 0% { opacity: 0 } 50% { opacity: 0 } 80% { opacity: .9 } 100% { opacity: 1 } }
 
 /* Dive: a calm push into the logo and a fade */
@@ -425,7 +416,7 @@ footer .keys { display: flex; gap: 30px; }
 
 @media (prefers-reduced-motion: reduce) {
   #world, #ui, .panel, .wallrows, .grid, .mi, #bgA, #bgB { transition: none !important; }
-  .swap, #warp, #warp .rays, #veil, #flash, #crt b, #blinds i, .entering *, .settle *, .enter-flicker *, .enter-crt * { animation: none !important; }
+  .swap, #veil, #flash, #crt b, #blinds i, .entering *, .settle *, .enter-flicker *, .enter-crt * { animation: none !important; }
 }
 </style>
 
@@ -516,7 +507,6 @@ footer .keys { display: flex; gap: 30px; }
 
   <div id="dim" class="layer" aria-hidden="true"></div>
   <div id="flash" class="layer" aria-hidden="true"></div>
-  <div id="warp" class="layer" aria-hidden="true"><canvas class="rays" id="rays" width="900" height="900"></canvas></div>
   <div id="blinds" class="layer" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div id="crt" class="layer" aria-hidden="true"><b class="t"></b><b class="b"></b><b class="line"></b></div>
   <div id="veil" class="layer" aria-hidden="true"></div>
@@ -983,7 +973,6 @@ window.R2_TV = {
   /* ================= per-TV preferences (Options) ================= */
   var FX = [
     { id: 'fade', name: 'Fade', ms: 200 }, { id: 'slide', name: 'Slide', ms: 220 }, { id: 'push', name: 'Push', ms: 220 },
-    { id: 'warp', name: 'Warp', ms: 300 },
     { id: 'glitch', name: 'Glitch', ms: 260 }, { id: 'crt', name: 'CRT', ms: 300 }, { id: 'blinds', name: 'Blinds', ms: 330 },
     { id: 'flash', name: 'Flash', ms: 240 }, { id: 'off', name: 'Off', ms: 0 }
   ];
@@ -1038,7 +1027,7 @@ window.R2_TV = {
     var vol = readPref('ambVol') || '5';
     vol = { low: '3', med: '5', high: '8' }[vol] || vol;                    /* older builds had Low / Medium / High */
     var fx = readPref('fx') || 'fade';
-    if (fx === 'dive' || fx === 'zoom') fx = 'fade';                         /* the zooming transitions were removed */
+    if (fx === 'dive' || fx === 'zoom' || fx === 'warp') fx = 'fade';       /* the zooming transitions and Warp were removed */
     return { fx: fx, entry: readPref('entry') || 'on', sound: readPref('sound') || 'neon',
       amb: readPref('amb') || 'rain', ambVol: vol, cards: readPref('cards') || 'auto' };
   }
@@ -3199,20 +3188,7 @@ window.R2_TV = {
   var ambStarted = false;
   whenThemes(function () { setTimeout(function () { if (!ambStarted) { Amb.apply(); ambStarted = true; } }, 1000); }, 3500);
   setTimeout(function () { Sfx.prepare(); }, 2600);
-  (function drawRays() {   /* the Warp transition's light rays, drawn once */
-    var cv = $('rays'), g = cv && cv.getContext && cv.getContext('2d'); if (!g) return;
-    var c = 450, R = 450;
-    g.translate(c, c);
-    for (var a = 0; a < 360; a += 6.25) {
-      var r1 = a * Math.PI / 180;
-      g.fillStyle = 'rgba(200,255,245,.9)'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, r1 + 0.0628, r1 + 0.0672); g.fill();
-      g.fillStyle = 'rgba(140,200,255,.6)'; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, r1 + 0.1065, r1 + 0.109); g.fill();
-    }
-    g.globalCompositeOperation = 'destination-in';
-    var m = g.createRadialGradient(0, 0, 0, 0, 0, R);
-    m.addColorStop(0, 'rgba(0,0,0,0)'); m.addColorStop(0.07, 'rgba(0,0,0,0)'); m.addColorStop(0.23, '#000'); m.addColorStop(0.83, '#000'); m.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = m; g.fillRect(-R, -R, 2 * R, 2 * R);
-  }());   /* the Android app gets this room's menu sounds ready */
+   /* the Android app gets this room's menu sounds ready */
   setTimeout(function () {
     var AC = window.AudioContext || window.webkitAudioContext;
     console.log('[R2] start: ' + navigator.userAgent + ' | sound: ' + (nat() ? 'Android' : 'web page') + ' | AudioContext ' + (AC ? 'yes' : 'no') +
