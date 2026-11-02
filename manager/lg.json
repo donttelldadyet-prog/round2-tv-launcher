@@ -8,15 +8,15 @@
       "manifest": {
         "id": "sg.round2.tvhome",
         "title": "Round2 Home",
-        "version": "1.0.228",
+        "version": "1.0.230",
         "type": "web",
         "appDescription": "The Round2 room menu: inputs, streaming apps and event backgrounds, driven by the remote.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.228/round2-home.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.230/round2-home.ipk",
         "ipkHash": {
-          "sha256": "7d2f870ba19123082975123172cb5edabb63a878d516a3a10f3cdfdc504de22f"
+          "sha256": "965dcc9f2826f1018587c0ba1620bd6baf5f684b022a67e0ad24e89495b56b16"
         }
       }
     },
@@ -128,15 +128,15 @@
       "manifest": {
         "id": "sg.round2.alerts",
         "title": "Round2 Alerts",
-        "version": "1.0.228",
+        "version": "1.0.230",
         "type": "web",
         "appDescription": "Food alerts and messages as the Round2 card over Netflix, YouTube and HDMI (instead of LG's pop-ups). Needs Round2 Home.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.228/sg.round2.alerts.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.230/sg.round2.alerts.ipk",
         "ipkHash": {
-          "sha256": "215020ca54f907dff67862f1f64bf706fe202b0c9608a01835ead987294caaf3"
+          "sha256": "a1933ebd56fdde97d3841c865cfb5e6c59e1ecdba2e87e6775af338a5cbe8499"
         }
       }
     }
