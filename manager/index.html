@@ -112,6 +112,11 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .sess label.ack { font-size: 13px; color: var(--mute); display: flex; gap: 8px; align-items: center; }
 .sess .empty { color: var(--mute); font-size: 14px; }
 .sessrec { display: grid; gap: 8px; }
+.extcols { display: grid; grid-template-columns: 1fr; gap: 18px; }
+@media (min-width: 900px) { .extcols { grid-template-columns: 1fr 1fr; align-items: start; } }
+.extcols h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.exthist .nh { font-size: 12px; font-weight: 700; color: var(--mute); text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 2px; }
+.exthist div.row1 { opacity: .85; }
 .sessrec div { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; background: var(--panel); border: 1px solid var(--line); padding: 8px 12px; }
 .review { border: 2px solid var(--accent); background: var(--panel2); padding: 14px 16px; display: grid; gap: 10px; }
 .review.now { border-color: var(--bad); }
@@ -609,8 +614,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div id="sMsg" class="hint"></div>
     <div id="sReview" class="review" hidden style="margin:12px 0"></div>
     <div class="sess" id="sRooms"></div>
-    <h2>Extensions today</h2>
-    <div class="sessrec" id="sRecent"><p class="hint">None yet.</p></div>
+    <div class="extcols">
+      <div><h2>Extensions today <button class="btn ghost" id="sClear" hidden style="padding:4px 10px;font-size:12px">Clear finished</button></h2>
+        <div class="sessrec" id="sRecent"><p class="hint">None yet.</p></div></div>
+      <div><h2>History <span class="hint" style="font-weight:400">last 14 nights</span></h2>
+        <div class="sessrec exthist" id="sHist"><p class="hint">Nothing yet.</p></div></div>
+    </div>
     <h2>Test</h2>
     <div class="card">
       <p class="hint" style="margin-top:0">Shows the “+ CREDITS ADDED” banner (marked TEST) on one TV. Nothing changes in SimplyBook or the message calendar. Pick a room nobody is in.</p>
@@ -2128,7 +2137,19 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       /* this shop night only (owner, 2 Nov: "I thought it would disappear because it's a new day"): +1h pressed before 7am
          belongs to the night before and drops off at 7am like every other screen; the System check's ZZTEST ones never show */
       var nightOf = function (ms) { return new Date(ms + 8 * 3600000 - 7 * 3600000).toISOString().slice(0, 10); };
-      var rec = (j.recent || []).filter(function (r) { return nightOf(r.t) === j.day && !/^ZZTEST/.test(r.name || ''); });
+      var all = (j.recent || []).filter(function (r) { return !/^ZZTEST/.test(r.name || ''); });
+      var rec = all.filter(function (r) { return nightOf(r.t) === j.day && !r.cleared; });
+      /* Clear finished (owner, 2 Nov): only entries whose session is over (or undone); they move to History */
+      var done = rec.filter(function (r) { return r.undone || r.guestEnd < now; });
+      $('sClear').hidden = !done.length; $('sClear').textContent = 'Clear finished (' + done.length + ')'; $('sClear').setAttribute('data-ids', done.map(function (r) { return r.id; }).join(','));
+      /* History: earlier nights and cleared ones, newest first, grouped by night (at most 40 shown) */
+      var hist = all.filter(function (r) { return nightOf(r.t) < j.day || (nightOf(r.t) === j.day && r.cleared); }).slice(0, 40), lastN = '';
+      $('sHist').innerHTML = hist.length ? hist.map(function (r) {
+        var n = nightOf(r.t), hd = n !== lastN ? '<p class="nh">' + esc(n === j.day ? 'Tonight (cleared)' : new Intl.DateTimeFormat('en-SG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(n + 'T00:00:00Z'))) + '</p>' : ''; lastN = n;
+        var R = ROOMS[RK[r.room]] || { c: '#888', name: r.room };
+        return hd + '<div class="row1"><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · ended ' + t(r.guestEnd) + ' <span class="hint">(pressed ' + t(r.t) + ')</span>' +
+          (r.undone ? ' <span class="chip ended">Undone</span>' : '') + '</div>';
+      }).join('') : '<p class="hint">Nothing yet.</p>';
       $('sRecent').innerHTML = rec.length ? rec.map(function (r) {
         var canUndo = !r.undone && now - r.t < 30 * 60000;
         return '<div><span class="chip room" style="--rc:' + ROOMS[RK[r.room]].c + '">' + esc(ROOMS[RK[r.room]].name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · now ends ' + t(r.guestEnd) + ' <span class="hint">(' + t(r.t) + ')</span>' +
@@ -2183,6 +2204,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var b = e.target.closest && e.target.closest('[data-ext]'); if (b) review(b.getAttribute('data-room'), b.getAttribute('data-key'), +b.getAttribute('data-ext'));
     });
     $('sRooms').addEventListener('change', function (e) { var a = e.target.getAttribute && e.target.getAttribute('data-ack'); if (a) ackOn[a] = e.target.checked; });
+    $('sClear').onclick = function () {
+      var ids = this.getAttribute('data-ids'); if (!ids) return; var b = this; b.disabled = true;
+      call({ action: 'extclear', ids: ids }).then(function (j) { b.disabled = false; toast(j && j.ok ? 'Moved ' + j.cleared + ' to History' : 'Couldn’t clear: ' + ((j && j.error) || 'no answer')); load(); }, function () { b.disabled = false; toast('Couldn’t reach the engine.'); });
+    };
     $('sRecent').addEventListener('click', function (e) {
       var u = e.target.getAttribute && e.target.getAttribute('data-undo'); if (!u) return;
       if (!confirm('Undo this extension? The EXT notes are deleted and the messages go back to the old times.')) return;
@@ -2519,7 +2544,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(j.ok && j.notes.length === 2, 'Expected 2 notes (Vale + Atlas SYSTEM BLOCK), got ' + (j.notes ? j.notes.length : j.error)); return gm({ action: 'late', unit: '12', day: T.day, start: '04:00', end: '05:00', name: 'ZZTEST atlas', pax: '1', msgs: 'no', dry: '1' });
         }).then(function (d) { must(d.plan.clash.length, 'Atlas shows free while Vale is in use.'); return sessOf(T.day, 5); })
           .then(function (s) { return gm({ action: 'extend', day: T.day, key: s[0].key, hours: '1', end: String(s[0].sbEnd), msgs: 'no', force: 'yes' }); })
-          .then(function (j) { must(j.ok && j.plan.note.twin && j.plan.note.twin.late, 'The twin room wasn’t stretched with it.'); return 'Atlas blocked, both stretched to 6am'; });
+          .then(function (j) { must(j.ok && j.plan.note.twin && j.plan.note.twin.late, 'The twin room wasn’t stretched with it.'); T.extVale = j.id; return 'Atlas blocked, both stretched to 6am'; });
+      }); })
+      .then(function () { return step('Extensions › Clear finished: an undone one clears, one still to come is refused', function () {
+        return gm({ action: 'extclear', ids: [T.ext, T.extVale].filter(Boolean).join(',') }).then(function (j) {
+          must(j.ok, 'Clear: ' + (j.error || 'no answer')); must(j.cleared === 1, 'Expected 1 cleared (the undone +1h), got ' + j.cleared + ' – the Vale session hasn’t happened yet, so it must stay.'); return 'Undone +1h moved to History · Vale’s (still to come) stayed';
+        });
       }); })
       .then(function () { return step('SimplyBook labels for after-midnight sessions', function () {
         return gm({ action: 'shadow', from: T.night, n: '1' }).then(function (j) { must(j.ok, 'Label sync: ' + j.error); must(j.kept + j.made >= 2, 'Expected labels for the test sessions, found ' + (j.kept + j.made) + '.'); return (j.kept + j.made) + ' “↓ AFTER 12AM” labels on the night of ' + T.night; });
