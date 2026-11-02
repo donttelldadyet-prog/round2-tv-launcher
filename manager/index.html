@@ -2467,6 +2467,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(s.simplybook && s.sbSecret, 'SimplyBook keys missing in Cloudflare.'); must(s.tvKey, 'TV key missing in Cloudflare.'); must(s.guestMessages, 'Guest messages not set up.');
           return 'Payments ' + String(s.payments).toUpperCase() + ' · booking page ' + (s.booking === 'simplybook' ? 'SAFE MODE' : 'new') + (s.staffAlerts ? '' : ' · Telegram staff alerts not set up (planned)');
         }); }); })
+      /* an interrupted run (page closed, key removed, phone asleep) can leave ZZTEST notes and links behind and trip up this
+         one – clear them first (2 Nov) */
+      .then(function () { return step('Leftovers from an earlier run cleared', function () {
+        return Promise.all([gm({ action: 'latelist' }), gm({ action: 'list' })]).then(function (r) {
+          var notes = (r[0].sessions || []).filter(function (x) { return /^ZZTEST/.test(x.text); }), links = (r[1].links || []).filter(function (x) { return /^ZZTEST/.test((x.data && x.data.label) || '') && x.data.status !== 'cancelled'; });
+          return notes.reduce(function (pr, x) { return pr.then(function () { return gm({ action: 'latecancel', id: x.id, day: x.day }); }); }, Promise.resolve())
+            .then(function () { return Promise.all(links.map(function (x) { return gm({ action: 'cancel', code: x.key }); })); })
+            .then(function () { return notes.length || links.length ? 'Removed ' + notes.length + ' test note(s) and ' + links.length + ' test link(s) left by an earlier run' : 'Nothing left over'; });
+        });
+      }); })
       .then(function () { return step('One clock: the engine’s time is reachable (TVs and this page set themselves by it)', function () {
         var t0 = Date.now(); return J('/time').then(function (j) { var t1 = Date.now(), off = Math.round((j.t + (t1 - t0) / 2 - t1) / 1000);
           must(j.t && j.today, 'No time from the engine.');
