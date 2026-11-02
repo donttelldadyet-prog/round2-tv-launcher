@@ -8,8 +8,8 @@
   },
   "uxplay": {
     "repository": "https://github.com/FDH2/UxPlay",
-    "commit": "9f3c2bbc658645533fa1057e76c29ec8c947fa0f",
-    "version": "1.74"
+    "commit": "234b407e2e7a8a9a33adf293f0e56fd539658b1e",
+    "version": "1.74+2026-11-01"
   },
   "openssl": {
     "version": "3.5.8",

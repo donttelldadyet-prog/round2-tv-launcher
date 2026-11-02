@@ -182,17 +182,15 @@ bool Receiver::start(const std::string& dir, const Settings& settings) {
             (unsigned long long)r.audio_format.load(),int(standalone_audio_candidate(
                 AirPlayAudioIntent{ct?unsigned(*ct):0,spf?unsigned(*spf):0,r.audio_using_screen.load(),r.audio_is_media.load(),true},r.mirror.load())));
     };
-    cb.video_report_size=[](void *p,float *,float *,float *w,float *h){
+    // UxPlay (Nov 2026) reports the codec and the picture size together, once per stream.
+    cb.video_set_codec_and_size=[](void *p,video_codec_t c,unsigned short,unsigned short,unsigned short,unsigned short,
+                                   unsigned short w,unsigned short h)->int{
         Receiver& r=self(p);
         const int bound=r.active_profile.width;
-        if(std::isfinite(*w)&&std::isfinite(*h)&&*w>0&&*h>0&&*w<=bound&&*h<=bound&&
-           input_fits_mirror_profile(r.active_profile,int(*w),int(*h))) {
-            r.width=int(*w);r.height=int(*h);
-            fprintf(stderr,"[receiver] sender reported geometry=%dx%d\n",int(*w),int(*h));
+        if(w>0&&h>0&&w<=bound&&h<=bound&&input_fits_mirror_profile(r.active_profile,int(w),int(h))) {
+            r.width=int(w);r.height=int(h);
+            fprintf(stderr,"[receiver] sender reported geometry=%dx%d\n",int(w),int(h));
         }
-    };
-    cb.video_set_codec=[](void *p,video_codec_t c)->int{
-        Receiver& r=self(p);
         const SenderVideoCodec sender_codec=c==VIDEO_CODEC_H264?SenderVideoCodec::H264:
             c==VIDEO_CODEC_H265?SenderVideoCodec::Hevc:SenderVideoCodec::Unsupported;
         const CodecNegotiationResult result=codec_negotiation_result(r.active_profile,sender_codec);

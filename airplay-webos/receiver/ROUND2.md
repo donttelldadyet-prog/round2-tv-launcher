@@ -92,3 +92,13 @@ the commit named in the package's `build-info.txt`.
   stamps) was stable. Live is now the default. The switch's other option is Balanced (test):
   Live, plus a piece that overlaps the previous one by at most 30 ms moves to just after it; no
   waiting, no skipping.
+
+## 0.2.6
+
+- UxPlay updated from 1.74 (9f3c2bb) to upstream of 1 Nov 2026 (234b407): about 45 upstream
+  fixes – screen-mirror fixes, memory leaks, a 60 s timeout for dead connections, pairing fixes,
+  better clock sync.
+- Our pairing-proof length patch (0003) is now part of UxPlay itself, so it was removed.
+- UxPlay merged its two callbacks (`video_report_size`, `video_set_codec`) into one,
+  `video_set_codec_and_size`, called once per stream; receiver.cpp now uses that. Picture size is
+  still taken from the stream itself (SPS) in main.cpp, so rotation is handled as before.
