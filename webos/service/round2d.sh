@@ -195,10 +195,11 @@ alerts_running() {   # is the Round2 Alerts card (its webOS overlay app) still o
   luna-send -n 1 luna://com.webos.applicationManager/running '{}' 2>/dev/null | grep -q '"sg.round2.alerts'
 }
 # Is Round2 Home in front right now? (asked fresh: the menu shows alerts itself then)
-menu_front() {
-  id=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' 2>/dev/null | field appId)
-  case "$id" in sg.round2.alerts*|"") id=$(cat "$CFG/front" 2>/dev/null) ;; esac
-  [ "$id" = "$APP" ]
+menu_front() {   # its own variable (2 Nov): it used to overwrite msg_tick's $id, so LG TVs reported the app in front
+                 # ("sg.round2.tvhome", "youtube…") as the message shown, and "already OK'd?"/"done" checked the wrong id
+  fg_app=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' 2>/dev/null | field appId)
+  case "$fg_app" in sg.round2.alerts*|"") fg_app=$(cat "$CFG/front" 2>/dev/null) ;; esac
+  [ "$fg_app" = "$APP" ]
 }
 # The helper is the one place that decides where an alert or message appears (one route, so nothing shows twice):
 # Round2 Home in front: the menu's own big card (the helper hands it over); any other app: Round2 Alerts over it;

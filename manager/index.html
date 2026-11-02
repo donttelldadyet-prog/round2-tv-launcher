@@ -241,6 +241,7 @@ details.awdone .awc { opacity: .55; grid-template-columns: 1fr; }
 .agbk .ag { margin: 6px 8px; }
 .agbk.none > .bh { color: var(--mute); }
 .ag.st-shown { box-shadow: inset 3px 0 0 var(--rc); }
+.ag.st-unconf .chip.stc { color: var(--warn); border-color: var(--warn); }
 .ag .chip.stc { background: transparent; }
 /* who made it (owner, 2 Nov): Round2 by hand = gold outline, Auto wrap-up = filled sky blue, guest = plain */
 .ag .chip.src-r2 { border-color: var(--accent); color: var(--accent); }
@@ -1537,7 +1538,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         function doneAt(x) {
           var m = x.m, until = m.until || m.at + 3 * 3600000;
           if (x.ack && x.ack.id === m.id) return x.ack.t || Date.now();
-          if (!m.ack && x.shown && x.shown.id === m.id) return (x.shown.t || m.at) + 60000;   /* no OK needed: off the screen after a minute */
+          if (!m.ack && x.shown && (x.shown.id === m.id || x.shown.t >= m.at - 60000)) return (x.shown.t || m.at) + 60000;   /* no OK needed: off the screen after a minute */
           if (Date.now() > until) return until;
           return 0;
         }
@@ -1545,12 +1546,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           var R = ROOMS[x.r];
           if (x.err) return '<article><div class="top"><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span><span class="chip pending">Couldn\u2019t check</span></div></article>';
           var m = x.m, now = Date.now(), st;
-          var acked = x.ack && x.ack.id === m.id, shown = x.shown && x.shown.id === m.id;
+          /* shown = the TV confirmed it (its id, or – older LG helpers report the app's name instead – a confirmation at/after its time) */
+          var acked = x.ack && x.ack.id === m.id, shown = x.shown && (x.shown.id === m.id || (x.shown.t >= m.at - 60000 && x.shown.t <= (m.until || m.at + 3 * 3600000))), hbOk = x.hb && x.hb.t && Date.now() - x.hb.t < 12 * 60000;
           if (acked) st = '<span class="chip ack">\u2713 Acknowledged ' + esc(nice2(x.ack.t)) + '</span>';
           else if (now > (m.until || m.at + 3 * 3600000)) st = '<span class="chip ended">Expired</span>';
           else if (shown) st = '<span class="chip live">Shown ' + esc(nice2(x.shown.t)) + (m.ack ? ' \u00B7 waiting for OK' : '') + '</span>';
           else if (now < m.at) st = '<span class="chip soon">On the TV, shows at ' + esc(nice2(m.at)) + '</span>';
-          else st = '<span class="chip pending">Sending\u2026 (is the TV on?)</span>';
+          else st = '<span class="chip pending">' + (hbOk ? 'Due ' + esc(clock2(m.at)) + ' \u00B7 the TV hasn\u2019t shown it yet' : 'Due ' + esc(clock2(m.at)) + ' \u00B7 TV offline, can\u2019t show it') + '</span>';
           var fin = doneAt(x), cut = m.until || m.at + 3 * 3600000;
           st += fin ? '<span class="chip clock">Leaves this list in ' + inMin(fin + GONE - now) + '</span>'
             : now >= m.at && (shown || m.ack) ? '<span class="chip clock">Closes by itself in ' + inMin(cut - now) + ' (' + esc(clock2(cut)) + ')</span>'
@@ -1798,8 +1800,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       /* each TV: the message it holds now, and the last one a guest pressed OK on (msgAck = { id, t }) */
       if (key) Object.keys(ROOMS).forEach(function (r) {
         var get = function (n) { return fetch(FB + '/r2/' + key + '/' + topic(r) + '/' + n + '.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }); };
-        jobs.push(Promise.all([get('msg'), get('msgAck')]).then(function (a) {
-          var m = a[0]; tv[r] = { id: m && m.id, ack: a[1] };
+        jobs.push(Promise.all([get('msg'), get('msgAck'), get('msgShown')]).then(function (a) {
+          var m = a[0]; tv[r] = { id: m && m.id, at: m && m.at, ack: a[1], shown: a[2] };
           if (!m || !m.at || /^(g[0-9a-z]{8}|qr2)/.test(m.id || '')) return;   /* queued messages (guest and Round2) come from the list below */
           got.push({ src: 'r2', room: r, id: m.id, ackNeeded: m.ack !== false, at: m.at, until: m.until, title: m.title || '', who: m.to || '', st: m.until && m.until < Date.now() ? 'ended' : m.at > Date.now() ? 'queued' : 'shown' });
         }));
@@ -1824,6 +1826,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         got.forEach(function (x) {
           var t = tv[x.room]; if (!t || x.st !== 'shown' && x.st !== 'ended') return;
           if (t.ack && x.id && t.ack.id === x.id) { x.st = 'acked'; x.ackT = t.ack.t; }
+          /* its time has come but the TV hasn't confirmed it (owner, 2 Nov: this list said "Showing" while On the TVs now said
+             it wasn't) – same rule as On the TVs now: shown = the TV's own confirmation */
+          else if (x.st === 'shown' && t.id && x.id && t.id === x.id && !(t.shown && (t.shown.id === x.id || t.shown.t >= x.at - 60000))) x.st = 'unconf';
           else if (x.st === 'shown' && (!x.ackNeeded || (t.id && x.id && t.id !== x.id))) x.st = 'done';
         });
         items = got; guestErr = gErr; draw();
@@ -1850,12 +1855,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     /* the day's list, in three tabs: what's still to happen (queued, waiting for the guest's words, on screen waiting
        for OK) / what's finished (acknowledged, done, ended) / everything. Each day is its own list, so it starts empty
        every morning; past days stay readable on the calendar. */
-    var GROUP = { waiting: 'live', queued: 'live', delivered: 'live', shown: 'live', acked: 'done', done: 'done', ended: 'done' };
-    var ST = { queued: 'Queued', delivered: 'On the TV, waiting for its time', shown: 'Showing · waiting for OK', waiting: 'Waiting for the guest to write it', acked: 'Acknowledged', done: 'Shown', ended: 'Ended without an OK' };
+    var GROUP = { waiting: 'live', queued: 'live', delivered: 'live', shown: 'live', unconf: 'live', acked: 'done', done: 'done', ended: 'done' };
+    var ST = { unconf: 'Due · TV hasn’t shown it yet', queued: 'Queued', delivered: 'On the TV, waiting for its time', shown: 'Showing · waiting for OK', waiting: 'Waiting for the guest to write it', acked: 'Acknowledged', done: 'Shown', ended: 'Ended without an OK' };
     /* the day's list: first by what happened (status chips with counts), then by room (one box per room, newest
        activity on top inside it). Each day starts empty; past days stay readable on the calendar. */
     /* owner, 1 Nov: finished messages (OK'd, shown, ended) leave the main list and go to "Today's history" */
-    var CATS = [['active', 'Active', ['waiting', 'queued', 'delivered', 'shown']], ['now', 'On screen now', ['shown']], ['next', 'Coming up', ['queued', 'delivered']], ['waiting', 'Guest still writing', ['waiting']],
+    var CATS = [['active', 'Active', ['waiting', 'queued', 'delivered', 'shown', 'unconf']], ['now', 'On screen now', ['shown']], ['next', 'Coming up', ['queued', 'delivered']], ['waiting', 'Guest still writing', ['waiting']],
       ['history', 'Today’s history', ['acked', 'done', 'ended']]];
     var closedRooms = {}; try { closedRooms = JSON.parse(localStorage.getItem('r2m.calClosed') || '{}') || {}; } catch (e) {}
     function agRow(x) {
@@ -2624,6 +2629,25 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           /* Kaeden is under renovation (owner, 2 Nov): its SimplyBook block stays, but its TV should keep running like the others */
           warnIf(stale.length, 'Not heard from in 2+ days: ' + stale.join(', ') + '. TV off, unplugged or offline?' + (stale.some(function (x) { return /^kaeden/.test(x); }) ? ' (Kaeden is under renovation, but its TV should stay on and online, ready for reopening.)' : '') + ' Others: ' + seen.join(', '));
           return seen.join(' · ');
+        });
+      }); })
+      /* a TV that's online but doesn't put its due message on screen (owner, 2 Nov: Scarlett's 4:35pm "About 10 minutes to
+         go" sat on the TV unshown while the list said "Showing") */
+      .then(function () { return step('Online TVs show their messages when due', function () {
+        var mk = ls('r2m.msgKey'); warnIf(!mk, 'Add the TV messages key on this phone to check the TVs.');
+        var rooms = ['vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'max'], now = Date.now();
+        var g = function (r, n) { return fetch(FB + mk + '/' + r + '/' + n + '.json').then(function (x) { return x.json(); }).catch(function () { return null; }); };
+        return Promise.all(rooms.map(function (r) { return Promise.all([g(r, 'msg'), g(r, 'msgShown'), g(r, 'msgAck'), g(r, 'helper')]); })).then(function (all) {
+          var stuck = [], ok = 0;
+          all.forEach(function (a, i) {
+            var m = a[0], sh = a[1], ak = a[2], hb = a[3];
+            if (!m || !m.at || m.at > now - 2 * 60000 || m.at < now - 3 * 3600000) return;          /* nothing due in the last 3 h */
+            if (!hb || !hb.t || now - hb.t > 12 * 60000) return;                                     /* offline: "TVs reporting in" covers it */
+            if ((ak && ak.id === m.id) || (sh && (sh.id === m.id || sh.t >= m.at - 60000))) { ok++; return; }
+            stuck.push(rooms[i] + ' (“' + (m.title || 'message') + '” due ' + new Date(m.at + 8 * 3600e3).toISOString().slice(11, 16) + ')');
+          });
+          warnIf(stuck.length, 'Online but not shown: ' + stuck.join(', ') + '. Check what’s on that TV’s screen (another input, a game?) and open Round2 Home on it.');
+          return ok ? ok + ' message(s) due in the last 3 h, all shown' : 'Nothing was due on an online TV in the last 3 h';
         });
       }); })
       /* 7. the test night */
