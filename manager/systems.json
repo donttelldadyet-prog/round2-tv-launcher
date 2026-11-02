@@ -265,6 +265,13 @@
           "what": "Built 2 Nov (TV app 1.0.226; works on a TV once it has 1.0.226). Update now on each TV tile (Round2 messages › On the TVs now), refused while the TV is off, locked in its Staff tools, or its room has a session now or within 10 min. LG installs by itself (download + SHA-256 check first, 'don't switch off' notice, progress on the tile, reinstalls itself on start-up if cut off). Android only gets it ready – staff press Install in Staff tools › Update app.",
           "runs": "Engine (tvupdate) + LG helper / Android app (cmd, update in Firebase)",
           "code": "round2sg-home worker (tvUpdate) · round2-tv-launcher webos/service/round2d.sh, app/…/FoodAlerts.java, manager/index.html"
+        },
+        {
+          "name": "TV messages: Tonight / Send / Guest links / Calendar + TVs tab",
+          "status": "test",
+          "what": "Built 2 Nov (owner's Plan A). Tonight = every message tonight (guest, Round2, Auto wrap-up) per room and booking, finished bookings folded away; Send = the form only; Guest links = make + list on one page; Calendar = later days. TVs tab = status tiles + Update now + Test a TV; Home shows 'x of 7 TVs on'.",
+          "runs": "Control centre (manager/index.html: Cal.tonight, Msgs.status)",
+          "code": "round2-tv-launcher manager/index.html"
         }
       ]
     },
