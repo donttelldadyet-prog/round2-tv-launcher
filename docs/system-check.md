@@ -45,6 +45,13 @@ background jobs heartbeat (cron `cronLast`) · Late session note → In session 
 text rewritten, no EXT) · Undo · Change (room move) · Vale ↔ Atlas twin + clash · "↓ AFTER 12AM" labels · cancel cleans up ·
 today's wrap-up messages not doubled / not orphaned · GitHub through the engine · public pages up.
 
+## SimplyBook's daily limit (2 Nov 2026)
+SimplyBook's shared servers allow about **5,000 API requests a day** (more is "high load"; at most 2 at once, 5 a second).
+The engine counts every request it makes (`sbn:<day>` in its kv; `/gm action=auto` → `sbToday`, `sbYesterday`) and the check
+shows it ("SimplyBook requests today"; ⚠️ over 3,500, ❌ over 4,800). Measured 2 Nov: background ≈ 90 an hour; **one full
+System check ≈ 260**. Keep it lean: logins are reused for 20 min, one timer tick reads each day once for all its jobs, and
+the 1-hour reminder only runs on the 10-minute ticks plus :15 and :45.
+
 ## How it stays safe
 Test sessions are named `ZZTEST`, go in at 3–6am on a free night about 6 weeks ahead (so no TV message, no +credits banner,
 no guest), and are always removed at the end, also when a step fails. A guest-link test uses a date 40 days ahead and is
