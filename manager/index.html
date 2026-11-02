@@ -161,6 +161,18 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .chip.hbbad { border-color: var(--bad); color: #fff; background: var(--bad); font-weight: 700; }
 .hbrow { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
 .hbrow .hint { flex-basis: 100%; }
+/* Round2 messages tidy (owner, 2 Nov "clean these up, neater"): equal tiles instead of ragged chips */
+.tvgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 4px 0 8px; }
+@media (min-width: 900px) { .tvgrid { grid-template-columns: repeat(4, 1fr); } }
+.tvt { border: 1px solid var(--line); border-left: 3px solid var(--rc); background: var(--bg); padding: 7px 10px; min-width: 0; }
+.tvt b { display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--rc); }
+.tvt span { display: block; font-size: 12px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tvt.ok span { color: var(--ok); } .tvt.bad { border-color: var(--bad); border-left-color: var(--rc); } .tvt.bad span { color: var(--bad); font-weight: 700; }
+#mRooms.roompick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+#mRooms.roompick button { padding: 10px 2px; font-size: 12px; letter-spacing: .06em; text-align: center; min-width: 0; }
+#mKind .seg { display: grid; gap: 6px; } #mKind .seg.k4 { grid-template-columns: repeat(2, 1fr); } #mKind .seg.k3 { grid-template-columns: repeat(3, 1fr); }
+@media (min-width: 900px) { #mKind .seg.k4 { grid-template-columns: repeat(4, 1fr); } }
+#mKind .seg button { padding: 10px 4px; text-align: center; min-width: 0; }
 .chip.clock { border-color: var(--accent); color: #0b0914; background: var(--accent); font-weight: 700; }
 .chip.pending { border-color: var(--warn); color: var(--warn); }
 .theme .acts { display: flex; flex-direction: column; gap: 8px; }
@@ -555,16 +567,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div class="card">
         <div class="f"><span class="f">Room</span><div class="roompick" id="mRooms"></div></div>
         <div class="f" id="mKind"><span class="f">Occasion</span>
-          <div class="seg">
+          <div class="seg k4">
             <button type="button" data-k="birthday" aria-pressed="true">Birthday</button>
             <button type="button" data-k="anniversary" aria-pressed="false">Anniversary</button>
             <button type="button" data-k="celebrate" aria-pressed="false">Celebration</button>
             <button type="button" data-k="note" aria-pressed="false">Note</button>
           </div>
           <span class="f" style="margin-top:12px">House reminders</span>
-          <div class="seg">
-            <button type="button" data-k="volume" aria-pressed="false">Mind the volume</button>
-            <button type="button" data-k="wrapup" aria-pressed="false">10 minutes left</button>
+          <div class="seg k3">
+            <button type="button" data-k="volume" aria-pressed="false">Volume</button>
+            <button type="button" data-k="wrapup" aria-pressed="false">10 min left</button>
             <button type="button" data-k="timeup" aria-pressed="false">Time’s up</button>
           </div>
         </div>
@@ -605,7 +617,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       </div>
     </div>
     <h2 style="margin-top:30px">Calendar</h2>
-    <p class="sub" style="margin:0">Every message scheduled for a TV: Round2's own (square) and guests' (round), in the room's colour. Days with something queued are highlighted. Tap a day to see what's on it.</p>
+    <p class="sub" style="margin:0">Every message scheduled for a TV, in the room’s colour: ■ Round2’s own, ● guests’. Tap a day to see it.</p>
     <div id="cKeyBox" class="banner warn" hidden>
       <div class="grow"><b>Show guest messages here too.</b> Paste the guest messages staff code (from the Project notes). It stays in this browser only.</div>
       <input class="tok" id="cKey" placeholder="Guest messages staff code" autocomplete="off" style="max-width:240px">
@@ -1471,7 +1483,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function seg(sel, attr, v) { Array.prototype.forEach.call(document.querySelectorAll(sel + ' button'), function (b) { b.setAttribute('aria-pressed', b.getAttribute(attr) === v); }); }
     function renderRooms() {
-      $('mRooms').innerHTML = Object.keys(ROOMS).map(function (k) { return '<button type="button" data-r="' + k + '" style="--rc:' + ROOMS[k].c + '" aria-pressed="' + (rooms.indexOf(k) >= 0) + '">' + ROOMS[k].name + '</button>'; }).join('');
+      $('mRooms').innerHTML = Object.keys(ROOMS).map(function (k) { return '<button type="button" data-r="' + k + '" style="--rc:' + ROOMS[k].c + '" aria-pressed="' + (rooms.indexOf(k) >= 0) + '">' + (k === 'maximillion' ? 'Max' : ROOMS[k].name) + '</button>'; }).join('');
     }
     function fillTitle() { if (!titleEdited) $('mTitle').value = KINDS[kind].title($('mTo').value.trim()); }
     function draft() {
@@ -1550,14 +1562,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }).join('');
         /* TV check-ins (each TV's app/helper writes /helper every 5 min): offline after 12 min = it won't get messages */
         var hbs = list.filter(function (x) { return !x.err; }).map(function (x) {
-          var R = ROOMS[x.r], h = x.hb, now = Date.now();
-          if (!h || !h.t) return '<span class="chip ended" title="Update this TV to see its check-ins">' + esc(R.name) + ' · not reporting yet</span>';
-          if (h.failsafe) return '<span class="chip hbbad">' + esc(R.name) + ' · Homebrew failsafe · open Round2 Home</span>';
-          if (now - h.t > 12 * 60000) return '<span class="chip hbbad">' + esc(R.name) + ' · offline since ' + esc(nice2(h.t)) + '</span>';
-          return '<span class="chip hbok">' + esc(R.name) + ' \u2713</span>';
-        }).join(' ');
+          var R = ROOMS[x.r], h = x.hb, now = Date.now(), t = function (cls, txt) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b><span>' + txt + '</span></div>'; };
+          if (!h || !h.t) return t('', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
+          if (h.failsafe) return t('bad', 'Failsafe · open Round2 Home');
+          if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
+          return t('ok', '✓ Online');
+        }).join('');
         var off = list.some(function (x) { return x.hb && x.hb.t && (x.hb.failsafe || Date.now() - x.hb.t > 12 * 60000); });
-        $('mStat').innerHTML = '<div class="hbrow">' + hbs + (off ? '<p class="hint" style="margin:6px 0 0">Offline = no check-in for 12 min: the TV is off, has no internet, or its Round2 helper isn\u2019t running (it won\u2019t get messages). Opening Round2 Home on that TV starts it again.</p>' : '') + '</div>' +
+        $('mStat').innerHTML = '<div class="tvgrid">' + hbs + '</div><div class="hbrow">' + (off ? '<p class="hint" style="margin:0">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won\u2019t get messages. Open Round2 Home on that TV to restart it.</p>' : '') + '</div>' +
           (html || '<p class="hint">No messages on any TV right now.</p>');
         $('mStat')._last = list;
       });
