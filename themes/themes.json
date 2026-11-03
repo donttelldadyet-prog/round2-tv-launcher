@@ -478,6 +478,11 @@
       "amb": "cosmic",
       "ambVol": "5",
       "sound": "click"
+    },
+    "kaeden": {
+      "updated": "2026-11-03T09:42:47.971Z",
+      "wall": "lounge",
+      "amb": "off"
     }
   },
   "tvs": {
