@@ -278,6 +278,11 @@ details.awdone .awc { opacity: .55; grid-template-columns: 1fr; }
 details.tnold { margin: 0 10px 8px; } details.tnold > summary { cursor: pointer; font-size: 13px; color: var(--mute); padding: 4px 0; }
 .tnquiet { font-size: 13px; color: var(--mute); margin: 4px 0 0; }
 #homeTvs { margin: 0 0 14px; }
+/* "needs a human" (owner, 3 Nov – a guest paid online and got no booking): red, on Home, until someone ticks it off */
+#homeHuman .hh { border: 1px solid var(--bad); border-left: 5px solid var(--bad); background: rgba(255,80,90,.08); padding: 10px 14px; margin: 0 0 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; }
+#homeHuman .hh b { color: var(--bad); font-size: 15px; } #homeHuman .hh pre { grid-column: 1; margin: 0; white-space: pre-wrap; font: inherit; font-size: 13px; color: var(--ink); }
+#homeHuman .hh .hint { grid-column: 1; } #homeHuman .hh button { grid-row: 1 / span 3; grid-column: 2; }
+#homeHuman .hh.done { opacity: .5; border-color: var(--line); border-left-color: var(--ok); background: none; } #homeHuman .hh.done b { color: var(--ok); }
 #homeTvs button { width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid #60A5FA; color: var(--ink); font: inherit; font-size: 14px; padding: 10px 14px; cursor: pointer; }
 #homeTvs .bad { color: var(--bad); } #homeTvs .w { color: var(--warn); }
 details.mtpl > summary { cursor: pointer; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--mute); padding: 2px 0; }
@@ -572,6 +577,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-home" hidden>
     <h1>Control centre</h1>
     <p class="sub">Pick what you need. Each area has its own colour and icon, and that colour stays with you on every page inside it.</p>
+    <div id="homeHuman"></div>
     <div id="homeTvs"></div>
     <div class="hub" id="hub"></div>
   </section>
@@ -3303,6 +3309,24 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         el.innerHTML = '<button type="button" data-tab="tvs">📺 ' + on.length + ' of ' + L.length + ' TVs on' + (off.length ? ' · <span class="bad">off: ' + esc(off.map(function (x) { return ROOMS[x.r].name; }).join(', ')) + '</span>' : '') + ' ›</button>';
       });
   }
+  /* Home: online bookings that need a human (paid, not booked / held by a note / no email) – needs the staff code */
+  function homeHuman() {
+    var k = ls('r2.guestStaff') || '', el = $('homeHuman'); if (!k) { el.innerHTML = ''; return; }
+    fetch('https://round2-book.donttelldadyet.workers.dev/gm', { method: 'POST', body: new URLSearchParams({ action: 'human', staff: k }) }).then(function (r) { return r.json(); }).then(function (j) {
+      var L = (j && j.list) || [];
+      el.innerHTML = L.map(function (x) {
+        return '<div class="hh' + (x.sorted ? ' done' : '') + '"><b>' + esc(x.sorted ? '✓ Sorted · ' + x.title.replace(/^⚠️\s*/, '') : x.title) + '</b><pre>' + esc(x.body || '') + '</pre>' +
+          '<span class="hint">' + esc(new Date(x.t).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })) + '</span>' +
+          (x.sorted ? '' : '<button class="btn" type="button" data-hsort="' + esc(x.id) + '">Sorted ✓</button>') + '</div>';
+      }).join('');
+    }).catch(function () {});
+  }
+  $('homeHuman').addEventListener('click', function (e) {
+    var id = e.target.getAttribute && e.target.getAttribute('data-hsort'); if (!id) return;
+    if (!e.target._armed) { e.target._armed = true; e.target.textContent = 'Tap again – sorted?'; setTimeout(function () { e.target._armed = false; e.target.textContent = 'Sorted ✓'; }, 4000); return; }
+    e.target.disabled = true;
+    fetch('https://round2-book.donttelldadyet.workers.dev/gm', { method: 'POST', body: new URLSearchParams({ action: 'human', staff: ls('r2.guestStaff') || '', sorted: id }) }).then(homeHuman, homeHuman);
+  });
   $('homeTvs').addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-tab]')) { tab('tvs'); scrollTo(0, 0); } });
   function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'home'; }
   function tab(n) {
@@ -3328,7 +3352,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'messages') Msgs.open(); else Msgs.close();
     if (n === 'tvs') Msgs.tvsOpen(); else Msgs.tvsClose();
     if (n === 'tonight' || n === 'calendar') { Cal.open(n); Msgs.live(); } else Msgs.unlive();
-    if (n === 'home') homeTvs();
+    if (n === 'home') { homeTvs(); homeHuman(); }
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
