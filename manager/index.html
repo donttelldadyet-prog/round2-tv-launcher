@@ -180,7 +180,7 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .tvt span { display: block; font-size: 12px; color: var(--mute); }
 .tvt .tvv { color: var(--mute) !important; font-weight: 400 !important; margin-top: 3px; } .tvt .tvv i { font-style: normal; } .tvt .tvv .uo { color: var(--ok); } .tvt .tvv .uw { color: var(--warn); } .tvt .tvv .ub { color: var(--bad); }
 .tvt .tvu { margin-top: 4px; background: none; border: 1px solid var(--accent); color: var(--accent); font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; }
-.tvt.ok span { color: var(--ok); } .tvt.bad { border-color: var(--bad); border-left-color: var(--rc); } .tvt.bad span { color: var(--bad); font-weight: 700; white-space: normal; }
+.tvt.ok span { color: var(--ok); } .tvt.sleep span { color: var(--mute); } .tvt.bad { border-color: var(--bad); border-left-color: var(--rc); } .tvt.bad span { color: var(--bad); font-weight: 700; white-space: normal; }
 #mRooms.roompick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 #mRooms.roompick button { padding: 10px 2px; font-size: 12px; letter-spacing: .06em; text-align: center; min-width: 0; }
 #mKind .seg { display: grid; gap: 6px; } #mKind .seg.k4 { grid-template-columns: repeat(2, 1fr); } #mKind .seg.k3 { grid-template-columns: repeat(3, 1fr); }
@@ -1646,6 +1646,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           if (!h || !h.t) return t('', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
           if (h.failsafe) return t('bad', 'Failsafe · open Round2 Home');
           if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
+          /* LG with Quick Start+ (owner, 3 Nov): the helper keeps checking in while the TV looks off – say so, not "Online" */
+          if (h.pw && h.pw !== 'Active') return t('sleep', '💤 Screen off · asleep (Quick Start+)');
           var fn = frontName(x.r, h.front);
           return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= Date.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : ''));
         }).join('') + '</div>';
@@ -3306,7 +3308,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var FBH = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/' + k + '/', top = function (r) { return r === 'maximillion' ? 'max' : r; };
     Promise.all(Object.keys(ROOMS).map(function (r) { return fetch(FBH + top(r) + '/helper.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }).then(function (h) { return { r: r, h: h }; }); }))
       .then(function (L) {
-        var now = Date.now(), on = L.filter(function (x) { return x.h && x.h.t && now - x.h.t < 12 * 60000 && !x.h.failsafe; }), off = L.filter(function (x) { return on.indexOf(x) < 0 && x.r !== 'kaeden'; });
+        var now = Date.now(), on = L.filter(function (x) { return x.h && x.h.t && now - x.h.t < 12 * 60000 && !x.h.failsafe && !(x.h.pw && x.h.pw !== 'Active'); }), off = L.filter(function (x) { return on.indexOf(x) < 0 && x.r !== 'kaeden'; });   /* asleep (Quick Start+) counts as off */
         el.innerHTML = '<button type="button" data-tab="tvs">📺 ' + on.length + ' of ' + L.length + ' TVs on' + (off.length ? ' · <span class="bad">off: ' + esc(off.map(function (x) { return ROOMS[x.r].name; }).join(', ')) + '</span>' : '') + ' ›</button>';
       });
   }

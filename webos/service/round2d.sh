@@ -163,6 +163,8 @@ watch_power() {
     luna-send -i luna://com.webos.service.tvpower/power/getPowerState '{"subscribe":true}' 2>/dev/null | while read -r line; do
       st=$(echo "$line" | field state)
       [ -z "$st" ] && continue
+      # screen on or asleep (Quick Start+ keeps the helper running while the TV looks off) - for the control centre's TV tile
+      [ "$st" != "$(cat "$CFG/power" 2>/dev/null)" ] && { echo "$st" > "$CFG/power"; rm -f "$CFG/hb.last"; }
       if [ "$st" = "Active" ]; then
         case "$last" in
           "Active Standby"|"Suspend"|"Power Off") rm -f "$CFG/msg.last" "$CFG/food.last"; on poweron && { sleep 2; launch poweron; } ;;   # TV on: a waiting message shows now
@@ -374,8 +376,9 @@ heartbeat() {
   fs=false; [ -e "$FAILSAFE" ] && fs=true
   # what's on screen (owner, 2 Nov): the app or input in front and since when – the control centre names it (HDMI 1 = PS4…)
   fr=$(tr -cd 'A-Za-z0-9._-' < "$CFG/front" 2>/dev/null); fa=$(date -r "$CFG/front" +%s 2>/dev/null || echo 0)
+  pw=$(tr -cd 'A-Za-z ' < "$CFG/power" 2>/dev/null)   # Active = screen on; Active Standby / Suspend = asleep (Quick Start+)
   curl -s -m 15 $K -X PUT -H 'Content-Type: application/json' \
-    -d "{\"t\":{\".sv\":\"timestamp\"},\"tv\":\"lg\",\"v\":\"$v\",\"failsafe\":$fs,\"ru\":$( [ -f "$CFG/remote.off" ] && echo false || echo true ),\"front\":\"$fr\",\"frontAt\":$(( fa + $(cat "$CFG/clock.off" 2>/dev/null || echo 0) ))000}" "$FB/r2/$2/$1/helper.json" >/dev/null 2>&1
+    -d "{\"t\":{\".sv\":\"timestamp\"},\"tv\":\"lg\",\"v\":\"$v\",\"failsafe\":$fs,\"ru\":$( [ -f "$CFG/remote.off" ] && echo false || echo true ),\"front\":\"$fr\",\"pw\":\"$pw\",\"frontAt\":$(( fa + $(cat "$CFG/clock.off" 2>/dev/null || echo 0) ))000}" "$FB/r2/$2/$1/helper.json" >/dev/null 2>&1
 }
 # Homebrew Channel's failsafe mode (after a crash or power cut while the TV was starting): it skips every start-up
 # add-on, ours included, so the TV comes on as a plain LG (Bella, 1 Nov). When Round2 Home opens and starts us, clear it
