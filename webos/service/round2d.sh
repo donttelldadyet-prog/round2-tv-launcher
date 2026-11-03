@@ -170,7 +170,7 @@ watch_power() {
       pr=$(echo "$line" | field processing); ps=$st
       case "$pr" in *[Ss]uspend*|*[Pp]ower*[Oo]ff*|*[Ss]creen*[Oo]ff*|*[Ss]hutdown*) ps="Suspend" ;; esac
       [ "$ps" = "Active" ] || [ "$ps" = "Suspend" ] || [ "$ps" = "Active Standby" ] || ps="Suspend"
-      if [ "$ps" != "$(cat "$CFG/power" 2>/dev/null)" ]; then echo "$ps" > "$CFG/power"; rm -f "$CFG/hb.last"; heartbeat; fi
+      if [ "$ps" != "$(cat "$CFG/power" 2>/dev/null)" ]; then echo "$ps" > "$CFG/power"; rm -f "$CFG/hb.last"; heartbeat; log "power: $st${pr:+ ($pr)} -> told the control centre $ps"; fi
       if [ "$st" = "Active" ]; then
         case "$last" in
           "Active Standby"|"Suspend"|"Power Off") rm -f "$CFG/msg.last" "$CFG/food.last"; on poweron && { sleep 2; launch poweron; } ;;   # TV on: a waiting message shows now
