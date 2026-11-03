@@ -1530,15 +1530,12 @@ window.R2_TV = {
     /* no Continue / last-played: the next group must never see the previous group's session */
     items = [{ key: 'inputs', label: 'Inputs', hint: 'HDMI' }];
     var lg = Device.kind() === 'webos';
-    var air = null, share = null;
+    var air = null;
     if (lg ? WebOS.pick(APPS.airplay.webos) : APPS.airplay.android.some(function (pk) { return Device.installed(pk); })) air = mk('airplay', 'MIRROR');
     else if (lg && LGRoot.state.ok) air = { key: 'airplay', label: 'AirPlay', hint: 'SET UP', setup: true, uxair: airplayName() };   /* rooted LG: Round2 AirPlay installs on first OK */
-    /* LG Screen Share (Android, Windows) as well, unless the TV's own AirPlay already covers mirroring */
-    if (lg && WebOS.pick(APPS.share.webos) && !/^(com\.webos\.app\.airplay|airplay)$/.test(WebOS.pick(APPS.airplay.webos) || '')) share = mk('share', 'ALWAYS ON');
-    /* both (Bella, owner 3 Nov): one "Screen mirroring" button; OK opens a choice – AirPlay for iPhones, Screen Share for
-       Android and Windows – so the AirPlay receiver sits ready next to Miracast */
-    if (air && share) items.push({ key: 'mirror', label: 'Screen mirroring', hint: 'IPHONE · ANDROID', subs: [air, share] });
-    else { if (air) items.push(air); if (share) items.push(share); }
+    /* no Screen Share button (owner, 3 Nov: opening it just reloaded the menu, and LG's Screen Share / Miracast is always on
+       anyway) – the AirPlay button opens the AirPlay receiver; its text tells Android and Windows guests what to do */
+    if (air) items.push(air);
     items.push(mk('youtube'), mk('netflix'), mk('prime'));
     if (room.t !== 'n' && (!lg || WebOS.pick(APPS.max.webos))) items.push(mk('max'));
     items.push({ key: 'more', label: 'More apps', hint: 'ALL' });
@@ -1580,7 +1577,8 @@ window.R2_TV = {
     } else if (it.key === 'airplay') {
       tag = 'PLAYER 2 · MIRROR';
       if (it.uxair) tag = 'IPHONE \u00B7 IPAD \u00B7 MAC';
-      body = it.uxair ? 'Press OK first to switch AirPlay on. Then on your iPhone or iPad: Control Centre \u203a Screen Mirroring \u203a ' + it.uxair + '. First time only: type the code shown on the TV. \u25C0 \u25B6 fix the sound if it\'s out of sync; Back ends it. Netflix, Disney+ and Apple TV+ won\'t mirror.'
+      body = it.uxair ? 'Press OK first to switch AirPlay on. Then on your iPhone or iPad: Control Centre \u203a Screen Mirroring \u203a ' + it.uxair + '. First time only: type the code shown on the TV. \u25C0 \u25B6 fix the sound if it\'s out of sync; Back ends it.' +
+          (Device.kind() === 'webos' ? ' Android or Windows? No need to press anything: Smart View / Screen Cast, or Windows + K, and pick this TV.' : '') + ' Netflix, Disney+ and Apple TV+ won\'t mirror.'
         : 'iPhone or iPad: open Control Centre, tap Screen Mirroring and pick this TV. Android phones: use Cast. Netflix, Disney+ and Apple TV+ won\'t mirror.';
     } else if (it.key === 'more') {
       tag = 'LOADOUT';
