@@ -282,6 +282,7 @@ details.tnold { margin: 0 10px 8px; } details.tnold > summary { cursor: pointer;
 #homeHuman .hh { border: 1px solid var(--bad); border-left: 5px solid var(--bad); background: rgba(255,80,90,.08); padding: 10px 14px; margin: 0 0 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; }
 #homeHuman .hh b { color: var(--bad); font-size: 15px; } #homeHuman .hh pre { grid-column: 1; margin: 0; white-space: pre-wrap; font: inherit; font-size: 13px; color: var(--ink); }
 #homeHuman .hh .hint { grid-column: 1; } #homeHuman .hh button { grid-row: 1 / span 3; grid-column: 2; }
+#homeHuman details.hhist { margin: 0 0 12px; } #homeHuman details.hhist > summary { cursor: pointer; font-size: 13px; color: var(--mute); padding: 4px 0 8px; }
 #homeHuman .hh.done { opacity: .5; border-color: var(--line); border-left-color: var(--ok); background: none; } #homeHuman .hh.done b { color: var(--ok); }
 #homeTvs button { width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid #60A5FA; color: var(--ink); font: inherit; font-size: 14px; padding: 10px 14px; cursor: pointer; }
 #homeTvs .bad { color: var(--bad); } #homeTvs .w { color: var(--warn); }
@@ -3313,12 +3314,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   function homeHuman() {
     var k = ls('r2.guestStaff') || '', el = $('homeHuman'); if (!k) { el.innerHTML = ''; return; }
     fetch('https://round2-book.donttelldadyet.workers.dev/gm', { method: 'POST', body: new URLSearchParams({ action: 'human', staff: k }) }).then(function (r) { return r.json(); }).then(function (j) {
-      var L = (j && j.list) || [];
-      el.innerHTML = L.map(function (x) {
+      /* open ones on top; sorted ones fold into History (owner, 3 Nov), newest first, the last 40 kept */
+      var L = (j && j.list) || [], open = L.filter(function (x) { return !x.sorted; }), done = L.filter(function (x) { return x.sorted; });
+      var card = function (x) {
         return '<div class="hh' + (x.sorted ? ' done' : '') + '"><b>' + esc(x.sorted ? '✓ Sorted · ' + x.title.replace(/^⚠️\s*/, '') : x.title) + '</b><pre>' + esc(x.body || '') + '</pre>' +
           '<span class="hint">' + esc(new Date(x.t).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })) + '</span>' +
           (x.sorted ? '' : '<button class="btn" type="button" data-hsort="' + esc(x.id) + '">Sorted ✓</button>') + '</div>';
-      }).join('');
+      };
+      el.innerHTML = open.map(card).join('') + (done.length ? '<details class="hhist"><summary>Needs-a-human history (' + done.length + ')</summary>' + done.map(card).join('') + '</details>' : '');
     }).catch(function () {});
   }
   $('homeHuman').addEventListener('click', function (e) {
