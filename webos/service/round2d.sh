@@ -158,13 +158,19 @@ watch_saver() {   # Staff tools > TV screensaver: webOS asks before it starts it
   done
 }
 watch_power() {
+  K=""; curl -s -m 10 -o /dev/null "$FB/.json" 2>/dev/null || K="-k"   # the check-in below runs from here too
   while :; do
     last=""
     luna-send -i luna://com.webos.service.tvpower/power/getPowerState '{"subscribe":true}' 2>/dev/null | while read -r line; do
       st=$(echo "$line" | field state)
       [ -z "$st" ] && continue
-      # screen on or asleep (Quick Start+ keeps the helper running while the TV looks off) - for the control centre's TV tile
-      [ "$st" != "$(cat "$CFG/power" 2>/dev/null)" ] && { echo "$st" > "$CFG/power"; rm -f "$CFG/hb.last"; }
+      # screen on or asleep, for the control centre's TV tile (owner, 3 Nov). With Quick Start+ the TV freezes everything a
+      # few seconds after it's switched off, so the check-in is sent AT ONCE here (the 5-minute one would be too late), and
+      # "going to sleep" (processing: Request Suspend / Power Off / Screen Off) already counts as asleep.
+      pr=$(echo "$line" | field processing); ps=$st
+      case "$pr" in *[Ss]uspend*|*[Pp]ower*[Oo]ff*|*[Ss]creen*[Oo]ff*|*[Ss]hutdown*) ps="Suspend" ;; esac
+      [ "$ps" = "Active" ] || [ "$ps" = "Suspend" ] || [ "$ps" = "Active Standby" ] || ps="Suspend"
+      if [ "$ps" != "$(cat "$CFG/power" 2>/dev/null)" ]; then echo "$ps" > "$CFG/power"; rm -f "$CFG/hb.last"; heartbeat; fi
       if [ "$st" = "Active" ]; then
         case "$last" in
           "Active Standby"|"Suspend"|"Power Off") rm -f "$CFG/msg.last" "$CFG/food.last"; on poweron && { sleep 2; launch poweron; } ;;   # TV on: a waiting message shows now

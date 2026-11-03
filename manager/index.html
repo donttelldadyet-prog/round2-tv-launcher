@@ -1645,9 +1645,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           if (x.err) return t('', 'Couldn’t check');
           if (!h || !h.t) return t('', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
           if (h.failsafe) return t('bad', 'Failsafe · open Round2 Home');
+          /* LG with Quick Start+ (owner, 3 Nov): its last check-in said "going to sleep" – the TV then freezes and stops checking
+             in, so that stays the answer until it wakes (not "Offline", not "Online") */
+          if (h.pw && h.pw !== 'Active') return t('sleep', '💤 Screen off · asleep since ' + esc(nice2(h.t)));
           if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
-          /* LG with Quick Start+ (owner, 3 Nov): the helper keeps checking in while the TV looks off – say so, not "Online" */
-          if (h.pw && h.pw !== 'Active') return t('sleep', '💤 Screen off · asleep (Quick Start+)');
           var fn = frontName(x.r, h.front);
           return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= Date.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : ''));
         }).join('') + '</div>';
