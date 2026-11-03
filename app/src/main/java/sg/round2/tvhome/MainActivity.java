@@ -258,6 +258,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         lastAck = System.currentTimeMillis(); unacked = 0;
+        HomeWatch.seen(getPackageName());   // the Round2 menu is on screen (3 Nov)
         HomeWatch.start(this);   // no-op unless Usage access is on (Android 9 TVs without the Accessibility helper)
         front = this;
         FoodAlerts.start(this);  // no-op in builds without the food alert key

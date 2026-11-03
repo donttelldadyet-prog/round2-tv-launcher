@@ -48,6 +48,13 @@ public class HomeWatch extends Service {
     private String front = "";
     /** what's on screen (owner, 2 Nov): the app in front and since when (Clock time), for the check-in */
     static volatile String nowFront = ""; static volatile long nowFrontAt = 0;
+    /** the same, from TVs without Usage access (3 Nov: Kaeden/Kai use the Accessibility helper, so this watcher never ran and
+        the control centre only said "Online"): the Accessibility helper and the Round2 menu itself report here */
+    static void seen(String p) {
+        if (p == null || p.isEmpty() || p.equals("android") || p.contains("systemui") || p.contains("inputmethod") || p.contains("keyboard")) return;
+        if (p.equals(nowFront)) return;
+        nowFront = p; nowFrontAt = Clock.now(); FoodAlerts.beatSoon();
+    }
     private long lastQuery, lastRedirect;
     private final long[] recent = new long[6];
     private int recentAt;

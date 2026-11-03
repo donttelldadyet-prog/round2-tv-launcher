@@ -81,10 +81,12 @@ public class HomeGuard extends AccessibilityService {
     /* 2. the stock home screen opened anyway */
     @Override
     public void onAccessibilityEvent(AccessibilityEvent e) {
-        if (e == null || e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || paused()) return;
+        if (e == null || e.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence pkg = e.getPackageName();
         if (pkg == null) return;
         String p = pkg.toString();
+        HomeWatch.seen(p);   // what's on screen, for the control centre (3 Nov)
+        if (paused()) return;
         if (!p.equals("com.google.android.apps.tv.launcherx") && !p.equals("com.google.android.tvlauncher")
                 && !p.equals("com.google.android.leanbacklauncher")) return;   // Google TV, Android TV 8-11, older Android TV (e.g. Sony 2015)
         // Only the home screen itself, not other windows such as the Settings panel opened from the remote.

@@ -299,7 +299,8 @@ public class FoodAlerts extends Service {
     private static long lastBeatSoon = 0;
     static void beatSoon() {
         final FoodAlerts f = inst; long n = System.currentTimeMillis();
-        if (f == null || n - lastBeatSoon < 20_000) return;
+        if (f == null) return;
+        if (n - lastBeatSoon < 20_000) { f.main.removeCallbacks(f.heartbeat); f.main.postDelayed(f.heartbeat, 20_000 - (n - lastBeatSoon)); return; }   /* don't lose the latest change */
         lastBeatSoon = n; f.main.post(f.heartbeat);
     }
 
