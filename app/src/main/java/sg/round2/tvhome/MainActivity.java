@@ -489,7 +489,7 @@ public class MainActivity extends Activity {
         public String sfxHas(String key) { return key != null && act.sound.has(key) ? "1" : "0"; }
 
         @JavascriptInterface
-        public void sfxPlay(String key, double vol) { if (key != null) act.sound.play(key, (float) vol); }
+        public void sfxPlay(String key, double vol) { if (key != null && front == act) act.sound.play(key, (float) vol); }
 
         @JavascriptInterface
         public void loopLoad(String b64, int sampleRate) {
@@ -505,13 +505,14 @@ public class MainActivity extends Activity {
         public String ambLevels(int n) { return act.sound == null ? "" : act.sound.levels(n); }
 
         @JavascriptInterface
-        public void loopTo(double vol, int ms) { act.sound.loopTo((float) vol, ms); }
+        public void loopTo(double vol, int ms) { if (vol > 0 && front != act) return; act.sound.loopTo((float) vol, ms); }   /* never start while an app is open (Kai, 4 Nov) */
 
         /** an uploaded ambience (theme/<id>.ogg, downloaded by ThemeSync); empty id = fade out the current one */
         @JavascriptInterface
         public void ambFile(String id, double vol, int ms) {
             String path = null;
             if (id != null && id.matches("[a-z0-9][a-z0-9-]{0,40}")) path = new java.io.File(act.themes.dir, id + ".ogg").getAbsolutePath();
+            if (vol > 0 && front != act) return;   /* never start while an app is open */
             act.sound.fileTo(path, (float) vol, ms);
         }
 

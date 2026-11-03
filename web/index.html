@@ -1413,6 +1413,9 @@ window.R2_TV = {
     }
     return {
       apply: function () {
+        /* Kai (4 Nov): the ambience sometimes played over an app. Late starters (theme sync, rain loading, settings
+           arriving) called this after the guest had already opened an app – never start while an app is opening or open */
+        if (leaving || window.r2Away) { stop(); return; }
         curAmb = ambNow();
         if (curAmb === 'off') { stop(); return; }
         var up = upSound(curAmb);
@@ -2782,7 +2785,7 @@ window.R2_TV = {
   function unstick() {
     if (!leaving) return;
     console.log('[R2] back from an app without a resume: unlocking the menu');
-    arrive(false); Amb.resume();
+    window.r2Away = false; arrive(false); Amb.resume();
   }
   window.r2Focus = function () { if (leaving && Date.now() - leavingSince > 1500) unstick(); };
   function dive(then, demo) {
@@ -2962,7 +2965,7 @@ window.R2_TV = {
   /* the Android app calls these: Back on the remote, a room set from the computer, and returning here */
   window.r2Back = function () { press('back'); };
   window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
-  window.r2Pause = function () { Amb.pause(); clearAnim(); lockStaff(); };
+  window.r2Pause = function () { window.r2Away = true; Amb.pause(); clearAnim(); lockStaff(); };
   /* The TV was switched off (the app calls this on standby): forget every guest change, back to the house settings */
   window.r2Reset = function () {
     try { for (var i = window.sessionStorage.length - 1; i >= 0; i--) { var key = window.sessionStorage.key(i); if (key && key.indexOf('g.') === 0) window.sessionStorage.removeItem(key); } } catch (e) {}
@@ -2981,6 +2984,7 @@ window.R2_TV = {
     var st = $('stage'); st.style.opacity = '0.999'; void st.offsetWidth; st.style.opacity = '';   /* force a full repaint */
   }
   window.r2Resume = function () {
+    window.r2Away = false;
     setTimeout(Food.resume, 1200);
     setTimeout(Msg.resume, 1800);
     setTimeout(function () { window.r2SyncThemes(false); }, 3000);
