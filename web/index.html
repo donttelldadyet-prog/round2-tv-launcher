@@ -1348,7 +1348,26 @@ window.R2_TV = {
         if (b) keep(b); else viaDecoder();
       });
     }
-    var lgLoadAt = 0;
+    var lgLoadAt = 0, lgTries = 0, lgRetryT = null;
+    function lgRetry(sndObj) {
+      clearTimeout(lgRetryT);
+      if (++lgTries > 10) return;
+      try { lastThemeSync = 0; window.r2SyncThemes(false); } catch (e) {}
+      lgRetryT = setTimeout(function () {
+        if (lgSrc || window.r2Away || playing !== sndObj.id || lgCur !== sndObj.id) return;
+        lgCur = ''; lgCache = { id: '', buf: null }; Amb.apply();
+      }, 30000);
+    }
+    /* what happened to the uploaded ambience, for the control centre's checks (/soundDiag) */
+    function soundReport(sndObj, ok) {
+      try {
+        var l = Food.link(); if (!l || l.native) return;
+        var x = new XMLHttpRequest(); x.open('PUT', l.fb + '/r2/' + l.key + '/' + l.room + '/soundDiag.json', true);
+        x.setRequestHeader('Content-Type', 'application/json');
+        x.send(JSON.stringify({ t: { '.sv': 'timestamp' }, id: sndObj.id, ok: ok, why: lgWhy.join(' | ').slice(0, 400), tries: lgTries,
+          audio: String(sndObj.audio || '').slice(-80), pcm: String(sndObj.pcm || '').slice(-80) }));
+      } catch (e) {}
+    }
     function lgFile(sndObj, v, ms) {
       var c = Sfx.ctx(); if (!c) return;
       if (!lgGain) { lgGain = c.createGain(); lgGain.gain.value = 0.0001; lgGain.connect(c.destination); Meter.tap(c, lgGain); }
@@ -1369,8 +1388,16 @@ window.R2_TV = {
         if (!buf) {
           lgNote('using the media player');
           if (isStaff()) toast('Sound ' + (sndObj.name || sndObj.id) + ': ' + lgWhy.join(' \u00B7 '));
-          elTo(sndObj, lgVol); return;
+          soundReport(sndObj, false);
+          elTo(sndObj, lgVol);
+          /* Bella, 4 Nov: after an app update the sound files aren't back on the TV yet (the service restores them from its
+             spare copies), and LG's media player can't play them from there – so the ambience stayed silent. Ask the service
+             to put them back now and try again every 30 s (up to 10 times) until it plays. */
+          lgRetry(sndObj);
+          return;
         }
+        lgTries = 0;
+        soundReport(sndObj, true);
         var s2 = c.createBufferSource(); s2.buffer = buf; s2.loop = true; s2.connect(lgGain);
         lgGain.gain.cancelScheduledValues(c.currentTime); lgGain.gain.setValueAtTime(0.0001, c.currentTime);
         s2.start(); lgSrc = s2; lgRamp(c, lgVol, ms);
