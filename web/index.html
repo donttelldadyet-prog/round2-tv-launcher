@@ -1064,10 +1064,10 @@ window.R2_TV = {
     return w;
   }
   var Sfx = (function () {
-    var ctx = null, noiseBuf = null, target = null, rendered = {}, rendering = {};
+    var ctx = null, ctxAt = 0, noiseBuf = null, target = null, rendered = {}, rendering = {}, onFresh = [];
     function ac() {
       if (target) return target;                /* rendering a clip for Android */
-      if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } }
+      if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); ctxAt = Date.now(); } catch (e) { ctx = null; } }
       if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
       return ctx;
     }
@@ -1093,6 +1093,7 @@ window.R2_TV = {
       g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
       src.connect(f); f.connect(g); g.connect(c.destination);
       src.start(t); src.stop(t + o.dur + 0.02);
+      if (!target) src.onended = function () { try { src.disconnect(); f.disconnect(); g.disconnect(); } catch (e) {} };   /* free each click's nodes */
     }
     var SETS = {
       neon: {   /* bright square-wave tick, like a neon sign relay */
@@ -1182,7 +1183,18 @@ window.R2_TV = {
       prepare: function (set) { if (nat()) renderSet(set || prefs.sound); },
       /* true when sound can play (Android: always; browser: once the page's audio is running) */
       wake: function () { return nat() ? true : ac(); },
-      ctx: ac
+      ctx: ac,
+      /* LG (Bella, 4 Nov): after hours of use the page's sound engine starts to crackle and stutter (menu sounds and rain).
+         Coming back to the menu after 20+ minutes: close it and start a fresh one; the ambience rebuilds on it. */
+      fresh: function (minAgeMs) {
+        if (nat() || !ctx || Date.now() - ctxAt < (minAgeMs || 0)) return false;
+        var old = ctx; ctx = null; noiseBuf = null;
+        onFresh.forEach(function (fn) { try { fn(); } catch (e) {} });
+        try { var pr = old.close && old.close(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+        console.log('[R2] sound engine refreshed');
+        return true;
+      },
+      onFresh: function (fn) { onFresh.push(fn); }
     };
   }());
 
@@ -1257,6 +1269,8 @@ window.R2_TV = {
     /* LG: an <audio> element takes the TV's video player away from the background video, which goes black.
        So on LG the downloaded loop is decoded and played with Web Audio instead, which doesn't touch the video. */
     var lgCur = '', lgSrc = null, lgGain = null, lgVol = 0, lgCache = { id: '', buf: null };
+    /* a fresh sound engine (Sfx.fresh): forget the players made on the old one (the rain itself is kept and reused) */
+    Sfx.onFresh(function () { src = null; gain = null; thunderBuf = null; lgSrc = null; lgGain = null; lgCur = ''; playing = ''; });
     function lgRamp(c, to, ms) {
       var now = c.currentTime, g = lgGain.gain;
       g.cancelScheduledValues(now); g.setValueAtTime(Math.max(g.value, 0.0001), now);
@@ -2985,6 +2999,7 @@ window.R2_TV = {
   }
   window.r2Resume = function () {
     window.r2Away = false;
+    Sfx.fresh(20 * 60000);   /* LG/browser: a fresh sound engine after a long time (Android plays sounds natively) */
     setTimeout(Food.resume, 1200);
     setTimeout(Msg.resume, 1800);
     setTimeout(function () { window.r2SyncThemes(false); }, 3000);
