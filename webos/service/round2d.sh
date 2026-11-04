@@ -489,6 +489,11 @@ cmd_poll() {   # every 20 s: anything from the control centre?
     update)
       if [ -f "$CFG/remote.off" ]; then upd_put locked "$(app_ver)"; log "remote update refused (Staff tools: not allowed)"
       else ( do_update remote ) </dev/null >/dev/null 2>&1 & fi ;;
+    log)   # owner, 4 Nov: the control centre / Claude reads this TV's log without a photo of Diagnostics
+      tail -n 300 "$CFG/log.txt" 2>/dev/null | awk '{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); gsub(/[\001-\037]/," "); printf "%s\\n", $0}' > "$CFG/diag.tmp"
+      { printf '{"t":{".sv":"timestamp"},"v":"%s","log":"' "$(app_ver)"; cat "$CFG/diag.tmp"; printf '"}'; } > "$CFG/diag.json"
+      curl -s -m 20 $K -X PUT -H 'Content-Type: application/json' --data-binary @"$CFG/diag.json" "$FB/r2/$2/$1/diag.json" >/dev/null 2>&1 && log "log sent to the control centre"
+      rm -f "$CFG/diag.tmp" "$CFG/diag.json" ;;
   esac
 }
 msg_tick() {    # every 3 s: is the message due, and is something other than Round2 Home in front?
