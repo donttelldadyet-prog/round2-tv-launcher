@@ -2271,7 +2271,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   var BookStats = (function () {
     var days = 60, ready = false, filt = 'all', last = null, ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm';
     function dur(s) { return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : ''); }
-    function when(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).toLowerCase(); }
+    function when(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(/\s?([ap]m)/i, function (m, x) { return x.toLowerCase(); }); }
     /* the session's own date and time, the Singapore way: "Fri 6 Nov, 11am" (owner, 5 Nov: not 11-06) */
     function slot(x) { if (!x.date) return ''; var t = Date.parse(x.date + 'T' + (x.time || '00:00') + ':00+08:00');
       return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)).replace(',', '') + (x.time ? ', ' + new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(':00', '').replace(/\s/g, '').toLowerCase() : ''); }
