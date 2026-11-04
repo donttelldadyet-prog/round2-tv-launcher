@@ -2168,7 +2168,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function kindOf(x) { var b = String(x.body || ''); return x.type === 'booking' ? (/CANCELLED/.test(b) ? 'cancel' : /MOVED|CHANGED/.test(b) ? 'change' : 'booking') : x.type || x.kind; }
     function match(x) { var kd = kindOf(x); return filt === 'all' || (filt === 'late' ? x.late : filt === 'booking' ? /booking|change|cancel/.test(kd) : filt === 'soon' ? kd === 'soon' || kd === 'wait' : kd === 'human'); }
     function row(x) {
-      var kd = kindOf(x), tags = (x.late ? '<span class="altag late">🌙 Late</span>' : '') + (kd === 'cancel' ? '<span class="altag bad">Cancelled</span>' : kd === 'change' ? '<span class="altag warn">Changed</span>' : '') +
+      var kd = kindOf(x), tags = (x.preview ? '<span class="altag">Preview</span>' : '') + (x.late ? '<span class="altag late">🌙 Late</span>' : '') + (kd === 'cancel' ? '<span class="altag bad">Cancelled</span>' : kd === 'change' ? '<span class="altag warn">Changed</span>' : '') +
         (kd === 'human' ? (x.sorted ? '<span class="altag ok">Sorted</span>' : '<span class="altag bad">Open</span>') : '');
       var first = String(x.body || '').split('\n').filter(function (l) { return !/^(❌|🔁|✏️|⏰)/.test(l.trim()); })[0] || '';
       return '<button type="button" class="alrow' + (x.late ? ' late' : '') + (kd === 'human' ? ' prob' : '') + (kd === 'human' && x.sorted ? ' done' : '') + '" data-al="' + esc(x.id) + '" style="--rc:' + (rc(x) || 'var(--line2)') + '">' +
