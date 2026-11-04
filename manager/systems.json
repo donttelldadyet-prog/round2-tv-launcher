@@ -232,8 +232,14 @@
         {
           "name": "Upcoming sessions keyed in here (change / cancel)",
           "status": "live",
-          "what": "Under Add a session: every note-session after midnight or running past it, 45 days ahead. Change (time, night, room) or Cancel (tap twice) – the note, its TV messages and its SimplyBook label follow. Real bookings are changed in SimplyBook.",
+          "what": "Under Add a session: everything keyed in there (and other notes that start before 7am or run past midnight), 45 days ahead; 🌙 Late only on sessions late by their times (from 11pm, or past 11:15pm). Change (time, night, room) or Cancel (tap twice) – the note, its TV messages and its SimplyBook label follow. Real bookings are changed in SimplyBook.",
           "runs": "Booking engine"
+        },
+        {
+          "name": "Alert history",
+          "status": "live",
+          "what": "Home › Alert history: every phone alert of the last 24 hours (rolling, so overnight bookings are still there in the morning); problems stay until marked sorted; tap one for its details page (swipe from the left edge to go back). Home shows a one-line Last 24 hours summary. Pages are kept 3 days so a late-tapped notification still opens.",
+          "runs": "Booking engine (alert log) + control centre"
         },
         {
           "name": "After-midnight labels in SimplyBook",

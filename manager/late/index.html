@@ -205,8 +205,8 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
       call({ id: x.id, day: x.day }, 'latecancel').then(function (j) {
         if (!j || !j.ok) { b.disabled = false; b.textContent = 'Cancel'; b.classList.remove('sure'); alertUp((j && j.error) || 'No answer'); return; }
         if (editing && editing.id === x.id) { editing = null; $('editing').hidden = true; }
-        loadUp(); try { if (embed) parent.postMessage({ r2late: true }, location.origin); } catch (e2) {}
-      }).catch(function () { b.disabled = false; b.textContent = 'Cancel'; alertUp('Couldn’t reach the engine. Check SimplyBook before trying again.'); });
+        loadUp(); try { if (embed) parent.postMessage({ r2late: 'cancel' }, location.origin); } catch (e2) {}
+      }).catch(function () { b.disabled = false; b.textContent = 'Cancel'; b.classList.remove('sure'); alertUp('Couldn’t reach the engine. Check SimplyBook before trying again.'); });
     }
   });
   function alertUp(t) { var li = document.createElement('li'); li.style.setProperty('--rc', 'var(--warn)'); li.className = 'warn'; li.textContent = t; $('up').insertBefore(li, $('up').firstChild); report(); }
@@ -249,6 +249,10 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   $('clear').onclick = function () { if (editing) { editing = null; $('editing').hidden = true; } unit = ''; drawRooms(); ['start', 'name', 'pax'].forEach(function (k) { $(k).value = ''; }); $('day').value = sgToday(); fillStart(); ready = null; show(''); };
   $('keySave').onclick = function () { var v = $('key').value.trim(); if (v.length < 8) return; ls('r2.guestStaff', v); $('key').value = ''; gate(); };
   $('day').value = sgToday(); fillStart(); drawRooms(); gate(); report();
+  /* left open across days (Home Screen app, control centre tab): "Night of" moves on at 7am unless something is being typed or changed (overnight review 5 Nov) */
+  function freshDay() { if (!editing && !$('name').value && $('day').value < sgToday()) { $('day').value = sgToday(); fillStart(); when && when(); } if (!editing) loadUp(); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) freshDay(); });
+  window.addEventListener('message', function (e) { if (e.origin === location.origin && e.data && e.data.r2lateOpen) freshDay(); });
   $('logo').onerror = function () { this.outerHTML = '<b style="letter-spacing:.14em">ROUND2</b>'; };
   if ('serviceWorker' in navigator && !embed) navigator.serviceWorker.register('../sw.js').catch(function () {});
 }());

@@ -1401,6 +1401,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function gated() { return !['r2m.token', 'r2m.msgKey', 'r2.guestStaff', 'r2m.simCode'].some(function (k) { return ls(k); }); }
+  /* nobody using the page for 10 minutes (a laptop or phone left open): timed refreshes stop – each one costs SimplyBook
+     requests, which are limited to ~5,000 a day (overnight review 5 Nov). A tap or key brings them back. */
+  var r2Touch = Date.now();
+  ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, function () { r2Touch = Date.now(); }, { passive: true, capture: true }); });
+  function idle() { return document.hidden || Date.now() - r2Touch > 10 * 60000; }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
   function toast(m) { var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
   function ymd(d) {   /* day-ok: formats a date it's given */
@@ -1691,7 +1696,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function newerV(a, b) { var x = String(a).split('.'), y = String(b).split('.'); for (var i = 0; i < Math.max(x.length, y.length); i++) { var d = (+x[i] || 0) - (+y[i] || 0); if (d) return d > 0; } return false; }
     var UPD = { sent: 'Update sent…', checking: 'Checking…', installing: 'Installing – don’t switch off', done: '✓ Updated', uptodate: 'Already up to date', ready: 'Ready – Staff tools › Update app › Install', failed: 'Update didn’t finish', locked: 'Locked on the TV' };
     function updLine(x) {
-      var h = x.hb || {}, u = x.upd, L = latest(), now = Date.now(), on = h.t && now - h.t < 12 * 60000 && !(h.pw && h.pw !== 'Active'), out = [];   /* asleep = off for Update now */
+      var h = x.hb || {}, u = x.upd, L = latest(), now = R2Day.now(), on = h.t && now - h.t < 12 * 60000 && !(h.pw && h.pw !== 'Active'), out = [];   /* asleep = off for Update now */
       if (h.v) out.push('v' + esc(h.v));
       /* the last update's result shows for an hour; only one still under way hides the button (owner, 3 Nov: Bella's old
          "didn't finish" kept the button away after it was updated by hand) */
@@ -1704,7 +1709,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         : '<button type="button" class="tvu" data-tvu="' + x.r + '">Update to ' + esc(L) + '</button>');
       return out.length ? '<span class="tvv">' + out.join(' · ').replace(' · <button', '<br><button') + '</span>' : '';
     }
-    function ago2(ms) { var m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : ''); }
+    function ago2(ms) { var m = Math.round((R2Day.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : ''); }
     function nice2(ms) { var d = new Date(ms); return d.toLocaleString(undefined, { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }); }
     /* TVs page (owner, 2 Nov: own tab): one tile per room – check-in, what's on screen, version, Update now */
     function status() {
@@ -1715,7 +1720,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           .then(function (a) { return { r: r, hb: a[0], upd: a[1] }; }).catch(function () { return { r: r, err: true }; });
       })).then(function (list) {
         $('tvTiles').innerHTML = '<div class="tvgrid">' + list.map(function (x) {
-          var R = ROOMS[x.r], h = x.hb, now = Date.now(), t = function (cls, txt) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b><span>' + txt + '</span>' + updLine(x) + '</div>'; };
+          var R = ROOMS[x.r], h = x.hb, now = R2Day.now(), t = function (cls, txt) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b><span>' + txt + '</span>' + updLine(x) + '</div>'; };
           if (x.err) return t('', 'Couldn’t check');
           if (!h || !h.t) return t('', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
           if (h.failsafe) return t('bad', 'Failsafe · open Round2 Home');
@@ -1724,7 +1729,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           if (h.pw && h.pw !== 'Active') return t('sleep', '💤 Screen off · asleep since ' + esc(nice2(h.t)));
           if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
           var fn = frontName(x.r, h.front);
-          return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= Date.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : ''));
+          return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : ''));
         }).join('') + '</div><p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date()).toLowerCase()) +
           '. Each TV reports every 5 minutes, and straight away when something changes. Refresh asks them all to report now (answers arrive within about 30 s).</p>';
       });
@@ -1735,10 +1740,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       /* Refresh (owner, 5 Nov: "doesn't really refresh" – the tiles only change when a TV checks in, every 5 minutes): ask every
          TV to check in now (/ping), redraw straight away and again as the answers come in (TVs look every 20–30 s) */
       $('tvRefresh').onclick = function () {
-        var b = $('tvRefresh'); if (b.disabled) return; b.disabled = true; b.textContent = 'Asking the TVs…';
+        var b = $('tvRefresh'); if (b.disabled) return;
+        if (!key()) { status(); return; }   /* no TV key on this phone: nothing to ask (overnight review 5 Nov) */
+        b.disabled = true; b.textContent = 'Asking the TVs…';
         Object.keys(ROOMS).forEach(function (r) { req('PUT', url(r, 'ping'), { t: { '.sv': 'timestamp' } }).catch(function () {}); });
-        status(); setTimeout(status, 15000); setTimeout(status, 35000);
-        setTimeout(function () { status(); b.disabled = false; b.textContent = 'Refresh'; }, 50000);
+        var seen = function () { if (!$('tab-tvs').hidden) status(); };   /* only while the TVs page is still open */
+        status(); setTimeout(seen, 15000); setTimeout(seen, 35000);
+        setTimeout(function () { seen(); b.disabled = false; b.textContent = 'Refresh'; }, 50000);
       };
       $('tvTiles').addEventListener('click', function (e) {
         var tu = e.target.getAttribute && e.target.getAttribute('data-tvu');
@@ -2151,14 +2159,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         try { localStorage.setItem('r2m.calClosed', JSON.stringify(closedRooms)); } catch (x) {}
       }, true);
       /* keep it current while the Messages tab is open (a guest pressing OK moves it to "Acknowledged") */
-      timer = setInterval(function () { if (!document.hidden && (!$('tab-tonight').hidden || !$('tab-calendar').hidden)) load(); }, 60000);
+      timer = setInterval(function () { if (!idle() && (!$('tab-tonight').hidden || !$('tab-calendar').hidden)) load(); }, 60000);
       $('cKeySave').onclick = function () { var v = $('cKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('cKey').value = ''; load(); };
     }
     return { open: function (n) { if (!ready) { ready = true; init(); } if (n === 'tonight') tnAutoLoad(); load(); }, items: function () { return items.slice(); } };
   }());
 
   /* ---------- Website visitors: read from Firebase /web, written by the round2sg-home page (docs/site-stats.md) ---------- */
-  /* ---------- Home › Alerts (owner, 5 Nov): every phone alert of the last 14 days; tap → its own details page. Not cluttered:
+  /* ---------- Home › Alerts (owner, 5 Nov): the last 24 hours of phone alerts (pages kept 3 days); tap → its own details page. Not cluttered:
      problems still open are pinned on top, today in full, earlier days folded to one line each. Late sessions stand out. */
   var AlertLog = (function () {
     var ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm', list = [], filt = 'all', ready = false, pending = null, timer = null, cur = null;
@@ -2167,9 +2175,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function call(o) { return fetch(ENGINE, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: k() }, o)) }).then(function (r) { return r.json(); }); }
     function rk(name) { name = String(name || '').toLowerCase(); if (/^max/.test(name)) return 'maximillion'; return ROOMS[name] ? name : ''; }
     function rc(x) { var r = rk(x.room); return r ? ROOMS[r].c : ''; }
-    function clock(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).toLowerCase().replace(' ', ''); }
+    function clock(t) { if (!isFinite(+t) || !t) return ''; return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(+t)).toLowerCase().replace(' ', ''); }
     function dayName(d) { var t = R2Day.tonight(); return d === t ? 'Today' : d === R2Day.addDays(t, -1) ? 'Yesterday' : new Intl.DateTimeFormat('en-SG', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(d + 'T00:00:00Z')); }
-    function dayLong(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)); }
+    function dayLong(t) { if (!isFinite(+t) || !t) return ''; t = +t; return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)); }
     function kindOf(x) { var b = String(x.body || ''); return x.type === 'booking' ? (/CANCELLED/.test(b) ? 'cancel' : /MOVED|CHANGED/.test(b) ? 'change' : 'booking') : x.type || x.kind; }
     function match(x) { var kd = kindOf(x); return filt === 'all' || (filt === 'late' ? x.late : filt === 'booking' ? /booking|change|cancel/.test(kd) : filt === 'soon' ? kd === 'soon' || kd === 'wait' : kd === 'human'); }
     function row(x) {
@@ -2243,6 +2251,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       el.addEventListener('touchmove', function (e) { if (!on) return; var t = e.touches[0]; dx = t.clientX - x0;
         if (Math.abs(t.clientY - y0) > 40 && dx < 30) { on = false; el.style.transform = ''; return; }
         if (dx > 0) el.style.transform = 'translateX(' + dx + 'px)'; }, { passive: true });
+      el.addEventListener('touchcancel', function () { if (!on) return; on = false; el.style.transition = ''; el.style.transform = ''; }, { passive: true });
       el.addEventListener('touchend', function () { if (!on) return; on = false; el.style.transition = 'transform .2s ease-out';
         if (dx > Math.min(120, innerWidth / 3)) { el.style.transform = 'translateX(100%)'; setTimeout(back, 180); } else el.style.transform = ''; });
     }());
@@ -2257,13 +2266,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var o = t.closest('[data-open]'); if (o) { tab(o.getAttribute('data-open')); scrollTo(0, 0); return; }
         var so = t.closest('[data-sort]');
         if (so) { if (!so._armed) { so._armed = true; so.textContent = 'Tap again – sorted?'; setTimeout(function () { so._armed = false; so.textContent = 'Sorted ✓'; }, 4000); return; }
-          so.disabled = true; call({ action: 'human', sorted: so.getAttribute('data-sort') }).then(function () { show(cur); }, function () { show(cur); }); }
+          so.disabled = true; var again = function () { if (cur) show(cur, true); }; call({ action: 'human', sorted: so.getAttribute('data-sort') }).then(again, again); }
       });
     }
     return {
       want: function (id) { pending = id; },
-      open: function () { init(); if (pending) { var id = pending; pending = null; show(id); } else if (!cur) load(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden && !cur) load(); }, 60000); },
-      close: function () { clearInterval(timer); }
+      open: function () { init(); if (pending) { var id = pending; pending = null; show(id); } else if (!cur) load(); clearInterval(timer); timer = setInterval(function () { if (!idle() && !cur) load(); }, 60000); },
+      close: function () { clearInterval(timer); if (cur) { cur = null; var d = $('alDetail'); d.hidden = true; d.style.transition = ''; d.style.transform = ''; $('alList').hidden = false; try { if (history.state && history.state.r2al) history.replaceState(null, ''); } catch (e) {} } }
     };
   }());
 
@@ -2271,17 +2280,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   var BookStats = (function () {
     var days = 60, ready = false, filt = 'all', last = null, ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm';
     function dur(s) { return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : ''); }
-    function when(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(/\s?([ap]m)/i, function (m, x) { return x.toLowerCase(); }); }
+    function when(t) { if (!isFinite(+t) || !t) return ''; t = +t; return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(/\s?([ap]m)/i, function (m, x) { return x.toLowerCase(); }); }
     /* the session's own date and time, the Singapore way: "Fri 6 Nov, 11am" (owner, 5 Nov: not 11-06) */
-    function slot(x) { if (!x.date) return ''; var t = Date.parse(x.date + 'T' + (x.time || '00:00') + ':00+08:00');
+    function slot(x) { if (!x.date) return ''; var t = Date.parse(x.date + 'T' + (x.time || '00:00') + ':00+08:00'); if (!isFinite(t)) return x.date + ' ' + (x.time || '');
       return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)).replace(',', '') + (x.time ? ', ' + new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(':00', '').replace(/\s/g, '').toLowerCase() : ''); }
     /* sort the attempts (owner, 5 Nov): paid, left before paying, booked by hand, paying now */
     /* "left before paying" split by why (the engine notes it since 5 Nov; older ones stay "reason not noted") */
     var WHY = { payback: 'Went to pay, came back', cancel: 'Changed their mind', timeout: '10 minutes ran out', again: 'Picked another time', gaveway: 'Made way for their paid booking', error: 'Checkout error', left: 'Left (page closed)', '': 'Left before paying' };
-    var CATS = [['all', 'All'], ['paid', 'Paid'], ['r:payback', WHY.payback], ['r:cancel', WHY.cancel], ['r:timeout', WHY.timeout], ['r:again', WHY.again], ['r:gaveway', WHY.gaveway], ['r:error', WHY.error], ['r:left', WHY.left], ['r:', 'Left before paying (before 5 Nov)'], ['forced', 'Booked by hand'], ['pending', 'Paying now']];
-    function cat(x) { return x.st === 'released' ? 'r:' + (WHY[x.why] && x.why ? x.why : '') : x.st; }
+    var CATS = [['all', 'All'], ['paid', 'Paid'], ['r:payback', WHY.payback], ['r:cancel', WHY.cancel], ['r:timeout', WHY.timeout], ['r:again', WHY.again], ['r:gaveway', WHY.gaveway], ['r:error', WHY.error], ['r:left', WHY.left], ['r:other', 'Left (other reason)'], ['r:', 'Left before paying (before 5 Nov)'], ['forced', 'Booked by hand'], ['pending', 'Paying now']];
+    function cat(x) { return x.st === 'released' ? 'r:' + (!x.why ? '' : WHY[x.why] ? x.why : 'other') : x.st; }
     function drawList() {
       var A = (last && last.list) || [], cnt = {}; A.forEach(function (x) { cnt[cat(x)] = (cnt[cat(x)] || 0) + 1; });
+      if (filt !== 'all' && !cnt[filt]) filt = 'all';   /* that kind isn't in this period: back to All (overnight review 5 Nov) */
       $('bsFilt').innerHTML = CATS.filter(function (c) { return c[0] === 'all' || cnt[c[0]]; }).map(function (c) {
         return '<button type="button" data-f="' + c[0] + '" aria-pressed="' + (filt === c[0]) + '">' + c[1] + ' · ' + (c[0] === 'all' ? A.length : cnt[c[0]]) + '</button>'; }).join('');
       var L = A.filter(function (x) { return filt === 'all' || cat(x) === filt; }), more = L.length > 60; L = L.slice(0, 60);
@@ -2839,7 +2849,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
     function sgMs(d, hm) { return Date.parse(d + 'T' + hm + ':00+08:00'); }
     function addD(d, n) { return R2Day.addDays(d, n); }
-    function sgToday() { return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }   /* day-ok: picks test dates weeks ahead */
+    function sgToday() { return new Date(R2Day.now() + 8 * 3600e3).toISOString().slice(0, 10); }   /* day-ok: picks test dates weeks ahead (engine clock) */
     function ago(t) { var m = Math.round((Date.now() - t) / 60000); return m < 60 ? m + ' min ago' : m < 2880 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; }
     function draw() {
       var n = { ok: 0, warn: 0, bad: 0 }; rows.forEach(function (r) { if (n[r.st] !== undefined) n[r.st]++; });
@@ -2862,15 +2872,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function findNight() {
       var tries = 0;
       function go(d) {
-        return Promise.all([['11', '03:00', '06:00'], ['10', '03:30', '06:30'], ['5', '03:00', '06:00']].map(function (x) {
+        return Promise.all([['11', '03:00', '06:00'], ['10', '03:30', '06:30'], ['5', '03:00', '06:00'], ['11', '07:00', '10:00']].map(function (x) {
           return gm({ action: 'late', unit: x[0], day: d, start: x[1], end: x[2], name: 'ZZTEST', pax: '1', msgs: 'no', dry: '1' });
         })).then(function (js) {
           if (js.every(function (j) { return j.ok && !j.plan.clash.length; })) return d;
-          if (++tries > 6) throw new Error('No free test night found 6–7 weeks ahead.');
+          if (++tries > 6) throw new Error('No free test night found 5–6 weeks ahead.');
           return go(addD(d, 1));
         });
       }
-      return go(addD(sgToday(), 42));
+      /* 36–42 days ahead: inside the engine's 45-day "upcoming" list, so the clean-up can always find the test notes (overnight review 5 Nov) */
+      return go(addD(sgToday(), 36));
     }
     function sessOf(day, unit) {
       return gm({ action: 'insess', day: day }).then(function (j) { var R = Object.keys(j.rooms || {}).map(function (k) { return j.rooms[k]; }).filter(function (r) { return String(r.unit) === String(unit); })[0]; return R ? R.sessions.filter(function (s) { return /ZZTEST/.test(s.name); }) : []; });
@@ -3262,7 +3273,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             else if (k) { b.disabled = true; load({ key: k, sess: b.getAttribute('data-aws') }); }
           });
         }
-        load(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) load(); }, 60000);
+        load(); clearInterval(timer); timer = setInterval(function () { if (!idle()) load(); }, 60000);
       },
       close: function () { clearInterval(timer); timer = null; }
     };
@@ -3571,7 +3582,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var FBH = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/' + k + '/', top = function (r) { return r === 'maximillion' ? 'max' : r; };
     Promise.all(Object.keys(ROOMS).map(function (r) { return fetch(FBH + top(r) + '/helper.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }).then(function (h) { return { r: r, h: h }; }); }))
       .then(function (L) {
-        var now = Date.now(), on = L.filter(function (x) { return x.h && x.h.t && now - x.h.t < 12 * 60000 && !x.h.failsafe && !(x.h.pw && x.h.pw !== 'Active'); }), off = L.filter(function (x) { return on.indexOf(x) < 0 && x.r !== 'kaeden'; });   /* asleep (Quick Start+) counts as off */
+        var now = R2Day.now(), on = L.filter(function (x) { return x.h && x.h.t && now - x.h.t < 12 * 60000 && !x.h.failsafe && !(x.h.pw && x.h.pw !== 'Active'); }), off = L.filter(function (x) { return on.indexOf(x) < 0 && x.r !== 'kaeden'; });   /* asleep (Quick Start+) counts as off */
         el.innerHTML = '<button type="button" data-tab="tvs">📺 ' + on.length + ' of ' + L.length + ' TVs on' + (off.length ? ' · <span class="bad">off: ' + esc(off.map(function (x) { return ROOMS[x.r].name; }).join(', ')) + '</span>' : '') + ' ›</button>';
       });
   }
@@ -3599,7 +3610,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   function homeAlerts() {
     var k = ls('r2.guestStaff') || '', el = $('homeAlerts'); if (!k) { el.innerHTML = ''; return; }
     fetch('https://round2-book.donttelldadyet.workers.dev/gm', { method: 'POST', body: new URLSearchParams({ action: 'alerts', staff: k }) }).then(function (r) { return r.json(); }).then(function (j) {
-      var cut = R2Day.now() - 24 * 3600e3, L = ((j && j.list) || []).filter(function (x) { return x.t > cut; }), n = function (f) { return L.filter(f).length; };
+      if (!j || j.error || !j.list) { el.innerHTML = ''; return; }   /* can't tell – show nothing rather than "all quiet" (overnight review 5 Nov) */
+      var cut = R2Day.now() - 24 * 3600e3, L = j.list.filter(function (x) { return x.t > cut && !x.preview; }), n = function (f) { return L.filter(f).length; };
       var nb = n(function (x) { return x.type === 'booking' && !/CANCELLED|MOVED|CHANGED/.test(x.body || ''); }), ch = n(function (x) { return x.type === 'booking' && /MOVED|CHANGED/.test(x.body || ''); }),
         ca = n(function (x) { return x.type === 'booking' && /CANCELLED/.test(x.body || ''); }), late = n(function (x) { return x.late && x.type === 'booking'; });
       var parts = [nb ? nb + ' new booking' + (nb > 1 ? 's' : '') : '', ch ? ch + ' changed' : '', ca ? ca + ' cancelled' : '', late ? '🌙 ' + late + ' late' : ''].filter(Boolean);
@@ -3648,9 +3660,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var fr = $('tab-' + n).querySelector('iframe');
       if (!fr.getAttribute('src')) fr.setAttribute('src', fr.getAttribute('data-src'));
       else if (n === 'guestlink') try { fr.contentWindow.document.getElementById('refresh').click(); } catch (e) {}
+      else try { fr.contentWindow.postMessage({ r2lateOpen: 1 }, location.origin); } catch (e) {}
     }
   }
-  window.addEventListener('message', function (e) { if (e.origin === location.origin && e.data && e.data.r2late) toast('Added to SimplyBook. In session shows it on the next refresh.'); });
+  window.addEventListener('message', function (e) { if (e.origin === location.origin && e.data && e.data.r2late) toast(e.data.r2late === 'cancel' ? 'Cancelled in SimplyBook. In session shows it on the next refresh.' : 'Added to SimplyBook. In session shows it on the next refresh.'); });
   /* the guest pages report their height, so they sit in the tab without a scrollbar of their own */
   window.addEventListener('message', function (e) {
     if (e.origin !== location.origin || !e.data || !e.data.r2frame) return;
