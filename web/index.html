@@ -2965,7 +2965,7 @@ window.R2_TV = {
   /* the Android app calls these: Back on the remote, a room set from the computer, and returning here */
   window.r2Back = function () { press('back'); };
   window.r2SetRoom = function (k) { if (ROOMS[k]) { store('r2.room', k); applyRoom(k); closeGrid(); } };
-  window.r2Pause = function () { window.r2Away = true; Amb.pause(); clearAnim(); lockStaff(); };
+  window.r2Pause = function () { window.r2Away = true; if (!window.r2AwaySince) window.r2AwaySince = Date.now(); Amb.pause(); clearAnim(); lockStaff(); };
   /* The TV was switched off (the app calls this on standby): forget every guest change, back to the house settings */
   window.r2Reset = function () {
     try { for (var i = window.sessionStorage.length - 1; i >= 0; i--) { var key = window.sessionStorage.key(i); if (key && key.indexOf('g.') === 0) window.sessionStorage.removeItem(key); } } catch (e) {}
@@ -2985,6 +2985,11 @@ window.R2_TV = {
   }
   window.r2Resume = function () {
     window.r2Away = false;
+    /* LG (owner, 4 Nov: "unacceptable"): after a long film the TV's web sound engine could break up (ambience and menu
+       sounds). Back after 10+ minutes away: start the menu fresh, exactly like a start-up – the same as the Android TVs
+       have always done (MainActivity RELOAD_AFTER_MS). Room, house settings and guest changes are kept. */
+    var away = window.r2AwaySince ? Date.now() - window.r2AwaySince : 0; window.r2AwaySince = 0;
+    if (Device.kind() === 'webos' && away > 10 * 60000) { console.log('[R2] back after ' + Math.round(away / 60000) + ' min: fresh start'); location.reload(); return; }
     setTimeout(Food.resume, 1200);
     setTimeout(Msg.resume, 1800);
     setTimeout(function () { window.r2SyncThemes(false); }, 3000);
