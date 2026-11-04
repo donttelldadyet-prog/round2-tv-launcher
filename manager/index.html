@@ -1604,7 +1604,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function frontName(r, id) {
       id = String(id || ''); if (!id) return '';
       var h = id.match(/^com\.webos\.app\.hdmi(\d)/); if (h) return +h[1] === (PSPORT[r] || 1) ? 'PS4' : 'HDMI ' + h[1];
-      var N = [[/^sg\.round2\.tvhome/, 'Round2 menu'], [/youtube/i, 'YouTube'], [/netflix/i, 'Netflix'], [/disney/i, 'Disney+'], [/amazon|primevideo/i, 'Prime Video'],
+      var N = [[/^sg\.round2\.tvhome/, 'Round2 menu'], [/youtube|tizentube|videomanager/i, 'YouTube'], [/^com\.wbd\.stream|hbo|^max$/i, 'HBO Max'], [/appletv/i, 'Apple TV'], [/iqiyi/i, 'iQIYI'], [/^viu/i, 'Viu'],
+        [/lgchannels/i, 'LG Channels'], [/browser/i, 'Web browser'], [/miracast|screenshare/i, 'Screen Share'], [/netflix/i, 'Netflix'], [/disney/i, 'Disney+'], [/amazon|primevideo/i, 'Prime Video'],
         [/spotify/i, 'Spotify'], [/twitch/i, 'Twitch'], [/^com\.webos\.app\.livetv/, 'TV channels'], [/^com\.webos\.app\.(home|launcher)|tvlauncher|launcherx/, 'TV home screen'],
         [/settings/i, 'TV settings'], [/tvinput|inputsource|tvcenter|dtv\.tvx|^com\.google\.android\.tv$|livechannels/i, 'TV input (PS4?)'], [/airplay/i, 'AirPlay']];
       for (var i = 0; i < N.length; i++) if (N[i][0].test(id)) return N[i][1];
