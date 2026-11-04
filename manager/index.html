@@ -147,6 +147,8 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .bsrow .bar { height: 14px; background: var(--accent); min-width: 2px; }
 .bsli { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .bsli:last-child { border-bottom: 0; }
+.bsli .bsw { display: block; color: var(--mute); font-size: 12px; margin-top: 2px; }
+.bsli .chip.paid { color: var(--ok); } .bsli .chip.left { color: var(--warn); } .bsli .chip.hand { color: var(--bad); }
 /* Alerts (owner, 5 Nov): list → tap → details page */
 .homealerts { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: 100%; text-align: left; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-left: 4px solid var(--gc); padding: 12px 14px; margin: 0 0 12px; font: inherit; cursor: pointer; }
 .homealerts b { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gc); } .homealerts span { grid-column: 1; font-size: 15px; } .homealerts .go { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--mute); font-size: 20px; }
@@ -838,7 +840,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="bsnums" id="bsNums"></div>
     <div class="wgrid" style="margin-top:16px">
       <div class="card"><h2 style="margin-top:0">Time to pay</h2><div id="bsHist"></div><p class="hint" id="bsHint"></p></div>
-      <div class="card"><h2 style="margin-top:0">Latest attempts</h2><div id="bsList"></div></div>
+      <div class="card"><h2 style="margin-top:0">Latest attempts</h2><div class="alf" id="bsFilt"></div><div id="bsList"></div></div>
     </div>
   </section>
 
@@ -2267,10 +2269,28 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* ---------- Website › Booking page (owner, 5 Nov): how long guests take to pay, and how many walk away (engine gm paytimes) ---------- */
   var BookStats = (function () {
-    var days = 60, ready = false, ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm';
+    var days = 60, ready = false, filt = 'all', last = null, ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm';
     function dur(s) { return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : ''); }
     function when(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).toLowerCase(); }
+    /* the session's own date and time, the Singapore way: "Fri 6 Nov, 11am" (owner, 5 Nov: not 11-06) */
+    function slot(x) { if (!x.date) return ''; var t = Date.parse(x.date + 'T' + (x.time || '00:00') + ':00+08:00');
+      return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)).replace(',', '') + (x.time ? ', ' + new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(':00', '').replace(/\s/g, '').toLowerCase() : ''); }
+    /* sort the attempts (owner, 5 Nov): paid, left before paying, booked by hand, paying now */
+    var CATS = [['all', 'All'], ['paid', 'Paid'], ['released', 'Left before paying'], ['forced', 'Booked by hand'], ['pending', 'Paying now']];
+    function drawList() {
+      var A = (last && last.list) || [], cnt = {}; A.forEach(function (x) { cnt[x.st] = (cnt[x.st] || 0) + 1; });
+      $('bsFilt').innerHTML = CATS.filter(function (c) { return c[0] === 'all' || cnt[c[0]]; }).map(function (c) {
+        return '<button type="button" data-f="' + c[0] + '" aria-pressed="' + (filt === c[0]) + '">' + c[1] + ' · ' + (c[0] === 'all' ? A.length : cnt[c[0]]) + '</button>'; }).join('');
+      var L = A.filter(function (x) { return filt === 'all' || x.st === filt; }), more = L.length > 60; L = L.slice(0, 60);
+      $('bsList').innerHTML = L.length ? L.map(function (x) {
+        var st = x.st === 'paid' ? (x.secs !== null ? 'Paid in ' + dur(x.secs) : 'Paid') : x.st === 'released' ? 'Left before paying' : x.st === 'forced' ? 'Booked by hand' : x.st === 'pending' ? 'Paying now' : x.st;
+        var cl = x.st === 'paid' ? 'paid' : x.st === 'released' ? 'left' : x.st === 'forced' ? 'hand' : '';
+        return '<div class="bsli"><span>' + esc(x.room) + (x.eb ? ' (Early Bird)' : '') + ' · ' + esc(slot(x)) + (x.hours ? ' · ' + x.hours + 'h' : '') + (x.total ? ' · $' + x.total : '') +
+          '<span class="bsw">Tried ' + esc(when(x.t)) + '</span></span><span class="chip ' + cl + '">' + esc(st) + '</span></div>';
+      }).join('') + (more ? '<p class="hint">Showing the latest 60.</p>' : '') : '<p class="hint">Nothing here in this period.</p>';
+    }
     function draw(j) {
+      last = j;
       var p = j.paidSecs || [], o = j.others || {}, n = p.length, med = n ? p[Math.floor((n - 1) / 2)] : 0, max = n ? p[n - 1] : 0, hold = j.holdSec || 600;
       var walked = o.released || 0, forced = o.forced || 0;
       var box = function (v, l) { return '<div><b>' + v + '</b><span class="hint">' + l + '</span></div>'; };
@@ -2282,11 +2302,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('bsHist').innerHTML = B.map(function (b, i) { return '<div class="bsrow"><span>' + b[1] + '</span><span class="bar" style="width:' + (100 * c[i] / top).toFixed(1) + '%"></span><b>' + c[i] + '</b></div>'; }).join('');
       var in2 = p.filter(function (x) { return x <= 120; }).length;
       $('bsHint').textContent = n ? Math.round(100 * in2 / n) + '% paid within 2 minutes. Measured from pressing Pay to the booking being in SimplyBook.' : 'No paid online bookings in this period yet.';
-      var L = (j.list || []).slice(0, 25);
-      $('bsList').innerHTML = L.length ? L.map(function (x) {
-        var st = x.st === 'paid' ? (x.secs !== null ? 'Paid in ' + dur(x.secs) : 'Paid') : x.st === 'released' ? 'Left before paying' : x.st === 'forced' ? 'Booked by hand' : x.st === 'pending' ? 'Paying now' : x.st;
-        return '<div class="bsli"><span>' + esc(when(x.t)) + ' · ' + esc(x.room) + (x.eb ? ' (Early Bird)' : '') + ' · ' + esc(x.date.slice(5)) + ' ' + esc(x.time) + '</span><span class="chip">' + esc(st) + '</span></div>';
-      }).join('') : '<p class="hint">Nothing yet.</p>';
+      drawList();
     }
     function load() {
       var k = ls('r2.guestStaff') || ''; $('bsErr').hidden = true;
@@ -2296,7 +2312,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }).catch(function (e) { $('bsErr').hidden = false; $('bsErr').textContent = 'Couldn’t load the numbers: ' + e.message; });
     }
     return { open: function () {
-      if (!ready) { ready = true; $('bsRange').addEventListener('click', function (e) { var d = e.target.getAttribute && e.target.getAttribute('data-d'); if (!d) return; days = +d;
+      if (!ready) { ready = true; $('bsFilt').addEventListener('click', function (e) { var f = e.target.closest && e.target.closest('button'); if (!f) return; filt = f.getAttribute('data-f'); drawList(); });
+        $('bsRange').addEventListener('click', function (e) { var d = e.target.getAttribute && e.target.getAttribute('data-d'); if (!d) return; days = +d;
         Array.prototype.forEach.call(document.querySelectorAll('#bsRange button'), function (b) { b.setAttribute('aria-pressed', b === e.target); }); load(); }); }
       load();
     } };
