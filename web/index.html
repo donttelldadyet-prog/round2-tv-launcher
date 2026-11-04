@@ -1194,22 +1194,7 @@ window.R2_TV = {
         console.log('[R2] sound engine refreshed');
         return true;
       },
-      onFresh: function (fn) { onFresh.push(fn); },
-      /* self-check every minute while the menu is showing: a struggling sound engine falls behind the real clock
-         (its stutters are lost time) or stops running. Then refresh it on the spot (Bella, 4 Nov: clicks and rain broke up) */
-      watch: function () {
-        var last = null;
-        setInterval(function () {
-          if (nat() || !ctx || window.r2Away || document.hidden) { last = null; return; }
-          var now = Date.now(), at = ctx.currentTime;
-          if (ctx.state !== 'running' && ctx.state !== 'suspended') { last = null; if (Sfx.fresh(0)) Amb.apply(); return; }
-          if (last && ctx.state === 'running') {
-            var wall = (now - last.t) / 1000, audio = at - last.a;
-            if (wall > 30 && audio < wall * 0.97) { console.log('[R2] sound engine behind by ' + (wall - audio).toFixed(1) + ' s: refreshing'); last = null; if (Sfx.fresh(0)) Amb.apply(); return; }
-          }
-          last = { t: now, a: at };
-        }, 60000);
-      }
+      onFresh: function (fn) { onFresh.push(fn); }
     };
   }());
 
@@ -3226,7 +3211,6 @@ window.R2_TV = {
   /* LG: opened fresh by the AirPlay lab (Round2 Home wasn't running) */
   var ambStarted = false;
   whenThemes(function () { setTimeout(function () { if (!ambStarted) { Amb.apply(); ambStarted = true; } }, 1000); }, 3500);
-  Sfx.watch();   /* LG/browser: refresh the sound engine if it starts to stutter */
   setTimeout(function () { Sfx.prepare(); }, 2600);
    /* the Android app gets this room's menu sounds ready */
   setTimeout(function () {
