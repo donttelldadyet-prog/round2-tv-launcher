@@ -1,6 +1,6 @@
 {
   "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-11-02",
+  "updated": "2026-11-05",
   "areas": [
     {
       "name": "Website & booking",
@@ -77,6 +77,19 @@
           "what": "Since 31 Oct guests see round2.sg addresses, not 'donttelldadyet': booking confirmation after paying and 'View your booking' → book.round2.sg (/done, /find, /b/<code>); room food menu → menu.round2.sg/<room> (e.g. menu.round2.sg/vale). TV message links were already cue.round2.sg. DNS stays in Wix (CNAME book / menu → donttelldadyet-prog.github.io); domain registered at Vodien. Old links still work. Still to do: owner points each room's Wix links page (valelinks etc.) at menu.round2.sg/<room>; the SimplyBook confirmation-email line should use book.round2.sg/b/<code>.",
           "runs": "GitHub Pages repos round2-book and round2-menu (DNS in Wix) · booking engine PUBLIC_BOOK / PUBLIC_MENU",
           "code": "round2sg-home · HANDOFF.md (TO DO at the top)"
+        },
+        {
+          "name": "Booking page safety (HitPay is the truth)",
+          "status": "live",
+          "what": "A time is never let go without asking HitPay; a paid booking is always made (Malia, 5 Nov). Payment pages close when the guest's 10 minutes end; a 5-minute check books anyone who paid but isn't booked.",
+          "runs": "Booking engine",
+          "code": "round2sg-home · worker/round2-book.js (hpPaid, safeRelease, paidSweep)"
+        },
+        {
+          "name": "Booking page numbers",
+          "status": "live",
+          "what": "Control centre › Website › Booking page: how long guests take to pay, how many leave before paying, latest attempts.",
+          "runs": "Booking engine (gm paytimes) + control centre"
         }
       ]
     },
