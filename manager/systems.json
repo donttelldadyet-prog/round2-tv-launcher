@@ -223,16 +223,16 @@
           "code": "round2-tv-launcher · docs/guest-messages.md \"In session\""
         },
         {
-          "name": "Late session",
+          "name": "Add a session (was Late session)",
           "status": "test",
-          "what": "In session › Late session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too). TESTING (owner, 2 Nov): the form asks for “Night of” + arrival (times after 12am show their real date, a red box confirms it; before 7am the page opens on last night). Waiting for the admin's feedback: keep “Night of”, or pick the real date instead?",
+          "what": "In session › Add a session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too). TESTING (owner, 2 Nov): the form asks for “Night of” + arrival (times after 12am show their real date, a red box confirms it; before 7am the page opens on last night). Waiting for the admin's feedback: keep “Night of”, or pick the real date instead?",
           "runs": "Booking engine + SimplyBook notes",
           "code": "round2sg-home · docs/booking-times.md"
         },
         {
-          "name": "Upcoming late sessions (change / cancel)",
+          "name": "Upcoming sessions keyed in here (change / cancel)",
           "status": "live",
-          "what": "Under Late session: every note-session after midnight or running past it, 45 days ahead. Change (time, night, room) or Cancel (tap twice) – the note, its TV messages and its SimplyBook label follow. Real bookings are changed in SimplyBook.",
+          "what": "Under Add a session: every note-session after midnight or running past it, 45 days ahead. Change (time, night, room) or Cancel (tap twice) – the note, its TV messages and its SimplyBook label follow. Real bookings are changed in SimplyBook.",
           "runs": "Booking engine"
         },
         {

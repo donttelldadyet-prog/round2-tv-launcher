@@ -781,9 +781,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   </section>
 
   <section id="tab-late" hidden>
-    <h1>Late session</h1>
+    <h1>Add a session</h1>
     <p class="sub">Key in a WhatsApp or walk-in session, including past midnight.</p>
-    <iframe class="gframe" title="Late session" data-src="late/?embed=1"></iframe>
+    <iframe class="gframe" title="Add a session" data-src="late/?embed=1"></iframe>
   </section>
 
   <section id="tab-guestlink" hidden>
@@ -945,7 +945,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   <section id="tab-syscheck" hidden>
     <h1>System check</h1>
-    <p class="sub">Runs the whole system end to end, like a real night: booking prices, the food menu, guest links, TVs reporting in, Late session, +1h, Undo, Change, Vale ↔ Atlas, SimplyBook labels, today’s messages and TV setup. Run it after any new feature, so new parts don’t quietly break old ones.</p>
+    <p class="sub">Runs the whole system end to end, like a real night: booking prices, the food menu, guest links, TVs reporting in, Add a session, +1h, Undo, Change, Vale ↔ Atlas, SimplyBook labels, today’s messages and TV setup. Run it after any new feature, so new parts don’t quietly break old ones.</p>
     <div class="card"><b>Safe to run any time.</b> <span class="hint">Test sessions are called ZZTEST and go in at 3–6am on a date about 6 weeks ahead, so nothing shows on a TV and no guest is affected; they’re removed at the end. Takes about a minute.</span>
       <div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="scGo">Run full check</button></div><p class="hint" id="scWhen" style="margin:8px 0 0"></p></div>
     <p id="scSum"></p>
@@ -1022,7 +1022,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
     <details class="hcard" id="h-phone"><summary><span class="hi">📱</span>Set up a phone</summary>
       <div class="hflow"><div class="hstep"><i>🧭</i>Safari:<br>staff.round2.sg</div><em>›</em><div class="hstep"><i>⬆️</i>Share</div><em>›</em><div class="hstep"><i>➕</i>Add to Home Screen</div><em>›</em><div class="hstep"><i>🔑</i>Paste the key message</div></div>
-      <p class="tip">Always open it from the new <b>[||]</b> icon. Late session has its own icon: staff.round2.sg/late</p>
+      <p class="tip">Always open it from the new <b>[||]</b> icon. Add a session has its own icon: staff.round2.sg/late</p>
     </details>
 
     <details class="hcard" id="h-extend"><summary><span class="hi">⏱️</span>A guest wants more time</summary>
@@ -1039,7 +1039,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     </details>
 
     <details class="hcard" id="h-latechange"><summary><span class="hi">✏️</span>Move or cancel a late guest</summary>
-      <div class="hflow"><div class="hstep"><i>🌙</i>Late session</div><em>›</em><div class="hstep"><i>⬇️</i>Upcoming sessions</div><em>›</em><div class="hstep"><i>✏️</i>Change</div><em>or</em><div class="hstep bad"><i>✖️</i>Cancel ×2</div></div>
+      <div class="hflow"><div class="hstep"><i>➕</i>Add a session</div><em>›</em><div class="hstep"><i>⬇️</i>Upcoming sessions</div><em>›</em><div class="hstep"><i>✏️</i>Change</div><em>or</em><div class="hstep bad"><i>✖️</i>Cancel ×2</div></div>
       <p class="tip">TV messages and the SimplyBook label follow by themselves. Normal online bookings: change them in SimplyBook.</p>
     </details>
 
@@ -1077,7 +1077,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <details class="hcard" id="h-guest"><summary><span class="hi">🎂</span>Guest writes their own TV message</summary>
       <div class="hflow"><div class="hstep"><i>🔗</i>Make a guest link</div><em>›</em><div class="hstep"><i>💚</i>Send on WhatsApp</div><em>›</em><div class="hstep"><i>✍️</i>Guest writes it</div><em>›</em><div class="hstep ok"><i>📺</i>Pops up on time</div></div>
       <p><b>Who’s it for:</b> after picking the room and time, tap the booking or note that’s in SimplyBook then. The link sticks to it: <b>moved → the message moves</b>, <b>deleted or cancelled → the message is cancelled</b>.</p>
-      <p><b>Made the link first?</b> Fine – it shows <b>⏳ Not tied yet</b> and ties itself once the booking or note is in at that exact time (Late session does it straight away). Different time by mistake? Tap <b>Pair with booking</b> in Guest messages. Still not tied 3 hours before? Your phone gets a heads-up.</p>
+      <p><b>Made the link first?</b> Fine – it shows <b>⏳ Not tied yet</b> and ties itself once the booking or note is in at that exact time (Add a session does it straight away). Different time by mistake? Tap <b>Pair with booking</b> in Guest messages. Still not tied 3 hours before? Your phone gets a heads-up.</p>
       <p class="tip">See them in <b>Tonight</b>; move or cancel them in <b>Guest links</b>: 🔗 = tied to its booking or note.</p>
     </details>
 
@@ -2216,7 +2216,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (h && h.done && (h.done.problem || h.done.fallback)) html += '<p class="adnote">What the system did: ' + esc([h.done.problem].concat(h.done.fallback || []).filter(Boolean).join(' · ')) + '</p>';
       html += '<div class="adacts">' + (phone ? '<a class="btn" href="https://wa.me/' + esc(String(phone).replace(/[^\d]/g, '')) + '" target="_blank" rel="noopener">WhatsApp guest</a>' : '') +
         (c.s && R2Day.night(c.s) === R2Day.tonight() ? '<button class="btn" type="button" data-open="insession">Open In session</button><button class="btn" type="button" data-open="tonight">Tonight’s TV messages</button>' : '') +
-        (x.late ? '<button class="btn" type="button" data-open="late">Late session</button>' : '') +
+        (x.late ? '<button class="btn" type="button" data-open="late">Add a session</button>' : '') +
         (kd === 'wait' ? '<button class="btn" type="button" data-open="guestlink">Pair the link</button>' : '') +
         (kd === 'human' && !x.sorted && c.hid ? '<button class="btn primary" type="button" data-sort="' + esc(c.hid) + '">Sorted ✓</button>' : '') + '</div>';
       html += '<details class="adraw"><summary class="hint">The alert as it was sent</summary><pre>' + esc(x.title + '\n' + (x.body || '')) + '</pre></details>';
@@ -2918,7 +2918,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       /* watchdog: reads the code of every screen (and the TV page) and flags day or time maths that doesn't go through
          R2Day (or the TV's own 7am today()). A line that's fine on purpose says so with a "day-ok" note. */
       .then(function () { return step('Watchdog: no screen works out days on its own', function () {
-        var FILES = [['Control centre', './'], ['Guest messages', 'msg/staff.html'], ['Late session', 'late/'], ['TV home screen', 'src/tv-web.txt']];
+        var FILES = [['Control centre', './'], ['Guest messages', 'msg/staff.html'], ['Add a session', 'late/'], ['TV home screen', 'src/tv-web.txt']];
         var OK = new RegExp(['day', 'ok'].join('-') + '|R2Day|7 \\* 3600'), RULES = [
           [new RegExp(['864e5', '86400000', '86400e3', '24 \\* 3600000', '24 \\* 3600e3', '24 \\* 60 \\* 60'].join('|')), '“24 hours” maths'],
           [new RegExp('toISOString\\(\\)\\.slice\\(0, ?10\\)'), 'a calendar date without the 7am rule'],
@@ -3046,12 +3046,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }); })
       /* 7. the test night */
       .then(function () { return step('Test night free (3–7am, ~6 weeks ahead)', function () { return findNight().then(function (d) { T.night = addD(d, -1); T.day = d; return 'Using the night of ' + T.night + ' (sessions at 3am on ' + d + ')'; }); }); })
-      .then(function () { return step('Late session: write the note, In session and the list see it', function () {
+      .then(function () { return step('Add a session (late, 3–5am): write the note, In session and the list see it', function () {
         return gm({ action: 'late', unit: '11', day: T.day, start: '03:00', end: '05:00', name: 'ZZTEST max', pax: '2', msgs: 'yes' }).then(function (j) {
-          must(j.ok, 'Late session: ' + (j.error || 'refused')); T.max = j.notes[0].id; return Promise.all([sessOf(T.day, 11), gm({ action: 'latelist' })]);
+          must(j.ok, 'Add a session: ' + (j.error || 'refused')); T.max = j.notes[0].id; return Promise.all([sessOf(T.day, 11), gm({ action: 'latelist' })]);
         }).then(function (r) {
           must(r[0].length === 1, 'In session sees ' + r[0].length + ' test sessions in Max (expected 1).');
-          var x = (r[1].sessions || []).filter(function (s) { return /^ZZTEST max/.test(s.text); }); must(x.length === 1, 'Upcoming late sessions sees ' + x.length + '.'); T.maxS = r[0][0]; return 'Max 3–5am · note “' + x[0].text + '”';
+          var x = (r[1].sessions || []).filter(function (s) { return /^ZZTEST max/.test(s.text); }); must(x.length === 1, 'Upcoming sessions sees ' + x.length + '.'); T.maxS = r[0][0]; return 'Max 3–5am · note “' + x[0].text + '”';
         }); }); })
       .then(function () { return step('Closing time follows the shop night (a 3am session is already past 11:15pm)', function () {
         return gm({ action: 'extend', day: T.day, key: T.maxS.key, hours: '1', end: String(T.maxS.sbEnd), msgs: 'no', dry: '1' }).then(function (j) {
@@ -3091,7 +3091,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(b.ok && b.paired === 'waiting', 'A link with nothing booked should wait (' + (b.paired || b.error) + ').'); T.links.push(b.code); T.linkB = b.code;
           return gm({ action: 'late', unit: '11', day: T.day, start: '05:30', end: '06:15', name: 'ZZTEST max2', pax: '1', msgs: 'no' });
         }).then(function (l) {
-          must(l.ok, 'Second Late session: ' + (l.error || 'refused')); must(l.tied >= 1, 'Late session didn’t tie the waiting link.'); T.max2 = l.notes[0].id;
+          must(l.ok, 'Second Add a session: ' + (l.error || 'refused')); must(l.tied >= 1, 'Add a session didn’t tie the waiting link.'); T.max2 = l.notes[0].id;
           return gm({ action: 'create', room: 'kai', start: at('06:30'), label: 'ZZTEST pair C' });
         }).then(function (c) {
           T.links.push(c.code); T.linkC = c.code; return gm({ action: 'pair', code: c.code, key: 'n' + T.max2, day: T.day });
@@ -3103,7 +3103,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             var st = {}; (j.links || []).forEach(function (x) { st[x.key] = x.data.status; });
             must(st[T.linkB] === 'cancelled' && st[T.linkC] === 'cancelled', 'Note deleted but its links weren’t cancelled (B ' + st[T.linkB] + ', C ' + st[T.linkC] + ').');
             must(st[T.linkA] !== 'cancelled', 'A link on a different note was cancelled too.');
-            return 'Tied on making · waiting link tied by Late session · Pair moved Kai 6:30 → Max 5:30 · note deleted → its 2 links cancelled';
+            return 'Tied on making · waiting link tied by Add a session · Pair moved Kai 6:30 → Max 5:30 · note deleted → its 2 links cancelled';
           });
       }); })
       /* the 1-hour phone reminder reads the guest's link (owner, 2 Nov): "🔗 msg not written" until the guest writes, then
@@ -3127,7 +3127,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(j.ok && j.replaced, 'Change: ' + (j.error || 'refused')); return Promise.all([sessOf(T.day, 11), sessOf(T.day, 10)]);
         }).then(function (r) { must(!r[0].length, 'Max still has the old session.'); must(r[1].length === 1, 'Bella has ' + r[1].length + '.'); return 'Max empty · Bella 3:30–5:30am'; });
       }); })
-      .then(function () { return step('Guest link follows Late session › Change (Max 3am → Bella 3:30am)', function () {
+      .then(function () { return step('Guest link follows Add a session › Change (Max 3am → Bella 3:30am)', function () {
         must(T.linkA, 'No link from the pairing step.');
         return gm({ action: 'follow' }).then(function () { return gm({ action: 'list' }); }).then(function (j) {
           var x = (j.links || []).filter(function (y) { return y.key === T.linkA; })[0];
@@ -3343,7 +3343,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
        and the menu editor too; the personal GitHub key is only a backup, last */
     var LIST = [
       { id: 'staff', name: 'Staff code (main key)', store: 'r2.guestStaff', ph: 'Staff code',
-        opens: [['insession', 'In session (+1h)'], ['late', 'Late session'], ['tonight', 'Tonight'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up'], ['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings'], ['foodmenu', 'Edit the menu'], ['alerts', 'Alerts on this phone'], ['syscheck', 'System check']],
+        opens: [['insession', 'In session (+1h)'], ['late', 'Add a session'], ['tonight', 'Tonight'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up'], ['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings'], ['foodmenu', 'Edit the menu'], ['alerts', 'Alerts on this phone'], ['syscheck', 'System check']],
         about: 'Everything day-to-day: extending and late sessions, wrap-up and guest messages, TV setup (backgrounds, events, sounds) and the food menu editor, phone alerts, and Update now on the TV tiles. Give it to staff who run the shop.' },
       { id: 'msg', name: 'TV messages key', store: 'r2m.msgKey', ph: 'TV messages key',
         opens: [['messages', 'Send a message'], ['tvs', 'TVs'], ['tests', 'Test a TV']],
@@ -3501,7 +3501,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
     home: [['home', 'Overview'], ['alertlog', 'Alert history']],
-    sess: [['insession', 'In session'], ['late', 'Late session']],
+    sess: [['insession', 'In session'], ['late', 'Add a session']],
     notif: [['tonight', 'Tonight'], ['messages', 'Send'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up']],
     tvs: [['tvs', 'Status'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
