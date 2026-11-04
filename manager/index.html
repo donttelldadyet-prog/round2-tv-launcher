@@ -2224,13 +2224,28 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       html += '<details class="adraw"><summary class="hint">The alert as it was sent</summary><pre>' + esc(x.title + '\n' + (x.body || '')) + '</pre></details>';
       $('alDetail').innerHTML = html;
     }
-    function show(id) {
-      cur = id; $('alList').hidden = true; $('alDetail').hidden = false; $('alDetail').innerHTML = '<p class="hint">Loading…</p>'; scrollTo(0, 0);
+    function show(id, fromHistory) {
+      /* a real step in the phone's history (owner, 5 Nov): the browser's own back / edge-swipe goes back to the list */
+      if (!fromHistory) { try { history.pushState({ r2al: id }, ''); } catch (e) {} }
+      cur = id; $('alList').hidden = true; $('alDetail').hidden = false; $('alDetail').style.transform = ''; $('alDetail').innerHTML = '<p class="hint">Loading…</p>'; scrollTo(0, 0);
       if (!k()) { $('alDetail').innerHTML = '<button type="button" class="adback" data-back="1">‹ All alerts</button><div class="banner warn">Add the staff code (TV messages › Guest links) to open alerts.</div>'; return; }
       call({ action: 'alerts', id: id }).then(function (j) { if (j.error) throw new Error(j.error); if (cur === id) detail(j); })
         .catch(function (e) { $('alDetail').innerHTML = '<button type="button" class="adback" data-back="1">‹ All alerts</button><div class="banner warn">' + esc(e.message) + '</div>'; });
     }
-    function back() { cur = null; $('alDetail').hidden = true; $('alList').hidden = false; load(); }
+    function close1() { cur = null; var d = $('alDetail'); d.hidden = true; d.style.transition = ''; d.style.transform = ''; $('alList').hidden = false; load(); }
+    function back() { if (history.state && history.state.r2al) history.back(); else close1(); }   /* popstate does the rest */
+    window.addEventListener('popstate', function () { if (cur && !(history.state && history.state.r2al)) close1(); else if (history.state && history.state.r2al && history.state.r2al !== cur && !$('tab-alertlog').hidden) show(history.state.r2al, true); });
+    /* swipe from the left edge to go back, like iPhone apps (owner, 5 Nov) – the page follows the finger. In Safari the
+       browser's own edge-swipe does this already (it fires popstate); this is for the Home Screen app, which has none. */
+    (function () {
+      var x0 = 0, y0 = 0, on = false, dx = 0, el = $('alDetail');
+      el.addEventListener('touchstart', function (e) { var t = e.touches[0]; on = !el.hidden && t.clientX < 32; x0 = t.clientX; y0 = t.clientY; dx = 0; if (on) el.style.transition = 'none'; }, { passive: true });
+      el.addEventListener('touchmove', function (e) { if (!on) return; var t = e.touches[0]; dx = t.clientX - x0;
+        if (Math.abs(t.clientY - y0) > 40 && dx < 30) { on = false; el.style.transform = ''; return; }
+        if (dx > 0) el.style.transform = 'translateX(' + dx + 'px)'; }, { passive: true });
+      el.addEventListener('touchend', function () { if (!on) return; on = false; el.style.transition = 'transform .2s ease-out';
+        if (dx > Math.min(120, innerWidth / 3)) { el.style.transform = 'translateX(100%)'; setTimeout(back, 180); } else el.style.transform = ''; });
+    }());
     function init() {
       if (ready) return; ready = true;
       $('alFilter').addEventListener('click', function (e) { var f = e.target.getAttribute && e.target.getAttribute('data-f'); if (!f) return; filt = f;
