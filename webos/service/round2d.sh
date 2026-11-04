@@ -409,8 +409,8 @@ upd_put() {   # $1 state, $2 version / note
     -d "{\"state\":\"$1\",\"v\":\"$2\",\"t\":{\".sv\":\"timestamp\"}}" "$FB/r2/$4/$3/update.json" >/dev/null 2>&1
 }
 app_ver() { sed -n 's/.*"version" *: *"\([^"]*\)".*/\1/p' "$APPINFO" 2>/dev/null | head -n 1; }
-lg_pkg() {    # the newest Round2 Home in our Homebrew listing: "version ipkUrl sha256"
-  curl -s -m 20 $K "$LGJSON" 2>/dev/null | awk -v id="$APP" '
+lg_pkg() {    # the newest Round2 Home (or $1) in our Homebrew listing: "version ipkUrl sha256"
+  curl -s -m 20 $K "$LGJSON" 2>/dev/null | awk -v id="${1:-$APP}" '
     function val(k,   t) { if (!match($0, "\"" k "\": *\"[^\"]*\"")) return ""; t = substr($0, RSTART, RLENGTH); sub(/^[^:]*: *"/, "", t); sub(/"$/, "", t); return t }
     index($0, "\"" id "\"") { on = 1 }
     on && v == "" { v = val("version") }
@@ -494,6 +494,21 @@ cmd_poll() {   # every 20 s: anything from the control centre?
       { printf '{"t":{".sv":"timestamp"},"v":"%s","log":"' "$(app_ver)"; cat "$CFG/diag.tmp"; printf '"}'; } > "$CFG/diag.json"
       curl -s -m 20 $K -X PUT -H 'Content-Type: application/json' --data-binary @"$CFG/diag.json" "$FB/r2/$2/$1/diag.json" >/dev/null 2>&1 && log "log sent to the control centre"
       rm -f "$CFG/diag.tmp" "$CFG/diag.json" ;;
+    alerttest)   # owner, 4 Nov: which way of drawing our card shows over Netflix? The control centre picks the version;
+                 # it's installed if needed, then shown with a test card (OK closes it; it reports like a real one)
+      ta=$(printf '%s\n' "$c" | field app); tr=$(printf '%s\n' "$c" | field raise)
+      case "$ta" in sg.round2.alerts|sg.round2.alertspop|sg.round2.alertsflt) ;; *) return 0 ;; esac
+      ( if [ ! -d "/media/developer/apps/usr/palm/applications/$ta" ]; then
+          set -- $(lg_pkg "$ta"); log "test card: installing $ta $1"
+          lp=""; [ -n "$3" ] && { luna-send -i luna://org.webosbrew.hbchannel.service/install "{\"ipkUrl\":\"$2\",\"ipkHash\":\"$3\",\"id\":\"$ta\",\"subscribe\":true}" >/dev/null 2>&1 & lp=$!; }
+          n=0; while [ ! -f "/media/developer/apps/usr/palm/applications/$ta/appinfo.json" ] && [ $n -lt 40 ]; do sleep 3; n=$((n + 1)); done
+          [ -n "$lp" ] && kill $lp 2>/dev/null; sleep 2
+        fi
+        room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null)
+        card="{\"type\":\"msg\",\"kind\":\"note\",\"tag\":\"TEST\",\"title\":\"Can you see this?\",\"text\":\"Netflix test ($ta). Press OK on the remote.\",\"from\":\"Round2\",\"to\":\"\",\"ack\":false,\"id\":\"test\",\"until\":0,\"room\":\"$room\"}"
+        ov_show "$ta" "$card" && log "test card $ta shown over $(cat "$CFG/front" 2>/dev/null)" || log "test card $ta didn't open"
+        if [ "$tr" = 1 ]; then sleep 2; ov_show "$ta" "$card" && log "test card $ta raised again"; fi   # Netflix may take the top back
+      ) </dev/null >/dev/null 2>&1 & ;;
   esac
 }
 msg_tick() {    # every 3 s: is the message due, and is something other than Round2 Home in front?

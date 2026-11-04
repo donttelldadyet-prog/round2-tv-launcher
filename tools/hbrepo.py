@@ -7,7 +7,7 @@ then Round2 Home appears in Homebrew Channel and installs (and updates) from the
 
 Usage: tools/hbrepo.py <version> <path to round2-home.ipk>
 """
-import hashlib, json, sys
+import hashlib, json, os, sys
 
 version, ipk = sys.argv[1], sys.argv[2]
 sha = hashlib.sha256(open(ipk, 'rb').read()).hexdigest()
@@ -93,6 +93,15 @@ extras.append({'id': 'sg.round2.alerts', 'title': 'Round2 Alerts', 'iconUri': IC
         'appDescription': AL_DESC, 'iconUri': ICON, 'sourceUrl': f'{REPO}/tree/main/webos/alerts', 'rootRequired': True,
         'ipkUrl': f'{REPO}/releases/download/v{version}/sg.round2.alerts.ipk',
         'ipkHash': {'sha256': hashlib.sha256(open('sg.round2.alerts.ipk', 'rb').read()).hexdigest()}}})
+# test versions of the card in other window types (owner, 4 Nov: the card stays hidden over Netflix) – installed only
+# when the control centre runs the Netflix test on a TV
+for vid, wt in (('sg.round2.alertspop', 'popup'), ('sg.round2.alertsflt', 'floating')):
+    if os.path.exists(vid + '.ipk'):
+        extras.append({'id': vid, 'title': 'Round2 Alerts (test ' + wt + ')', 'iconUri': ICON, 'shortDescription': 'Test only.',
+            'manifest': {'id': vid, 'title': 'Round2 Alerts (test ' + wt + ')', 'version': version, 'type': 'web', 'appDescription': 'Test only.',
+                'iconUri': ICON, 'sourceUrl': f'{REPO}/tree/main/webos/alerts', 'rootRequired': True,
+                'ipkUrl': f'{REPO}/releases/download/v{version}/{vid}.ipk',
+                'ipkHash': {'sha256': hashlib.sha256(open(vid + '.ipk', 'rb').read()).hexdigest()}}})
 print(json.dumps({'packages': [{
     'id': 'sg.round2.tvhome', 'title': 'Round2 Home', 'iconUri': ICON,
     'shortDescription': desc, 'manifest': manifest,
