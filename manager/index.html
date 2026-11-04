@@ -2276,14 +2276,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function slot(x) { if (!x.date) return ''; var t = Date.parse(x.date + 'T' + (x.time || '00:00') + ':00+08:00');
       return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)).replace(',', '') + (x.time ? ', ' + new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(':00', '').replace(/\s/g, '').toLowerCase() : ''); }
     /* sort the attempts (owner, 5 Nov): paid, left before paying, booked by hand, paying now */
-    var CATS = [['all', 'All'], ['paid', 'Paid'], ['released', 'Left before paying'], ['forced', 'Booked by hand'], ['pending', 'Paying now']];
+    /* "left before paying" split by why (the engine notes it since 5 Nov; older ones stay "reason not noted") */
+    var WHY = { payback: 'Went to pay, came back', cancel: 'Changed their mind', timeout: '10 minutes ran out', again: 'Picked another time', gaveway: 'Made way for their paid booking', error: 'Checkout error', left: 'Left (page closed)', '': 'Left before paying' };
+    var CATS = [['all', 'All'], ['paid', 'Paid'], ['r:payback', WHY.payback], ['r:cancel', WHY.cancel], ['r:timeout', WHY.timeout], ['r:again', WHY.again], ['r:gaveway', WHY.gaveway], ['r:error', WHY.error], ['r:left', WHY.left], ['r:', 'Left before paying (before 5 Nov)'], ['forced', 'Booked by hand'], ['pending', 'Paying now']];
+    function cat(x) { return x.st === 'released' ? 'r:' + (WHY[x.why] && x.why ? x.why : '') : x.st; }
     function drawList() {
-      var A = (last && last.list) || [], cnt = {}; A.forEach(function (x) { cnt[x.st] = (cnt[x.st] || 0) + 1; });
+      var A = (last && last.list) || [], cnt = {}; A.forEach(function (x) { cnt[cat(x)] = (cnt[cat(x)] || 0) + 1; });
       $('bsFilt').innerHTML = CATS.filter(function (c) { return c[0] === 'all' || cnt[c[0]]; }).map(function (c) {
         return '<button type="button" data-f="' + c[0] + '" aria-pressed="' + (filt === c[0]) + '">' + c[1] + ' · ' + (c[0] === 'all' ? A.length : cnt[c[0]]) + '</button>'; }).join('');
-      var L = A.filter(function (x) { return filt === 'all' || x.st === filt; }), more = L.length > 60; L = L.slice(0, 60);
+      var L = A.filter(function (x) { return filt === 'all' || cat(x) === filt; }), more = L.length > 60; L = L.slice(0, 60);
       $('bsList').innerHTML = L.length ? L.map(function (x) {
-        var st = x.st === 'paid' ? (x.secs !== null ? 'Paid in ' + dur(x.secs) : 'Paid') : x.st === 'released' ? 'Left before paying' : x.st === 'forced' ? 'Booked by hand' : x.st === 'pending' ? 'Paying now' : x.st;
+        var st = x.st === 'paid' ? (x.secs !== null ? 'Paid in ' + dur(x.secs) : 'Paid') : x.st === 'released' ? (x.why && WHY[x.why] ? WHY[x.why] : 'Left before paying') : x.st === 'forced' ? 'Booked by hand' : x.st === 'pending' ? 'Paying now' : x.st;
         var cl = x.st === 'paid' ? 'paid' : x.st === 'released' ? 'left' : x.st === 'forced' ? 'hand' : '';
         return '<div class="bsli"><span>' + esc(x.room) + (x.eb ? ' (Early Bird)' : '') + ' · ' + esc(slot(x)) + (x.hours ? ' · ' + x.hours + 'h' : '') + (x.total ? ' · $' + x.total : '') +
           '<span class="bsw">Tried ' + esc(when(x.t)) + '</span></span><span class="chip ' + cl + '">' + esc(st) + '</span></div>';
