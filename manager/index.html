@@ -148,6 +148,8 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .bsli { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .bsli:last-child { border-bottom: 0; }
 /* Alerts (owner, 5 Nov): list → tap → details page */
+.homealerts { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: 100%; text-align: left; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-left: 4px solid var(--gc); padding: 12px 14px; margin: 0 0 12px; font: inherit; cursor: pointer; }
+.homealerts b { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gc); } .homealerts span { grid-column: 1; font-size: 15px; } .homealerts .go { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--mute); font-size: 20px; }
 .alf { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 14px; }
 .alf button { background: none; border: 1px solid var(--line2); border-radius: 999px; padding: 6px 13px; font-size: 13px; color: var(--mute); }
 .alf button[aria-pressed="true"] { background: var(--gc); border-color: var(--gc); color: #0b0914; font-weight: 600; }
@@ -157,7 +159,7 @@ details.alold > summary { padding: 11px 14px; cursor: pointer; display: flex; ju
 details.alold > summary .hint { white-space: nowrap; }
 details.alold[open] > summary { border-bottom: 1px solid var(--line); }
 details.alold .alrow { border-left-width: 4px; margin: 0; border-top: 0; border-right: 0; }
-.alrow { display: grid; grid-template-columns: 54px 1fr auto; gap: 2px 10px; align-items: start; width: 100%; text-align: left; background: var(--panel); color: var(--ink);
+.alrow { display: grid; grid-template-columns: 58px 1fr auto; gap: 2px 10px; align-items: start; width: 100%; text-align: left; background: var(--panel); color: var(--ink);
   border: 1px solid var(--line); border-left: 4px solid var(--rc, var(--line2)); padding: 10px 12px; margin: 6px 0; font: inherit; cursor: pointer; }
 .alrow:hover { background: color-mix(in srgb, var(--rc, #fff) 8%, var(--panel)); }
 .alrow .tm { color: var(--mute); font-size: 13px; padding-top: 1px; }
@@ -623,6 +625,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <h1>Control centre</h1>
     <p class="sub">Pick what you need. Each area has its own colour and icon, and that colour stays with you on every page inside it.</p>
     <div id="homeHuman"></div>
+    <div id="homeAlerts"></div>
     <div id="homeTvs"></div>
     <div class="hub" id="hub"></div>
   </section>
@@ -818,7 +821,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <section id="tab-alertlog" hidden>
     <div id="alList">
       <h1>Alert history</h1>
-      <p class="sub">Every alert sent to the phones in the last 14 days. Tap one to see everything about it. Which alerts this phone gets: Tests &amp; systems › Phone alert setup.</p>
+      <p class="sub">Alerts from the last 24 hours, newest first – what came in overnight is still here when you wake up. Problems stay on top until someone presses Sorted. Tap one to see everything about it. Which alerts this phone gets: Tests &amp; systems › Phone alert setup.</p>
       <div class="banner warn" id="alErr" hidden></div>
       <div class="alf" id="alFilter"><button type="button" data-f="all" aria-pressed="true">All</button><button type="button" data-f="booking" aria-pressed="false">Bookings</button><button type="button" data-f="soon" aria-pressed="false">In 1 hour</button><button type="button" data-f="human" aria-pressed="false">Problems</button><button type="button" data-f="late" aria-pressed="false">🌙 Late</button></div>
       <div id="alHuman"></div>
@@ -2172,20 +2175,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         (kd === 'human' ? (x.sorted ? '<span class="altag ok">Sorted</span>' : '<span class="altag bad">Open</span>') : '');
       var first = String(x.body || '').split('\n').filter(function (l) { return !/^(❌|🔁|✏️|⏰)/.test(l.trim()); })[0] || '';
       return '<button type="button" class="alrow' + (x.late ? ' late' : '') + (kd === 'human' ? ' prob' : '') + (kd === 'human' && x.sorted ? ' done' : '') + '" data-al="' + esc(x.id) + '" style="--rc:' + (rc(x) || 'var(--line2)') + '">' +
-        '<span class="tm">' + esc(clock(x.t)) + '</span><b>' + tags + esc(String(x.title || '').replace(/^⚠️\s*/, '')) + '</b><span class="bd">' + esc(first) + '</span><span class="go">›</span></button>';
+        '<span class="tm">' + esc((R2Day.night(x.t) !== R2Day.tonight() ? 'Yday ' : '') + clock(x.t)) + '</span><b>' + tags + esc(String(x.title || '').replace(/^⚠️\s*/, '')) + '</b><span class="bd">' + esc(first) + '</span><span class="go">›</span></button>';
     }
     function drawList() {
       var open = list.filter(function (x) { return x.type === 'human' && !x.sorted; }), seen = {};
       $('alHuman').innerHTML = open.length && filt !== 'late' ? '<div class="alday" style="color:var(--bad)">Needs a human · ' + open.length + '</div>' + open.filter(function (x) { if (seen[x.title]) return false; seen[x.title] = 1; return true; }).map(row).join('') : '';
-      var L = list.filter(match), by = {}, order = [];
-      L.forEach(function (x) { var d = R2Day.night(x.t); if (!by[d]) { by[d] = []; order.push(d); } by[d].push(x); });
-      var today = R2Day.tonight();
-      $('alDays').innerHTML = !L.length ? '<p class="hint">' + (list.length ? 'Nothing in this filter.' : 'No alerts yet. New ones appear here as they go out.') + '</p>' : order.map(function (d) {
-        var xs = by[d];
-        if (d === today) { var ys = filt === 'late' ? xs : xs.filter(function (x) { return !(x.type === 'human' && !x.sorted); }); return ys.length ? '<div class="alday">Today · ' + ys.length + '</div>' + ys.map(row).join('') : ''; }
-        var late = xs.filter(function (x) { return x.late; }).length, probs = xs.filter(function (x) { return x.type === 'human'; }).length;
-        return '<details class="alold"><summary><span>' + esc(dayName(d)) + '</span><span class="hint">' + xs.length + ' alert' + (xs.length > 1 ? 's' : '') + (late ? ' · 🌙 ' + late + ' late' : '') + (probs ? ' · ⚠️ ' + probs : '') + '</span></summary>' + xs.map(row).join('') + '</details>';
-      }).join('');
+      /* the last 24 hours only (owner, 5 Nov): bookings that came in at 1am are still here at 10am; nothing piles up */
+      var cut = R2Day.now() - 24 * 3600e3, L = list.filter(function (x) { return x.t > cut && match(x) && (filt === 'late' || !(x.type === 'human' && !x.sorted)); });
+      $('alDays').innerHTML = L.length ? '<div class="alday">Last 24 hours · ' + L.length + '</div>' + L.map(row).join('')
+        : '<p class="hint">' + (filt !== 'all' ? 'Nothing in this filter in the last 24 hours.' : 'No alerts in the last 24 hours. New ones appear here as they go out.') + '</p>';
     }
     function load() {
       $('alErr').hidden = true;
@@ -2260,7 +2258,6 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           so.disabled = true; call({ action: 'human', sorted: so.getAttribute('data-sort') }).then(function () { show(cur); }, function () { show(cur); }); }
       });
     }
-    R2Day.list('Alerts', { night: function (t) { return R2Day.night(t); }, today: function () { return R2Day.tonight(); } });
     return {
       want: function (id) { pending = id; },
       open: function () { init(); if (pending) { var id = pending; pending = null; show(id); } else if (!cur) load(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden && !cur) load(); }, 60000); },
@@ -3565,6 +3562,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     e.target.disabled = true;
     fetch('https://round2-book.donttelldadyet.workers.dev/gm', { method: 'POST', body: new URLSearchParams({ action: 'human', staff: ls('r2.guestStaff') || '', sorted: id }) }).then(homeHuman, homeHuman);
   });
+  /* Home: what the phones were told in the last 24 hours, in one line (owner, 5 Nov: "a summary when we wake up") */
+  function homeAlerts() {
+    var k = ls('r2.guestStaff') || '', el = $('homeAlerts'); if (!k) { el.innerHTML = ''; return; }
+    fetch('https://round2-book.donttelldadyet.workers.dev/gm', { method: 'POST', body: new URLSearchParams({ action: 'alerts', staff: k }) }).then(function (r) { return r.json(); }).then(function (j) {
+      var cut = R2Day.now() - 24 * 3600e3, L = ((j && j.list) || []).filter(function (x) { return x.t > cut; }), n = function (f) { return L.filter(f).length; };
+      var nb = n(function (x) { return x.type === 'booking' && !/CANCELLED|MOVED|CHANGED/.test(x.body || ''); }), ch = n(function (x) { return x.type === 'booking' && /MOVED|CHANGED/.test(x.body || ''); }),
+        ca = n(function (x) { return x.type === 'booking' && /CANCELLED/.test(x.body || ''); }), late = n(function (x) { return x.late && x.type === 'booking'; });
+      var parts = [nb ? nb + ' new booking' + (nb > 1 ? 's' : '') : '', ch ? ch + ' changed' : '', ca ? ca + ' cancelled' : '', late ? '🌙 ' + late + ' late' : ''].filter(Boolean);
+      el.innerHTML = '<button type="button" class="homealerts" data-tab="alertlog"><b>Last 24 hours</b><span>' + (parts.length ? esc(parts.join(' · ')) : 'No new bookings, changes or cancellations') + '</span><span class="go">›</span></button>';
+    }).catch(function () { el.innerHTML = ''; });
+  }
+  $('homeAlerts').addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-tab]')) { tab('alertlog'); scrollTo(0, 0); } });
   $('homeTvs').addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-tab]')) { tab('tvs'); scrollTo(0, 0); } });
   function groupOf(n) { for (var g in GROUPS) if (GROUPS[g].some(function (x) { return x[0] === n; })) return g; return 'home'; }
   function tab(n) {
@@ -3590,7 +3599,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'messages') Msgs.open(); else Msgs.close();
     if (n === 'tvs') Msgs.tvsOpen(); else Msgs.tvsClose();
     if (n === 'tonight' || n === 'calendar') { Cal.open(n); Msgs.live(); } else Msgs.unlive();
-    if (n === 'home') { homeTvs(); homeHuman(); }
+    if (n === 'home') { homeTvs(); homeHuman(); homeAlerts(); }
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
