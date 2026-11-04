@@ -102,6 +102,9 @@ No OK needed: big banner 1 min, small banner 45 s, then never again.
 ## Tested / not yet tested on real TVs (31 Oct 2026)
 
 - Tested by the owner: small banner over Netflix on Bella (LG); Home → big banner bug found and fixed (v1.0.187).
+- 4 Nov 2026 (Vale log): the LG card opened over a PLAYING Netflix film but stayed hidden behind it and never had the remote
+  ("no remote focus"). Fixed in 1.0.250: Round2 Alerts calls PalmSystem.activate() + window.focus() when it opens. Owner
+  tested on all LGs: shows over Netflix, first OK counts. Owner's rule: never fall back to LG's own pop-ups.
 - Fixed, waiting for a TV test: big banner closing at its cut-off (v1.0.189, Max); app-to-app switch on LG;
   5-minute reminder; credit banner waiting in line.
 
