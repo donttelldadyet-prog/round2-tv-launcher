@@ -196,16 +196,19 @@ clock_sync() {
 }
 snow() { echo $(( $(date +%s) + $(cat "$CFG/clock.off" 2>/dev/null || echo 0) )); }
 clean() { tr -d "\\\\\"'"; }   # no quotes or backslashes: safe inside the luna-send JSON below
-# --- Round2 Alerts (sg.round2.alerts, from Homebrew Channel): the Round2 card over other apps instead of LG's pop-ups.
-# Without it installed, LG's own pop-ups are used, so nothing is ever missed.
+# --- Round2 Alerts (sg.round2.alerts, from Homebrew Channel): the Round2 card over other apps. NEVER LG's own pop-ups
+# (owner, 4–5 Nov): if the card won't open, it's tried again shortly and the alert waits (logged) – nothing falls back to LG.
 ov_app() {
   [ -d /media/developer/apps/usr/palm/applications/sg.round2.alerts ] || return 1
   echo sg.round2.alerts
 }
-ov_show() {     # $1 app id, $2 params JSON. Fails (so the caller uses LG's pop-up) if webOS won't open it.
-  r=$(luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$1\",\"params\":$2}" 2>&1)
-  case "$r" in *'"returnValue":true'*|*'"returnValue": true'*) return 0 ;; esac
-  log "Round2 Alerts didn't open: $(echo "$r" | tr -d '\n' | cut -c1-120)"
+ov_show() {     # $1 app id, $2 params JSON. One retry after 2 s; fails (the caller tries again later) if webOS still won't open it.
+  for try in 1 2; do
+    r=$(luna-send -n 1 luna://com.webos.service.applicationManager/launch "{\"id\":\"$1\",\"params\":$2}" 2>&1)
+    case "$r" in *'"returnValue":true'*|*'"returnValue": true'*) return 0 ;; esac
+    log "Round2 Alerts didn't open (try $try): $(echo "$r" | tr -d '\n' | cut -c1-120)"
+    [ "$try" = 1 ] && sleep 2
+  done
   return 1
 }
 alerts_running() {   # is the Round2 Alerts card (its webOS overlay app) still open?
@@ -237,15 +240,9 @@ food_show() {   # $1 type, $2 order no, $3 items, $4 "reminder" (shown again on 
       return
     fi
   fi
-  log "food $1 #$2: LG's pop-up (Round2 Alerts not installed or didn't open)"
-  if [ "$1" = received ]; then
-    luna-send -n 1 luna://com.webos.notification/createToast \
-      "{\"sourceId\":\"$APP\",\"message\":\"ORDER #$2 LOCKED IN \u00b7 Madd Pizza is firing it up. We\u2019ll ping you when it lands.\"}" >/dev/null 2>&1
-  else
-    luna-send -n 1 luna://com.webos.notification/createAlert \
-      "{\"sourceId\":\"$APP\",\"title\":\"LOOT DROPPED \u00b7 ORDER #$2\",\"message\":\"It\u2019s at the drop zone \u2014 the rack right outside the entrance. Grab it while it\u2019s hot!\\n\\n$3\",\"modal\":false,\"buttons\":[{\"label\":\"GOT IT\",\"onclick\":\"luna://org.webosbrew.hbchannel.service/exec\",\"params\":{\"command\":\"sh $CFG/round2d.sh ack\"}}]}" >/dev/null 2>&1
-  fi
-  log "food $1 #$2 shown over $(cat "$CFG/front" 2>/dev/null)"
+  # never LG's own pop-up (owner): Loot dropped stays waiting (food.pending) and food_again tries again in 5 minutes
+  [ "$1" = ready ] && echo $(( $(date +%s) - 240 )) > "$CFG/food.last"   # retry in about a minute
+  log "food $1 #$2 NOT shown: Round2 Alerts not installed or didn't open – will try again"
 }
 food_ack() {    # GOT IT pressed: tell Make.com about every order waiting at the pickup point
   set -- $(cat "$CFG/food" 2>/dev/null); room=$1; key=$2
@@ -323,26 +320,10 @@ msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows
   text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean); to=$(printf '%s\n' "$line" | field to | clean)
   ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
   case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; extend) tag="SESSION EXTENDED" ;; *) tag="A MESSAGE" ;; esac
-  card="{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"to\":\"$to\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"until\":$(printf '%s\n' "$line" | num until | grep -E '^[0-9]+$' || echo 0),\"room\":\"$room\"}"
+  card="{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"to\":\"$to\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"until\":$(printf '%s\n' "$line" | num until | grep -E '^[0-9]+$' || echo 0),\"now\":$(snow)000,\"room\":\"$room\"}"
   if menu_front; then menu_card "$card"; return 0; fi   # the menu's big card
   if ov=$(ov_app); then ov_show "$ov" "$card" && return 0; fi   # our own card pages the message itself
-  printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean | { if command -v fold >/dev/null 2>&1; then fold -s -w 110; else cat; fi; } > "$CFG/msg.pages"
-  total=$(wc -l < "$CFG/msg.pages"); [ "$total" -ge 1 ] || total=1
-  text=$(sed -n "${n}p" "$CFG/msg.pages")
-  # ◀ ▶ move between the pop-up's buttons: PAGE BACK re-reads, NEXT PAGE turns; only the last page has the OK that closes it
-  hb="luna://org.webosbrew.hbchannel.service/exec"
-  btns=""
-  [ "$n" -gt 1 ] && btns="{\"label\":\"\u25C0 PAGE BACK\",\"onclick\":\"$hb\",\"params\":{\"command\":\"sh $CFG/round2d.sh msgpage $((n - 1))\"}},"
-  if [ "$n" -lt "$total" ]; then
-    btns="$btns{\"label\":\"NEXT PAGE \u25B6 $n/$total\",\"onclick\":\"$hb\",\"params\":{\"command\":\"sh $CFG/round2d.sh msgpage $((n + 1))\"}}"
-  else
-    [ -n "$from" ] && text="$text\\n\u2014 $from"
-    if printf '%s\n' "$line" | grep -q '"ack":true'; then ok="OK \u00B7 SEEN IT (CLOSES THIS)"; cmd="sh $CFG/round2d.sh msgack $(printf '%s\n' "$line" | field id)"; else ok="OK \u00B7 CLOSE"; cmd="true"; fi
-    btns="$btns{\"label\":\"$ok\",\"onclick\":\"$hb\",\"params\":{\"command\":\"$cmd\"}}"
-  fi
-  [ "$total" -gt 1 ] && title="$title ($n/$total)"
-  luna-send -n 1 luna://com.webos.notification/createAlert \
-    "{\"sourceId\":\"$APP\",\"title\":\"$title\",\"message\":\"$text\",\"modal\":false,\"buttons\":[$btns]}" >/dev/null 2>&1
+  return 1   # never LG's own pop-up (owner): the message waits and msg_tick tries again in about a minute
 }
 card_up() {     # the Round2 Alerts card on screen right now ("msg <id>" / "food <no>"), if it said so in the last 150 s
   set -- $(cat "$CFG/card.up" 2>/dev/null)
@@ -530,6 +511,7 @@ msg_tick() {    # every 3 s: is the message due, and is something other than Rou
     [ "$until" -gt 0 ] || until=$(( at + 10800 ))
     [ "$now" -ge "$at" ] || continue
     [ "$now" -le "$until" ] || { rm -f "$CFG/msg.cur"; continue; }
+    case "$(tr -cd 'A-Za-z ' < "$CFG/power" 2>/dev/null)" in ""|Active) ;; *) continue ;; esac   # TV asleep: the message waits (shows when it's on)
     last=$(cat "$CFG/msg.last" 2>/dev/null || echo 0)
     [ $(( now - last )) -ge 300 ] || continue                                   # at most every 5 minutes
     up=$(card_up); menu_front && up=""                                         # our card never floats over the menu
@@ -537,9 +519,9 @@ msg_tick() {    # every 3 s: is the message due, and is something other than Rou
     case "$up" in food\ *) continue ;; esac                                     # Loot dropped is up: it comes first
     if msg_acked "$id"; then echo "$id" > "$CFG/msg.done"; rm -f "$CFG/msg.cur"; continue; fi   # seen on the menu's card
     echo "$now" > "$CFG/msg.last"; echo "$id" > "$CFG/msg.id"
+    if ! msg_alert 1; then echo $(( now - 240 )) > "$CFG/msg.last"; log "message $id NOT shown (Round2 Alerts missing or didn't open) – tries again in a minute"; continue; fi
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }
     [ "$(printf '%s\n' "$line" | grep -c '"ack":true')" -gt 0 ] || echo "$id" > "$CFG/msg.done"
-    msg_alert 1
     log "message $id shown over $(cat "$CFG/front" 2>/dev/null)$( [ -n "$(ov_app)" ] && echo ' (Round2 card)')"
   done
 }

@@ -93,7 +93,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
   }
 
   /* ---------- the card ---------- */
-  var mode = '', card = null, pages = [], pi = 0, hideT = null, blinkT = null;
+  var mode = '', card = null, pages = [], pi = 0, hideT = null, blinkT = null, blinkW = null;
   function split(t, n) {
     t = String(t || '').replace(/\s+/g, ' ').trim(); var out = [];
     while (t.length > n) {
@@ -125,13 +125,13 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
     var c = $('card'); c.className = ''; void c.offsetWidth; c.className = 'in';
     var b = $('bang'); b.className = ''; void b.offsetWidth; b.className = 'pop';
     for (var i = 0; i < 8; i++) (function (i) { setTimeout(function () { $('box').className = i % 2 ? '' : 'flash'; }, 200 + i * 250); })(i);
-    clearInterval(blinkT); setTimeout(function () { blinkT = setInterval(function () { b.classList.toggle('lit'); }, 550); }, 3000);
+    clearInterval(blinkT); clearTimeout(blinkW); blinkW = setTimeout(function () { clearInterval(blinkT); blinkT = setInterval(function () { b.classList.toggle('lit'); }, 550); }, 3000);
     chime();
     clearTimeout(hideT); clearInterval(upT);
     /* same rules as Android (owner, 31 Oct 2026): a message that must be acknowledged and Loot dropped stay until OK
        (other buttons shake them; a message goes at its cut-off); Order locked in 20 s; a message without OK 45 s */
     if (p.type === 'msg' && p.ack) {
-      var left = Number(p.until) - Date.now();
+      var left = Number(p.until) - (Number(p.now) > 0 ? Number(p.now) : Date.now());   /* the engine's clock, sent by the helper (overnight review 5 Nov) */
       if (left > 0) hideT = setTimeout(function () { log('cut-off'); close(); }, Math.min(left, 2147483000));
     } else if (p.type !== 'ready') hideT = setTimeout(function () { log('timed out'); close(); }, p.type === 'received' ? 20000 : 45000);
     /* tell the helper this card is up (refreshed every minute), so it doesn't pop the same thing up again on top */
@@ -170,7 +170,7 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
   }
   var upT = null;
   function close() {
-    clearTimeout(hideT); clearInterval(blinkT); clearInterval(upT); exec('rm -f ' + CFG + '/card.up');
+    clearTimeout(hideT); clearInterval(blinkT); clearTimeout(blinkW); clearInterval(upT); exec('rm -f ' + CFG + '/card.up');
     $('card').className = '';
     setTimeout(function () {
       try { window.close(); } catch (e) {}

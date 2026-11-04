@@ -210,6 +210,7 @@ public class FoodAlerts extends Service {
         new Thread(this::listen, "food-alerts").start();
         new Thread(this::listenMsg, "room-messages").start();
         main.post(msgTick);   // a message waiting from before a restart
+        main.postDelayed(lootAgain, REPEAT_MS);   // Loot dropped not OK'd before a restart: reminders carry on (overnight review 5 Nov)
         main.post(heartbeat);   // check-in for the control centre (On the TVs now)
         main.postDelayed(cmdPoll, 30_000);   // "Update now" from the control centre
         try { registerReceiver(screenOn, new android.content.IntentFilter(Intent.ACTION_SCREEN_ON)); } catch (Exception ignored) { }
@@ -737,6 +738,15 @@ public class FoodAlerts extends Service {
         } catch (Exception e) { return null; }
     }
 
+    private final Runnable lootAgain = new Runnable() {
+        @Override public void run() {
+            String still = pending(FoodAlerts.this);
+            if (still == null) return;   // OK pressed: nothing more
+            String no = prefs(FoodAlerts.this).getString("pendingNo", "");
+            if (!(card != null && no.equals(foodCardNo))) show(still, true);
+            main.postDelayed(this, REPEAT_MS);
+        }
+    };
     private String msgCardId;
     private final Runnable msgTick = new Runnable() {
         @Override public void run() {
@@ -750,6 +760,7 @@ public class FoodAlerts extends Service {
                 long now = Clock.now(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
                 if (now > until) { p.edit().remove("msg").apply(); if (card != null && id.equals(msgCardId)) { hideCard(); msgCardId = null; } return; }
                 if (now < at) { main.postDelayed(this, Math.min(at - now, 60_000)); return; }
+                if (!"Active".equals(power())) { main.postDelayed(this, 60_000); return; }   // TV asleep: waits – the screen-on receiver shows it straight away (overnight review 5 Nov)
                 if (card != null && id.equals(msgCardId)) { main.postDelayed(this, Math.max(1_000, Math.min(MSG_REPEAT_MS, until - now + 1_000))); return; }   // still on screen
                 if (card != null && foodCardNo != null) { main.postDelayed(this, 30_000); return; }   // Loot dropped is up: it comes first, then this
                 boolean again = id.equals(p.getString("msgShownId", ""));

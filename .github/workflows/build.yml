@@ -13,7 +13,7 @@ permissions:
 # one build at a time; a newer push cancels an older build that hasn't finished
 concurrency:
   group: build-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false   # queue: a run cut off between "publish" and "list" left LG TVs a version behind
 
 jobs:
   build:
@@ -98,8 +98,10 @@ jobs:
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git add manager/lg.json
           git commit -q -m "LG Homebrew Channel listing: 1.0.${{ github.run_number }}" || exit 0
+          ok=0
           for n in 1 2 3; do
-            git pull -q --rebase origin main && git push -q origin HEAD:main && break
+            git pull -q --rebase origin main && git push -q origin HEAD:main && { ok=1; break; }
             sleep 5
           done
+          [ "$ok" = 1 ] || { echo "::error::Couldn't save lg.json – LG TVs won't see 1.0.${{ github.run_number }}"; exit 1; }   # overnight review 5 Nov: used to pass silently
           gh workflow run pages.yml --ref main

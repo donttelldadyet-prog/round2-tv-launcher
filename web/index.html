@@ -2356,7 +2356,7 @@ window.R2_TV = {
   }
   /* LG safety net: the menu is showing but there's no background player at all: start it again */
   if (Device.kind() === 'webos') setInterval(function () {
-    if (document.hidden || mode === 'walls' || typeof currentWall !== 'function') return;
+    if (document.hidden || window.r2Away || mode === 'walls' || typeof currentWall !== 'function') return;   /* not behind an app (overnight review 5 Nov) */
     var w = currentWall(), f = $(front); if (!w || !w.video || !f || f.firstChild) return;
     bgLog('no background player: start again'); shownWall = null; lastStart = null; showWall(w);
   }, 8000);
@@ -3169,6 +3169,9 @@ window.R2_TV = {
     var s;
     var d = new Date(r2Now() + 8 * 3600e3); s = ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);   /* Singapore time, engine clock */
     $('clock').textContent = s;
+    /* 7am: a menu left on screen overnight switches to today's theme too, not only after a sync or app switch (overnight review 5 Nov) */
+    var t = today(); if (tick.day && tick.day !== t && !document.hidden && !window.r2Away) { try { shownWall = null; showWall(currentWall()); applyCards(); Amb.apply(); } catch (e) {} }
+    tick.day = t;
   }
 
   var PREVIEW_BAR = 0;
