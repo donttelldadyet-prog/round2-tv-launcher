@@ -200,6 +200,9 @@ clean() { tr -d "\\\\\"'"; }   # no quotes or backslashes: safe inside the luna-
 # Without it installed, LG's own pop-ups are used, so nothing is ever missed.
 ov_app() {
   [ -d /media/developer/apps/usr/palm/applications/sg.round2.alerts ] || return 1
+  # Netflix (Vale, 4 Nov – its log: the card opened over Netflix at 18:50, 18:55, 19:00, 19:05 and nobody could see it;
+  # OK came only back on the menu): over Netflix our card stays hidden, so LG's own pop-up is used there instead
+  case "$(cat "$CFG/front" 2>/dev/null)" in netflix*) return 1 ;; esac
   echo sg.round2.alerts
 }
 ov_show() {     # $1 app id, $2 params JSON. Fails (so the caller uses LG's pop-up) if webOS won't open it.
@@ -522,7 +525,7 @@ msg_tick() {    # every 3 s: is the message due, and is something other than Rou
     [ "$id" = "$(cat "$CFG/msg.shown" 2>/dev/null)" ] || { echo "$id" > "$CFG/msg.shown"; msg_put msgShown "$id"; }
     [ "$(printf '%s\n' "$line" | grep -c '"ack":true')" -gt 0 ] || echo "$id" > "$CFG/msg.done"
     msg_alert 1
-    log "message $id shown over $(cat "$CFG/front" 2>/dev/null)$( [ -n "$(ov_app)" ] && echo ' (Round2 card)')"
+    log "message $id shown over $(cat "$CFG/front" 2>/dev/null)$( [ -n "$(ov_app)" ] && echo ' (Round2 card)' || echo ' (LG pop-up)')"
   done
 }
 watch_msg() {

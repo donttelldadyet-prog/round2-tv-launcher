@@ -107,6 +107,9 @@ html, body { margin: 0; width: 1920px; height: 1080px; background: transparent; 
   }
   function show(p) {
     mode = 'card'; card = p; pi = 0;
+    /* take the remote straight away (4 Nov: "(no remote focus)" – the first press only moved focus to the card) */
+    try { if (window.PalmSystem && PalmSystem.activate) PalmSystem.activate(); } catch (e) {}
+    try { window.focus(); } catch (e) {}
     var rc = ROOMS[String(p.room || '').toLowerCase()] || ['#F2C21B', '#0B0914'];
     document.documentElement.style.setProperty('--rc', rc[0]); document.documentElement.style.setProperty('--ink', rc[1]);
     pages = p.type === 'msg' ? split(p.text, 110) : [p.text || ''];
