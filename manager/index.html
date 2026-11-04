@@ -817,8 +817,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   <section id="tab-alertlog" hidden>
     <div id="alList">
-      <h1>Alerts</h1>
-      <p class="sub">Every alert sent to the phones in the last 14 days. Tap one to see everything about it.</p>
+      <h1>Alert history</h1>
+      <p class="sub">Every alert sent to the phones in the last 14 days. Tap one to see everything about it. Which alerts this phone gets: Tests &amp; systems › Phone alert setup.</p>
       <div class="banner warn" id="alErr" hidden></div>
       <div class="alf" id="alFilter"><button type="button" data-f="all" aria-pressed="true">All</button><button type="button" data-f="booking" aria-pressed="false">Bookings</button><button type="button" data-f="soon" aria-pressed="false">In 1 hour</button><button type="button" data-f="human" aria-pressed="false">Problems</button><button type="button" data-f="late" aria-pressed="false">🌙 Late</button></div>
       <div id="alHuman"></div>
@@ -918,7 +918,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   <!-- help -->
   <section id="tab-alerts" hidden>
-    <h1>Alerts on this phone</h1>
+    <h1>Phone alert setup</h1>
     <p class="sub">Get a notification on this phone when something happens, like a new booking. Each phone chooses its own alerts.</p>
     <div id="alBox"></div>
   </section>
@@ -2201,7 +2201,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var len = c.s && c.e ? (Math.round((c.e - c.s) / 360e3) / 10) + 'h' : (c.hours ? c.hours + 'h' : '');
       var phone = c.phone || (h && h.phone) || '', email = c.email || (h && h.email) || '', name = c.name || (h && h.name) || '';
       var paid = h && h.total ? 'S$' + (+h.total).toFixed(2).replace(/\.00$/, '') + ' paid online' : c.money || (c.total ? 'S$' + c.total : '');
-      var html = '<button type="button" class="adback" data-back="1">‹ All alerts</button>' +
+      var html = '<button type="button" class="adback" data-back="1">‹ Alert history</button>' +
         '<div class="adhead" style="--rc:' + (col || 'var(--gc)') + '"><div class="k">' + esc(KIND[kd] || 'Alert') + (r ? ' · ' + esc(ROOMS[r].name) : '') + '</div>' +
         '<h1>' + esc(c.k === 'n' ? 'Calendar note' : kd === 'soon' || kd === 'booking' || kd === 'change' || kd === 'cancel' ? (name || 'No name') : String(x.title).replace(/^⚠️\s*/, '')) + '</h1>' +
         '<div class="hint">Sent ' + esc(dayLong(x.t) + ', ' + clock(x.t)) + (kd === 'human' ? (x.sorted ? ' · ✓ sorted ' + esc(dayLong(x.sorted) + ' ' + clock(x.sorted)) : ' · still open') : '') + '</div></div>';
@@ -3475,14 +3475,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
-    home: [['home', 'Overview'], ['alertlog', 'Alerts']],
+    home: [['home', 'Overview'], ['alertlog', 'Alert history']],
     sess: [['insession', 'In session'], ['late', 'Late session']],
     notif: [['tonight', 'Tonight'], ['messages', 'Send'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up']],
     tvs: [['tvs', 'Status'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors'], ['bookstats', 'Booking page']],
-    sys: [['alerts', 'Alerts'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
+    sys: [['alerts', 'Phone alert setup'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
     help: [['help', 'How it works'], ['tvhelp', 'On the TV'], ['stuck', 'If a TV is stuck']]
   };
   var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
