@@ -52,6 +52,7 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
 .up { list-style: none; margin: 8px 0 0; padding: 0; }
 .up li { border: 1px solid var(--line); border-left: 4px solid var(--rc); background: var(--panel2); padding: 10px 12px; margin-top: 8px; }
 .up .t { font-weight: 700; }
+.up .moon { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: .04em; padding: 2px 7px; margin-right: 4px; border-radius: 99px; background: #2b2350; color: #c9b8ff; vertical-align: 1px; }
 .up .w { color: var(--mute); font-size: 14px; }
 .up .row { margin-top: 8px; }
 .up .btn { padding: 8px 14px; min-height: 40px; font-size: 12px; }
@@ -91,8 +92,8 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   </div>
 
   <div class="card" id="upCard" hidden>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b>Upcoming late sessions</b><button class="btn" id="upRefresh" type="button" style="padding:8px 12px;min-height:38px;font-size:12px">Refresh</button></div>
-    <p class="hint" style="margin:4px 0 0">Sessions after midnight are hidden in SimplyBook’s calendar (you only see the “↓ AFTER 12AM” note at 11:45pm the night before). Change or cancel them here – the TV messages and that note follow.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b>Upcoming sessions keyed in here</b><button class="btn" id="upRefresh" type="button" style="padding:8px 12px;min-height:38px;font-size:12px">Refresh</button></div>
+    <p class="hint" style="margin:4px 0 0">Everything keyed in with this page, so you can change or cancel it here – the TV messages follow. Only sessions that are really late (from 11pm, or running past 11:15pm) get 🌙 Late; those after midnight are hidden in SimplyBook’s calendar, so this is the place for them.</p>
     <ul class="up" id="up"></ul>
   </div>
 </div>
@@ -174,11 +175,11 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   }
   function renderUp() {
       $('up').innerHTML = upList.length ? upList.map(function (x, i) {
-        var r = roomOf(x.unit), A = sgMin(x.s, x.night), E = sgMin(x.guestEnd, x.night);
-        return '<li style="--rc:' + r[2] + '"><div class="t">' + esc(r[1] + ' · ' + (x.name || x.text)) + (x.pax ? ' · ' + x.pax + ' pax' : '') + (editing && editing.id === x.id ? ' <span class="hint">(changing)</span>' : '') + '</div>' +
+        var r = roomOf(x.unit), A = sgMin(x.s, x.night), E = sgMin(x.guestEnd, x.night), late = A >= 23 * 60 || E > 23 * 60 + 15;   /* late by its times only (owner, 5 Nov) – same rule as the engine */
+        return '<li style="--rc:' + r[2] + '"><div class="t">' + (late ? '<span class="moon">🌙 Late</span> ' : '') + esc(r[1] + ' · ' + (x.name || x.text)) + (x.pax ? ' · ' + x.pax + ' pax' : '') + (editing && editing.id === x.id ? ' <span class="hint">(changing)</span>' : '') + '</div>' +
           '<div class="w">Night of ' + dayName(x.night) + ' · ' + hm(A) + (A >= 1440 ? ' (' + dayName(addDays(x.night, 1)) + ')' : '') + ' → ' + hm(E) + (E >= 1440 && A < 1440 ? ' (' + dayName(addDays(x.night, 1)) + ')' : '') + ' · ' + ((E - A) / 60) + 'h' + (x.ext ? ' · extended' : '') + (x.live ? ' · <b class="okmsg">playing now</b>' : '') + '</div>' +
           '<div class="row"><button class="btn" type="button" data-ch="' + i + '">Change</button><button class="btn danger" type="button" data-cx="' + i + '">Cancel</button></div></li>';
-      }).join('') : '<li style="--rc:var(--line)" class="w">Nothing after midnight coming up.</li>';
+      }).join('') : '<li style="--rc:var(--line)" class="w">Nothing keyed in coming up.</li>';
       report();
   }
   function startEdit(x) {
