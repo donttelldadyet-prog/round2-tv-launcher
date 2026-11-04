@@ -88,7 +88,7 @@
         {
           "name": "Booking page numbers",
           "status": "live",
-          "what": "Control centre › Website › Booking page: how long guests take to pay, how many leave before paying, latest attempts.",
+          "what": "Control centre › Website › Booking page: how long guests take to pay, latest attempts with the session date (Fri 6 Nov, 11am), sorted by Paid / why they left before paying (came back from paying, changed their mind, 10 minutes ran out, picked another time, checkout error) / booked by hand. Reasons are noted since 5 Nov.",
           "runs": "Booking engine (gm paytimes) + control centre"
         }
       ]

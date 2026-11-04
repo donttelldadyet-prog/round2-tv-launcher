@@ -38,11 +38,15 @@ weren't. So now:
 - **New list?** Use `R2Day`, register it, and add its name to `NEED`. New page? Load `r2day.js` and add it to the
   watchdog's `FILES` (and to the frames if it has lists).
 
-## What it covers (2 Nov 2026)
+## What it covers (2 Nov 2026, + 5 Nov)
+The tool "Late session" is called **Add a session** on screen since 5 Nov (address still /late/; its internal list name
+`Late session › date` and the engine's `late*` actions are unchanged on purpose – the check looks for them). Its notes say
+"· till 7pm ·", and "· late till 1am ·" only when the times are late (from 11pm or past 11:15pm); the engine reads both.
+
 Engine up + keys · SimplyBook login and the 7 rooms · public holidays · booking page price = checkout price · food menu read +
 price check · guest message link full life (make → open → write → timer → cancel) · TVs reporting in (msgShown/msgAck) ·
 background jobs heartbeat (cron `cronLast`) · Late session note → In session + Upcoming list · +1h on a late note (stretched,
-text rewritten, no EXT) · Undo · Change (room move) · Vale ↔ Atlas twin + clash · "↓ AFTER 12AM" labels · cancel cleans up ·
+text rewritten, no EXT) · Undo · daytime session keyed in says "till 9am", not "late till" (5 Nov), +1h/undo still find it · Change (room move) · Vale ↔ Atlas twin + clash · "↓ AFTER 12AM" labels · cancel cleans up ·
 today's wrap-up messages not doubled / not orphaned · GitHub through the engine · public pages up.
 
 ## SimplyBook's daily limit (2 Nov 2026)
