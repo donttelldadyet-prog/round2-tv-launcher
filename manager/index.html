@@ -140,6 +140,13 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .wbars { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; align-items: end; height: 110px; }
 .wbars i { display: block; background: var(--accent); min-height: 2px; }
 .wbars i.lo { opacity: .45; }
+.bsnums { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.bsnums > div { background: var(--panel); border: 1px solid var(--line); padding: 14px; }
+.bsnums b { display: block; font-size: 26px; line-height: 1.1; }
+.bsrow { display: grid; grid-template-columns: 110px 1fr 34px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
+.bsrow .bar { height: 14px; background: var(--accent); min-width: 2px; }
+.bsli { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.bsli:last-child { border-bottom: 0; }
 .whr { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; font-size: 9px; color: var(--mute); text-align: center; margin-top: 4px; }
 .review ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .spin { width: 14px; height: 14px; border: 2px solid var(--line2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; flex: none; }
@@ -769,6 +776,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div class="card"><h2 style="margin-top:0">Other</h2><div id="bOther"></div></div>
     </div>
     <p class="hint" id="wNote"></p>
+  </section>
+
+  <section id="tab-bookstats" hidden>
+    <h1>Booking page</h1>
+    <p class="sub">How guests get on with the online booking page: how long they take to pay, and how many leave before paying. Real guests only (test bookings left out). Walk-aways are kept for 7 days.</p>
+    <div class="banner warn" id="bsErr" hidden></div>
+    <div class="seg" id="bsRange" style="margin:6px 0 16px"><button type="button" data-d="7" aria-pressed="false">Last 7 days</button><button type="button" data-d="30" aria-pressed="false">Last 30 days</button><button type="button" data-d="60" aria-pressed="true">Last 60 days</button></div>
+    <div class="bsnums" id="bsNums"></div>
+    <div class="wgrid" style="margin-top:16px">
+      <div class="card"><h2 style="margin-top:0">Time to pay</h2><div id="bsHist"></div><p class="hint" id="bsHint"></p></div>
+      <div class="card"><h2 style="margin-top:0">Latest attempts</h2><div id="bsList"></div></div>
+    </div>
   </section>
 
   <section id="tab-tvs" hidden>
@@ -2077,6 +2096,43 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   }());
 
   /* ---------- Website visitors: read from Firebase /web, written by the round2sg-home page (docs/site-stats.md) ---------- */
+  /* ---------- Website › Booking page (owner, 5 Nov): how long guests take to pay, and how many walk away (engine gm paytimes) ---------- */
+  var BookStats = (function () {
+    var days = 60, ready = false, ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm';
+    function dur(s) { return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : ''); }
+    function when(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).toLowerCase(); }
+    function draw(j) {
+      var p = j.paidSecs || [], o = j.others || {}, n = p.length, med = n ? p[Math.floor((n - 1) / 2)] : 0, max = n ? p[n - 1] : 0, hold = j.holdSec || 600;
+      var walked = o.released || 0, forced = o.forced || 0;
+      var box = function (v, l) { return '<div><b>' + v + '</b><span class="hint">' + l + '</span></div>'; };
+      $('bsNums').innerHTML = box(n, 'paid online and booked') + box(n ? dur(med) : '–', 'typical time to pay') + box(n ? dur(max) : '–', 'slowest guest') +
+        box(walked, 'left before paying (or started again)') + box(Math.round(hold / 60) + ' min', 'time each guest gets') + (forced ? box(forced, 'booked by hand after a payment problem') : '');
+      var B = [[30, 'Under 30 s'], [45, '30–45 s'], [60, '45 s – 1 min'], [90, '1 – 1½ min'], [120, '1½ – 2 min'], [300, '2 – 5 min'], [hold, '5 – ' + Math.round(hold / 60) + ' min']], c = B.map(function () { return 0; });
+      p.forEach(function (x) { for (var i = 0; i < B.length; i++) if (x < B[i][0] || i === B.length - 1) { c[i]++; break; } });
+      var top = Math.max.apply(null, c.concat([1]));
+      $('bsHist').innerHTML = B.map(function (b, i) { return '<div class="bsrow"><span>' + b[1] + '</span><span class="bar" style="width:' + (100 * c[i] / top).toFixed(1) + '%"></span><b>' + c[i] + '</b></div>'; }).join('');
+      var in2 = p.filter(function (x) { return x <= 120; }).length;
+      $('bsHint').textContent = n ? Math.round(100 * in2 / n) + '% paid within 2 minutes. Measured from pressing Pay to the booking being in SimplyBook.' : 'No paid online bookings in this period yet.';
+      var L = (j.list || []).slice(0, 25);
+      $('bsList').innerHTML = L.length ? L.map(function (x) {
+        var st = x.st === 'paid' ? (x.secs !== null ? 'Paid in ' + dur(x.secs) : 'Paid') : x.st === 'released' ? 'Left before paying' : x.st === 'forced' ? 'Booked by hand' : x.st === 'pending' ? 'Paying now' : x.st;
+        return '<div class="bsli"><span>' + esc(when(x.t)) + ' · ' + esc(x.room) + (x.eb ? ' (Early Bird)' : '') + ' · ' + esc(x.date.slice(5)) + ' ' + esc(x.time) + '</span><span class="chip">' + esc(st) + '</span></div>';
+      }).join('') : '<p class="hint">Nothing yet.</p>';
+    }
+    function load() {
+      var k = ls('r2.guestStaff') || ''; $('bsErr').hidden = true;
+      if (!k) { $('bsErr').hidden = false; $('bsErr').textContent = 'Add the staff code (TV messages › Guest links) to see these numbers.'; return; }
+      fetch(ENGINE, { method: 'POST', body: new URLSearchParams({ action: 'paytimes', staff: k, days: days }) }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j.error) throw new Error(j.error); draw(j);
+      }).catch(function (e) { $('bsErr').hidden = false; $('bsErr').textContent = 'Couldn’t load the numbers: ' + e.message; });
+    }
+    return { open: function () {
+      if (!ready) { ready = true; $('bsRange').addEventListener('click', function (e) { var d = e.target.getAttribute && e.target.getAttribute('data-d'); if (!d) return; days = +d;
+        Array.prototype.forEach.call(document.querySelectorAll('#bsRange button'), function (b) { b.setAttribute('aria-pressed', b === e.target); }); load(); }); }
+      load();
+    } };
+  }());
+
   var Web = (function () {
     var DB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/web';
     var range = 1, timer = null, ready = false, ROOMN = { vale: 'Vale', kaeden: 'Kaeden', scarlett: 'Scarlett', bella: 'Bella', kai: 'Kai', atlas: 'Atlas', maximillion: 'Maximillion' };
@@ -3258,7 +3314,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'tests', 'website', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'tests', 'website', 'bookstats', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
@@ -3268,7 +3324,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     tvs: [['tvs', 'Status'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
-    web: [['website', 'Visitors']],
+    web: [['website', 'Visitors'], ['bookstats', 'Booking page']],
     sys: [['alerts', 'Alerts'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
     help: [['help', 'How it works'], ['tvhelp', 'On the TV'], ['stuck', 'If a TV is stuck']]
   };
@@ -3366,6 +3422,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
+    if (n === 'bookstats') BookStats.open();
     if (n === 'systems' || n === 'planned') Sys.open(); if (n === 'syscheck') SysCheck.open(); if (n === 'testbench') Sys.bench();
     if (n === 'keys') Keys.open(); else Keys.close();
     if (n === 'alerts') Alerts.open();
