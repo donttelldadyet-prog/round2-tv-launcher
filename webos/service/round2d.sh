@@ -481,6 +481,9 @@ cmd_poll() {   # every 20 s: anything from the control centre?
   echo "$now" > "$CFG/cmd.last"
   [ -f "$CFG/upd.want" ] && upd_resume
   set -- $(cat "$CFG/food" 2>/dev/null); [ -n "$1" ] && [ -n "$2" ] || return 0
+  # the control centre's TVs › Refresh (owner, 5 Nov): /ping = {t} → check in now
+  pt=$(curl -s -m 10 $K "$FB/r2/$2/$1/ping.json" 2>/dev/null | num t)
+  if [ -n "$pt" ] && [ "$pt" != "$(cat "$CFG/ping.last" 2>/dev/null)" ] && [ $(( $(snow) - pt / 1000 )) -le 180 ]; then echo "$pt" > "$CFG/ping.last"; rm -f "$CFG/hb.last"; heartbeat; fi
   c=$(curl -s -m 10 $K "$FB/r2/$2/$1/cmd.json" 2>/dev/null); cid=$(printf '%s\n' "$c" | field id)
   [ -n "$cid" ] && [ "$cid" != "$(cat "$CFG/cmd.done" 2>/dev/null)" ] || return 0
   echo "$cid" > "$CFG/cmd.done"

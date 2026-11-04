@@ -265,6 +265,20 @@ public class FoodAlerts extends Service {
             main.removeCallbacks(this);
             final String room = prefs(FoodAlerts.this).getString("room", "");
             if (enabled() && !room.isEmpty()) new Thread(new Runnable() { @Override public void run() {
+                /* the control centre's TVs › Refresh (owner, 5 Nov: "refresh doesn't really refresh"): /ping = {t} → check in now */
+                HttpURLConnection p = null;
+                try {
+                    p = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/ping.json").openConnection();
+                    p.setConnectTimeout(15_000); p.setReadTimeout(15_000);
+                    java.io.InputStream pin = p.getInputStream(); java.io.ByteArrayOutputStream pb = new java.io.ByteArrayOutputStream(); byte[] pbuf = new byte[512]; int pn;
+                    while ((pn = pin.read(pbuf)) > 0) pb.write(pbuf, 0, pn);
+                    String pt = pb.toString("UTF-8").trim();
+                    if (!pt.isEmpty() && !"null".equals(pt)) {
+                        long t = new JSONObject(pt).optLong("t", 0);
+                        if (t > prefs(FoodAlerts.this).getLong("pingDone", 0) && Math.abs(Clock.now() - t) < 3 * 60_000L) { prefs(FoodAlerts.this).edit().putLong("pingDone", t).apply(); main.post(heartbeat); }
+                    }
+                } catch (Exception ignored) { }
+                finally { if (p != null) p.disconnect(); }
                 HttpURLConnection h = null;
                 try {
                     h = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/cmd.json").openConnection();

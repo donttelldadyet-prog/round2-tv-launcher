@@ -147,6 +147,43 @@ h2 { font-size: 15px; letter-spacing: .16em; text-transform: uppercase; color: v
 .bsrow .bar { height: 14px; background: var(--accent); min-width: 2px; }
 .bsli { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .bsli:last-child { border-bottom: 0; }
+/* Alerts (owner, 5 Nov): list → tap → details page */
+.alf { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 14px; }
+.alf button { background: none; border: 1px solid var(--line2); border-radius: 999px; padding: 6px 13px; font-size: 13px; color: var(--mute); }
+.alf button[aria-pressed="true"] { background: var(--gc); border-color: var(--gc); color: #0b0914; font-weight: 600; }
+.alday { margin: 16px 0 6px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+details.alold { border: 1px solid var(--line); margin: 8px 0; background: var(--panel); }
+details.alold > summary { padding: 11px 14px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+details.alold > summary .hint { white-space: nowrap; }
+details.alold[open] > summary { border-bottom: 1px solid var(--line); }
+details.alold .alrow { border-left-width: 4px; margin: 0; border-top: 0; border-right: 0; }
+.alrow { display: grid; grid-template-columns: 54px 1fr auto; gap: 2px 10px; align-items: start; width: 100%; text-align: left; background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-left: 4px solid var(--rc, var(--line2)); padding: 10px 12px; margin: 6px 0; font: inherit; cursor: pointer; }
+.alrow:hover { background: color-mix(in srgb, var(--rc, #fff) 8%, var(--panel)); }
+.alrow .tm { color: var(--mute); font-size: 13px; padding-top: 1px; }
+.alrow b { font-size: 15px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alrow .bd { grid-column: 2; color: var(--mute); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alrow .go { grid-row: 1 / span 2; grid-column: 3; color: var(--mute); align-self: center; font-size: 20px; }
+.alrow.late { box-shadow: inset 0 0 0 1px rgba(167,139,250,.55); background: linear-gradient(90deg, rgba(122,91,224,.16), var(--panel) 60%); }
+.alrow.prob { border-left-color: var(--bad); background: rgba(232,67,106,.08); }
+.alrow.done { opacity: .6; }
+.altag { display: inline-block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; padding: 2px 6px; margin-right: 6px; border: 1px solid currentColor; vertical-align: 2px; }
+.altag.late { color: #C4B5FD; } .altag.bad { color: var(--bad); } .altag.warn { color: var(--warn); } .altag.ok { color: var(--ok); }
+#alHuman .alrow { border-left-color: var(--bad); }
+.adback { background: none; border: 0; color: var(--mute); font: inherit; font-size: 14px; padding: 4px 0 12px; cursor: pointer; }
+.adhead { border: 1px solid var(--line); border-top: 4px solid var(--rc, var(--gc)); background: linear-gradient(180deg, color-mix(in srgb, var(--rc, #fff) 14%, var(--panel)), var(--panel)); padding: 16px 18px; }
+.adhead .k { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--rc, var(--gc)); font-weight: 700; }
+.adhead h1 { margin: 6px 0 4px; font-size: 24px; }
+.adlate { margin: 12px 0 0; padding: 10px 14px; border: 1px solid rgba(167,139,250,.6); background: rgba(122,91,224,.18); font-size: 14px; }
+.adprob { margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--bad); background: rgba(232,67,106,.1); white-space: pre-wrap; font-size: 14px; }
+.adfacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 14px 0; }
+.adfacts > div { background: var(--panel); padding: 10px 12px; }
+.adfacts span { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.adfacts b { font-size: 16px; word-break: break-word; }
+.adacts { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 14px; }
+.adacts .btn, .adacts a.btn { text-decoration: none; }
+.adnote { font-size: 14px; color: var(--mute); margin: 4px 0; }
+details.adraw { margin-top: 10px; } details.adraw pre { white-space: pre-wrap; font: 13px/1.45 var(--f); color: var(--mute); margin: 8px 0 0; }
 .whr { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; font-size: 9px; color: var(--mute); text-align: center; margin-top: 4px; }
 .review ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .spin { width: 14px; height: 14px; border: 2px solid var(--line2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; flex: none; }
@@ -776,6 +813,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div class="card"><h2 style="margin-top:0">Other</h2><div id="bOther"></div></div>
     </div>
     <p class="hint" id="wNote"></p>
+  </section>
+
+  <section id="tab-alertlog" hidden>
+    <div id="alList">
+      <h1>Alerts</h1>
+      <p class="sub">Every alert sent to the phones in the last 14 days. Tap one to see everything about it.</p>
+      <div class="banner warn" id="alErr" hidden></div>
+      <div class="alf" id="alFilter"><button type="button" data-f="all" aria-pressed="true">All</button><button type="button" data-f="booking" aria-pressed="false">Bookings</button><button type="button" data-f="soon" aria-pressed="false">In 1 hour</button><button type="button" data-f="human" aria-pressed="false">Problems</button><button type="button" data-f="late" aria-pressed="false">🌙 Late</button></div>
+      <div id="alHuman"></div>
+      <div id="alDays"></div>
+    </div>
+    <div id="alDetail" hidden></div>
   </section>
 
   <section id="tab-bookstats" hidden>
@@ -1671,13 +1720,21 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
           var fn = frontName(x.r, h.front);
           return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= Date.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : ''));
-        }).join('') + '</div>';
+        }).join('') + '</div><p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date()).toLowerCase()) +
+          '. Each TV reports every 5 minutes, and straight away when something changes. Refresh asks them all to report now (answers arrive within about 30 s).</p>';
       });
     }
     var tvReady = false, tvTimer = null;
     function tvInit() {
       if (tvReady) return; tvReady = true;
-      $('tvRefresh').onclick = status;
+      /* Refresh (owner, 5 Nov: "doesn't really refresh" – the tiles only change when a TV checks in, every 5 minutes): ask every
+         TV to check in now (/ping), redraw straight away and again as the answers come in (TVs look every 20–30 s) */
+      $('tvRefresh').onclick = function () {
+        var b = $('tvRefresh'); if (b.disabled) return; b.disabled = true; b.textContent = 'Asking the TVs…';
+        Object.keys(ROOMS).forEach(function (r) { req('PUT', url(r, 'ping'), { t: { '.sv': 'timestamp' } }).catch(function () {}); });
+        status(); setTimeout(status, 15000); setTimeout(status, 35000);
+        setTimeout(function () { status(); b.disabled = false; b.textContent = 'Refresh'; }, 50000);
+      };
       $('tvTiles').addEventListener('click', function (e) {
         var tu = e.target.getAttribute && e.target.getAttribute('data-tvu');
         if (tu) {
@@ -2096,6 +2153,106 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   }());
 
   /* ---------- Website visitors: read from Firebase /web, written by the round2sg-home page (docs/site-stats.md) ---------- */
+  /* ---------- Home › Alerts (owner, 5 Nov): every phone alert of the last 14 days; tap → its own details page. Not cluttered:
+     problems still open are pinned on top, today in full, earlier days folded to one line each. Late sessions stand out. */
+  var AlertLog = (function () {
+    var ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm', list = [], filt = 'all', ready = false, pending = null, timer = null, cur = null;
+    var KIND = { booking: 'New booking', change: 'Booking changed', cancel: 'Booking cancelled', soon: 'In 1 hour', human: 'Needs a human', wait: 'Guest link not tied', key: 'Key reminder' };
+    function k() { return ls('r2.guestStaff') || ''; }
+    function call(o) { return fetch(ENGINE, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: k() }, o)) }).then(function (r) { return r.json(); }); }
+    function rk(name) { name = String(name || '').toLowerCase(); if (/^max/.test(name)) return 'maximillion'; return ROOMS[name] ? name : ''; }
+    function rc(x) { var r = rk(x.room); return r ? ROOMS[r].c : ''; }
+    function clock(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).toLowerCase().replace(' ', ''); }
+    function dayName(d) { var t = R2Day.tonight(); return d === t ? 'Today' : d === R2Day.addDays(t, -1) ? 'Yesterday' : new Intl.DateTimeFormat('en-SG', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(d + 'T00:00:00Z')); }
+    function dayLong(t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)); }
+    function kindOf(x) { var b = String(x.body || ''); return x.type === 'booking' ? (/CANCELLED/.test(b) ? 'cancel' : /MOVED|CHANGED/.test(b) ? 'change' : 'booking') : x.type || x.kind; }
+    function match(x) { var kd = kindOf(x); return filt === 'all' || (filt === 'late' ? x.late : filt === 'booking' ? /booking|change|cancel/.test(kd) : filt === 'soon' ? kd === 'soon' || kd === 'wait' : kd === 'human'); }
+    function row(x) {
+      var kd = kindOf(x), tags = (x.late ? '<span class="altag late">🌙 Late</span>' : '') + (kd === 'cancel' ? '<span class="altag bad">Cancelled</span>' : kd === 'change' ? '<span class="altag warn">Changed</span>' : '') +
+        (kd === 'human' ? (x.sorted ? '<span class="altag ok">Sorted</span>' : '<span class="altag bad">Open</span>') : '');
+      var first = String(x.body || '').split('\n').filter(function (l) { return !/^(❌|🔁|✏️|⏰)/.test(l.trim()); })[0] || '';
+      return '<button type="button" class="alrow' + (x.late ? ' late' : '') + (kd === 'human' ? ' prob' : '') + (kd === 'human' && x.sorted ? ' done' : '') + '" data-al="' + esc(x.id) + '" style="--rc:' + (rc(x) || 'var(--line2)') + '">' +
+        '<span class="tm">' + esc(clock(x.t)) + '</span><b>' + tags + esc(String(x.title || '').replace(/^⚠️\s*/, '')) + '</b><span class="bd">' + esc(first) + '</span><span class="go">›</span></button>';
+    }
+    function drawList() {
+      var open = list.filter(function (x) { return x.type === 'human' && !x.sorted; }), seen = {};
+      $('alHuman').innerHTML = open.length && filt !== 'late' ? '<div class="alday" style="color:var(--bad)">Needs a human · ' + open.length + '</div>' + open.filter(function (x) { if (seen[x.title]) return false; seen[x.title] = 1; return true; }).map(row).join('') : '';
+      var L = list.filter(match), by = {}, order = [];
+      L.forEach(function (x) { var d = R2Day.night(x.t); if (!by[d]) { by[d] = []; order.push(d); } by[d].push(x); });
+      var today = R2Day.tonight();
+      $('alDays').innerHTML = !L.length ? '<p class="hint">' + (list.length ? 'Nothing in this filter.' : 'No alerts yet. New ones appear here as they go out.') + '</p>' : order.map(function (d) {
+        var xs = by[d];
+        if (d === today) { var ys = filt === 'late' ? xs : xs.filter(function (x) { return !(x.type === 'human' && !x.sorted); }); return ys.length ? '<div class="alday">Today · ' + ys.length + '</div>' + ys.map(row).join('') : ''; }
+        var late = xs.filter(function (x) { return x.late; }).length, probs = xs.filter(function (x) { return x.type === 'human'; }).length;
+        return '<details class="alold"><summary><span>' + esc(dayName(d)) + '</span><span class="hint">' + xs.length + ' alert' + (xs.length > 1 ? 's' : '') + (late ? ' · 🌙 ' + late + ' late' : '') + (probs ? ' · ⚠️ ' + probs : '') + '</span></summary>' + xs.map(row).join('') + '</details>';
+      }).join('');
+    }
+    function load() {
+      $('alErr').hidden = true;
+      if (!k()) { $('alErr').hidden = false; $('alErr').textContent = 'Add the staff code (TV messages › Guest links) to see alerts.'; return Promise.resolve(); }
+      return call({ action: 'alerts' }).then(function (j) { if (j.error) throw new Error(j.error); list = j.list || []; drawList(); })
+        .catch(function (e) { $('alErr').hidden = false; $('alErr').textContent = 'Couldn’t load alerts: ' + e.message; });
+    }
+    function fact(l, v) { return v === '' || v == null ? '' : '<div><span>' + esc(l) + '</span><b>' + v + '</b></div>'; }
+    function wa(p) { var d = String(p || '').replace(/[^\d]/g, ''); return d ? '<a href="https://wa.me/' + d + '" target="_blank" rel="noopener">' + esc(p) + '</a>' : ''; }
+    function detail(j) {
+      var x = j.alert, c = x.ctx || {}, h = j.hold, kd = kindOf({ type: c.type, kind: x.kind, body: x.body }), r = rk(c.room), col = r ? ROOMS[r].c : '';
+      var when = c.s ? dayLong(c.s) + ', ' + clock(c.s) + (c.e ? '–' + clock(c.e) : '') : '';
+      var len = c.s && c.e ? (Math.round((c.e - c.s) / 360e3) / 10) + 'h' : (c.hours ? c.hours + 'h' : '');
+      var phone = c.phone || (h && h.phone) || '', email = c.email || (h && h.email) || '', name = c.name || (h && h.name) || '';
+      var paid = h && h.total ? 'S$' + (+h.total).toFixed(2).replace(/\.00$/, '') + ' paid online' : c.money || (c.total ? 'S$' + c.total : '');
+      var html = '<button type="button" class="adback" data-back="1">‹ All alerts</button>' +
+        '<div class="adhead" style="--rc:' + (col || 'var(--gc)') + '"><div class="k">' + esc(KIND[kd] || 'Alert') + (r ? ' · ' + esc(ROOMS[r].name) : '') + '</div>' +
+        '<h1>' + esc(c.k === 'n' ? 'Calendar note' : kd === 'soon' || kd === 'booking' || kd === 'change' || kd === 'cancel' ? (name || 'No name') : String(x.title).replace(/^⚠️\s*/, '')) + '</h1>' +
+        '<div class="hint">Sent ' + esc(dayLong(x.t) + ', ' + clock(x.t)) + (kd === 'human' ? (x.sorted ? ' · ✓ sorted ' + esc(dayLong(x.sorted) + ' ' + clock(x.sorted)) : ' · still open') : '') + '</div></div>';
+      if (x.late) html += '<div class="adlate">🌙 <b>Late session</b> – it runs into the WhatsApp-only hours (after 11:15pm or past midnight). Check the late-session note in SimplyBook and that Auto wrap-up has the right end time.</div>';
+      if (kd === 'human') html += '<div class="adprob">' + esc(x.body || '') + '</div>';
+      if (kd === 'change' && c.prev) html += '<p class="adnote">🔁 Was ' + esc(dayLong(c.prev.s) + ', ' + clock(c.prev.s) + '–' + clock(c.prev.e)) + ' → now ' + esc(when) + '</p>';
+      if (kd === 'cancel') html += '<p class="adnote" style="color:var(--bad)">❌ This booking was cancelled – the time is free again.</p>';
+      html += '<div class="adfacts">' + fact('When', esc(when)) + fact('Length', esc(len)) + fact('Room', r ? esc(ROOMS[r].name) : esc(c.room || '')) + fact('Guests', esc(c.pax ? c.pax + ' pax' : '')) +
+        fact('Name', esc(c.k === 'n' ? '' : name)) + fact('Phone', wa(phone)) + fact('Email', esc(email)) + fact('Paid', esc(paid)) + fact('Rate', esc(c.rate || '')) +
+        fact('Booked via', esc(h || c.ref ? 'Our booking page' + (h && h.ref ? ' · ' + h.ref : '') : c.k === 'n' ? 'Calendar note (WhatsApp / walk-in)' : c.bid ? 'SimplyBook' : '')) +
+        fact('TV message', esc(c.tvmsg ? c.tvmsg.kind + (c.tvmsg.title ? ' · “' + c.tvmsg.title + '”' : '') : h && h.msg ? h.msg.kind + (h.msg.title ? ' · “' + h.msg.title + '”' : '') : '')) + '</div>';
+      if (c.extra && c.extra.length) html += c.extra.map(function (l) { return '<p class="adnote">' + esc(l) + '</p>'; }).join('');
+      if (c.type === 'soon' && c.k === 'n' && c.name) html += '<p class="adnote">Note: “' + esc(c.name) + '”</p>';
+      if (h && h.done && (h.done.problem || h.done.fallback)) html += '<p class="adnote">What the system did: ' + esc([h.done.problem].concat(h.done.fallback || []).filter(Boolean).join(' · ')) + '</p>';
+      html += '<div class="adacts">' + (phone ? '<a class="btn" href="https://wa.me/' + esc(String(phone).replace(/[^\d]/g, '')) + '" target="_blank" rel="noopener">WhatsApp guest</a>' : '') +
+        (c.s && R2Day.night(c.s) === R2Day.tonight() ? '<button class="btn" type="button" data-open="insession">Open In session</button><button class="btn" type="button" data-open="tonight">Tonight’s TV messages</button>' : '') +
+        (x.late ? '<button class="btn" type="button" data-open="late">Late session</button>' : '') +
+        (kd === 'wait' ? '<button class="btn" type="button" data-open="guestlink">Pair the link</button>' : '') +
+        (kd === 'human' && !x.sorted && c.hid ? '<button class="btn primary" type="button" data-sort="' + esc(c.hid) + '">Sorted ✓</button>' : '') + '</div>';
+      html += '<details class="adraw"><summary class="hint">The alert as it was sent</summary><pre>' + esc(x.title + '\n' + (x.body || '')) + '</pre></details>';
+      $('alDetail').innerHTML = html;
+    }
+    function show(id) {
+      cur = id; $('alList').hidden = true; $('alDetail').hidden = false; $('alDetail').innerHTML = '<p class="hint">Loading…</p>'; scrollTo(0, 0);
+      if (!k()) { $('alDetail').innerHTML = '<button type="button" class="adback" data-back="1">‹ All alerts</button><div class="banner warn">Add the staff code (TV messages › Guest links) to open alerts.</div>'; return; }
+      call({ action: 'alerts', id: id }).then(function (j) { if (j.error) throw new Error(j.error); if (cur === id) detail(j); })
+        .catch(function (e) { $('alDetail').innerHTML = '<button type="button" class="adback" data-back="1">‹ All alerts</button><div class="banner warn">' + esc(e.message) + '</div>'; });
+    }
+    function back() { cur = null; $('alDetail').hidden = true; $('alList').hidden = false; load(); }
+    function init() {
+      if (ready) return; ready = true;
+      $('alFilter').addEventListener('click', function (e) { var f = e.target.getAttribute && e.target.getAttribute('data-f'); if (!f) return; filt = f;
+        Array.prototype.forEach.call(document.querySelectorAll('#alFilter button'), function (b) { b.setAttribute('aria-pressed', b === e.target); }); drawList(); });
+      $('tab-alertlog').addEventListener('click', function (e) {
+        var t = e.target.closest ? e.target : null; if (!t) return;
+        var a = t.closest('[data-al]'); if (a) { show(a.getAttribute('data-al')); return; }
+        if (t.closest('[data-back]')) { back(); return; }
+        var o = t.closest('[data-open]'); if (o) { tab(o.getAttribute('data-open')); scrollTo(0, 0); return; }
+        var so = t.closest('[data-sort]');
+        if (so) { if (!so._armed) { so._armed = true; so.textContent = 'Tap again – sorted?'; setTimeout(function () { so._armed = false; so.textContent = 'Sorted ✓'; }, 4000); return; }
+          so.disabled = true; call({ action: 'human', sorted: so.getAttribute('data-sort') }).then(function () { show(cur); }, function () { show(cur); }); }
+      });
+    }
+    R2Day.list('Alerts', { night: function (t) { return R2Day.night(t); }, today: function () { return R2Day.tonight(); } });
+    return {
+      want: function (id) { pending = id; },
+      open: function () { init(); if (pending) { var id = pending; pending = null; show(id); } else if (!cur) load(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden && !cur) load(); }, 60000); },
+      close: function () { clearInterval(timer); }
+    };
+  }());
+
   /* ---------- Website › Booking page (owner, 5 Nov): how long guests take to pay, and how many walk away (engine gm paytimes) ---------- */
   var BookStats = (function () {
     var days = 60, ready = false, ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm';
@@ -3314,11 +3471,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'tests', 'website', 'bookstats', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'tests', 'website', 'bookstats', 'alertlog', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
-    home: [['home', 'Overview']],
+    home: [['home', 'Overview'], ['alertlog', 'Alerts']],
     sess: [['insession', 'In session'], ['late', 'Late session']],
     notif: [['tonight', 'Tonight'], ['messages', 'Send'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up']],
     tvs: [['tvs', 'Status'], ['tests', 'Test a TV']],
@@ -3405,7 +3562,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     document.body.setAttribute('data-g', g);
     Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-group') === g); });
     var subs = GROUPS[g];
-    $('subtabs').innerHTML = g === 'home' ? '' : '<span class="sect" title="' + AREAS[g][0].replace('&', '&amp;') + '">' + ico(g) + '<span>' + AREAS[g][0].replace('&', '&amp;') + '</span></span>' + (subs.length < 2 ? '' : subs.map(function (x) { return '<button type="button" data-tab="' + x[0] + '"' + (x[0] === n ? ' aria-current="page"' : '') + '>' + x[1] + '</button>'; }).join(''));
+    $('subtabs').innerHTML = g === 'home' && subs.length < 2 ? '' : '<span class="sect" title="' + AREAS[g][0].replace('&', '&amp;') + '">' + ico(g) + '<span>' + AREAS[g][0].replace('&', '&amp;') + '</span></span>' + (subs.length < 2 ? '' : subs.map(function (x) { return '<button type="button" data-tab="' + x[0] + '"' + (x[0] === n ? ' aria-current="page"' : '') + '>' + x[1] + '</button>'; }).join(''));
     [document.querySelector('#tabs [aria-selected="true"]'), document.querySelector('#subtabs [aria-current="page"]')].forEach(function (el) {   /* phones: keep the current tab and page in view in the sideways-scrolling bars */
       if (!el) return; var bar = el.parentNode; if (bar.scrollWidth <= bar.clientWidth) return;
       bar.scrollLeft = el.offsetLeft - bar.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;
@@ -3423,6 +3580,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'insession') Sess.open(); else Sess.close();
     if (n === 'website') Web.open(); else Web.close();
     if (n === 'bookstats') BookStats.open();
+    if (n === 'alertlog') AlertLog.open(); else if (typeof AlertLog !== 'undefined' && AlertLog) AlertLog.close();
     if (n === 'systems' || n === 'planned') Sys.open(); if (n === 'syscheck') SysCheck.open(); if (n === 'testbench') Sys.bench();
     if (n === 'keys') Keys.open(); else Keys.close();
     if (n === 'alerts') Alerts.open();
@@ -4039,8 +4197,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   /* ---------- start ---------- */
   (function () {   /* a tapped alert opens staff.round2.sg/?tab=insession, or messages an open window */
     function want(u) { try { var t = new URL(u, location.href).searchParams.get('tab'); if (t === 'guestmsgs') t = 'guestlink'; return t && TABS.indexOf(t) >= 0 ? t : null; } catch (e) { return null; } }
-    var t = want(location.href); if (t) { ls('r2m.tab', t); history.replaceState(null, '', location.pathname); }
-    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function (e) { var w = e.data && e.data.r2open && want(e.data.r2open); if (w) { tab(w); scrollTo(0, 0); } });
+    function alertOf(u) { try { return new URL(u, location.href).searchParams.get('alert'); } catch (e) { return null; } }
+    var t = want(location.href), a0 = alertOf(location.href);
+    if (a0) { ls('r2m.tab', 'alertlog'); AlertLog.want(a0); history.replaceState(null, '', location.pathname); }
+    else if (t) { ls('r2m.tab', t); history.replaceState(null, '', location.pathname); }
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function (e) {
+      var u = e.data && e.data.r2open; if (!u) return;
+      var a = alertOf(u); if (a) { AlertLog.want(a); tab('alertlog'); scrollTo(0, 0); return; }   /* a tapped alert → its own page (owner, 5 Nov) */
+      var w = want(u); if (w) { tab(w); scrollTo(0, 0); }
+    });
   }());
   var saved = ls('r2m.token');
   showApp(false);   // the Messages and TV tests tabs work straight away; GitHub tabs fill in once the key is checked
