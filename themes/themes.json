@@ -239,6 +239,18 @@
       "takeover": false,
       "loop": "blend",
       "cards": "bottom"
+    },
+    {
+      "id": "seto-twilight-2026",
+      "name": "Seto Twilight",
+      "source": "seto-twilight-2026-mw23o9e4.mp4",
+      "rooms": [
+        "kai"
+      ],
+      "kind": "background",
+      "takeover": false,
+      "loop": "blend",
+      "cards": "right"
     }
   ],
   "sounds": [
