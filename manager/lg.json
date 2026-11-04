@@ -8,15 +8,15 @@
       "manifest": {
         "id": "sg.round2.tvhome",
         "title": "Round2 Home",
-        "version": "1.0.250",
+        "version": "1.0.251",
         "type": "web",
         "appDescription": "The Round2 room menu: inputs, streaming apps and event backgrounds, driven by the remote.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher",
         "rootRequired": false,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.250/round2-home.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.251/round2-home.ipk",
         "ipkHash": {
-          "sha256": "959f077271e82955ac10010bf71861cce48422da5b60aba3d3b9c6e12b05088e"
+          "sha256": "8b9b37fe8440ad134e52b55d5052b14044aa7ec09deb54f0748b0826ae67322f"
         }
       }
     },
@@ -128,15 +128,55 @@
       "manifest": {
         "id": "sg.round2.alerts",
         "title": "Round2 Alerts",
-        "version": "1.0.250",
+        "version": "1.0.251",
         "type": "web",
         "appDescription": "Food alerts and messages as the Round2 card over Netflix, YouTube and HDMI (instead of LG's pop-ups). Needs Round2 Home.",
         "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.250/sg.round2.alerts.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.251/sg.round2.alerts.ipk",
         "ipkHash": {
-          "sha256": "4d7a4dff93ae202240519569b8cabe4eabfd064ce63be93178932c770973052c"
+          "sha256": "8455b650be48443984ec85f3ca2a7bf08faf525b999601e2dc69eb51551ddb4b"
+        }
+      }
+    },
+    {
+      "id": "sg.round2.alertspop",
+      "title": "Round2 Alerts (test popup)",
+      "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png",
+      "shortDescription": "Test only.",
+      "manifest": {
+        "id": "sg.round2.alertspop",
+        "title": "Round2 Alerts (test popup)",
+        "version": "1.0.251",
+        "type": "web",
+        "appDescription": "Test only.",
+        "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png",
+        "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.251/sg.round2.alertspop.ipk",
+        "ipkHash": {
+          "sha256": "452ed5e41ce9516193fe336761fabba3e3792eefe4fdc9492f6954a342266166"
+        }
+      }
+    },
+    {
+      "id": "sg.round2.alertsflt",
+      "title": "Round2 Alerts (test floating)",
+      "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png",
+      "shortDescription": "Test only.",
+      "manifest": {
+        "id": "sg.round2.alertsflt",
+        "title": "Round2 Alerts (test floating)",
+        "version": "1.0.251",
+        "type": "web",
+        "appDescription": "Test only.",
+        "iconUri": "https://donttelldadyet-prog.github.io/round2-tv-launcher/tv-icon-192.png",
+        "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/webos/alerts",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/v1.0.251/sg.round2.alertsflt.ipk",
+        "ipkHash": {
+          "sha256": "353276f82c1466990798f0b3b6b01fbe7c84f47bd4bad08f6e7ef78762f1fc6b"
         }
       }
     }
