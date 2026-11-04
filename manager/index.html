@@ -3066,6 +3066,19 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return gm({ action: 'extundo', id: T.ext }).then(function (j) { must(j.ok, 'Undo: ' + (j.error || 'refused')); return sessOf(T.day, 11); })
           .then(function (s) { must(s.length === 1 && /late till 5am/.test(s[0].name), 'After undo: ' + (s[0] ? s[0].name : 'session missing')); return '“' + s[0].name + '”'; });
       }); })
+      /* a daytime session keyed in with the tool says "till", not "late till" (owner, 5 Nov) – and +1h / undo still find it */
+      .then(function () { return step('Daytime session keyed in: “till 9am” (not late), +1h and undo still work', function () {
+        var day = function () { return sessOf(T.day, 11).then(function (s) { return s.filter(function (x) { return /^ZZTEST day/.test(x.name); }); }); }, e;
+        return gm({ action: 'late', unit: '11', day: T.day, start: '07:00', end: '09:00', name: 'ZZTEST day', pax: '2', msgs: 'no' }).then(function (j) {
+          must(j.ok, 'Daytime session: ' + (j.error || 'refused')); must(/· till 9am ·/.test(j.plan.text), 'Note text: ' + j.plan.text); return day();
+        }).then(function (s) {
+          must(s.length === 1, 'In session sees ' + s.length + ' daytime test sessions.');
+          return gm({ action: 'extend', day: T.day, key: s[0].key, hours: '1', end: String(s[0].sbEnd), msgs: 'no', force: 'yes' });
+        }).then(function (j) { must(j.ok && j.plan.note.main.late, '+1h: ' + (j.error || 'went the EXT-note way')); e = j.id; return day(); })
+          .then(function (s) { must(s.length === 1 && /· till 10am ·/.test(s[0].name) && !s[0].ext.length, 'After +1h: ' + (s[0] ? s[0].name : 'missing')); return gm({ action: 'extundo', id: e }); })
+          .then(function () { return day(); })
+          .then(function (s) { must(s.length === 1 && /· till 9am ·/.test(s[0].name), 'After undo: ' + (s[0] ? s[0].name : 'missing')); return gm({ action: 'latecancel', id: s[0].key.slice(1), day: T.day }).then(function () { return '“' + s[0].name + '” → 10am → back'; }); });
+      }); })
       /* guest links follow their booking or note (owner, 2 Nov): paired when made, a waiting link ties to a Late session
          made after it, Pair by hand moves a link to its guest, a deleted note cancels its links (on the 2nd look) */
       .then(function () { return step('Guest links pair with their note: made after, made before, Pair, note deleted', function () {
