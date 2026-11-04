@@ -1881,7 +1881,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function clock(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).toLowerCase(); }
     function gKey() { return ls('r2.guestStaff') || ''; }
     function load() {
-      var key = ls('r2m.msgKey') || '', jobs = [], my = ++seq, got = [], gErr = '', tv = {};
+      var key = ls('r2m.msgKey') || '', jobs = [], my = ++seq, got = [], gErr = '', tv = {}, acks = {};
       /* each TV: the message it holds now, and the last one a guest pressed OK on (msgAck = { id, t }) */
       if (key) Object.keys(ROOMS).forEach(function (r) {
         var get = function (n) { return fetch(FB + '/r2/' + key + '/' + topic(r) + '/' + n + '.json', { cache: 'no-store' }).then(function (x) { return x.ok ? x.json() : null; }).catch(function () { return null; }); };
@@ -1892,6 +1892,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }));
       });
       $('cKeyBox').hidden = !!gKey();
+      /* every OK, per message (owner, 4 Nov): a TV only keeps its latest OK, so an earlier message looked "ended" without one */
+      if (gKey()) jobs.push(fetch(HOOK, { method: 'POST', body: new URLSearchParams({ action: 'acks', staff: gKey() }) }).then(function (x) { return x.json(); }).then(function (j) { acks = (j && j.acks) || {}; }).catch(function () {}));
       if (gKey()) jobs.push(fetch(HOOK, { method: 'POST', body: new URLSearchParams({ action: 'list', staff: gKey() }) }).then(function (x) { return x.text(); }).then(function (t) {
         if (t.trim() === 'Accepted') return;
         var j = JSON.parse(t); if (j.error) { gErr = j.error; if (/staff code/i.test(j.error)) { ls('r2.guestStaff', null); $('cKeyBox').hidden = false; } return; }
@@ -1911,6 +1913,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         got.forEach(function (x) {
           var t = tv[x.room]; if (!t || x.st !== 'shown' && x.st !== 'ended') return;
           if (t.ack && x.id && t.ack.id === x.id) { x.st = 'acked'; x.ackT = t.ack.t; }
+          else if (x.id && acks[x.id]) { x.st = 'acked'; x.ackT = acks[x.id].t; }
           /* its time has come but the TV hasn't confirmed it (owner, 2 Nov: this list said "Showing" while On the TVs now said
              it wasn't) – same rule as On the TVs now: shown = the TV's own confirmation */
           else if (x.st === 'shown' && t.id && x.id && t.id === x.id && !(t.shown && (t.shown.id === x.id || t.shown.t >= x.at - 60000))) x.st = 'unconf';
