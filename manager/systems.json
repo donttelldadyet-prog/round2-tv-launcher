@@ -238,7 +238,7 @@
         {
           "name": "Alert history",
           "status": "live",
-          "what": "Home › Alert history: every phone alert of the last 24 hours (rolling, so overnight bookings are still there in the morning); problems stay until marked sorted; tap one for its details page (swipe from the left edge to go back). Home shows a one-line Last 24 hours summary. Pages are kept 3 days so a late-tapped notification still opens.",
+          "what": "Home › Alert history: every phone alert of the last 24 hours (rolling, so overnight bookings are still there in the morning); problems stay until marked sorted; tap one for its details page (swipe from the left edge to go back). Home shows a one-line Last 24 hours summary. New-booking alerts say 🆕 1st visit or 🔁 Nth visit (matched by phone or email over all bookings since Sep 2025; kept up to date with each booking and cancellation). Pages are kept 3 days so a late-tapped notification still opens.",
           "runs": "Booking engine (alert log) + control centre"
         },
         {

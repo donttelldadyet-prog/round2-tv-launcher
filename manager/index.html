@@ -2218,7 +2218,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (kd === 'change' && c.prev) html += '<p class="adnote">🔁 Was ' + esc(dayLong(c.prev.s) + ', ' + clock(c.prev.s) + '–' + clock(c.prev.e)) + ' → now ' + esc(when) + '</p>';
       if (kd === 'cancel') html += '<p class="adnote" style="color:var(--bad)">❌ This booking was cancelled – the time is free again.</p>';
       html += '<div class="adfacts">' + fact('When', esc(when)) + fact('Length', esc(len)) + fact('Room', r ? esc(ROOMS[r].name) : esc(c.room || '')) + fact('Guests', esc(c.pax ? c.pax + ' pax' : '')) +
-        fact('Name', esc(c.k === 'n' ? '' : name)) + fact('Phone', wa(phone)) + fact('Email', esc(email)) + fact('Paid', esc(paid)) + fact('Rate', esc(c.rate || '')) +
+        fact('Name', esc(c.k === 'n' ? '' : name)) + fact('Visit', esc(c.visit ? (c.visit.n === 1 ? '🆕 First visit' : '🔁 ' + c.visit.n + (c.visit.n % 100 >= 11 && c.visit.n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][c.visit.n % 10] || 'th') + ' visit' + (c.visit.last ? ' · last came ' + dayLong(c.visit.last) : '')) : '')) + fact('Phone', wa(phone)) + fact('Email', esc(email)) + fact('Paid', esc(paid)) + fact('Rate', esc(c.rate || '')) +
         fact('Booked via', esc(h || c.ref ? 'Our booking page' + (h && h.ref ? ' · ' + h.ref : '') : c.k === 'n' ? 'Calendar note (WhatsApp / walk-in)' : c.bid ? 'SimplyBook' : '')) +
         fact('TV message', esc(c.tvmsg ? c.tvmsg.kind + (c.tvmsg.title ? ' · “' + c.tvmsg.title + '”' : '') : h && h.msg ? h.msg.kind + (h.msg.title ? ' · “' + h.msg.title + '”' : '') : '')) + '</div>';
       if (c.extra && c.extra.length) html += c.extra.map(function (l) { return '<p class="adnote">' + esc(l) + '</p>'; }).join('');
