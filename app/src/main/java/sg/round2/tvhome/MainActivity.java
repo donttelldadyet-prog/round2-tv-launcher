@@ -50,6 +50,8 @@ import java.util.Set;
 public class MainActivity extends Activity {
 
     private WebView web;
+    /* kept so they can be let go when the menu rebuilds itself (recreate): the old screen used to stay in memory each time (5 Nov) */
+    private android.media.AudioDeviceCallback soundCb;
     private NativeBackground bg;
     private ThemeSync themes;
     private Updater updater;
@@ -182,7 +184,7 @@ public class MainActivity extends Activity {
            ambience players made before then can stay silent, so rebuild them once things settle. Android reports
            every existing output right after registering; those first reports are ignored. */
         final long soundCbAt = System.currentTimeMillis();
-        ((android.media.AudioManager) getSystemService(AUDIO_SERVICE)).registerAudioDeviceCallback(new android.media.AudioDeviceCallback() {
+        ((android.media.AudioManager) getSystemService(AUDIO_SERVICE)).registerAudioDeviceCallback(soundCb = new android.media.AudioDeviceCallback() {
             void changed() {
                 if (System.currentTimeMillis() - soundCbAt < 5000 || sound == null) return;
                 if (front == MainActivity.this) sound.reviveSoon(2000); else outputChanged = true;
@@ -294,6 +296,14 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         try { unregisterReceiver(screenOff); } catch (Exception ignored) { }
         if (sound != null) sound.release();
+        try { if (soundCb != null) ((android.media.AudioManager) getSystemService(AUDIO_SERVICE)).unregisterAudioDeviceCallback(soundCb); } catch (Exception ignored) { }
+        soundCb = null;
+        if (front == this) front = null;
+        if (web != null) {   /* not set to null: a timer still posted for this screen then finds a dead page (ignored) instead of crashing */
+            try { web.stopLoading(); } catch (Exception ignored) { }
+            try { android.view.ViewParent vp = web.getParent(); if (vp instanceof android.view.ViewGroup) ((android.view.ViewGroup) vp).removeView(web); } catch (Exception ignored) { }
+            try { web.destroy(); } catch (Exception ignored) { }
+        }
         super.onDestroy();
     }
 

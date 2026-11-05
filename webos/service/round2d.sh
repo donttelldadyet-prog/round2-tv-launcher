@@ -64,7 +64,7 @@ stop() {
     set -- $(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)
     [ "$1" = "-c" ] || [ "$2" = "-c" ] && continue                 # a 'sh -c' that only started us
     case "$1 $2 $3" in
-      *round2d.sh*key*|*round2d.sh*ack*|*round2d.sh*msgpage*) continue ;;   # one-off button presses
+      *round2d.sh*key*|*round2d.sh*ack*|*round2d.sh*msgpage*|*round2d.sh*resend*) continue ;;   # one-off button presses
       *round2d.sh*) kill "$p" 2>/dev/null && n=$((n + 1)) ;;
     esac
   done
@@ -196,6 +196,12 @@ clock_sync() {
 }
 snow() { echo $(( $(date +%s) + $(cat "$CFG/clock.off" 2>/dev/null || echo 0) )); }
 clean() { tr -d "\\\\\"'"; }   # no quotes or backslashes: safe inside the luna-send JSON below
+# a JSON text value with its escapes kept (\" \n \u2019), so it goes into the card's JSON as it is: apostrophes and quotes
+# in guests' messages survive ("Sam's crew" used to show as "Sams crew", 'Mum said "surprise!"' stopped at the quote – 5 Nov)
+jstr() {   # falls back to the old way (quotes dropped) if this TV's sed can't do it, so a message is never blank
+  _jl=$(cat); _jv=$(printf '%s\n' "$_jl" | sed -nE 's/.*"'"$1"'" *: *"(([^"\\]|\\.)*)".*/\1/p' 2>/dev/null)
+  if [ -n "$_jv" ]; then printf '%s\n' "$_jv"; else printf '%s\n' "$_jl" | field "$1" | clean; fi
+}
 # --- Round2 Alerts (sg.round2.alerts, from Homebrew Channel): the Round2 card over other apps. NEVER LG's own pop-ups
 # (owner, 4–5 Nov): if the card won't open, it's tried again shortly and the alert waits (logged) – nothing falls back to LG.
 ov_app() {
@@ -315,9 +321,9 @@ msg_ack() {     # $1 the message's id (from the Round2 card; LG's pop-up: the on
 msg_alert() {   # $1 page: an LG pop-up with one page of the message; NEXT shows the next page, the last one SEEN IT / CLOSE
   line=$(cat "$CFG/msg.cur" 2>/dev/null); [ -n "$line" ] || return 0
   n=${1:-1}
-  title=$(printf '%s\n' "$line" | field title | clean); from=$(printf '%s\n' "$line" | field from | clean)
+  title=$(printf '%s\n' "$line" | jstr title); from=$(printf '%s\n' "$line" | jstr from)
   room=$(cut -d' ' -f1 "$CFG/food" 2>/dev/null); kind=$(printf '%s\n' "$line" | field kind | clean)
-  text=$(printf '%s\n' "$line" | field text | sed 's/\\n/ /g' | clean); to=$(printf '%s\n' "$line" | field to | clean)
+  text=$(printf '%s\n' "$line" | jstr text | sed 's/\\n/ /g'); to=$(printf '%s\n' "$line" | jstr to)
   ack=false; printf '%s\n' "$line" | grep -q '"ack":true' && ack=true
   case "$kind" in birthday) tag=BIRTHDAY ;; anniversary) tag=ANNIVERSARY ;; celebrate) tag=CELEBRATION ;; volume) tag="A FRIENDLY REMINDER" ;; wrapup|timeup) tag="SESSION REMINDER" ;; extend) tag="SESSION EXTENDED" ;; *) tag="A MESSAGE" ;; esac
   card="{\"type\":\"msg\",\"kind\":\"$kind\",\"tag\":\"$tag\",\"title\":\"$title\",\"text\":\"$text\",\"from\":\"$from\",\"to\":\"$to\",\"ack\":$ack,\"id\":\"$(printf '%s\n' "$line" | field id)\",\"until\":$(printf '%s\n' "$line" | num until | grep -E '^[0-9]+$' || echo 0),\"now\":$(snow)000,\"room\":\"$room\"}"
@@ -334,7 +340,6 @@ food_again() {  # Loot dropped not OK'd and not on screen (TV was off, a message
   p=$(cat "$CFG/food.pending"); no=$(printf '%s\n' "$p" | field no)
   [ "$(card_up)" = "food $no" ] && return 0
   [ $(( $(date +%s) - $(cat "$CFG/food.last" 2>/dev/null || echo 0) )) -ge 300 ] || return 0
-  menu_front && return 0                                                  # the menu brings it back itself
   food_show ready "$no" "$(printf '%s\n' "$p" | field items)" reminder
 }
 # A Wi-Fi blip can leave the Firebase stream silently dead (no error, nothing arrives) until curl's 1-hour limit: messages
@@ -574,6 +579,15 @@ case "$1" in
   ack) K=""; curl -s -m 10 -o /dev/null https://hook.eu1.make.com/ 2>/dev/null || K="-k"; food_ack; exit 0 ;;
   msgack) msg_ack "$2"; exit 0 ;;
   msgpage) msg_alert "$2"; exit 0 ;;   # NEXT pressed on a message pop-up
+  resend)   # the menu just started (fresh start after a long film, or boot): anything handed to it in the last moments is shown again (5 Nov)
+    [ -f "$CFG/food.pending" ] && menu_front && { menu_card "$(cat "$CFG/food.pending")"; date +%s > "$CFG/food.last"; log "resend: Loot dropped back on the menu"; }
+    if [ -f "$CFG/msg.cur" ]; then
+      id=$(field id < "$CFG/msg.cur"); last=$(cat "$CFG/msg.last" 2>/dev/null || echo 0)
+      # a message without OK counts as shown the moment it's handed over: if that was in the last minute, it may have been lost
+      [ "$id" = "$(cat "$CFG/msg.done" 2>/dev/null)" ] && [ $(( $(snow) - last )) -lt 60 ] && rm -f "$CFG/msg.done"
+      [ "$id" = "$(cat "$CFG/msg.done" 2>/dev/null)" ] || { rm -f "$CFG/msg.last"; log "resend: message $id shows again"; }
+    fi
+    exit 0 ;;
   ensure)                                   # Round2 Home calls this on every start: keep one up-to-date copy running
     clear_failsafe
     cmp -s "$SELF" "$CFG/round2d.sh" 2>/dev/null || cp "$SELF" "$CFG/round2d.sh"

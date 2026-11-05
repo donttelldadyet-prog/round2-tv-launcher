@@ -816,7 +816,10 @@ window.R2_TV = {
       if (st.checked) { cb(st.ok); return; }
       var n = 0, iv = setInterval(function () { if (st.checked || ++n > 40) { clearInterval(iv); cb(st.checked && st.ok); } }, 500);
     }
-    return { check: check, setFlag: setFlag, state: st, updater: updater, exec: exec, whenChecked: whenChecked };
+    /* the menu just started (fresh start after a long film, or boot): ask the helper for anything it handed over while the
+       page was loading – a message or Loot dropped landing in those 2–3 seconds was lost (5 Nov) */
+    function resend() { exec('sh "' + svc + '/round2d.sh" resend'); }
+    return { check: check, setFlag: setFlag, state: st, updater: updater, exec: exec, whenChecked: whenChecked, resend: resend };
   }());
   /* ---- AirPlay lab (rooted LG, webOS 5+): installs a test app from the airplay-lab release through
      Homebrew Channel, runs it for 20 s from a root shell, then reopens Round2 Home with the result ---- */
@@ -2486,6 +2489,7 @@ window.R2_TV = {
     function clock() { var d = new Date(r2Now() + 8 * 3600e3); return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2); }
     function show(p, reminder) {
       if (!p || !TEXT[p.type]) return;
+      if (reminder && cur && cur.type === p.type && String(cur.no) === String(p.no)) return;   /* already on screen: the helper's reminder changes nothing */
       var t = TEXT[p.type], el = $('food');
       cur = p;
       $('foodTag').textContent = 'ORDER #' + (p.no || '') + (reminder ? ' · REMINDER' : '');
@@ -2793,6 +2797,7 @@ window.R2_TV = {
         LGRoot.whenChecked(function (on) {
           viaHelper = on;
           if (!on) { listen(); return; }
+          if (!window.r2Resent) { window.r2Resent = 1; setTimeout(function () { try { LGRoot.resend(); } catch (e) {} }, 2500); }   /* once per start-up */
           if (es) { es.close(); es = null; esTopic = ''; }
           clearTimeout(timer); store('r2.msg', '');
         });
