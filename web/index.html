@@ -1362,14 +1362,34 @@ window.R2_TV = {
       }, 30000);
     }
     /* what happened to the uploaded ambience, for the control centre's checks (/soundDiag) */
-    function soundReport(sndObj, ok) {
+    function soundReport(sndObj, ok, extra) {
       try {
         var l = Food.link(); if (!l || l.native) return;
         var x = new XMLHttpRequest(); x.open('PUT', l.fb + '/r2/' + l.key + '/' + l.room + '/soundDiag.json', true);
         x.setRequestHeader('Content-Type', 'application/json');
-        x.send(JSON.stringify({ t: { '.sv': 'timestamp' }, id: sndObj.id, ok: ok, why: lgWhy.join(' | ').slice(0, 400), tries: lgTries,
-          audio: String(sndObj.audio || '').slice(-80), pcm: String(sndObj.pcm || '').slice(-80) }));
+        var c = Sfx.ctx();
+        x.send(JSON.stringify(Object.assign({ t: { '.sv': 'timestamp' }, id: sndObj.id, ok: ok, why: lgWhy.join(' | ').slice(0, 400), tries: lgTries,
+          audio: String(sndObj.audio || '').slice(-80), pcm: String(sndObj.pcm || '').slice(-80), rate: c ? c.sampleRate : 0, state: c ? c.state : '' }, extra || {})));
       } catch (e) {}
+    }
+    /* Bella, 5 Nov ("slowed down, time-stretched" after 1 h 40 min of YouTube, even after the fresh start): the TV's sound
+       output can still be switching back when the menu starts, and the sound engine then runs at the wrong speed. A few
+       seconds after the ambience starts, check its clock against real time; off by more than 10 % → start the menu fresh
+       again (at most twice in 10 minutes), and report what was measured (soundDiag › speed). */
+    function lgSpeedCheck(c, sndObj) {
+      var a0 = c.currentTime, t0 = performance.now();
+      setTimeout(function () {
+        if (window.r2Away || document.hidden || lgCur !== sndObj.id || !lgSrc) return;
+        var real = (performance.now() - t0) / 1000, speed = real > 0 ? Math.round((c.currentTime - a0) / real * 100) / 100 : 1;
+        soundReport(sndObj, true, { speed: speed });
+        if (speed > 0.9 && speed < 1.1) return;
+        var F = []; try { F = JSON.parse(sessionStorage.getItem('r2.sndFix') || '[]').filter(function (t) { return Date.now() - t < 600000; }); } catch (e) {}
+        console.log('[R2] sound engine running at ' + speed + 'x real time' + (F.length < 2 ? ': fresh start' : ': already restarted twice, leaving it'));
+        if (isStaff()) toast('Sound engine at ' + speed + '× speed' + (F.length < 2 ? ' – restarting the menu' : ''));
+        if (F.length >= 2) return;
+        F.push(Date.now()); try { sessionStorage.setItem('r2.sndFix', JSON.stringify(F)); } catch (e) {}
+        location.reload();
+      }, 6000);
     }
     function lgFile(sndObj, v, ms) {
       var c = Sfx.ctx(); if (!c) return;
@@ -1403,7 +1423,7 @@ window.R2_TV = {
         soundReport(sndObj, true);
         var s2 = c.createBufferSource(); s2.buffer = buf; s2.loop = true; s2.connect(lgGain);
         lgGain.gain.cancelScheduledValues(c.currentTime); lgGain.gain.setValueAtTime(0.0001, c.currentTime);
-        s2.start(); lgSrc = s2; lgRamp(c, lgVol, ms);
+        s2.start(); lgSrc = s2; lgRamp(c, lgVol, ms); lgSpeedCheck(c, sndObj);
         if (isStaff()) toast('Sound ' + (sndObj.name || sndObj.id) + ': playing (' + (lgWhy.length ? lgWhy.join(' \u00B7 ') + ' \u00B7 ' : '') + Math.round(buf.duration) + ' s, ' + buf.sampleRate + ' Hz, audio ' + c.state + ')');
       });
     }
