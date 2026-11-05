@@ -2823,6 +2823,7 @@ window.R2_TV = {
   function dive(then, demo) {
     leaving = !demo;                       /* a preview from Options never locks the remote */
     leavingSince = Date.now();
+    if (leaving) try { window.R2Android && window.R2Android.leaving && window.R2Android.leaving('1'); } catch (e) {}   /* messages: see MainActivity.showMsg */
     clearAnim();
     Amb.duck();
     if (prefs.fx === 'off') { then(); return; }
@@ -2880,6 +2881,7 @@ window.R2_TV = {
   function arrive(force) {
     var st = $('stage');
     leaving = false;
+    try { window.R2Android && window.R2Android.leaving && window.R2Android.leaving('0'); } catch (e) {}
     addCls('snap'); clearAnim(); void st.offsetWidth; dropCls('snap');
     var es = entryStyle();
     if (es !== 'off') {

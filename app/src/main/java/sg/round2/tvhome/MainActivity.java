@@ -208,6 +208,10 @@ public class MainActivity extends Activity {
         // The remote's Home button (via the Home button helper) while the menu is already open: back to the main menu
         if (intent.getBooleanExtra("home", false) && web != null && pageReady)
             web.evaluateJavascript("window.r2Home && window.r2Home()", null);
+        /* the remote's own Home while we never paused (Max, 5 Nov: Sony runs its Netflix / HDMI inputs outside Android, so the
+           menu kept "opening an app": no ambience, and "That's a wrap" drawn behind the app). Home = the guest is back. */
+        else if (Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME) && web != null && pageReady)
+            web.evaluateJavascript("window.r2Home && window.r2Home()", null);
         if (intent.getBooleanExtra("syncThemes", false) && web != null)
             web.evaluateJavascript("window.r2SyncThemes && window.r2SyncThemes(true)", null);
     }
@@ -323,6 +327,7 @@ public class MainActivity extends Activity {
     }
 
     private String pendingMsg;   // a message that arrived while the menu was loading
+    volatile long leavingAt;     // the menu is opening an app (set by the page; 0 = on the menu)
 
     /* ---- the TV's own screensaver (Staff tools > TV screensaver): while the menu is on screen it keeps the screen on
        (FLAG_KEEP_SCREEN_ON, so Android's screensaver/Daydream and screen-off timer don't start). After 3 hours without a
@@ -344,6 +349,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         if (front == this) front = null;
+        leavingAt = 0;   /* Android paused us: the normal way (r2Pause / r2Resume) takes over */
         pendingMsg = null;
         FoodAlerts.menuLeft();   // a message waiting for OK follows the guest as a small banner
         if (bg != null) bg.pause();
@@ -400,6 +406,9 @@ public class MainActivity extends Activity {
     static boolean showMsg(final String json) {
         final MainActivity a = front;
         if (a == null) return false;
+        /* the menu sent a guest into an app a while ago but Android never paused it (an app running outside Android, e.g.
+           Sony's Netflix or an HDMI input): the guest isn't looking at the menu – the small banner shows it instead (5 Nov) */
+        if (a.leavingAt > 0 && System.currentTimeMillis() - a.leavingAt > 4000) return false;
         /* Round2 Home is in front but the menu is still (re)loading (after standby, a long film): hold the message and
            show it as the big banner once the menu is ready – never a small banner over our own home screen */
         if (a.web == null || !a.pageReady) { a.pendingMsg = json; return true; }
@@ -525,6 +534,10 @@ public class MainActivity extends Activity {
             if (vol > 0 && front != act) return;   /* never start while an app is open */
             act.sound.fileTo(path, (float) vol, ms);
         }
+
+        /** the page says it's opening an app ("1") or is back on the menu ("0") – see showMsg */
+        @JavascriptInterface
+        public void leaving(String on) { act.leavingAt = "1".equals(on) ? System.currentTimeMillis() : 0; }
 
         @JavascriptInterface
         public String version() {
