@@ -1685,7 +1685,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var N = [[/^sg\.round2\.tvhome/, 'Round2 menu'], [/youtube|tizentube|videomanager/i, 'YouTube'], [/^com\.wbd\.stream|hbo|^max$/i, 'HBO Max'], [/appletv/i, 'Apple TV'], [/iqiyi/i, 'iQIYI'], [/^viu/i, 'Viu'],
         [/lgchannels/i, 'LG Channels'], [/browser/i, 'Web browser'], [/miracast|screenshare/i, 'Screen Share'], [/netflix/i, 'Netflix'], [/disney/i, 'Disney+'], [/amazon|primevideo/i, 'Prime Video'],
         [/spotify/i, 'Spotify'], [/twitch/i, 'Twitch'], [/^com\.webos\.app\.livetv/, 'TV channels'], [/^com\.webos\.app\.(home|launcher)|tvlauncher|launcherx/, 'TV home screen'],
-        [/settings/i, 'TV settings'], [/tvinput|inputsource|tvcenter|dtv\.tvx|^com\.google\.android\.tv$|livechannels/i, 'TV input (PS4?)'], [/airplay/i, 'AirPlay']];
+        [/settings/i, 'TV settings'], [/tvinput|inputsource|tvcenter|dtv\.tvx|^com\.google\.android\.tv$|^com\.tcl\.tv$|livechannels/i, 'TV input (PS4?)'], [/airplay/i, 'AirPlay']];
       for (var i = 0; i < N.length; i++) if (N[i][0].test(id)) return N[i][1];
       var last = id.split('.').pop(); return last.charAt(0).toUpperCase() + last.slice(1);
     }
