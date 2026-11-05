@@ -50,10 +50,17 @@ public class HomeWatch extends Service {
     static volatile String nowFront = ""; static volatile long nowFrontAt = 0;
     /** the same, from TVs without Usage access (3 Nov: Kaeden/Kai use the Accessibility helper, so this watcher never ran and
         the control centre only said "Online"): the Accessibility helper and the Round2 menu itself report here */
-    static void seen(String p) {
-        if (p == null || p.isEmpty() || p.equals("android") || p.contains("systemui") || p.contains("inputmethod") || p.contains("keyboard")) return;
-        if (p.equals(nowFront)) return;
+    static boolean seen(String p) {
+        if (p == null || p.isEmpty() || p.equals("android") || p.contains("systemui") || p.contains("inputmethod") || p.contains("keyboard")) return false;
+        if (p.equals(nowFront)) return false;
         nowFront = p; nowFrontAt = Clock.now(); FoodAlerts.beatSoon();
+        return true;
+    }
+    /* The Accessibility helper runs in its own process (":guard"), so what it sees never reached the check-in (5 Nov: Kai on
+       Netflix showed "Round2 menu"). It sends each change here as a broadcast to this app only. */
+    static final String FRONT = "sg.round2.tvhome.FRONT";
+    static void tellMain(Context c, String p) {
+        try { c.sendBroadcast(new Intent(FRONT).setPackage(c.getPackageName()).putExtra("p", p)); } catch (Exception ignored) { }
     }
     private long lastQuery, lastRedirect;
     private final long[] recent = new long[6];

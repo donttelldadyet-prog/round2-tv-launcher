@@ -92,6 +92,9 @@ public class FoodAlerts extends Service {
     };
     /* Screen off/asleep (owner, 3 Nov): Sony keeps the app running in standby, so the control centre saw it "online" forever.
        Tell it straight away when the screen goes off; the heartbeat carries "pw" = Active / Suspend like the LGs. */
+    private final android.content.BroadcastReceiver frontRx = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) { HomeWatch.seen(i.getStringExtra("p")); }
+    };
     private final android.content.BroadcastReceiver screenOff = new android.content.BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { main.post(heartbeat); }
     };
@@ -214,6 +217,10 @@ public class FoodAlerts extends Service {
         main.post(heartbeat);   // check-in for the control centre (On the TVs now)
         main.postDelayed(cmdPoll, 30_000);   // "Update now" from the control centre
         try { registerReceiver(screenOn, new android.content.IntentFilter(Intent.ACTION_SCREEN_ON)); } catch (Exception ignored) { }
+        try {   /* the app in front, from the Accessibility helper's own process (5 Nov) */
+            android.content.IntentFilter ff = new android.content.IntentFilter(HomeWatch.FRONT);
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(frontRx, ff, Context.RECEIVER_NOT_EXPORTED); else registerReceiver(frontRx, ff);
+        } catch (Exception ignored) { }
         try { registerReceiver(screenOff, new android.content.IntentFilter(Intent.ACTION_SCREEN_OFF)); } catch (Exception ignored) { }
     }
 
@@ -320,7 +327,7 @@ public class FoodAlerts extends Service {
     }
 
     @Override
-    public void onDestroy() { try { unregisterReceiver(screenOn); } catch (Exception ignored) { } try { unregisterReceiver(screenOff); } catch (Exception ignored) { } if (inst == this) inst = null; running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }
+    public void onDestroy() { try { unregisterReceiver(frontRx); } catch (Exception ignored) { } try { unregisterReceiver(screenOn); } catch (Exception ignored) { } try { unregisterReceiver(screenOff); } catch (Exception ignored) { } if (inst == this) inst = null; running = false; drop(); main.removeCallbacksAndMessages(null); hideCard(); super.onDestroy(); }
 
     /** The Firebase Realtime Database that carries the alerts. Make.com writes each alert to
      *  /r2/<key>/<room>/last; every TV streams its own room's node (Server-Sent Events). */

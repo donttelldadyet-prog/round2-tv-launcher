@@ -85,7 +85,7 @@ public class HomeGuard extends AccessibilityService {
         CharSequence pkg = e.getPackageName();
         if (pkg == null) return;
         String p = pkg.toString();
-        HomeWatch.seen(p);   // what's on screen, for the control centre (3 Nov)
+        if (HomeWatch.seen(p)) HomeWatch.tellMain(this, p);   // what's on screen, for the control centre (3 Nov; passed to the main process 5 Nov)
         if (paused()) return;
         if (!p.equals("com.google.android.apps.tv.launcherx") && !p.equals("com.google.android.tvlauncher")
                 && !p.equals("com.google.android.leanbacklauncher")) return;   // Google TV, Android TV 8-11, older Android TV (e.g. Sony 2015)
