@@ -1376,13 +1376,18 @@ window.R2_TV = {
        output can still be switching back when the menu starts, and the sound engine then runs at the wrong speed. A few
        seconds after the ambience starts, check its clock against real time; off by more than 10 % → start the menu fresh
        again (at most twice in 10 minutes), and report what was measured (soundDiag › speed). */
-    function lgSpeedCheck(c, sndObj) {
+    var lgSpeedT = null;
+    function lgSpeedCheck(c, sndObj, first) {
+      /* again every minute while the menu is on screen (5 Nov: Bella's ran slow for ~35 min, then put itself right) */
+      clearTimeout(lgSpeedT);
       var a0 = c.currentTime, t0 = performance.now();
-      setTimeout(function () {
-        if (window.r2Away || document.hidden || lgCur !== sndObj.id || !lgSrc) return;
+      lgSpeedT = setTimeout(function () {
+        if (lgCur !== sndObj.id || !lgSrc) return;
+        if (window.r2Away || document.hidden) { lgSpeedT = setTimeout(function () { lgSpeedCheck(c, sndObj, false); }, 60000); return; }
         var real = (performance.now() - t0) / 1000, speed = real > 0 ? Math.round((c.currentTime - a0) / real * 100) / 100 : 1;
-        soundReport(sndObj, true, { speed: speed });
-        if (speed > 0.9 && speed < 1.1) return;
+        var off = !(speed > 0.9 && speed < 1.1);
+        if (first !== false || off) soundReport(sndObj, true, { speed: speed });
+        if (!off) { lgSpeedT = setTimeout(function () { lgSpeedCheck(c, sndObj, false); }, 54000); return; }
         var F = []; try { F = JSON.parse(sessionStorage.getItem('r2.sndFix') || '[]').filter(function (t) { return Date.now() - t < 600000; }); } catch (e) {}
         console.log('[R2] sound engine running at ' + speed + 'x real time' + (F.length < 2 ? ': fresh start' : ': already restarted twice, leaving it'));
         if (isStaff()) toast('Sound engine at ' + speed + '× speed' + (F.length < 2 ? ' – restarting the menu' : ''));
