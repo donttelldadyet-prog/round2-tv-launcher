@@ -1,6 +1,8 @@
 package sg.round2.tvhome;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.os.Build;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
@@ -17,7 +19,7 @@ import android.widget.Toast;
  *    closes back to it, a crash), it sees that window open and brings Round2 Home back.
  *
  * Ways out for staff, always available:
- *  - Hold Home for 2 seconds: the Android home screen opens and Round2 Home stays out of the
+^ *  - Hold Home for 2 seconds (TCL: press Home twice quickly): the Android home screen opens and Round2 Home stays out of the
  *    way for 5 minutes (settings, installing apps, fixing things).
  *  - If Round2 Home keeps closing (4 times in a minute), the helper stops for 10 minutes by itself.
  *  - Settings > Accessibility > "Round2 Home button" Off is the master switch.
@@ -39,6 +41,25 @@ public class HomeGuard extends AccessibilityService {
 
     private boolean paused() { return System.currentTimeMillis() < pausedUntil; }
 
+    /* TCL (Kai, 6 Nov): with key filtering on, every button passes through this helper first; when Android slows the helper
+       down (during a long Netflix film) a button's release arrives late, the TV treats it as held and repeats it – the
+       "multi-press", volume moving by itself. Owner's find: the buttons were fine exactly while the helper had crashed.
+       On TCL the helper therefore doesn't touch buttons at all: it brings Round2 Home back when the Google TV home screen
+       opens (2. below), and Home pressed twice quickly is the staff way to the Android home screen. Sony keeps catching
+       the key (no flash of the stock home screen, no button trouble seen there). */
+    static final boolean NO_KEYS = Build.MANUFACTURER != null && Build.MANUFACTURER.toLowerCase().contains("tcl");
+    private long lastStock, lastOurs;
+
+    @Override
+    protected void onServiceConnected() {
+        if (!NO_KEYS) return;
+        try {
+            AccessibilityServiceInfo i = getServiceInfo();
+            i.flags &= ~AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+            setServiceInfo(i);
+        } catch (Exception ignored) { }
+    }
+
     private void pause(long ms, String msg) {
         pausedUntil = System.currentTimeMillis() + ms;
         try { Toast.makeText(this, msg, Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
@@ -57,7 +78,7 @@ public class HomeGuard extends AccessibilityService {
     /* 1. the Home key itself */
     @Override
     protected boolean onKeyEvent(KeyEvent k) {
-        if (k.getKeyCode() != KeyEvent.KEYCODE_HOME || paused()) return false;
+        if (NO_KEYS || k.getKeyCode() != KeyEvent.KEYCODE_HOME || paused()) return false;
         long held = k.getEventTime() - k.getDownTime();
         if (k.getAction() == KeyEvent.ACTION_DOWN) {
             if (held >= HOLD_MS && heldPassed != k.getDownTime()) openAndroidHome(k.getDownTime());
@@ -86,6 +107,7 @@ public class HomeGuard extends AccessibilityService {
         if (pkg == null) return;
         String p = pkg.toString();
         if (HomeWatch.seen(p)) HomeWatch.tellMain(this, p);   // what's on screen, for the control centre (3 Nov; passed to the main process 5 Nov)
+        if (p.equals(getPackageName())) lastOurs = System.currentTimeMillis();
         if (paused()) return;
         if (!p.equals("com.google.android.apps.tv.launcherx") && !p.equals("com.google.android.tvlauncher")
                 && !p.equals("com.google.android.leanbacklauncher")) return;   // Google TV, Android TV 8-11, older Android TV (e.g. Sony 2015)
@@ -94,7 +116,11 @@ public class HomeGuard extends AccessibilityService {
         String c = cls == null ? "" : cls.toString();
         if (!c.endsWith(".HomeActivity") && !c.endsWith(".MainActivity")) return;
         long now = System.currentTimeMillis();
-        if (now - lastRedirect < 800) return;
+        /* TCL: the stock home screen again within 3 s of being sent back = Home pressed twice → staff want the Android home */
+        /* (only if Round2 Home really came up in between – one Home press can make the stock screen report itself twice) */
+        if (NO_KEYS && lastStock > 0 && now - lastStock < 3000 && lastOurs > lastStock) { lastStock = 0; pause(STAFF_PAUSE_MS, "Android home screen · Round2 menu paused for 5 minutes"); return; }
+        lastStock = now;
+        if (now - lastRedirect < 800 && !NO_KEYS) return;
         // If Round2 Home keeps closing (a crash loop), step aside so the TV stays usable
         long oldest = recent[recentAt];
         recent[recentAt] = now; recentAt = (recentAt + 1) % recent.length;
