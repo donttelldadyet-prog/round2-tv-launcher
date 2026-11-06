@@ -243,6 +243,7 @@ public class FoodAlerts extends Service {
                     if (!HomeWatch.nowFront.isEmpty()) o.put("front", HomeWatch.nowFront).put("frontAt", HomeWatch.nowFrontAt);   /* what's on screen (2 Nov) */
                     o.put("ru", remoteAllowed(FoodAlerts.this));
                     o.put("pw", power());   /* screen on / asleep (3 Nov) */
+                    try { org.json.JSONArray ex = exits(); if (ex.length() > 0) o.put("exits", ex); } catch (Exception ignored) { }   /* why a part of the app last stopped (6 Nov) */
                     h.getOutputStream().write(o.toString().getBytes("UTF-8"));
                     h.getResponseCode();
                 } catch (Exception ignored) { }
@@ -319,6 +320,39 @@ public class FoodAlerts extends Service {
 
     /** a check-in now (the app in front changed), at most every 20 s */
     private static long lastBeatSoon = 0;
+    /* Why the app's processes last ended – the menu, and the Home-button helper (":guard"): out of memory, crashed, froze
+       (ANR), killed by the system… Android 11+ keeps this. Owner, 6 Nov: Kai's helper stopped mid-film and nobody could
+       say why. Newest first, the last 4, times on the engine clock's scale (device time + offset). */
+    private org.json.JSONArray exits() throws Exception {
+        org.json.JSONArray a = new org.json.JSONArray();
+        if (Build.VERSION.SDK_INT < 30) return a;
+        android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        java.util.List<android.app.ApplicationExitInfo> L = am.getHistoricalProcessExitReasons(getPackageName(), 0, 4);
+        long off = Clock.now() - System.currentTimeMillis();
+        for (android.app.ApplicationExitInfo x : L) {
+            String why;
+            switch (x.getReason()) {
+                case android.app.ApplicationExitInfo.REASON_LOW_MEMORY: why = "low memory"; break;
+                case android.app.ApplicationExitInfo.REASON_CRASH: why = "crashed"; break;
+                case android.app.ApplicationExitInfo.REASON_CRASH_NATIVE: why = "crashed (native)"; break;
+                case android.app.ApplicationExitInfo.REASON_ANR: why = "froze (ANR)"; break;
+                case android.app.ApplicationExitInfo.REASON_SIGNALED: why = "killed (signal)"; break;
+                case android.app.ApplicationExitInfo.REASON_USER_REQUESTED: why = "stopped (force stop / update)"; break;
+                case android.app.ApplicationExitInfo.REASON_PERMISSION_CHANGE: why = "permission change"; break;
+                case android.app.ApplicationExitInfo.REASON_DEPENDENCY_DIED: why = "a part it needs stopped"; break;
+                case android.app.ApplicationExitInfo.REASON_OTHER: why = "stopped by the system"; break;
+                case android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE: why = "used too much"; break;
+                case android.app.ApplicationExitInfo.REASON_EXIT_SELF: why = "closed itself"; break;
+                default: why = "reason " + x.getReason();
+            }
+            String proc = String.valueOf(x.getProcessName()).replace(getPackageName(), "");
+            String d = x.getDescription() == null ? "" : x.getDescription().replaceAll("\\s+", " ");
+            if (d.length() > 80) d = d.substring(0, 80);
+            a.put(new JSONObject().put("p", proc.isEmpty() ? "menu" : proc.replace(":", "")).put("why", why).put("t", x.getTimestamp() + off).put("d", d));
+        }
+        return a;
+    }
+
     static void beatSoon() {
         final FoodAlerts f = inst; long n = System.currentTimeMillis();
         if (f == null) return;

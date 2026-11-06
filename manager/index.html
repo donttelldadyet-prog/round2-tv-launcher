@@ -1729,7 +1729,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           if (h.pw && h.pw !== 'Active') return t('sleep', '💤 Screen off · asleep since ' + esc(nice2(h.t)));
           if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
           var fn = frontName(x.r, h.front);
-          return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : ''));
+          /* Android: the Home-button helper stopped in the last 24 h, and why (6 Nov – Kai's stopped mid-film) */
+          var gx = (h.exits || []).filter(function (e) { return e.p === 'guard' && R2Day.now() - e.t < 86400e3; })[0];
+          var gl = gx ? '<br><small>⚠️ Home-button helper stopped ' + esc(ago2(gx.t)) + ' · ' + esc(gx.why) + '</small>' : '';
+          return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : '') + gl);
         }).join('') + '</div><p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date()).toLowerCase()) +
           '. Each TV reports every 5 minutes, and straight away when something changes. Refresh asks them all to report now (answers arrive within about 30 s).</p>';
       });
