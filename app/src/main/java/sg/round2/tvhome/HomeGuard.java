@@ -49,6 +49,7 @@ public class HomeGuard extends AccessibilityService {
        buttons at once (Home then works by watching the home screen, 2. below), and take them back as soon as the guest is
        on Round2 Home again. */
     private static final long LAG_MS = 250;
+    static final boolean TCL = Build.MANUFACTURER != null && Build.MANUFACTURER.toLowerCase().contains("tcl");
     private volatile boolean keysOn = true;
     private long lastOurs;
 
@@ -99,7 +100,21 @@ public class HomeGuard extends AccessibilityService {
     protected boolean onKeyEvent(KeyEvent k) {
         /* reached us late = we're being slowed: hand the buttons straight back to the TV (see setKeys) */
         if (android.os.SystemClock.uptimeMillis() - k.getEventTime() > LAG_MS) { main.post(new Runnable() { @Override public void run() { setKeys(false); } }); return false; }
-        if (k.getKeyCode() != KeyEvent.KEYCODE_HOME || paused()) return false;
+        /* TCL (Kai, 6 Nov): a volume press passed back by this helper moves the volume twice (owner: once with the helper off,
+           twice with it on, every other button fine). So on TCL the helper takes the volume buttons and changes the volume
+           itself – once per press (held = repeats as normal), with the TV's own volume bar. */
+        int kc = k.getKeyCode();
+        if (TCL && (kc == KeyEvent.KEYCODE_VOLUME_UP || kc == KeyEvent.KEYCODE_VOLUME_DOWN || kc == KeyEvent.KEYCODE_VOLUME_MUTE)) {
+            if (k.getAction() == KeyEvent.ACTION_DOWN && !(kc == KeyEvent.KEYCODE_VOLUME_MUTE && k.getRepeatCount() > 0)) {
+                try {
+                    android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+                    int dir = kc == KeyEvent.KEYCODE_VOLUME_UP ? android.media.AudioManager.ADJUST_RAISE : kc == KeyEvent.KEYCODE_VOLUME_DOWN ? android.media.AudioManager.ADJUST_LOWER : android.media.AudioManager.ADJUST_TOGGLE_MUTE;
+                    am.adjustSuggestedStreamVolume(dir, android.media.AudioManager.USE_DEFAULT_STREAM_TYPE, android.media.AudioManager.FLAG_SHOW_UI);
+                } catch (Exception e) { return false; }   // couldn't: let the TV have it
+            }
+            return true;
+        }
+        if (kc != KeyEvent.KEYCODE_HOME || paused()) return false;
         long held = k.getEventTime() - k.getDownTime();
         if (k.getAction() == KeyEvent.ACTION_DOWN) {
             if (held >= HOLD_MS && heldPassed != k.getDownTime()) openAndroidHome(k.getDownTime());
