@@ -98,8 +98,9 @@ public class HomeGuard extends AccessibilityService {
     /* 1. the Home key itself */
     @Override
     protected boolean onKeyEvent(KeyEvent k) {
-        /* reached us late = we're being slowed: hand the buttons straight back to the TV (see setKeys) */
-        if (android.os.SystemClock.uptimeMillis() - k.getEventTime() > LAG_MS) { main.post(new Runnable() { @Override public void run() { setKeys(false); } }); return false; }
+        /* (6 Nov, later) no more letting go of the buttons when one arrives late: on Kai it tripped with the helper healthy,
+           so Home showed the Google TV home first and the volume went back to moving twice. The helper's process now runs at
+           foreground priority (GuardKeep) instead, which is what kept it from being slowed in the first place. */
         /* TCL (Kai, 6 Nov): a volume press passed back by this helper moves the volume twice (owner: once with the helper off,
            twice with it on, every other button fine). So on TCL the helper takes the volume buttons and changes the volume
            itself – once per press (held = repeats as normal), with the TV's own volume bar. */
@@ -143,7 +144,7 @@ public class HomeGuard extends AccessibilityService {
         if (pkg == null) return;
         String p = pkg.toString();
         if (HomeWatch.seen(p)) HomeWatch.tellMain(this, p);   // what's on screen, for the control centre (3 Nov; passed to the main process 5 Nov)
-        if (p.equals(getPackageName())) { lastOurs = System.currentTimeMillis(); setKeys(true); }   // back on Round2 Home: catch Home again
+        if (p.equals(getPackageName())) { lastOurs = System.currentTimeMillis(); setKeys(true); }   // (keys stay on; kept in case something switched them off)
         if (paused()) return;
         if (!p.equals("com.google.android.apps.tv.launcherx") && !p.equals("com.google.android.tvlauncher")
                 && !p.equals("com.google.android.leanbacklauncher")) return;   // Google TV, Android TV 8-11, older Android TV (e.g. Sony 2015)
