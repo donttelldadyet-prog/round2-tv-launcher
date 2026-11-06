@@ -72,6 +72,7 @@ public class HomeGuard extends AccessibilityService {
 
     @Override
     protected void onServiceConnected() {
+        GuardKeep.start(this);   /* this process at foreground priority (6 Nov) */
         try {
             android.content.IntentFilter ff = new android.content.IntentFilter(HomeWatch.PAUSE);
             if (Build.VERSION.SDK_INT >= 33) registerReceiver(pauseRx, ff, android.content.Context.RECEIVER_NOT_EXPORTED); else registerReceiver(pauseRx, ff);

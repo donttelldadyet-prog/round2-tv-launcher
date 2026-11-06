@@ -62,6 +62,13 @@
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_guard" />
         </service>
         <service
+            android:name=".GuardKeep"
+            android:exported="false"
+            android:process=":guard"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Keeps the TV remote's Home button opening the launcher" />
+        </service>
+        <service
             android:name=".HomeWatch"
             android:exported="false"
             android:foregroundServiceType="specialUse">

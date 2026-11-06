@@ -267,6 +267,7 @@ public class MainActivity extends Activity {
         HomeWatch.seen(getPackageName());   // the Round2 menu is on screen (3 Nov)
         HomeWatch.start(this);   // no-op unless Usage access is on (Android 9 TVs without the Accessibility helper)
         front = this;
+        if (HomeWatch.guardOn(this)) GuardKeep.start(this);   /* keep the Home-button helper's process at foreground priority (6 Nov) */
         FoodAlerts.start(this);  // no-op in builds without the food alert key
         FoodAlerts.menuInFront();
         lastKeyAt = System.currentTimeMillis(); applyAwake();   // back on the menu: the TV's screensaver stays away again
