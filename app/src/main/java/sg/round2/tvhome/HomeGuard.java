@@ -19,9 +19,9 @@ import android.widget.Toast;
  *    closes back to it, a crash), it sees that window open and brings Round2 Home back.
  *
  * Ways out for staff, always available:
-*  - Hold Home for 2 seconds (TCL: Options › Staff mode › Android home screen): the Android home screen opens and Round2 Home stays out of the
+ *  - Hold Home for 2 seconds, or Options › Staff mode › Android home screen: the Android home screen opens and Round2 Home stays out of the
  *    way for 5 minutes (settings, installing apps, fixing things).
- *  - If Round2 Home keeps closing (4 times in a minute), the helper stops for 10 minutes by itself.
+ *  - If Round2 Home keeps closing (4 times in a minute, each time within 2 s of opening), the helper stops for 10 minutes by itself.
  *  - Settings > Accessibility > "Round2 Home button" Off is the master switch.
  *  - From a computer: round2tv.ps1 rescue.
  *
@@ -41,14 +41,26 @@ public class HomeGuard extends AccessibilityService {
 
     private boolean paused() { return System.currentTimeMillis() < pausedUntil; }
 
-    /* TCL (Kai, 6 Nov): with key filtering on, every button passes through this helper first; when Android slows the helper
-       down (during a long Netflix film) a button's release arrives late, the TV treats it as held and repeats it – the
-       "multi-press", volume moving by itself. Owner's find: the buttons were fine exactly while the helper had crashed.
-       On TCL the helper therefore doesn't touch buttons at all: it brings Round2 Home back when the Google TV home screen
-       opens (2. below); staff reach the Android home screen from Options › Staff mode (owner: guests would press Home
-       twice too). Sony keeps catching
-       the key (no flash of the stock home screen, no button trouble seen there). */
-    static final boolean NO_KEYS = Build.MANUFACTURER != null && Build.MANUFACTURER.toLowerCase().contains("tcl");
+    /* Buttons (Kai, 6 Nov): with key filtering on, every button passes through this helper first. When Android slows the
+       helper down (during a long Netflix film) a button's release arrives late, the TV treats it as held and repeats it –
+       the "multi-press", volume moving by itself (owner's find: buttons were fine exactly while the helper had crashed).
+       Not catching keys at all meant a flash of the Google TV home on every Home press, which the owner rejected.
+       So: catch keys as before, but time every button; if one reaches us late (the helper is being slowed), let go of the
+       buttons at once (Home then works by watching the home screen, 2. below), and take them back as soon as the guest is
+       on Round2 Home again. */
+    private static final long LAG_MS = 250;
+    private volatile boolean keysOn = true;
+    private long lastOurs;
+
+    private void setKeys(boolean on) {
+        if (keysOn == on) return;
+        try {
+            AccessibilityServiceInfo i = getServiceInfo();
+            if (on) i.flags |= AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS; else i.flags &= ~AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
+            setServiceInfo(i);
+            keysOn = on;
+        } catch (Exception ignored) { }
+    }
 
     /* Options › Staff mode › Android home screen (the menu runs in another process): step aside for 5 minutes */
     private final android.content.BroadcastReceiver pauseRx = new android.content.BroadcastReceiver() {
@@ -63,12 +75,6 @@ public class HomeGuard extends AccessibilityService {
         try {
             android.content.IntentFilter ff = new android.content.IntentFilter(HomeWatch.PAUSE);
             if (Build.VERSION.SDK_INT >= 33) registerReceiver(pauseRx, ff, android.content.Context.RECEIVER_NOT_EXPORTED); else registerReceiver(pauseRx, ff);
-        } catch (Exception ignored) { }
-        if (!NO_KEYS) return;
-        try {
-            AccessibilityServiceInfo i = getServiceInfo();
-            i.flags &= ~AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS;
-            setServiceInfo(i);
         } catch (Exception ignored) { }
     }
 
@@ -90,7 +96,9 @@ public class HomeGuard extends AccessibilityService {
     /* 1. the Home key itself */
     @Override
     protected boolean onKeyEvent(KeyEvent k) {
-        if (NO_KEYS || k.getKeyCode() != KeyEvent.KEYCODE_HOME || paused()) return false;
+        /* reached us late = we're being slowed: hand the buttons straight back to the TV (see setKeys) */
+        if (android.os.SystemClock.uptimeMillis() - k.getEventTime() > LAG_MS) { main.post(new Runnable() { @Override public void run() { setKeys(false); } }); return false; }
+        if (k.getKeyCode() != KeyEvent.KEYCODE_HOME || paused()) return false;
         long held = k.getEventTime() - k.getDownTime();
         if (k.getAction() == KeyEvent.ACTION_DOWN) {
             if (held >= HOLD_MS && heldPassed != k.getDownTime()) openAndroidHome(k.getDownTime());
@@ -119,6 +127,7 @@ public class HomeGuard extends AccessibilityService {
         if (pkg == null) return;
         String p = pkg.toString();
         if (HomeWatch.seen(p)) HomeWatch.tellMain(this, p);   // what's on screen, for the control centre (3 Nov; passed to the main process 5 Nov)
+        if (p.equals(getPackageName())) { lastOurs = System.currentTimeMillis(); setKeys(true); }   // back on Round2 Home: catch Home again
         if (paused()) return;
         if (!p.equals("com.google.android.apps.tv.launcherx") && !p.equals("com.google.android.tvlauncher")
                 && !p.equals("com.google.android.leanbacklauncher")) return;   // Google TV, Android TV 8-11, older Android TV (e.g. Sony 2015)
@@ -127,8 +136,11 @@ public class HomeGuard extends AccessibilityService {
         String c = cls == null ? "" : cls.toString();
         if (!c.endsWith(".HomeActivity") && !c.endsWith(".MainActivity")) return;
         long now = System.currentTimeMillis();
-        if (now - lastRedirect < 800 && !NO_KEYS) return;
-        // If Round2 Home keeps closing (a crash loop), step aside so the TV stays usable
+        if (now - lastRedirect < 800 && keysOn) return;
+        /* If Round2 Home keeps closing (a crash loop), step aside so the TV stays usable. While buttons are let go, Home
+           presses also land here: only count it when Round2 Home was up for under 2 s (a crash), not a guest pressing Home
+           (owner, 6 Nov: pressing Home a few times paused the menu for 10 minutes). */
+        if (!keysOn && lastOurs > 0 && now - lastOurs > 2000) { bringFront(); return; }
         long oldest = recent[recentAt];
         recent[recentAt] = now; recentAt = (recentAt + 1) % recent.length;
         if (oldest > 0 && now - oldest < 60_000) {
