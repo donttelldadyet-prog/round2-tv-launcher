@@ -680,7 +680,11 @@ public class MainActivity extends Activity {
         /** Staff: the TV's own home screen for 5 minutes. */
         @JavascriptInterface
         public String androidHome() {
-            return HomeWatch.openStockHome(act) ? "ok" : "The TV's own home screen could not be opened.";
+            /* the Accessibility helper (its own process) steps aside first, then the stock home screen opens (6 Nov) */
+            try { act.sendBroadcast(new Intent(HomeWatch.PAUSE).setPackage(act.getPackageName())); } catch (Exception ignored) { }
+            if (!HomeWatch.guardOn(act)) return HomeWatch.openStockHome(act) ? "ok" : "The TV's own home screen could not be opened.";
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() { @Override public void run() { HomeWatch.openStockHome(act); } }, 600);
+            return "ok";
         }
 
         /**

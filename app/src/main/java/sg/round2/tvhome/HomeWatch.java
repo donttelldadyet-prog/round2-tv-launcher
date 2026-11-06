@@ -58,7 +58,7 @@ public class HomeWatch extends Service {
     }
     /* The Accessibility helper runs in its own process (":guard"), so what it sees never reached the check-in (5 Nov: Kai on
        Netflix showed "Round2 menu"). It sends each change here as a broadcast to this app only. */
-    static final String FRONT = "sg.round2.tvhome.FRONT";
+    static final String FRONT = "sg.round2.tvhome.FRONT", PAUSE = "sg.round2.tvhome.PAUSE";
     static void tellMain(Context c, String p) {
         try { c.sendBroadcast(new Intent(FRONT).setPackage(c.getPackageName()).putExtra("p", p)); } catch (Exception ignored) { }
     }
