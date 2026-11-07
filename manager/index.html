@@ -1731,7 +1731,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           var fn = frontName(x.r, h.front);
           /* Android: the Home-button helper stopped in the last 24 h, and why (6 Nov – Kai's stopped mid-film) */
           var gx = (h.exits || []).filter(function (e) { return e.p === 'guard' && R2Day.now() - e.t < 86400e3; })[0];
-          var gl = gx ? '<br><small>⚠️ Home-button helper stopped ' + esc(ago2(gx.t)) + ' · ' + esc(gx.why) + '</small>' : '';
+          var gl = gx ? '<br><small>⚠️ Home-button helper stopped ' + esc(nice2(gx.t)) + ' (' + esc(ago2(gx.t)) + ') · ' + esc(gx.why) + (gx.d ? ' · “' + esc(gx.d) + '”' : '') + '</small>' : '';   /* exact time + Android's own description (7 Nov) */
           return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : '') + gl);
         }).join('') + '</div><p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date()).toLowerCase()) +
           '. Each TV reports every 5 minutes, and straight away when something changes. Refresh asks them all to report now (answers arrive within about 30 s).</p>';
