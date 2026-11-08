@@ -1,6 +1,6 @@
 {
   "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-11-05",
+  "updated": "2026-11-08",
   "areas": [
     {
       "name": "Website & booking",
@@ -58,6 +58,13 @@
           "status": "planned",
           "what": "To do: move the Atlas ↔ Vale blocking from Make into the Cloudflare engine. No Make operations, and staff get a phone alert (control centre alerts) when a block can't be made (twin room taken, late-night past SimplyBook's hours, or a service that isn't mirrored).",
           "runs": "Booking engine (Cloudflare) – replaces Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
+        },
+        {
+          "name": "Noise rule (Max/Atlas 4+ → Bella, Bella 4 → Atlas)",
+          "status": "live",
+          "what": "A session with 4 or more guests in Max or Atlas blocks Bella for the same time (with cleaning and extensions); 4 guests in Bella blocks Atlas. Max is never blocked. Works for online bookings, SimplyBook bookings (guest count field) and control-centre sessions (\"4 pax\" in the note). The block shows in SimplyBook as “SYSTEM BLOCK · NOISE” and goes away by itself when the session is cancelled, shortened or drops below 4 guests. If the other room is already booked, the booking still goes ahead and staff get an alert (phone + Telegram).",
+          "runs": "booking engine (Cloudflare) · on every SimplyBook change, after In session / Add a session, every 10 min (tonight + tomorrow), hourly (week ahead)",
+          "code": "round2sg-home · worker/round2-book.js (noiseSync)"
         },
         {
           "name": "Confirmation email link (TV message)",

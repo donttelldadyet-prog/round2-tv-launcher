@@ -2875,7 +2875,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function findNight() {
       var tries = 0;
       function go(d) {
-        return Promise.all([['11', '03:00', '06:00'], ['10', '03:30', '06:30'], ['5', '03:00', '06:00'], ['11', '07:00', '10:00']].map(function (x) {
+        return Promise.all([['11', '03:00', '06:00'], ['10', '03:30', '06:30'], ['5', '03:00', '06:00'], ['11', '07:00', '10:00'], ['10', '07:00', '10:00']].map(function (x) {
           return gm({ action: 'late', unit: x[0], day: d, start: x[1], end: x[2], name: 'ZZTEST', pax: '1', msgs: 'no', dry: '1' });
         })).then(function (js) {
           if (js.every(function (j) { return j.ok && !j.plan.clash.length; })) return d;
@@ -3112,6 +3112,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           .then(function (s) { must(s.length === 1 && /· till 10am ·/.test(s[0].name) && !s[0].ext.length, 'After +1h: ' + (s[0] ? s[0].name : 'missing')); return gm({ action: 'extundo', id: e }); })
           .then(function () { return day(); })
           .then(function (s) { must(s.length === 1 && /· till 9am ·/.test(s[0].name), 'After undo: ' + (s[0] ? s[0].name : 'missing')); return gm({ action: 'latecancel', id: s[0].key.slice(1), day: T.day }).then(function () { return '“' + s[0].name + '” → 10am → back'; }); });
+      }); })
+      /* noise rule (owner, 8 Nov): 4+ guests in Max or Atlas block Bella, 4 in Bella blocks Atlas – the block comes and goes
+         with the session (engine noiseSync; read back with gm action "noise") */
+      .then(function () { return step('Noise rule: Max with 4 guests blocks Bella, and lets go when cancelled', function () {
+        var noise = function () { return gm({ action: 'noise', day: T.day }).then(function (j) { must(j.ok, 'Noise list: ' + (j.error || 'refused')); return (j.notes || []).filter(function (n) { return String(n.unit) === '10' && /ZZTEST noise/.test(n.text); }); }); };
+        return gm({ action: 'late', unit: '11', day: T.day, start: '07:00', end: '09:00', name: 'ZZTEST noise', pax: '4', msgs: 'no' }).then(function (j) {
+          must(j.ok, 'Max session: ' + (j.error || 'refused')); return noise();
+        }).then(function (n) {
+          must(n.length === 1, 'Bella blocks for the 4-guest Max session: ' + n.length + '.');
+          return sessOf(T.day, 11).then(function (s) { var x = s.filter(function (y) { return /^ZZTEST noise/.test(y.name); })[0]; must(x, 'Max test session not found.'); return gm({ action: 'latecancel', id: x.key.slice(1), day: T.day }); });
+        }).then(function () { return noise(); }).then(function (n) { must(!n.length, 'Bella is still blocked after the Max session was cancelled.'); return 'Bella blocked 7–9:15am, then freed'; });
       }); })
       /* guest links follow their booking or note (owner, 2 Nov): paired when made, a waiting link ties to a Late session
          made after it, Pair by hand moves a link to its guest, a deleted note cancels its links (on the 2nd look) */
