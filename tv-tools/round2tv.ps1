@@ -472,6 +472,25 @@ function Cmd-Launcher([string]$repo) {
   else { Say "This TV keeps its own home screen ($orig). Next step: .\round2tv.ps1 homeguard (reversible with undo)." }
 }
 
+# Send log (9 Nov): lets the control centre's "Send log" button include the TV's own records (system log, volume changes,
+# accessibility) – once per TV; the app only reads, and only when staff press the button
+function Grant-LogPerms {
+  $pk = Q 'dumpsys package sg.round2.tvhome'
+  foreach ($perm in 'android.permission.READ_LOGS', 'android.permission.DUMP') {
+    if ($pk -notmatch ([regex]::Escape($perm) + ': granted=true')) {
+      Sh "pm grant sg.round2.tvhome $perm"
+      Add-Undo "pm revoke sg.round2.tvhome $perm"
+    }
+  }
+}
+function Cmd-LogPerm {
+  Need-Tv; Need-Backup
+  Grant-LogPerms
+  $pk = Q 'dumpsys package sg.round2.tvhome'
+  if ($pk -match 'READ_LOGS: granted=true' -and $pk -match 'DUMP: granted=true') { Say 'Done: this TV can now send its full log from the control centre (TVs > Send log).' }
+  else { Say 'The TV did not allow it. Update Round2 Home to 1.0.276 or newer first, then run this again.' }
+}
+
 function Cmd-HomeGuard {
   Need-Tv; Need-Backup
   $svc = 'sg.round2.tvhome/sg.round2.tvhome.HomeGuard'
@@ -490,6 +509,7 @@ function Cmd-HomeGuard {
     Sh 'pm grant sg.round2.tvhome android.permission.WRITE_SECURE_SETTINGS'
     Add-Undo 'pm revoke sg.round2.tvhome android.permission.WRITE_SECURE_SETTINGS'
   }
+  Grant-LogPerms
   $cur = Q 'settings get secure enabled_accessibility_services'
   $on = Q 'settings get secure accessibility_enabled'
   if ($cur -match [regex]::Escape($svc)) {
@@ -748,6 +768,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
   alerts [test]          let food order alerts show over other apps ('test' first installs the newest test build here only)
   room <name>            set which room this TV is in (vale, kaeden, scarlett, bella, kai, atlas, maximillion)
   homeguard              make the Home button open Round2 Home when the TV keeps its own home (undo turns it off)
+  logperm                once per Android TV: let the control centre's "Send log" button include the TV's own records
   rescue                 menu stuck? close Round2 Home, switch its Home button off, show the Android home screen
   launcher-force         older Android TV only: disable the stock home app (never on Google TV)
   wallpaper file.png     copy a Round2 wallpaper to the TV for the launcher
@@ -775,6 +796,7 @@ switch ($Command.ToLower()) {
   'launcher' { Cmd-Launcher $a1 }
   'launcher-force' { Cmd-LauncherForce }
   'homeguard' { Cmd-HomeGuard }
+  'logperm' { Cmd-LogPerm }
   'rescue' { Cmd-Rescue }
   'wallpaper' { Cmd-Wallpaper $a1 }
   'room' { Cmd-Room $a1 }

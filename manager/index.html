@@ -1716,8 +1716,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('tvKeyBox').hidden = !!key();
       if (!key()) { $('tvTiles').innerHTML = ''; return; }
       Promise.all(Object.keys(ROOMS).map(function (r) {
-        return Promise.all([req('GET', url(r, 'helper')).catch(function () { return null; }), req('GET', url(r, 'update')).catch(function () { return null; })])
-          .then(function (a) { return { r: r, hb: a[0], upd: a[1] }; }).catch(function () { return { r: r, err: true }; });
+        return Promise.all([req('GET', url(r, 'helper')).catch(function () { return null; }), req('GET', url(r, 'update')).catch(function () { return null; }),
+            req('GET', url(r, 'diag/t')).catch(function () { return null; })])   /* only the time of the last log – the log itself is big */
+          .then(function (a) { return { r: r, hb: a[0], upd: a[1], logT: +a[2] || 0 }; }).catch(function () { return { r: r, err: true }; });
       })).then(function (list) {
         $('tvTiles').innerHTML = '<div class="tvgrid">' + list.map(function (x) {
           var R = ROOMS[x.r], h = x.hb, now = R2Day.now(), t = function (cls, txt) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b><span>' + txt + '</span>' + updLine(x) + '</div>'; };
@@ -1732,7 +1733,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           /* Android: the Home-button helper stopped in the last 24 h, and why (6 Nov – Kai's stopped mid-film) */
           var gx = (h.exits || []).filter(function (e) { return e.p === 'guard' && R2Day.now() - e.t < 86400e3; })[0];
           var gl = gx ? '<br><small>⚠️ Home-button helper stopped ' + esc(nice2(gx.t)) + ' (' + esc(ago2(gx.t)) + ') · ' + esc(gx.why) + (gx.d ? ' · “' + esc(gx.d) + '”' : '') + '</small>' : '';   /* exact time + Android's own description (7 Nov) */
-          return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : '') + gl);
+          /* Send log (owner, 9 Nov): the TV uploads a report like the PC toolkit's diag for Claude to read – LG and Android alike */
+          var ll = '<br><button type="button" class="tvu" data-tvl="' + x.r + '">📄 Send log</button>' + (x.logT && R2Day.now() - x.logT < 3 * 3600e3 ? ' <small>sent ' + esc(nice2(x.logT)) + '</small>' : '');
+          return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : '') + gl + ll);
         }).join('') + '</div><p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date()).toLowerCase()) +
           '. Each TV reports every 5 minutes, and straight away when something changes. Refresh asks them all to report now (answers arrive within about 30 s).</p>';
       });
@@ -1752,6 +1755,20 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         setTimeout(function () { seen(); b.disabled = false; b.textContent = 'Refresh'; }, 50000);
       };
       $('tvTiles').addEventListener('click', function (e) {
+        var tl = e.target.getAttribute && e.target.getAttribute('data-tvl');
+        if (tl) {   /* Send log (9 Nov): same request the LG TVs already answer; Android TVs from 1.0.276 */
+          if (!key()) { toast('Needs the TV messages key.'); return; }
+          var ln = ROOMS[tl].name, asked = R2Day.now();
+          e.target.disabled = true; e.target.textContent = 'Asking…';
+          req('PUT', url(tl, 'cmd'), { id: 'l' + asked.toString(36), do: 'log', at: asked }).then(function () {
+            toast(ln + ': asked for its log – it arrives within about 30 seconds.');
+            setTimeout(function () {
+              req('GET', url(tl, 'diag/t')).then(function (lt) { toast(+lt >= asked - 60000 ? ln + ': log received ✓ – tell Claude.' : ln + ': no log yet. The TV may be asleep, or on an older version.'); status(); })
+                .catch(function () { status(); });
+            }, 40000);
+          }).catch(function () { toast('Couldn’t reach the TV database.'); e.target.disabled = false; e.target.textContent = '📄 Send log'; });
+          return;
+        }
         var tu = e.target.getAttribute && e.target.getAttribute('data-tvu');
         if (tu) {
           if (!gKey()) { toast('Needs the staff code (Keys).'); return; }

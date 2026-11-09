@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Only granted by the PC toolkit (homeguard): lets the app switch its Home-button helper back on after an update -->
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <!-- Only granted by the PC toolkit (homeguard / logperm, once per TV): "Send log" from the control centre can then include the
+         TV's own records – who closed the Home-button helper, volume changes, Safety Guard (owner, 9 Nov) -->
+    <uses-permission android:name="android.permission.READ_LOGS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.DUMP" tools:ignore="ProtectedPermissions" />
 
     <!-- Home button on Android 9 TVs that hide the Accessibility helper (Prism+): staff switch on
          Usage access for Round2 Home with the remote, and HomeWatch brings the menu back in front -->

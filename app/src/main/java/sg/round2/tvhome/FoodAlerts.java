@@ -299,7 +299,9 @@ public class FoodAlerts extends Service {
                     JSONObject c = new JSONObject(t); String id = c.optString("id", "");
                     if (id.isEmpty() || id.equals(prefs(FoodAlerts.this).getString("cmdDone", ""))) return;
                     prefs(FoodAlerts.this).edit().putString("cmdDone", id).apply();
-                    if (Math.abs(Clock.now() - c.optLong("at", 0)) > 10 * 60_000L || !"update".equals(c.optString("do"))) return;
+                    if (Math.abs(Clock.now() - c.optLong("at", 0)) > 10 * 60_000L) return;
+                    if ("log".equals(c.optString("do"))) { sendLog(room); return; }   /* control centre › TV tile › Send log (9 Nov) */
+                    if (!"update".equals(c.optString("do"))) return;
                     final Updater u = new Updater(FoodAlerts.this);
                     if (!remoteAllowed(FoodAlerts.this)) { putUpdate(room, "locked", u.current()); return; }
                     putUpdate(room, "checking", u.current());
@@ -317,6 +319,56 @@ public class FoodAlerts extends Service {
             main.postDelayed(this, 30_000L);
         }
     };
+
+    /* Send log (owner, 9 Nov – "like the LG TVs"): the control centre's TV tile writes cmd {do:"log"}; the TV answers within
+       ~30 s with a report like the PC toolkit's diag, at /r2/<key>/<room>/diag.json {t, v, kind, log}, for Claude to read.
+       The TV's own records (system log, accessibility, volume changes) need READ_LOGS and DUMP, which only the PC toolkit
+       can grant (once per TV); without them the report still has this app's own log, its exit reasons and its settings. */
+    private static final String LOG_RE = "R2Home|sg\\.round2|AndroidRuntime|FATAL|lowmemorykiller|lmkd|AccessibilityManager|HomeGuard|GuardKeep|TGuard|tguard|TclAppBoot|forbid bind|block startForeground|chromium.*(CONSOLE|Uncaught)";
+    private static String run(String... cmd) {
+        Process p = null;
+        try {
+            p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+            java.io.InputStream in = p.getInputStream(); java.io.ByteArrayOutputStream b = new java.io.ByteArrayOutputStream(); byte[] buf = new byte[8192]; int n;
+            long end = System.currentTimeMillis() + 15_000;
+            while ((n = in.read(buf)) > 0) { b.write(buf, 0, n); if (b.size() > 6_000_000 || System.currentTimeMillis() > end) break; }
+            return b.toString("UTF-8");
+        } catch (Exception e) { return "(" + cmd[0] + " failed: " + e.getMessage() + ")"; }
+        finally { if (p != null) p.destroy(); }
+    }
+    private static String grep(String text, String re, int last) {
+        java.util.regex.Pattern P = java.util.regex.Pattern.compile(re, java.util.regex.Pattern.CASE_INSENSITIVE);
+        java.util.ArrayDeque<String> q = new java.util.ArrayDeque<>();
+        for (String l : text.split("\n")) if (P.matcher(l).find()) { q.addLast(l.length() > 600 ? l.substring(0, 600) : l); if (q.size() > last) q.removeFirst(); }
+        StringBuilder o = new StringBuilder(); for (String l : q) o.append(l).append('\n'); return o.toString();
+    }
+    private void sendLog(String room) {
+        StringBuilder o = new StringBuilder();
+        boolean logs = checkSelfPermission("android.permission.READ_LOGS") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        boolean dump = checkSelfPermission("android.permission.DUMP") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        try {
+            o.append("== TV: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append(", Android ").append(Build.VERSION.RELEASE).append('\n');
+            o.append("== Round2 Home ").append(BuildConfig.VERSION_NAME).append(" · room ").append(room).append('\n');
+            o.append("== Full records allowed (PC toolkit once): system log ").append(logs ? "yes" : "NO").append(", system status ").append(dump ? "yes" : "NO").append('\n');
+            o.append("== Accessibility list: ").append(android.provider.Settings.Secure.getString(getContentResolver(), "enabled_accessibility_services")).append(" · helper running: ").append(HomeWatch.guardOn(this)).append('\n');
+            try { o.append("== Last stops: ").append(exits().toString()).append('\n'); } catch (Exception ignored) { }
+            if (dump) {
+                o.append("== Accessibility (system):\n").append(grep(run("dumpsys", "accessibility"), "Bound services|Enabled services|Crashed", 10));
+                o.append("== Volume changes (who moved it):\n").append(grep(run("dumpsys", "audio"), "adjust|setStreamVolume|from:", 40));
+            }
+            o.append("== Log").append(logs ? "" : " (this app only – system log not allowed yet)").append(":\n").append(grep(run("logcat", "-d", "-v", "time", "-t", "6000"), LOG_RE, 400));
+        } catch (Exception e) { o.append("(report stopped: ").append(e).append(")\n"); }
+        String text = o.length() > 200_000 ? o.substring(o.length() - 200_000) : o.toString();
+        HttpURLConnection h = null;
+        try {
+            h = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/diag.json").openConnection();
+            h.setConnectTimeout(15_000); h.setReadTimeout(30_000); h.setDoOutput(true); h.setRequestMethod("PUT");
+            h.setRequestProperty("Content-Type", "application/json");
+            h.getOutputStream().write(new JSONObject().put("t", new JSONObject().put(".sv", "timestamp")).put("v", BuildConfig.VERSION_NAME).put("kind", "android").put("full", logs && dump).put("log", text).toString().getBytes("UTF-8"));
+            h.getResponseCode();
+        } catch (Exception ignored) { }
+        finally { if (h != null) h.disconnect(); }
+    }
 
     /** a check-in now (the app in front changed), at most every 20 s */
     private static long lastBeatSoon = 0;

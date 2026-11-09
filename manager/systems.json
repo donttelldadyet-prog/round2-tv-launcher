@@ -180,6 +180,13 @@
           "code": "round2-tv-launcher · webos/"
         },
         {
+          "name": "Send log from the TV tile",
+          "status": "build",
+          "what": "A button on each TV tile: the TV uploads its own report (helper stops, volume changes, crashes, TCL Safety Guard) for Claude to read. Android TVs need a one-time computer step (round2tv.ps1 logperm). Ready on branch send-log, not live yet.",
+          "runs": "Every TV + control centre",
+          "code": "round2-tv-launcher · FoodAlerts.java sendLog, manager TVs tile, tv-tools logperm"
+        },
+        {
           "name": "AirPlay on Bella's LG",
           "status": "build",
           "what": "A custom AirPlay receiver, because Bella's TV can't get LG's own.",
