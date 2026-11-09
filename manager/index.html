@@ -1756,7 +1756,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       };
       $('tvTiles').addEventListener('click', function (e) {
         var tl = e.target.getAttribute && e.target.getAttribute('data-tvl');
-        if (tl) {   /* Send log (9 Nov): same request the LG TVs already answer; Android TVs from 1.0.276 */
+        if (tl) {   /* Send log (9 Nov): same request the LG TVs already answer; Android TVs from the first version with Send log */
           if (!key()) { toast('Needs the TV messages key.'); return; }
           var ln = ROOMS[tl].name, asked = R2Day.now();
           e.target.disabled = true; e.target.textContent = 'Asking…';

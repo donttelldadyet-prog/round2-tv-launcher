@@ -488,7 +488,7 @@ function Cmd-LogPerm {
   Grant-LogPerms
   $pk = Q 'dumpsys package sg.round2.tvhome'
   if ($pk -match 'READ_LOGS: granted=true' -and $pk -match 'DUMP: granted=true') { Say 'Done: this TV can now send its full log from the control centre (TVs > Send log).' }
-  else { Say 'The TV did not allow it. Update Round2 Home to 1.0.276 or newer first, then run this again.' }
+  else { Say 'The TV did not allow it. Update Round2 Home to the newest version first, then run this again.' }
 }
 
 function Cmd-HomeGuard {
