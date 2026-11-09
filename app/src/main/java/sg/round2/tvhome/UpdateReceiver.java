@@ -80,8 +80,19 @@ public class UpdateReceiver extends BroadcastReceiver {
             StringBuilder others = new StringBuilder();
             if (cur != null) for (String s : cur.split(":")) if (!s.isEmpty() && !s.equals(GUARD)) others.append(others.length() > 0 ? ":" : "").append(s);
             if (on) {
-                Settings.Secure.putString(ctx.getContentResolver(), "enabled_accessibility_services", others.length() > 0 ? others + ":" + GUARD : GUARD);
-                Settings.Secure.putString(ctx.getContentResolver(), "accessibility_enabled", "1");
+                /* (9 Nov, Kai) listed as on but Android had stopped running it (after TCL's Safety Guard closed it): writing the
+                   same list again changes nothing, so take it off first and put it back a moment later – Android starts it afresh */
+                final String with = others.length() > 0 ? others + ":" + GUARD : GUARD;
+                final android.content.ContentResolver cr = ctx.getContentResolver();
+                if (cur != null && cur.contains(GUARD)) {
+                    Settings.Secure.putString(cr, "enabled_accessibility_services", others.toString());
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() { @Override public void run() {
+                        try { Settings.Secure.putString(cr, "enabled_accessibility_services", with); Settings.Secure.putString(cr, "accessibility_enabled", "1"); } catch (Exception ignored) { }
+                    } }, 700);
+                } else {
+                    Settings.Secure.putString(cr, "enabled_accessibility_services", with);
+                    Settings.Secure.putString(cr, "accessibility_enabled", "1");
+                }
             } else {
                 Settings.Secure.putString(ctx.getContentResolver(), "enabled_accessibility_services", others.toString());
             }
