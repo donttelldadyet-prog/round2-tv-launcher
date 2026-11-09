@@ -433,14 +433,15 @@ details.past .list { margin-top: 10px; }
     if (st === 'ontv') btns += laterMap[x.key] ? '<button class="btn" data-a="unlater" data-c="' + c + '">Don’t show again at ' + esc(clock(laterMap[x.key])) + '</button>'
       : '<button class="btn" data-a="later" data-c="' + c + '">Show again at…</button>';
     if (untied(x, st)) btns += '<button class="btn ok" data-a="pair" data-c="' + c + '">Pair with booking</button>';
-    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change time or room</button>' + (r2 ? '' : '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>') + '<button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
+    if ((st === 'scheduled' || st === 'ontv') && d.title) btns += '<button class="btn" data-a="retime" data-c="' + c + '">Change pop-up time</button>';   /* owner, 9 Nov: only when the message shows */
+    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change booking time or room</button>' + (r2 ? '' : '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>') + '<button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
     if (btns) h += '<div class="row">' + btns + '</div>';
     if (open && open.code === x.key) {
       var a = open.a;
       if (a === 'move') {
         var p = sgParts(d.start);
         var nr = open.room || d.room;
-        h += '<div class="confirm">Late, rescheduled or changing rooms? Set the new room and start. ' + (d.title ? 'The message moves with it, keeping the same gap after the start.' : '') +
+        h += '<div class="confirm">The <b>booking</b> moved or changed rooms? Set the booking’s new room and start time. ' + (d.title ? 'The message moves with it, keeping the same gap after the start. To change only when the message pops up, use <b>Change pop-up time</b> instead.' : '') +
           '<div class="rooms" id="mvRooms">' + Object.keys(ROOMS).map(function (k) { return '<button type="button" data-a="mvroom" data-r="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (k === nr) + '">' + ROOMS[k][0] + '</button>'; }).join('') + '</div>' +
           '<div class="two"><input type="date" id="mvDate" value="' + p.year + '-' + p.month + '-' + p.day + '" aria-label="New date"><select id="mvTime" aria-label="New start time">' + timeOpts(p.hour + ':' + p.minute) + '</select></div>' +
           '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Save changes</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
@@ -458,6 +459,14 @@ details.past .list { margin-top: 10px; }
           }).join('') + '</div>';
         }
         h += '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '"' + (open.k ? '' : ' disabled') + '>Tie the link to it</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
+      } else if (a === 'retime') {   /* owner, 9 Nov: the message's own pop-up time – master control over the guest's choice */
+        var ro = '', r0 = Math.max(Date.now() + 60000, +d.start - 15 * 60000), rEnd = +d.end - 60000, cur = +d.at || 0, picked = false;
+        r0 = r0 - r0 % 300000 + (r0 % 300000 ? 300000 : 0);
+        for (var rt = r0; rt < rEnd && rt < r0 + 12 * 3600000; rt += 300000) { var sel = !picked && cur && rt >= cur; if (sel) picked = true; ro += '<option value="' + rt + '"' + (sel ? ' selected' : '') + '>' + esc(day(rt)) + ' · ' + esc(clock(rt)) + '</option>'; }
+        h += '<div class="confirm">' + (ro ? 'When should this message pop up on ' + esc(R[0]) + '’s TV? Now set for <b>' + esc(day(d.at)) + ' ' + esc(clock(d.at)) + '</b>. The booking stays as it is.' + (st === 'ontv' ? ' It’s taken off the TV now and pops up again then.' : '') +
+          '<div class="two"><select id="rtTime" aria-label="New pop-up time">' + ro + '</select></div>' +
+          '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Save pop-up time</button><button class="btn" data-a="no">Keep as is</button></div>'
+          : 'This booking is nearly over, so there’s no time left to move the message to.<div class="row"><button class="btn" data-a="no">OK</button></div>') + '<div class="msg" id="cmsg"></div></div>';
       } else if (a === 'later') {
         var o = '', t0 = Date.now() + 60000, end = Math.min(+d.end || t0 + 3 * 3600000, Date.now() + 6 * 3600000);
         t0 = t0 - t0 % 300000 + 300000;
@@ -582,7 +591,7 @@ details.past .list { margin-top: 10px; }
     var b = e.target.closest('button[data-a]'); if (!b) return;
     var a = b.getAttribute('data-a'), c = b.getAttribute('data-c');
     if (a === 'copy') { copy(shareUrl(c), b); return; }
-    if (a === 'move' || a === 'cancel' || a === 'now' || a === 'later') { open = { a: a, code: c }; render(); return; }
+    if (a === 'move' || a === 'cancel' || a === 'now' || a === 'later' || a === 'retime') { open = { a: a, code: c }; render(); return; }
     if (a === 'pair') {
       var it = lastList.filter(function (x) { return x.key === c; })[0]; if (!it) return;
       var pd = sgParts(it.data.start), dd = pd.year + '-' + pd.month + '-' + pd.day, o2 = open = { a: 'pair', code: c, day: dd }; render();
@@ -598,6 +607,7 @@ details.past .list { margin-top: 10px; }
     if (a === 'do' && open) {
       var body = { action: open.a, staff: key(), code: c };
       if (open.a === 'later') body.at = $('ltTime').value;
+      if (open.a === 'retime') body.at = $('rtTime').value;
       if (open.a === 'pair') { body.key = open.k; body.day = open.day; }
       if (open.a === 'move') { var s = sgMs($('mvDate').value, $('mvTime').value); if (!s) { $('cmsg').className = 'msg bad'; $('cmsg').textContent = 'Pick the new date and time.'; return; } body.start = s; var cur = lastList.filter(function (x) { return x.key === c; })[0]; body.room = open.room || (cur && cur.data.room); }
       b.disabled = true;

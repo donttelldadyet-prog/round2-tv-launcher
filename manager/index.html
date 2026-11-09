@@ -790,7 +790,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   <section id="tab-guestlink" hidden>
     <h1>Guest links</h1>
-    <p class="sub">Make a link for a paid booking and send it to the guest; they write their own TV message. Below: every link – waiting for the guest, scheduled, on the TV – to change the time or room, or cancel. Phone shortcut: open <a href="link/" target="_blank" rel="noopener">this page</a> › Share › Add to Home Screen.</p>
+    <p class="sub">Make a link for a paid booking and send it to the guest; they write their own TV message. Below: every link – waiting for the guest, scheduled, on the TV – to change when its message pops up, move the booking’s time or room, or cancel. Phone shortcut: open <a href="link/" target="_blank" rel="noopener">this page</a> › Share › Add to Home Screen.</p>
     <iframe class="gframe" title="Guest links" data-src="msg/staff.html?embed=1"></iframe>
   </section>
 
@@ -3022,12 +3022,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           });
         }); }); })
       /* 5. guest message link, full life */
-      .then(function () { return step('Guest message link: make → open → write → queue → cancel', function () {
+      .then(function () { return step('Guest message link: make → open → write → queue → change pop-up time → cancel', function () {
         var st = sgMs(addD(today, 40), '14:00'), code;
         return gm({ action: 'create', room: 'max', start: String(st), label: 'ZZTEST system check' }).then(function (c) { must(c.ok, 'Create: ' + c.error); code = c.code; return guest({ action: 'get', code: code }); })
           .then(function (g) { must(g.link && g.link.status === 'open', 'Guest can’t open the link.'); return guest({ action: 'submit', code: code, kind: 'birthday', to: 'Test', from: 'System check', title: 'Happy birthday, Test!', text: 'System check', at: String(st + 15 * 60e3) }); })
           .then(function (s) { must(s.ok, 'Guest submit: ' + s.error); return gm({ action: 'queue' }); })
-          .then(function (q) { must(q.queue.some(function (x) { return x.code === code; }), 'Not in the message timer.'); return gm({ action: 'cancel', code: code }); })
+          .then(function (q) { must(q.queue.some(function (x) { return x.code === code; }), 'Not in the message timer.'); return gm({ action: 'retime', code: code, at: String(st + 45 * 60000) }); })
+          /* Change pop-up time (9 Nov): only the message's time moves, the booking stays */
+          .then(function (rt) { must(rt.ok, 'Change pop-up time: ' + rt.error); return Promise.all([gm({ action: 'queue' }), guest({ action: 'get', code: code })]); })
+          .then(function (r) { var qx = r[0].queue.filter(function (x) { return x.code === code; })[0]; must(qx && +qx.at === st + 45 * 60000, 'The timer didn’t follow the new pop-up time.');
+            must(r[1].link && +r[1].link.start === st, 'Changing the pop-up time moved the booking.'); return gm({ action: 'cancel', code: code }); })
           .then(function () { return wait(800); }).then(function () { return Promise.all([gm({ action: 'queue' }), guest({ action: 'get', code: code })]); })
           .then(function (r) { must(!r[0].queue.some(function (x) { return x.code === code; }), 'Still in the timer after cancel.'); must(/cancelled/i.test(r[1].error || ''), 'Guest isn’t told it’s cancelled.'); return 'Link ' + code + ' went all the way through and was cancelled'; });
       }); })
