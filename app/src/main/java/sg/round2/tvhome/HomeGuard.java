@@ -49,6 +49,7 @@ public class HomeGuard extends AccessibilityService {
        buttons at once (Home then works by watching the home screen, 2. below), and take them back as soon as the guest is
        on Round2 Home again. */
     private static final long LAG_MS = 250;
+    private static final long LATE_KEY_MS = 450;   // Android's own wait for this helper is 500 ms (9 Nov)
     static final boolean TCL = Build.MANUFACTURER != null && Build.MANUFACTURER.toLowerCase().contains("tcl");
     private volatile boolean keysOn = true;
     private long lastOurs;
@@ -106,7 +107,11 @@ public class HomeGuard extends AccessibilityService {
            itself – once per press (held = repeats as normal), with the TV's own volume bar. */
         int kc = k.getKeyCode();
         if (TCL && (kc == KeyEvent.KEYCODE_VOLUME_UP || kc == KeyEvent.KEYCODE_VOLUME_DOWN || kc == KeyEvent.KEYCODE_VOLUME_MUTE)) {
-            if (k.getAction() == KeyEvent.ACTION_DOWN && !(kc == KeyEvent.KEYCODE_VOLUME_MUTE && k.getRepeatCount() > 0)) {
+            /* (9 Nov) still twice on Kai at times: Android gives this helper half a second to answer a button; if it is late
+               (busy, or just restarted after TCL's Safety Guard closed it), Android passes the button on to the TV by itself –
+               so the volume has already moved, and changing it here too made two steps. A late press is left to the TV. */
+            boolean late = android.os.SystemClock.uptimeMillis() - k.getEventTime() > LATE_KEY_MS;
+            if (k.getAction() == KeyEvent.ACTION_DOWN && !late && !(kc == KeyEvent.KEYCODE_VOLUME_MUTE && k.getRepeatCount() > 0)) {
                 try {
                     android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
                     int dir = kc == KeyEvent.KEYCODE_VOLUME_UP ? android.media.AudioManager.ADJUST_RAISE : kc == KeyEvent.KEYCODE_VOLUME_DOWN ? android.media.AudioManager.ADJUST_LOWER : android.media.AudioManager.ADJUST_TOGGLE_MUTE;
