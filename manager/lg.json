@@ -28,15 +28,15 @@
       "manifest": {
         "id": "sg.round2.airplay",
         "title": "Round2 AirPlay",
-        "version": "0.2.5",
+        "version": "0.2.6",
         "type": "native",
         "appDescription": "Round2 AirPlay: iPhone, iPad and Mac screen mirroring for LG TVs without built-in AirPlay (based on UxAir, GPL-3).",
         "iconUri": "https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/main/airplay-webos/receiver/packaging/icon.png",
         "sourceUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/tree/main/airplay-webos/receiver",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/airplay-lab/sg.round2.airplay_0.2.5_arm.ipk",
+        "ipkUrl": "https://github.com/donttelldadyet-prog/round2-tv-launcher/releases/download/airplay-lab/sg.round2.airplay_0.2.6_arm.ipk",
         "ipkHash": {
-          "sha256": "5b8c5a7ea1f8d29a485dbb8e927b6b6a14a5493cbca64ec810cefedfbd27b660"
+          "sha256": "c45f86bb055b0214d6c646d78bc6f3b7c2533a173e2d373816cd40990abeca20"
         }
       }
     },
