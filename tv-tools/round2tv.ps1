@@ -591,6 +591,8 @@ function Cmd-Diag {
   $out += "== " + (((Q 'dumpsys accessibility') -split "`n" | Where-Object { $_ -match 'Bound services|Enabled services|Crashed' }) -join ' | ')
   $out += "== Memory: " + (((Q 'dumpsys meminfo sg.round2.tvhome') -split "`n" | Where-Object { $_ -match 'TOTAL' } | Select-Object -First 1))
   $out += "== Audio volume (music stream): " + (((Q 'dumpsys audio') -split "`n" | Where-Object { $_ -match 'STREAM_MUSIC' -or $_ -match 'Muted' } | Select-Object -First 4) -join ' | ')
+  $out += '== Volume changes (who moved it):'
+  $out += @(((Q 'dumpsys audio') -split "`n" | Where-Object { $_ -match 'adjust|setStreamVolume|VOL_|from:|caller' } | Select-Object -Last 40))
   $out += '== Log (Round2 Home, crashes, memory kills, accessibility):'
   $lc = & $script:Adb -s $script:TV logcat -d -v time -t 6000 2>$null   # not $log: PowerShell ignores case, and Log() would write to it (9 Nov)
   $out += @($lc | Where-Object { $_ -match 'R2Home|sg\.round2|AndroidRuntime|FATAL|lowmemorykiller|lmkd|AccessibilityManager|HomeGuard|chromium.*(CONSOLE|Uncaught)' } | Select-Object -Last 400)
