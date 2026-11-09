@@ -22,8 +22,8 @@ manifest = {
 # Round2's own AirPlay receiver for LG webOS 5 TVs without AirPlay (Bella), pinned to a checked build
 # from the airplay-lab release (update the version and SHA-256 by hand when the receiver changes).
 # UxAir and UxPlay webOS were listed before; they need libAcbAPI, which webOS 5 doesn't have.
-RX_VER = '0.2.5'
-RX_SHA = '5b8c5a7ea1f8d29a485dbb8e927b6b6a14a5493cbca64ec810cefedfbd27b660'
+RX_VER = '0.2.6'
+RX_SHA = 'c45f86bb055b0214d6c646d78bc6f3b7c2533a173e2d373816cd40990abeca20'
 RX_ICON = 'https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/main/airplay-webos/receiver/packaging/icon.png'
 RX_DESC = 'Round2 AirPlay: iPhone, iPad and Mac screen mirroring for LG TVs without built-in AirPlay (based on UxAir, GPL-3).'
 extras = [{
