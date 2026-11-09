@@ -49,8 +49,6 @@ public class HomeGuard extends AccessibilityService {
        buttons at once (Home then works by watching the home screen, 2. below), and take them back as soon as the guest is
        on Round2 Home again. */
     private static final long LAG_MS = 250;
-    private static final long VOL_LOOK_MS = 150;   // how long to wait to see whether the TV moved the volume itself (9 Nov)
-    private static final long LATE_KEY_MS = 450;   // Android's own wait for this helper is 500 ms (9 Nov)
     static final boolean TCL = Build.MANUFACTURER != null && Build.MANUFACTURER.toLowerCase().contains("tcl");
     private volatile boolean keysOn = true;
     private long lastOurs;
@@ -108,26 +106,10 @@ public class HomeGuard extends AccessibilityService {
            itself – once per press (held = repeats as normal), with the TV's own volume bar. */
         int kc = k.getKeyCode();
         if (TCL && (kc == KeyEvent.KEYCODE_VOLUME_UP || kc == KeyEvent.KEYCODE_VOLUME_DOWN || kc == KeyEvent.KEYCODE_VOLUME_MUTE)) {
-            /* (9 Nov) still twice on Kai at times: Android gives this helper half a second to answer a button; if it is late
-               (busy, or just restarted after TCL's Safety Guard closed it), Android passes the button on to the TV by itself –
-               so the volume has already moved, and changing it here too made two steps. A late press is left to the TV. */
-            boolean late = android.os.SystemClock.uptimeMillis() - k.getEventTime() > LATE_KEY_MS;
-            if (k.getAction() == KeyEvent.ACTION_DOWN && !late && !(kc == KeyEvent.KEYCODE_VOLUME_MUTE && k.getRepeatCount() > 0)) {
-                /* (9 Nov, Kai) with the helper freshly running the volume still moved twice: this TCL moves it itself before the
-                   helper even sees the button. So look first: only if the volume hasn't moved a moment later does the helper move it. */
-                try {
-                    final android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
-                    final int dir = kc == KeyEvent.KEYCODE_VOLUME_UP ? android.media.AudioManager.ADJUST_RAISE : kc == KeyEvent.KEYCODE_VOLUME_DOWN ? android.media.AudioManager.ADJUST_LOWER : android.media.AudioManager.ADJUST_TOGGLE_MUTE;
-                    final int v0 = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
-                    final boolean m0 = am.isStreamMute(android.media.AudioManager.STREAM_MUSIC);
-                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() { @Override public void run() {
-                        try {
-                            if (am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) != v0 || am.isStreamMute(android.media.AudioManager.STREAM_MUSIC) != m0) return;   // the TV did it
-                            am.adjustSuggestedStreamVolume(dir, android.media.AudioManager.USE_DEFAULT_STREAM_TYPE, android.media.AudioManager.FLAG_SHOW_UI);
-                        } catch (Exception ignored) { }
-                    } }, VOL_LOOK_MS);
-                } catch (Exception e) { return false; }   // couldn't: let the TV have it
-            }
+            /* (9 Nov, Kai – measured) Android's own volume list showed every press moving the volume from the system itself
+               (WindowManager: one call on press, one on release = one step) before this helper sees the button, plus the
+               helper's own change = two steps. So on TCL the helper only takes the button (passing it back made it count
+               twice too, 6 Nov) and leaves the volume alone. */
             return true;
         }
         if (kc != KeyEvent.KEYCODE_HOME || paused()) return false;

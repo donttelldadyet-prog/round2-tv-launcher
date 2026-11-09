@@ -18,6 +18,10 @@ public class GuardKeep extends Service {
 
     /* from the menu (app in front – always allowed) and from the helper itself (best effort) */
     static void start(Context c) {
+        /* TCL (Kai, 9 Nov log): TCL refuses the foreground notification ("block startForeground … default_borbid"), and Android
+           then closes the whole helper process for not showing it in time – so on TCL it isn't started at all. The helper is
+           bound by Android's accessibility system, which already keeps it at high priority. */
+        if (HomeGuard.TCL) return;
         try {
             Intent i = new Intent(c, GuardKeep.class);
             if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i); else c.startService(i);
