@@ -67,7 +67,7 @@ function Is-Protected([string]$p) { return ($p -match $Protect) -and ($p -notmat
 
 # ---------------- helpers ----------------
 function Ts { Get-Date -Format 'yyyy-MM-dd HH:mm:ss' }
-function Log([string]$m) { Add-Content -Path $Log -Value "[$(Ts)] $m" -Encoding UTF8 }
+function Log([string]$m) { Add-Content -Path $script:Log -Value "[$(Ts)] $m" -Encoding UTF8 }
 function Say([string]$m) { Write-Host ">> $m" -ForegroundColor Yellow; Log "# $m" }
 function Die([string]$m) { Write-Host "XX $m" -ForegroundColor Red; Log "ERROR $m"; exit 1 }
 
@@ -592,8 +592,8 @@ function Cmd-Diag {
   $out += "== Memory: " + (((Q 'dumpsys meminfo sg.round2.tvhome') -split "`n" | Where-Object { $_ -match 'TOTAL' } | Select-Object -First 1))
   $out += "== Audio volume (music stream): " + (((Q 'dumpsys audio') -split "`n" | Where-Object { $_ -match 'STREAM_MUSIC' -or $_ -match 'Muted' } | Select-Object -First 4) -join ' | ')
   $out += '== Log (Round2 Home, crashes, memory kills, accessibility):'
-  $log = & $script:Adb -s $script:TV logcat -d -v time -t 6000 2>$null
-  $out += @($log | Where-Object { $_ -match 'R2Home|sg\.round2|AndroidRuntime|FATAL|lowmemorykiller|lmkd|AccessibilityManager|HomeGuard|chromium.*(CONSOLE|Uncaught)' } | Select-Object -Last 400)
+  $lc = & $script:Adb -s $script:TV logcat -d -v time -t 6000 2>$null   # not $log: PowerShell ignores case, and Log() would write to it (9 Nov)
+  $out += @($lc | Where-Object { $_ -match 'R2Home|sg\.round2|AndroidRuntime|FATAL|lowmemorykiller|lmkd|AccessibilityManager|HomeGuard|chromium.*(CONSOLE|Uncaught)' } | Select-Object -Last 400)
   $out | Set-Content -Path $f -Encoding UTF8
   Say "Saved: $f"
   Say 'Send this file to Claude.'
