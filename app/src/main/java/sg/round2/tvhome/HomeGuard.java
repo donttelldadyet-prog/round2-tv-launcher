@@ -49,6 +49,7 @@ public class HomeGuard extends AccessibilityService {
        buttons at once (Home then works by watching the home screen, 2. below), and take them back as soon as the guest is
        on Round2 Home again. */
     private static final long LAG_MS = 250;
+    private static final long VOL_LOOK_MS = 150;   // how long to wait to see whether the TV moved the volume itself (9 Nov)
     private static final long LATE_KEY_MS = 450;   // Android's own wait for this helper is 500 ms (9 Nov)
     static final boolean TCL = Build.MANUFACTURER != null && Build.MANUFACTURER.toLowerCase().contains("tcl");
     private volatile boolean keysOn = true;
@@ -112,10 +113,19 @@ public class HomeGuard extends AccessibilityService {
                so the volume has already moved, and changing it here too made two steps. A late press is left to the TV. */
             boolean late = android.os.SystemClock.uptimeMillis() - k.getEventTime() > LATE_KEY_MS;
             if (k.getAction() == KeyEvent.ACTION_DOWN && !late && !(kc == KeyEvent.KEYCODE_VOLUME_MUTE && k.getRepeatCount() > 0)) {
+                /* (9 Nov, Kai) with the helper freshly running the volume still moved twice: this TCL moves it itself before the
+                   helper even sees the button. So look first: only if the volume hasn't moved a moment later does the helper move it. */
                 try {
-                    android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
-                    int dir = kc == KeyEvent.KEYCODE_VOLUME_UP ? android.media.AudioManager.ADJUST_RAISE : kc == KeyEvent.KEYCODE_VOLUME_DOWN ? android.media.AudioManager.ADJUST_LOWER : android.media.AudioManager.ADJUST_TOGGLE_MUTE;
-                    am.adjustSuggestedStreamVolume(dir, android.media.AudioManager.USE_DEFAULT_STREAM_TYPE, android.media.AudioManager.FLAG_SHOW_UI);
+                    final android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+                    final int dir = kc == KeyEvent.KEYCODE_VOLUME_UP ? android.media.AudioManager.ADJUST_RAISE : kc == KeyEvent.KEYCODE_VOLUME_DOWN ? android.media.AudioManager.ADJUST_LOWER : android.media.AudioManager.ADJUST_TOGGLE_MUTE;
+                    final int v0 = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+                    final boolean m0 = am.isStreamMute(android.media.AudioManager.STREAM_MUSIC);
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() { @Override public void run() {
+                        try {
+                            if (am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) != v0 || am.isStreamMute(android.media.AudioManager.STREAM_MUSIC) != m0) return;   // the TV did it
+                            am.adjustSuggestedStreamVolume(dir, android.media.AudioManager.USE_DEFAULT_STREAM_TYPE, android.media.AudioManager.FLAG_SHOW_UI);
+                        } catch (Exception ignored) { }
+                    } }, VOL_LOOK_MS);
                 } catch (Exception e) { return false; }   // couldn't: let the TV have it
             }
             return true;
