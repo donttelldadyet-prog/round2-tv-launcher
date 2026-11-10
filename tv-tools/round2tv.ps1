@@ -593,9 +593,14 @@ function Cmd-Diag {
   $out += "== Audio volume (music stream): " + (((Q 'dumpsys audio') -split "`n" | Where-Object { $_ -match 'STREAM_MUSIC' -or $_ -match 'Muted' } | Select-Object -First 4) -join ' | ')
   $out += '== Volume changes (who moved it):'
   $out += @(((Q 'dumpsys audio') -split "`n" | Where-Object { $_ -match 'adjust|setStreamVolume|VOL_|from:|caller' } | Select-Object -Last 40))
+  $au = (Q 'dumpsys audio') -split "`n"
+  $out += '== Audio focus (who took the sound):'
+  $out += @($au | Where-Object { $_ -match 'focus|requestAudioFocus|abandonAudioFocus|ducking|loss' } | Select-Object -Last 40)
+  $out += '== Players right now:'
+  $out += @(((Q 'dumpsys audio') -split "`n" | Where-Object { $_ -match 'AudioPlaybackConfiguration|state:' } | Select-Object -First 30))
   $out += '== Log (Round2 Home, crashes, memory kills, accessibility):'
   $lc = & $script:Adb -s $script:TV logcat -d -v time -t 6000 2>$null   # not $log: PowerShell ignores case, and Log() would write to it (9 Nov)
-  $out += @($lc | Where-Object { $_ -match 'R2Home|sg\.round2|AndroidRuntime|FATAL|lowmemorykiller|lmkd|AccessibilityManager|HomeGuard|chromium.*(CONSOLE|Uncaught)' } | Select-Object -Last 400)
+  $out += @($lc | Where-Object { $_ -match 'R2Home|R2Sound|NativeSound|AudioTrack|MediaPlayer|AudioFocus|sg\.round2|AndroidRuntime|FATAL|lowmemorykiller|lmkd|AccessibilityManager|HomeGuard|chromium.*(CONSOLE|Uncaught)' } | Select-Object -Last 400)
   $out | Set-Content -Path $f -Encoding UTF8
   Say "Saved: $f"
   Say 'Send this file to Claude.'
