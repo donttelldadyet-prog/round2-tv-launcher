@@ -9,14 +9,17 @@ self.addEventListener('fetch', function () { });
 self.addEventListener('push', function (e) {
   var d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { title: 'Round2', body: e.data ? e.data.text() : '' }; }
-  var shown = self.registration.showNotification(d.title || 'Round2', {
+  /* iPhones don't replace an alert with the same tag by themselves: when Apple held an alert back and the engine's
+     re-send (5 min later) arrived with it, both showed (Suaidah, 11 Nov). Close the older one first, so one stays. */
+  var clear = d.tag && self.registration.getNotifications ? self.registration.getNotifications({ tag: d.tag }).then(function (L) { L.forEach(function (n) { n.close(); }); }).catch(function () {}) : Promise.resolve();
+  var shown = clear.then(function () { return self.registration.showNotification(d.title || 'Round2', {
     body: d.body || '',
     tag: d.tag || undefined,          /* the same booking replaces its older alert */
     renotify: !!d.tag,
     icon: 'icon-192.png',
     badge: 'icon-192.png',
     data: { url: d.url || '/' }
-  });
+  }); });
   /* tell the engine this phone really showed it (owner, 6 Nov: an alert Apple accepted never appeared on his phone) –
      the control centre can then say which phones got which alert */
   var id = /[?&]alert=([a-z0-9]+)/.exec(d.url || '');
