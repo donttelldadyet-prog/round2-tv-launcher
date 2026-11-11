@@ -68,14 +68,14 @@
         },
         {
           "name": "Confirmation email link (TV message)",
-          "status": "build",
-          "what": "A line in SimplyBook's confirmation email that opens the guest's booking page. Needs the booking-code variable added to the email template.",
+          "status": "live",
+          "what": "A line in SimplyBook's confirmation email (book.round2.sg/b/<booking code>) opens the guest's booking page. Pasted into the template and tested by the owner 9 Nov; Round2-styled email pictures added 10 Nov.",
           "runs": "SimplyBook email template + engine /b/<code>"
         },
         {
           "name": "Online rescheduling",
           "status": "planned",
-          "what": "Rules decided in part (3 h cut-off, $15 then $35). WhatsApp only until switched on.",
+          "what": "Guests move their own booking from 'View your booking'. Fees: 1st move S$15, 2nd S$25 (owner, 11 Nov). Rest of the rules being agreed (docs/rescheduling-plan.md). WhatsApp only until switched on.",
           "code": "round2sg-home · docs/rescheduling-plan.md"
         },
         {
@@ -274,8 +274,8 @@
         },
         {
           "name": "Add a session (was Late session)",
-          "status": "test",
-          "what": "In session › Add a session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too). TESTING (owner, 2 Nov): the form asks for “Night of” + arrival (times after 12am show their real date, a red box confirms it; before 7am the page opens on last night). Waiting for the admin's feedback: keep “Night of”, or pick the real date instead?",
+          "status": "live",
+          "what": "In session › Add a session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too). TESTING (owner, 2 Nov): the form asks for “Night of” + arrival (times after 12am show their real date, a red box confirms it; before 7am the page opens on last night). Waiting for the admin's feedback: keep “Night of”, or pick the real date instead? (Out of testing 11 Nov 2026.)",
           "runs": "Booking engine + SimplyBook notes",
           "code": "round2sg-home · docs/booking-times.md"
         },
@@ -299,8 +299,8 @@
         },
         {
           "name": "Auto wrap-up",
-          "status": "test",
-          "what": "Switch in TV messages › Auto wrap-up (on since 2 Nov). Every session today gets 'About 10 minutes to go' and 'That's a wrap!' by itself, kept in step with new bookings, extensions, moves and cancellations; uses messages already set by hand instead of doubling; one session can be switched off. Switching off removes everything it scheduled; hand-made ones stay.",
+          "status": "live",
+          "what": "Switch in TV messages › Auto wrap-up (on since 2 Nov). Every session today gets 'About 10 minutes to go' and 'That's a wrap!' by itself, kept in step with new bookings, extensions, moves and cancellations; uses messages already set by hand instead of doubling; one session can be switched off. Switching off removes everything it scheduled; hand-made ones stay. (Out of testing 11 Nov 2026.)",
           "runs": "Booking engine – as Round2 messages (blue ⚙ tag)"
         },
         {
@@ -317,22 +317,22 @@
         },
         {
           "name": "TV tiles say what's on screen",
-          "status": "test",
-          "what": "Round2 messages › On the TVs now shows what each TV has in front (PS4, YouTube, Round2 menu…) and for how long. Built 2 Nov (TV app 1.0.225); each TV shows it once it's updated. Same update fixes LG TVs reporting the wrong message as 'shown'.",
+          "status": "live",
+          "what": "Round2 messages › On the TVs now shows what each TV has in front (PS4, YouTube, Round2 menu…) and for how long. Built 2 Nov (TV app 1.0.225); each TV shows it once it's updated. Same update fixes LG TVs reporting the wrong message as 'shown'. (Out of testing 11 Nov 2026.)",
           "runs": "LG helper + Android app check-ins → control centre",
           "code": "round2-tv-launcher · webos/service/round2d.sh, app/…/HomeWatch.java, manager/index.html"
         },
         {
           "name": "Remote TV updates (Update now from the control centre)",
-          "status": "test",
-          "what": "Built 2 Nov (TV app 1.0.226; works on a TV once it has 1.0.226). Update now on each TV tile (Round2 messages › On the TVs now), refused while the TV is off, locked in its Staff tools, or its room has a session now or within 10 min. LG installs by itself (download + SHA-256 check first, 'don't switch off' notice, progress on the tile, reinstalls itself on start-up if cut off). Android only gets it ready – staff press Install in Staff tools › Update app.",
+          "status": "live",
+          "what": "Built 2 Nov (TV app 1.0.226; works on a TV once it has 1.0.226). Update now on each TV tile (Round2 messages › On the TVs now), refused while the TV is off, locked in its Staff tools, or its room has a session now or within 10 min. LG installs by itself (download + SHA-256 check first, 'don't switch off' notice, progress on the tile, reinstalls itself on start-up if cut off). Android only gets it ready – staff press Install in Staff tools › Update app. (Out of testing 11 Nov 2026.)",
           "runs": "Engine (tvupdate) + LG helper / Android app (cmd, update in Firebase)",
           "code": "round2sg-home worker (tvUpdate) · round2-tv-launcher webos/service/round2d.sh, app/…/FoodAlerts.java, manager/index.html"
         },
         {
           "name": "TV messages: Tonight / Send / Guest links / Calendar + TVs tab",
-          "status": "test",
-          "what": "Built 2 Nov (owner's Plan A). Tonight = every message tonight (guest, Round2, Auto wrap-up) per room and booking, finished bookings folded away; Send = the form only; Guest links = make + list on one page; Calendar = later days. TVs tab = status tiles + Update now + Test a TV; Home shows 'x of 7 TVs on'.",
+          "status": "live",
+          "what": "Built 2 Nov (owner's Plan A). Tonight = every message tonight (guest, Round2, Auto wrap-up) per room and booking, finished bookings folded away; Send = the form only; Guest links = make + list on one page; Calendar = later days. TVs tab = status tiles + Update now + Test a TV; Home shows 'x of 7 TVs on'. (Out of testing 11 Nov 2026.)",
           "runs": "Control centre (manager/index.html: Cal.tonight, Msgs.status)",
           "code": "round2-tv-launcher manager/index.html"
         },
