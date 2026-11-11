@@ -75,7 +75,7 @@
         {
           "name": "Online rescheduling",
           "status": "build",
-          "what": "BETA. Guests move their own booking from 'View your booking' (WhatsApp bookings via a staff link). Rules (11–12 Nov): max 2 moves; 3+ days any free slot; under 3 days from 2:15pm only (11am–2pm locked); under 24h same-day upgrades; under 3h closed; no move that costs a sellable session. Fee by demand for the NEW slot (on test): Upgrade $5 + the difference / Quiet $15 / Regular $25 / Prime $35 (early-bird bookings $15+) – worked out per room, day, time, hours before and how fast the date is filling (learns from the last 8 weeks); 2nd move +$10; dearer = pay difference, cheaper = no refund. Month 1: 3+ days only. Beta stats panel + on/off switch. Demo: round2sg-home branch my-booking-demo. Plan: docs/rescheduling-plan.md.",
+          "what": "BETA. Guests move their own booking from 'View your booking' (WhatsApp bookings via a staff link). Rules (11–12 Nov): max 2 moves; 3+ days any free slot; under 3 days from 2:15pm only (11am–2pm locked); under 24h same-day upgrades; under 3h closed; no move that costs a sellable session. Fee by demand for the NEW slot (on test): Upgrade $5 + the difference / Quiet $15 / Regular $25 / Prime $35 (early-bird bookings $15+) – worked out per room, day, time, hours before and how fast that room is filling on that date (learns from the last 8 weeks); 2nd move +$10; dearer = pay difference, cheaper = no refund. Month 1: 3+ days only. Beta stats panel + on/off switch. Demo: round2sg-home branch my-booking-demo. Plan: docs/rescheduling-plan.md.",
           "code": "round2sg-home · docs/rescheduling-plan.md"
         },
         {
