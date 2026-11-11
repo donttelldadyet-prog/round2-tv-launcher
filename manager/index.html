@@ -382,6 +382,9 @@ label.f textarea { min-height: 96px; resize: vertical; }
 .mstat .t { font-weight: 700; letter-spacing: .04em; overflow-wrap: anywhere; }
 .chip.ack { border-color: var(--ok); color: var(--ok); }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.mvbk{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:10px 12px;margin:6px 0;border:1px solid var(--line2);border-left:5px solid var(--c,#888);background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}.mvbk[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 16%,var(--bg));box-shadow:inset 0 0 0 1px var(--c)}.mvbk small{color:var(--mute)}
+.mvroom{margin:8px 0}.mvroom b{display:inline-block;min-width:96px}.mvt{padding:6px 9px;margin:2px;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}.mvt[aria-pressed="true"]{background:var(--ink);color:#0b0914}
+.mvtotal{margin-top:12px;font-size:15px}.mvtotal b.big{font-size:30px;display:block;letter-spacing:.02em}.mvqr{background:#fff;display:inline-block;padding:12px;margin-top:8px}.mvqr svg{display:block;width:240px;height:240px}
 .seg button { padding: 8px 12px; border: 1px solid var(--line2); background: var(--bg); font-size: 13px; letter-spacing: .06em; }
 .seg button[aria-pressed="true"] { background: var(--ink); color: #0b0914; border-color: var(--ink); }
 .roompick { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -588,7 +591,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   <div class="brand" id="brand">ROUND2 <small>CONTROL CENTRE</small></div>
   <nav class="tabs" role="tablist" id="tabs">
     <button role="tab" aria-selected="true" data-group="home">Home</button>
-    <button role="tab" aria-selected="false" data-group="sess">In session</button>
+    <button role="tab" aria-selected="false" data-group="sess">Bookings</button>
     <button role="tab" aria-selected="false" data-group="notif">TV messages</button>
     <button role="tab" aria-selected="false" data-group="tvs">TVs</button>
     <button role="tab" aria-selected="false" data-group="themes">TV setup</button>
@@ -786,6 +789,41 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <h1>Add a session</h1>
     <p class="sub">Key in a WhatsApp or walk-in session, including past midnight.</p>
     <iframe class="gframe" title="Add a session" data-src="late/?embed=1"></iframe>
+  </section>
+
+  <section id="tab-move" hidden>
+    <h1>Move a booking</h1>
+    <p class="sub">Move a guest to another room, day or time. The fee is worked out for you from how popular the new slot is (same as guests will see online); you can lower or waive it. Take payment by PayNow QR on this screen, a payment link on WhatsApp, or Tap to Pay in the HitPay app.</p>
+    <div id="mvKeyBox" class="banner" hidden><span>This needs the guest messages staff code (same as In session).</span></div>
+    <div class="banner warn" id="mvErr" hidden></div>
+    <div class="card"><h2 style="margin-top:0">1 · The booking</h2>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><input type="date" id="mvDay"><button class="btn ghost" type="button" id="mvDayGo">Show bookings</button><span class="hint" id="mvDayHint"></span></div>
+      <div id="mvList" style="margin-top:10px"></div></div>
+    <div class="card" id="mvPick" hidden><h2 style="margin-top:0">2 · New slot</h2>
+      <p class="hint" id="mvFrom" style="margin:0 0 8px"></p>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><input type="date" id="mvDate"><select id="mvHours"><option value="3">3 hours</option><option value="4">4 hours</option><option value="5">5 hours</option><option value="6">6 hours</option></select><button class="btn ghost" type="button" id="mvFreeGo">Show free times</button></div>
+      <div id="mvFree" style="margin-top:10px"></div></div>
+    <div class="card" id="mvQuote" hidden><h2 style="margin-top:0">3 · Fee and payment</h2>
+      <div id="mvQ"></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px"><div class="seg" id="mvFeeSeg"><button type="button" data-f="full" aria-pressed="true">Full fee</button><button type="button" data-f="lower" aria-pressed="false">Lower it</button><button type="button" data-f="waive" aria-pressed="false">Waive</button></div>
+        <input type="number" id="mvFeeIn" min="0" step="5" placeholder="Fee $" style="width:90px" hidden><input id="mvWhy" placeholder="Why (one line, needed if lowered)" style="min-width:220px" hidden></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><input id="mvBy" placeholder="Your name" style="width:140px"></div>
+      <div class="mvtotal" id="mvTotal"></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn primary" type="button" id="mvQr">Show PayNow QR</button>
+        <button class="btn" type="button" id="mvLink">Copy payment link (WhatsApp)</button>
+        <button class="btn" type="button" id="mvShop">Paid in shop (Tap to Pay)</button>
+        <button class="btn primary" type="button" id="mvNow" hidden>Move now</button></div>
+      <div id="mvPay" style="margin-top:12px"></div></div>
+  </section>
+
+  <section id="tab-resched" hidden>
+    <h1>Rescheduling</h1>
+    <p class="sub">Every booking moved from the control centre: from where to where, the fee (and what it would have been), price difference, how it was paid, who moved it and why. Online rescheduling for guests isn’t live yet – it’s still being designed in the demo.</p>
+    <div class="banner warn" id="rsErr" hidden></div>
+    <div class="bsnums" id="rsNums"></div>
+    <div class="card" style="margin-top:12px"><h2 style="margin-top:0">Moves</h2><div id="rsList"><p class="hint">Loading…</p></div></div>
+    <p class="hint">Guest-side design and the engine stress test: <a href="https://raw.githack.com/donttelldadyet-prog/round2sg-home/my-booking-demo/demo/manage.html" target="_blank" rel="noopener">reschedule demo</a> (Owner view).</p>
   </section>
 
   <section id="tab-guestlink" hidden>
@@ -2560,6 +2598,127 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
      Reads today's bookings and notes from the engine (POST /gm action=insess, staff code). Every change is checked first
      (action=extend dry=1 → the review box), then made (extend), and can be undone for 30 min (extundo).
      round2sg-home worker/round2-book.js "In session"; docs/guest-messages.md "In session". */
+
+  /* ===== Bookings › Move a booking + Rescheduling (owner, 12 Nov) – engine actions mvday/mvfree/mvquote/mvpay/mvlink/mvstatus/mvnow/mvlog ===== */
+  var Move = (function () {
+    var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', RC = { Vale: '#E8436A', Kaeden: '#4DB848', Scarlett: '#F2C21B', Bella: '#7A5BE0', Kai: '#24B49A', Atlas: '#E9E7EF', Max: '#E0402F' };
+    var cur = { bk: null, slot: null, q: null, ref: '', poll: null, feeMode: 'full' }, ready = false;
+    function key() { return ls('r2.guestStaff') || ''; }
+    function gm(o) { return fetch(ENG, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: key() }, o)) }).then(function (r) { return r.json(); }); }
+    function err(t) { var b = $('mvErr'); b.hidden = !t; b.textContent = t || ''; }
+    function moveDay(nowMs) { return R2Day.night(nowMs); }   /* the shop night: before 7am it's still last night's bookings */
+    R2Day.list('Move a booking › day', { night: moveDay, today: moveDay });
+    function clk(ms) { var d = new Date(ms + 8 * 3600e3), h = d.getUTCHours(), m = d.getUTCMinutes(); return ((h + 11) % 12 + 1) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); }   /* day-ok: Singapore clock time of an engine timestamp */
+    function hm(m) { var h = Math.floor(m / 60) % 24, mm = m % 60; return ((h + 11) % 12 + 1) + (mm ? ':' + String(mm).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); }
+    function rn(r) { return r === 'Maximillion' ? 'Max' : r; }
+    function money(x) { return '$' + (+x).toFixed(2).replace(/\.00$/, ''); }
+    function open() {
+      $('mvKeyBox').hidden = !!key(); if (!key()) return;
+      if (!ready) {
+        ready = true; $('mvDay').value = moveDay(R2Day.now()); $('mvBy').value = ls('r2.mvBy') || '';
+        $('mvDayGo').onclick = days; $('mvDay').onchange = days; $('mvFreeGo').onclick = free; $('mvDate').onchange = free; $('mvHours').onchange = free;
+        [].forEach.call($('mvFeeSeg').querySelectorAll('button'), function (b) { b.onclick = function () { cur.feeMode = b.getAttribute('data-f'); [].forEach.call($('mvFeeSeg').querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); $('mvFeeIn').hidden = cur.feeMode !== 'lower'; $('mvWhy').hidden = cur.feeMode === 'full'; total(); }; });
+        $('mvFeeIn').oninput = total; $('mvBy').onchange = function () { ls('r2.mvBy', $('mvBy').value.trim()); };
+        $('mvQr').onclick = function () { pay('mvpay'); }; $('mvLink').onclick = function () { pay('mvlink'); }; $('mvShop').onclick = function () { now('shop'); }; $('mvNow').onclick = function () { now(''); };
+      }
+      days();
+    }
+    function days() {
+      err(''); $('mvList').innerHTML = '<p class="hint">Loading…</p>';
+      gm({ action: 'mvday', day: $('mvDay').value }).then(function (j) {
+        if (j.error) { err(j.error); $('mvList').innerHTML = ''; return; }
+        $('mvDayHint').textContent = j.list.length + ' booking' + (j.list.length === 1 ? '' : 's');
+        $('mvList').innerHTML = j.list.length ? j.list.map(function (b, i) {
+          return '<button type="button" class="mvbk" data-i="' + i + '" style="--c:' + (RC[rn(b.room)] || '#888') + '" aria-pressed="' + (cur.bk && cur.bk.bid === b.bid) + '"' + (b.started ? ' disabled' : '') + '><b style="min-width:84px">' + esc(rn(b.room)) + '</b><span class="grow">' + clk(b.s) + ' – ' + clk(b.guestEnd) + ' · ' + esc(b.name || 'guest') + '</span><small>' + (b.started ? 'started' : b.ext ? 'has +h' : '#' + esc(b.bid)) + '</small></button>';
+        }).join('') : '<p class="hint">No guest bookings that night.</p>';
+        [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.onclick = function () { pick(j.list[+el.getAttribute('data-i')]); }; });
+      }).catch(function () { err('Couldn’t reach the booking engine.'); });
+    }
+    function pick(b) {
+      stop(); cur.bk = b; cur.slot = null; cur.q = null; cur.ref = '';
+      [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.setAttribute('aria-pressed', el.textContent.indexOf('#' + b.bid) >= 0 ? 'true' : 'false'); });
+      var hrs = Math.max(3, Math.min(6, Math.round((b.guestEnd - b.s) / 3600e3)));
+      $('mvFrom').innerHTML = 'Moving <b>' + esc(b.name || 'guest') + '</b> · ' + esc(rn(b.room)) + ' ' + $('mvDay').value + ' ' + clk(b.s) + '–' + clk(b.guestEnd) + (b.ext ? ' · <b>has extra hours (EXT): undo the +h in In session first</b>' : '');
+      $('mvPick').hidden = false; $('mvQuote').hidden = true; $('mvDate').value = $('mvDay').value; $('mvHours').value = String(hrs); free();
+      $('mvPick').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    function free() {
+      if (!cur.bk || !$('mvDate').value) return; $('mvFree').innerHTML = '<p class="hint">Checking…</p>'; $('mvQuote').hidden = true;
+      gm({ action: 'mvfree', bid: cur.bk.bid, date: $('mvDate').value, hours: $('mvHours').value }).then(function (j) {
+        if (j.error) { $('mvFree').innerHTML = '<p class="hint">' + esc(j.error) + '</p>'; return; }
+        $('mvFree').innerHTML = Object.keys(j.free).map(function (r) {
+          var L = j.free[r]; return '<div class="mvroom"><b style="color:' + (RC[rn(r)] || '') + '">' + esc(rn(r)) + '</b>' + (L.length ? L.map(function (m) { return '<button type="button" class="mvt" data-u="' + esc(r) + '" data-m="' + m + '">' + hm(m) + '</button>'; }).join('') : '<span class="hint">no free time</span>') + '</div>';
+        }).join('') + '<p class="hint">Times shown are free for ' + j.hours + ' hours. Pick one to see the fee.</p>';
+        [].forEach.call($('mvFree').querySelectorAll('.mvt'), function (el) { el.onclick = function () { [].forEach.call($('mvFree').querySelectorAll('.mvt'), function (x) { x.setAttribute('aria-pressed', x === el ? 'true' : 'false'); }); quote(el.getAttribute('data-u'), +el.getAttribute('data-m')); }; });
+      });
+    }
+    var UNIT = { Vale: 5, Kaeden: 7, Scarlett: 8, Kai: 9, Bella: 10, Atlas: 12, Max: 11, Maximillion: 11 };
+    function slotArgs() { var s = cur.slot; return { bid: cur.bk.bid, unit: s.unit, date: s.date, time: s.time, hours: s.hours }; }
+    function quote(room, m) {
+      stop(); cur.ref = ''; var t = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+      cur.slot = { unit: UNIT[room], date: $('mvDate').value, time: t, hours: +$('mvHours').value, room: room };
+      $('mvQuote').hidden = false; $('mvQ').innerHTML = '<p class="hint">Working out the fee…</p>'; $('mvPay').innerHTML = '';
+      gm(Object.assign({ action: 'mvquote' }, slotArgs())).then(function (q) {
+        if (q.error) { $('mvQ').innerHTML = '<p class="hint">' + esc(q.error) + '</p>'; cur.q = null; total(); return; }
+        cur.q = q;
+        $('mvQ').innerHTML = (q.ok ? '' : '<div class="banner warn">Not free: ' + esc(q.clash.join('; ')) + '</div>') +
+          '<div><b>' + esc(rn(q.from.room)) + ' ' + q.from.date + ' ' + q.from.time + '</b> → <b>' + esc(rn(q.to.room)) + ' ' + q.to.date + ' ' + q.to.time + '–' + q.to.end + '</b> (' + q.to.hours + 'h)</div>' +
+          '<div class="hint" style="margin-top:4px">Paid ' + money(q.from.paid) + (q.from.online ? ' online' : ' (list price)') + ' · new slot ' + money(q.to.price) + (q.to.earlyBird ? ' (early bird)' : q.to.peak ? ' (peak)' : ' (off-peak)') + '</div>' +
+          '<div style="margin-top:6px">Change fee <b>' + money(q.fee) + '</b> <span class="hint">· ' + esc(q.level === 'upgrade' ? 'upgrade to a pricier slot' : q.level === 'quiet' ? 'quiet slot' : q.level === 'busy' ? 'popular slot' : 'very popular slot') + (q.reason ? ' · ' + esc(q.reason) : '') + '</span></div>' +
+          '<div>Price difference <b>' + money(q.diff) + '</b>' + (q.to.price < q.from.paid ? ' <span class="hint">· new slot is cheaper – no refund</span>' : '') + '</div>';
+        total();
+      });
+    }
+    function fee() { if (!cur.q) return 0; return cur.feeMode === 'waive' ? 0 : cur.feeMode === 'lower' ? Math.max(0, Math.min(cur.q.fee, Math.round(+$('mvFeeIn').value || 0))) : cur.q.fee; }
+    function total() {
+      var q = cur.q; if (!q) { $('mvTotal').innerHTML = ''; return; }
+      var f = fee(), t = Math.round((f + q.diff) * 100) / 100;
+      $('mvTotal').innerHTML = 'To pay <b class="big">' + money(t) + '</b><span class="hint">fee ' + money(f) + (f < q.fee ? ' (was ' + money(q.fee) + ')' : '') + ' + difference ' + money(q.diff) + ' · key this into HitPay for Tap to Pay</span>';
+      var zero = t < 0.01; $('mvQr').hidden = zero || !q.ok; $('mvLink').hidden = zero || !q.ok; $('mvShop').hidden = zero || !q.ok; $('mvNow').hidden = !zero || !q.ok;
+    }
+    function base() { var o = slotArgs(); o.fee = String(fee()); o.by = $('mvBy').value.trim(); o.why = $('mvWhy').value.trim(); return o; }
+    function needWhy() { if (cur.feeMode !== 'full' && fee() < cur.q.fee && !$('mvWhy').value.trim()) { $('mvPay').innerHTML = '<p class="hint">Say why the fee is lowered or waived (one line).</p>'; return true; } return false; }
+    function qrLib() { return window.qrcode ? Promise.resolve() : new Promise(function (ok, no) { var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
+    function pay(act) {
+      if (!cur.q || needWhy()) return; $('mvPay').innerHTML = '<p class="hint">Making the payment…</p>';
+      gm(Object.assign({ action: act, ref: cur.ref }, base())).then(function (j) {
+        if (j.error) { $('mvPay').innerHTML = '<p class="hint">' + esc(j.error) + '</p>'; return; }
+        cur.ref = j.ref;
+        if (act === 'mvlink') {
+          try { navigator.clipboard.writeText(j.url); } catch (e) {}
+          $('mvPay').innerHTML = '<p>Payment link for <b>' + money(j.total) + '</b> copied – paste it in WhatsApp:</p><input readonly style="width:100%" value="' + esc(j.url) + '" onclick="this.select()"><p class="hint">The booking moves by itself as soon as they pay (this page shows it if left open).</p>';
+        } else if (j.qr) {
+          qrLib().then(function () { var q = window.qrcode(0, 'M'); q.addData(j.qr); q.make(); $('mvPay').innerHTML = '<p>Ask the guest to scan with their banking app – <b>' + money(j.total) + '</b> by PayNow:</p><div class="mvqr">' + q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) + '</div><p class="hint" id="mvSt">Waiting for payment…</p>'; })
+            .catch(function () { $('mvPay').innerHTML = '<p>QR couldn’t be drawn – open the payment page instead: <a href="' + esc(j.url) + '" target="_blank" rel="noopener">pay ' + money(j.total) + '</a></p><p class="hint" id="mvSt">Waiting for payment…</p>'; });
+        } else $('mvPay').innerHTML = '<p>HitPay didn’t give a QR – show the guest this page: <a href="' + esc(j.url) + '" target="_blank" rel="noopener">pay ' + money(j.total) + '</a></p><p class="hint" id="mvSt">Waiting for payment…</p>';
+        watch();
+      });
+    }
+    function watch() { stop(); var n = 0; cur.poll = setInterval(function () { if (++n > 200) return stop(); gm({ action: 'mvstatus', ref: cur.ref }).then(function (j) { if (j.status === 'done') { stop(); done(j.moved); } else if (j.status === 'failed') { stop(); $('mvPay').innerHTML += '<div class="banner warn">Paid, but the move didn’t go through: ' + esc(j.err) + '. Move it by hand in SimplyBook or refund in HitPay. (An alert was sent.)</div>'; } }); }, 4000); }
+    function stop() { if (cur.poll) clearInterval(cur.poll); cur.poll = null; }
+    function now(how) {
+      if (!cur.q || needWhy()) return;
+      if (how === 'shop' && !confirm('Paid ' + $('mvTotal').querySelector('b').textContent + ' in the HitPay app (Tap to Pay)? The booking moves now.')) return;
+      $('mvPay').innerHTML = '<p class="hint">Moving…</p>';
+      gm(Object.assign({ action: 'mvnow', how: how }, base())).then(function (j) { if (j.error) { $('mvPay').innerHTML = '<p class="hint">' + esc(j.error) + '</p>'; return; } done(j.moved); });
+    }
+    function done(m) {
+      $('mvPay').innerHTML = '<div class="banner" style="border-color:var(--ok)">✅ Moved: <b>' + esc(rn(m.to.room)) + ' ' + m.to.date + ' ' + m.to.time + '</b> (' + m.to.hours + 'h) · ' + esc(m.how) + '. SimplyBook, the Vale/Atlas block, TV messages and wrap-up messages follow.</div>';
+      days();
+    }
+    function log() {
+      $('rsErr').hidden = true; if (!key()) { $('rsErr').hidden = false; $('rsErr').textContent = 'Needs the guest messages staff code.'; return; }
+      gm({ action: 'mvlog' }).then(function (j) {
+        if (j.error) { $('rsErr').hidden = false; $('rsErr').textContent = j.error; return; }
+        var L = j.list || [], fees = 0, waived = 0, diffs = 0; L.forEach(function (x) { fees += +x.fee || 0; waived += (+x.feeWas || 0) - (+x.fee || 0); diffs += +x.diff || 0; });
+        $('rsNums').innerHTML = '<div class="card"><b>' + L.length + '</b><br><span class="hint">moves</span></div><div class="card"><b>' + money(fees) + '</b><br><span class="hint">fees taken</span></div><div class="card"><b>' + money(waived) + '</b><br><span class="hint">fees lowered / waived</span></div><div class="card"><b>' + money(diffs) + '</b><br><span class="hint">price differences</span></div>';
+        $('rsList').innerHTML = L.length ? L.map(function (x) {
+          return '<div style="padding:8px 0;border-bottom:1px solid var(--line2)"><b>' + esc(x.name || 'guest') + '</b> · ' + esc(rn(x.from.room)) + ' ' + x.from.date + ' ' + x.from.time + ' → <b>' + esc(rn(x.to.room)) + ' ' + x.to.date + ' ' + x.to.time + '</b> (' + x.to.hours + 'h)<br><span class="hint">' + clk(x.t) + ' ' + R2Day.night(x.t) + ' · fee ' + money(x.fee) + (x.fee < x.feeWas ? ' (was ' + money(x.feeWas) + ')' : '') + ' + ' + money(x.diff) + ' · ' + esc(x.how) + (x.by ? ' · by ' + esc(x.by) : '') + (x.why ? ' · “' + esc(x.why) + '”' : '') + '</span></div>';
+        }).join('') : '<p class="hint">No moves yet.</p>';
+      });
+    }
+    return { open: open, log: log };
+  })();
   var Sess = (function () {
     var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, last = null, pend = null, ackOn = {};
     var seen = Date.now(), paused = false;
@@ -2923,7 +3082,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
          each list registers the functions it draws with (r2day.js R2Day.list); here they get made-up times around 7am,
          midnight and New Year. A list that's missing from the register fails too, so one can't quietly drop out. */
       .then(function () { return step('Screens follow the 7am rule (every list that shows a day)', function () {
-        var NEED = ['TV themes › today', 'Round2 messages', 'In session › Extensions today', 'In session › History', 'Guest messages', 'Late session › date'];
+        var NEED = ['TV themes › today', 'Round2 messages', 'In session › Extensions today', 'In session › History', 'Guest messages', 'Late session › date', 'Move a booking › day'];
         var CASES = [['2026-11-03T06:59', '2026-11-02'], ['2026-11-03T07:00', '2026-11-03'], ['2026-11-03T00:01', '2026-11-02'], ['2026-11-02T23:59', '2026-11-02'],
           ['2026-11-02T12:00', '2026-11-02'], ['2027-01-01T03:00', '2026-12-31'], ['2027-01-01T07:30', '2027-01-01']];
         function frame(src) { return new Promise(function (ok) {
@@ -3000,6 +3159,25 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           warnIf(n > 3500, n + ' requests to SimplyBook today – over 70% of its daily limit.');
           return n + ' so far today' + (y ? ' · ' + y + ' yesterday' : '') + ' · limit about 5,000';
         }); }); })
+      /* Move a booking (owner, 12 Nov): the engine works out a move's fee for a real upcoming booking – nothing is changed */
+      .then(function () { return step('Move a booking: fee for a sample move (nothing changes)', function () {
+        var d0 = R2Day.tonight(), tries = [d0, addD(d0, 1), addD(d0, 2), addD(d0, 3)];
+        function find(i) { if (i >= tries.length) throw { warn: 'No upcoming guest booking in the next 4 nights to try a sample move on.' };
+          return gm({ action: 'mvday', day: tries[i] }).then(function (j) { must(!j.error, 'Bookings list: ' + (j && j.error)); var b = (j.list || []).filter(function (x) { return !x.started && !x.ext; })[0]; return b ? b : find(i + 1); }); }
+        return find(0).then(function (b) {
+          var date = addD(d0, 8);
+          return gm({ action: 'mvfree', bid: b.bid, date: date, hours: 3 }).then(function (fr) {
+            must(!fr.error, 'Free times: ' + fr.error); var room = Object.keys(fr.free).filter(function (r) { return fr.free[r].length; })[0];
+            if (!room) throw { warn: 'No free time on ' + date + ' to test with.' };
+            var m = fr.free[room][Math.floor(fr.free[room].length / 2)], U = { Vale: 5, Kaeden: 7, Scarlett: 8, Kai: 9, Bella: 10, Atlas: 12, Maximillion: 11 };
+            return gm({ action: 'mvquote', bid: b.bid, unit: U[room], date: date, time: String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'), hours: 3 }).then(function (q) {
+              must(!q.error, 'Fee: ' + q.error); must([5, 15, 25, 35].indexOf(q.fee) >= 0, 'Fee $' + q.fee + ' is not one of $5 / $15 / $25 / $35');
+              must(q.total === Math.round((q.fee + q.diff) * 100) / 100, 'Total ≠ fee + difference');
+              return b.room + ' booking #' + b.bid + ' → ' + room + ' ' + date + ': fee $' + q.fee + ' (' + q.level + ') + difference $' + q.diff + ' = $' + q.total;
+            });
+          });
+        });
+      }); })
       /* 3. booking page: slot board vs checkout price */
       .then(function () { return step('Booking page prices = checkout prices', function () {
         var d = addD(today, 3), n = 0;
@@ -3550,7 +3728,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
     home: [['home', 'Overview'], ['alertlog', 'Alert history']],
-    sess: [['insession', 'In session'], ['late', 'Add a session']],
+    sess: [['insession', 'In session'], ['late', 'Add a session'], ['move', 'Move a booking'], ['resched', 'Rescheduling']],
     notif: [['tonight', 'Tonight'], ['messages', 'Send'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up']],
     tvs: [['tvs', 'Status'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
@@ -3561,7 +3739,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   };
   var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
     home: ['Home', '<path d="M3 11l9-7 9 7v9h-6v-6H9v6H3z"/>'],
-    sess: ['In session', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 'Rooms running today. Add extra hours after a guest pays, and key in late or walk-in sessions.'],
+    sess: ['Bookings', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 'Rooms running today (In session), extra hours, late or walk-in sessions, and moving a booking to another room, day or time.'],
     notif: ['TV messages', '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>', 'Tonight: every message on the TVs, room by room. Send birthday notes and house reminders, make guest links, and see later days on the calendar.'],
     tvs: ['TVs', '<rect x="2" y="5" width="20" height="13" rx="1"/><path d="M9 21h6"/><circle cx="12" cy="11.5" r="2.5"/>', 'Is each TV on, what’s on screen and its app version. Update a TV from here, or send it a test.'],
     themes: ['TV setup', '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>', 'How the TVs look and behave: event backgrounds, each room’s default look, ambience sounds, staff PIN and app updates.'],
@@ -3665,6 +3843,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'home') { homeTvs(); homeHuman(); homeAlerts(); }
     if (n === 'tests') Tests.open(); else Tests.close();
     if (n === 'insession') Sess.open(); else Sess.close();
+    if (n === 'move') Move.open();
+    if (n === 'resched') Move.log();
     if (n === 'website') Web.open(); else Web.close();
     if (n === 'bookstats') BookStats.open();
     if (n === 'alertlog') AlertLog.open(); else if (typeof AlertLog !== 'undefined' && AlertLog) AlertLog.close();
