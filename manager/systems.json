@@ -1,6 +1,6 @@
 {
   "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-11-08",
+  "updated": "2026-11-11",
   "areas": [
     {
       "name": "Website & booking",
@@ -97,6 +97,49 @@
           "status": "live",
           "what": "Control centre › Website › Booking page: how long guests take to pay, latest attempts with the session date (Fri 6 Nov, 11am), sorted by Paid / why they left before paying (came back from paying, changed their mind, 10 minutes ran out, picked another time, checkout error) / booked by hand. Reasons are noted since 5 Nov.",
           "runs": "Booking engine (gm paytimes) + control centre"
+        }
+      ]
+    },
+    {
+      "name": "Members & game saves",
+      "items": [
+        {
+          "name": "Membership (3 / 6 / 12 months)",
+          "status": "planned",
+          "what": "One member per phone number (the booker; group saves sit under them). Pitched at That's a wrap with the guest's own game and time played. Draft prices: 3 months S$15, 6 months S$25, 12 months S$30 'Best value' (pre-selected); each gives the same amount back as booking credit ('pays for itself on your next visit'). One-off payment via HitPay + renewal reminder; no auto-renew at first. Lapsed: saves frozen ~3 months, then deleted. Prices not final – watch sign-ups, plan picked and return visits for a month.",
+          "runs": "Booking engine (members table) + sign-up page + control centre › Members (owner key)",
+          "code": "not started · plan in chat 5 Nov 2026"
+        },
+        {
+          "name": "Guest game saves (PS4)",
+          "status": "planned",
+          "what": "Guests continue their PS4 games on a later visit, in any room. Backed up at the guest end (during cleaning, after any EXT chain), stored in Cloudflare R2 (new bucket, same account) under saves/<member>/<platform>/<game>/, last 3 versions; console wiped before the next guest. Non-members: session held 14 days, one free resume on the 2nd visit; a new number just starts clean. Unlock = booking's phone number, or a 4-digit PIN (note bookings, friend booked). Note bookings: optional phone field in Add a session; QR claim on That's a wrap. Ignore SYSTEM BLOCK, room blocked, ↓ labels.",
+          "runs": "PS4 (GoldHEN FTP + Apollo) · room TV helper · booking engine · Cloudflare R2",
+          "code": "not started"
+        },
+        {
+          "name": "Game saves – step 1: staged restore (one press)",
+          "status": "planned",
+          "what": "~10 min before a member's session the TV helper copies their saves into the PS4's External saves folder; TV shows 'Your saves are ready'; staff/guest open Apollo › External saves › copy + resign (~30 s per game).",
+          "runs": "TV helper (Android FoodAlerts / LG round2d.sh) + engine"
+        },
+        {
+          "name": "Game saves – step 2: Round2 save agent (no presses)",
+          "status": "planned",
+          "what": "Small homebrew built from Apollo (GPL) running on each PS4: import + resign, export what changed, wipe – on command from the TV helper. Must start itself after every reboot (GoldHEN plugin); TV check-in reports if it's down. Later: 'Continue a game' tile on the Round2 home screen.",
+          "runs": "PS4 homebrew (OpenOrbis) · several rounds of testing on one console"
+        },
+        {
+          "name": "Game saves – tests before building",
+          "status": "planned",
+          "what": "1) By hand: Bella → Max, one game, Apollo export → import + resign – proves cross-console resume. 2) Raw encrypted saves pulled by FTP resign on another console? 3) GoldHEN/FTP up after every power cut? 4) Measure save sizes of 5 popular games (sets R2 cost; 10 GB free ≈ 150 members). 5) Mark online-only games 'progress not kept'. 6) Same game versions on every console. Then System check steps: backup → restore → wipe on a test console.",
+          "runs": "By hand on two consoles, then System check"
+        },
+        {
+          "name": "Game saves – later: other branches / PC room",
+          "status": "parked",
+          "what": "Works across branches if every PS4 uses the same Apollo account ID and the engine gets a branch label. A Steam Machine / PC room would keep its own set of saves (Steam Cloud off, Ludusavi + our upload) – check game licences for commercial use first. Only when a second branch is found.",
+          "runs": "—"
         }
       ]
     },
