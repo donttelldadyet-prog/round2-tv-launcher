@@ -2665,7 +2665,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         $('mvQ').innerHTML = (q.ok ? '' : '<div class="banner warn">Not free: ' + esc(q.clash.join('; ')) + '</div>') +
           '<div><b>' + esc(rn(q.from.room)) + ' ' + q.from.date + ' ' + q.from.time + '</b> → <b>' + esc(rn(q.to.room)) + ' ' + q.to.date + ' ' + q.to.time + '–' + q.to.end + '</b> (' + q.to.hours + 'h' + (q.ext ? ' + ' + Math.round(q.ext / 60) + 'h extension' : '') + ')</div>' +
           '<div class="hint" style="margin-top:4px">Paid ' + money(q.from.paid) + (q.from.online ? ' online' : ' (list price)') + ' · new slot ' + money(q.to.price) + (q.to.earlyBird ? ' (early bird)' : q.to.peak ? ' (peak)' : ' (off-peak)') + '</div>' +
-          '<div style="margin-top:6px">Change fee <b>' + money(q.fee) + '</b> <span class="hint">· ' + esc(q.level === 'upgrade' ? (TIER[rn(q.from.room)] === TIER[rn(q.to.room)] ? 'moving to a peak time (pays the difference)' : 'upgrade to a bigger room') : q.level === 'quiet' ? 'quiet slot' : q.level === 'busy' ? 'popular slot' : 'very popular slot') + (q.reason ? ' · ' + esc(q.reason) : '') + '</span></div>' +
+          '<div style="margin-top:6px">Change fee <b>' + money(q.base) + '</b> <span class="hint">· ' + esc(q.level === 'upgrade' ? 'upgrade to a bigger room' : q.level === 'peak time' ? 'moving to a peak time (pays the difference)' : 'move') + '</span></div>' +
+          (q.add ? '<div>Popular time <b>+' + money(q.add) + '</b> <span class="hint">· this slot is likely to be booked' + (q.reason ? ' · ' + esc(q.reason) : '') + '</span></div>' : (q.reason ? '<div class="hint">' + esc(q.reason) + '</div>' : '')) +
           '<div>Price difference <b>' + money(q.diff) + '</b>' + (q.to.price < q.from.paid ? ' <span class="hint">· new slot is cheaper – no refund</span>' : '') + '</div>';
         total();
       });
