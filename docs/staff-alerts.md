@@ -42,6 +42,12 @@ Standalone page with its own Home Screen button ("Late session"); the control ce
 Room, date, arrives, guest leaves, name, pax → Check (engine `/gm` action `late`, dry run + clash list) → Add to SimplyBook:
 ONE note from arrival to guest end + 15 min cleaning (past midnight too), text `<name> <pax> pax · late till 1am · control
 centre`; Vale/Atlas twin gets a SYSTEM BLOCK. Needs the guest messages staff code (asked once on that phone).
+**Since 12 Nov – real booking first:** with the guest's MOBILE (email optional), a daytime session (start 11am–8:15pm, guest out by
+11:15pm, 3–6 whole hours, nothing in the way) becomes a REAL SimplyBook booking instead (engine `lateBooking`): its own contact,
+pax, twin/noise/Auto wrap-up, and a guest booking link (`book.round2.sg/b/<code>`, also written in the booking's SimplyBook comment)
+shown with Copy link / WhatsApp it. With an email the guest also gets SimplyBook's confirmation email. Everything else stays a note
+(Check says why). Upcoming lists these bookings with their link; change them in Bookings › Move a booking. Full flow:
+round2sg-home HANDOFF.md (top).
 
 ## Auto wrap-up (TV messages › Auto wrap-up) – built 1 Nov 2026, starts OFF
 Switch (engine mode `autoEnd`, staff code, `/gm` action `auto`). When on, every session today (bookings + calendar notes,

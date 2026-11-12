@@ -71,3 +71,9 @@ cancelled. Nothing is paid, nothing goes to Telegram or a phone.
 Real payments (Test bench / Test an order use the HitPay sandbox), the kitchen Telegram slip and "Loot dropped" (pings the
 Madd Pizza group), phone push alerts (Alerts › Test), +1h on a real SimplyBook booking (EXT-note route), what each TV
 actually shows on screen.
+
+## Guest rescheduling + Add a session bookings (12 Nov 2026)
+Two steps: "Guest rescheduling: page, rules and fees" (loads the engine's `/move/logic.js` – the same rules the engine charges with –
+and checks agreed fees on a made-up booking: upgrade $35, 2nd move +$10, free first 15 min, closed under 3 h, unknown link turned
+away) and "Add a session: daytime with a mobile = real booking, late = note" (dry runs only, nothing saved). Whole flow: round2sg-home
+HANDOFF.md (top section).
