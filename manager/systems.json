@@ -81,7 +81,7 @@
         {
           "name": "Move a booking (staff)",
           "status": "live",
-          "what": "Control centre › Bookings › Move a booking (12 Nov). Staff pick a booking, a new room/day/time (only free times shown), and see the fee: demand-based like online rescheduling (Upgrade $5 + difference / $15 / $25 / $35; Vale/Atlas back-to-back in the same room one level up). Staff can lower or waive it (reason logged). Payment: PayNow QR on the screen, a HitPay link for WhatsApp, or Paid in shop (Tap to Pay). The move is a SimplyBook edit; the Vale/Atlas block, TV messages and wrap-up messages follow; the guest's booking page shows the new time. Bookings › Rescheduling lists every move. Not for bookings with +h (EXT) notes yet.",
+          "what": "Control centre › Bookings › Move a booking (12 Nov). Staff pick a booking, a new room/day/time (only free times shown), and see the fee: demand-based like online rescheduling (Upgrade $5 + difference / $15 / $25 / $35; Vale/Atlas back-to-back in the same room one level up). Staff can lower or waive it (reason logged). Payment: PayNow QR on the screen, a HitPay link for WhatsApp, or Paid in shop (Tap to Pay). The move is a SimplyBook edit; the Vale/Atlas block, TV messages and wrap-up messages follow; the guest's booking page shows the new time. Bookings › Rescheduling lists every move. A booking's +h (EXT) extension moves with it (12 Nov).",
           "code": "round2sg-home · worker/round2-book.js (mv…) · round2-tv-launcher manager/index.html (Move)"
         },
         {

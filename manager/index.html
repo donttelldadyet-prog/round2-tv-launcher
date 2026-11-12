@@ -2629,7 +2629,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (j.error) { err(j.error); $('mvList').innerHTML = ''; return; }
         $('mvDayHint').textContent = j.list.length + ' booking' + (j.list.length === 1 ? '' : 's');
         $('mvList').innerHTML = j.list.length ? j.list.map(function (b, i) {
-          return '<button type="button" class="mvbk" data-i="' + i + '" style="--c:' + (RC[rn(b.room)] || '#888') + '" aria-pressed="' + (cur.bk && cur.bk.bid === b.bid) + '"' + (b.started ? ' disabled' : '') + '><b style="min-width:84px">' + esc(rn(b.room)) + '</b><span class="grow">' + clk(b.s) + ' – ' + clk(b.guestEnd) + ' · ' + esc(b.name || 'guest') + '</span><small>' + (b.started ? 'started' : b.ext ? 'has +h' : '#' + esc(b.bid)) + '</small></button>';
+          return '<button type="button" class="mvbk" data-i="' + i + '" style="--c:' + (RC[rn(b.room)] || '#888') + '" aria-pressed="' + (cur.bk && cur.bk.bid === b.bid) + '"' + (b.started ? ' disabled' : '') + '><b style="min-width:84px">' + esc(rn(b.room)) + '</b><span class="grow">' + clk(b.s) + ' – ' + clk(b.guestEnd) + ' · ' + esc(b.name || 'guest') + '</span><small>' + (b.started ? 'started' : (b.ext ? '+' + Math.round(b.ext / 60) + 'h · ' : '') + '#' + esc(b.bid)) + '</small></button>';
         }).join('') : '<p class="hint">No guest bookings that night.</p>';
         [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.onclick = function () { pick(j.list[+el.getAttribute('data-i')]); }; });
       }).catch(function () { err('Couldn’t reach the booking engine.'); });
@@ -2637,8 +2637,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function pick(b) {
       stop(); cur.bk = b; cur.slot = null; cur.q = null; cur.ref = '';
       [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.setAttribute('aria-pressed', el.textContent.indexOf('#' + b.bid) >= 0 ? 'true' : 'false'); });
-      var hrs = Math.max(3, Math.min(6, Math.round((b.guestEnd - b.s) / 3600e3)));
-      $('mvFrom').innerHTML = 'Moving <b>' + esc(b.name || 'guest') + '</b> · ' + esc(rn(b.room)) + ' ' + $('mvDay').value + ' ' + clk(b.s) + '–' + clk(b.guestEnd) + (b.ext ? ' · <b>has extra hours (EXT): undo the +h in In session first</b>' : '');
+      var hrs = Math.max(3, Math.min(6, b.hours || 3));
+      $('mvFrom').innerHTML = 'Moving <b>' + esc(b.name || 'guest') + '</b> · ' + esc(rn(b.room)) + ' ' + $('mvDay').value + ' ' + clk(b.s) + '–' + clk(b.guestEnd) + (b.ext ? ' · its <b>+' + Math.round(b.ext / 60) + 'h extension moves with it</b> (only times free for the extra hours too are shown)' : '');
       $('mvPick').hidden = false; $('mvQuote').hidden = true; $('mvDate').value = $('mvDay').value; $('mvHours').value = String(hrs); free();
       $('mvPick').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -2662,9 +2662,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (q.error) { $('mvQ').innerHTML = '<p class="hint">' + esc(q.error) + '</p>'; cur.q = null; total(); return; }
         cur.q = q;
         $('mvQ').innerHTML = (q.ok ? '' : '<div class="banner warn">Not free: ' + esc(q.clash.join('; ')) + '</div>') +
-          '<div><b>' + esc(rn(q.from.room)) + ' ' + q.from.date + ' ' + q.from.time + '</b> → <b>' + esc(rn(q.to.room)) + ' ' + q.to.date + ' ' + q.to.time + '–' + q.to.end + '</b> (' + q.to.hours + 'h)</div>' +
+          '<div><b>' + esc(rn(q.from.room)) + ' ' + q.from.date + ' ' + q.from.time + '</b> → <b>' + esc(rn(q.to.room)) + ' ' + q.to.date + ' ' + q.to.time + '–' + q.to.end + '</b> (' + q.to.hours + 'h' + (q.ext ? ' + ' + Math.round(q.ext / 60) + 'h extension' : '') + ')</div>' +
           '<div class="hint" style="margin-top:4px">Paid ' + money(q.from.paid) + (q.from.online ? ' online' : ' (list price)') + ' · new slot ' + money(q.to.price) + (q.to.earlyBird ? ' (early bird)' : q.to.peak ? ' (peak)' : ' (off-peak)') + '</div>' +
-          '<div style="margin-top:6px">Change fee <b>' + money(q.fee) + '</b> <span class="hint">· ' + esc(q.level === 'upgrade' ? 'upgrade to a pricier slot' : q.level === 'quiet' ? 'quiet slot' : q.level === 'busy' ? 'popular slot' : 'very popular slot') + (q.reason ? ' · ' + esc(q.reason) : '') + '</span></div>' +
+          '<div style="margin-top:6px">Change fee <b>' + money(q.fee) + '</b> <span class="hint">· ' + esc(q.level === 'upgrade' ? 'upgrade to a premium slot' : q.level === 'quiet' ? 'quiet slot' : q.level === 'busy' ? 'popular slot' : 'very popular slot') + (q.reason ? ' · ' + esc(q.reason) : '') + '</span></div>' +
           '<div>Price difference <b>' + money(q.diff) + '</b>' + (q.to.price < q.from.paid ? ' <span class="hint">· new slot is cheaper – no refund</span>' : '') + '</div>';
         total();
       });
@@ -2703,7 +2703,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       gm(Object.assign({ action: 'mvnow', how: how }, base())).then(function (j) { if (j.error) { $('mvPay').innerHTML = '<p class="hint">' + esc(j.error) + '</p>'; return; } done(j.moved); });
     }
     function done(m) {
-      $('mvPay').innerHTML = '<div class="banner" style="border-color:var(--ok)">✅ Moved: <b>' + esc(rn(m.to.room)) + ' ' + m.to.date + ' ' + m.to.time + '</b> (' + m.to.hours + 'h) · ' + esc(m.how) + '. SimplyBook, the Vale/Atlas block, TV messages and wrap-up messages follow.</div>';
+      $('mvPay').innerHTML = '<div class="banner" style="border-color:var(--ok)">✅ Moved: <b>' + esc(rn(m.to.room)) + ' ' + m.to.date + ' ' + m.to.time + '</b> (' + m.to.hours + 'h' + (m.ext ? ' + ' + Math.round(m.ext / 60) + 'h extension' : '') + ') · ' + esc(m.how) + '. SimplyBook, the Vale/Atlas block, the +h note, TV messages and wrap-up messages follow.' + (m.extProb ? ' <b>But the +h note didn’t move – fix it in SimplyBook (an alert was sent).</b>' : '') + '</div>';
       days();
     }
     function log() {
