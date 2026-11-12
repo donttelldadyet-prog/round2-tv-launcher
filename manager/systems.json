@@ -50,14 +50,9 @@
         {
           "name": "Mirror rooms (Atlas ↔ Vale blocks)",
           "status": "live",
-          "what": "Tested 30 Oct after SimplyBook's callback moved to the engine: works. When Atlas or Vale is booked (online or by staff), blocks the other room at the same time; moves and cancels follow. Only for the Early bird / Off-peak / Peak services. If the twin room can't take the block (already taken, or outside SimplyBook's hours, e.g. late-night), nothing is blocked and nobody is told.",
-          "runs": "SimplyBook callback → booking engine (/sb/notify) → Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
-        },
-        {
-          "name": "Mirror rooms in the engine (+ alert if a block fails)",
-          "status": "planned",
-          "what": "To do: move the Atlas ↔ Vale blocking from Make into the Cloudflare engine. No Make operations, and staff get a phone alert (control centre alerts) when a block can't be made (twin room taken, late-night past SimplyBook's hours, or a service that isn't mirrored).",
-          "runs": "Booking engine (Cloudflare) – replaces Make: [BACKEND] SYSTEM BLOCKS MIRROR ROOMS"
+          "what": "Since 11 Nov 2026 run by the booking engine instead of Make (Make [BACKEND] SYSTEM BLOCKS MIRROR ROOMS switched off 11 Nov, 8:18pm). When Atlas or Vale is booked (online, by staff or in SimplyBook), a SYSTEM BLOCK booking goes in the other room for the same time, cleaning included; it moves and cancels with the booking. Works for every service (same kind – off-peak / peak / early bird – in the twin, else its off-peak service). If a block can't be made, staff get a phone alert. Switch: engine gm mirror do=on / off (off = back to Make, which would need switching on again).",
+          "runs": "SimplyBook callback → booking engine (/sb/notify) → mirrorOnSb",
+          "code": "round2sg-home · worker/round2-book.js (mirrorOnSb, mirAdopt)"
         },
         {
           "name": "Noise rule (Max/Atlas 4+ → Bella, Bella 4 → Atlas)",
