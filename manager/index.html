@@ -2712,15 +2712,31 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('mvPay').innerHTML = '<div class="banner" style="border-color:var(--ok)">✅ Moved: <b>' + esc(rn(m.to.room)) + ' ' + m.to.date + ' ' + m.to.time + '</b> (' + m.to.hours + 'h' + (m.ext ? ' + ' + Math.round(m.ext / 60) + 'h extension' : '') + ') · ' + esc(m.how) + '. SimplyBook, the Vale/Atlas block, the +h note, TV messages and wrap-up messages follow.' + (m.extProb ? ' <b>But the +h note didn’t move – fix it in SimplyBook (an alert was sent).</b>' : '') + '</div>';
       days();
     }
+    /* DEMO (owner, 12 Nov: to explain the page before real moves exist): staff.round2.sg/?rsdemo=1 → made-up moves, nothing real */
+    var RSDEMO = /[?&]rsdemo=1/.test(location.search);
+    function demoGm(o) {
+      var t = Date.now(), H = 3600e3, D = 24 * H;
+      if (o.action === 'mvstats') return Promise.resolve({ ok: true, moves: 14, guest: 11, staff: 3, free: 2, booked: 168, fees: 236, diffs: 182, lowered: 25, second: 2, note: '',
+        wires: [{ name: 'of online bookings moved', value: 7, lim: 'limit 15%', red: false, n: 168 }, { name: 'of moves were under 3 days before', value: 36, lim: 'limit 50%', red: false, n: 14 },
+          { name: 'of moves went into Fri–Sun evenings', value: 43, lim: 'limit 33%', red: true, n: 14 }, { name: 'of freed slots were booked again', value: 43, lim: 'at least 15%', red: false, n: 14 },
+          { name: 'average gain per move (fee + difference − estimated lost sale)', value: 9, money: true, lim: 'above $0', red: false, n: 12 }] });
+      return Promise.resolve({ ok: true, list: [
+        { t: t - 2 * H, name: 'Amanda', from: { room: 'Vale', date: '2026-11-17', time: '16:00' }, to: { room: 'Kai', date: '2026-11-21', time: '16:00', hours: 3 }, fee: 15, feeWas: 15, diff: 30, how: 'paid online (PayNow)', by: 'guest online' },
+        { t: t - 5 * H, name: 'Jun Wei', from: { room: 'Kai', date: '2026-11-14', time: '16:00' }, to: { room: 'Kai', date: '2026-11-14', time: '19:30', hours: 3 }, fee: 20, feeWas: 20, diff: 0, how: 'paid online (card)', by: 'guest online' },
+        { t: t - 1 * D, name: 'Priya', from: { room: 'Scarlett', date: '2026-11-15', time: '11:00' }, to: { room: 'Scarlett', date: '2026-11-15', time: '15:00', hours: 3 }, fee: 15, feeWas: 15, diff: 34, how: 'paid online (PayNow)', by: 'guest online' },
+        { t: t - 1 * D - 3 * H, name: 'Wendy', from: { room: 'Max', date: '2026-11-22', time: '16:00' }, to: { room: 'Max', date: '2026-11-29', time: '16:00', hours: 4 }, fee: 0, feeWas: 15, diff: 36.30, how: 'paid in shop', by: 'Karen', why: 'regular, family booking' },
+        { t: t - 2 * D, name: 'Ben', from: { room: 'Bella', date: '2026-11-13', time: '14:00' }, to: { room: 'Bella', date: '2026-11-20', time: '14:00', hours: 3 }, fee: 0, feeWas: 0, diff: 0, how: 'guest · nothing to pay (free 15 min)', by: 'guest online' }] });
+    }
     function log() {
-      $('rsErr').hidden = true; if (!key()) { $('rsErr').hidden = false; $('rsErr').textContent = 'Needs the guest messages staff code.'; return; }
-      gm({ action: 'mvstats' }).then(function (w) {
+      $('rsErr').hidden = true;
+      if (RSDEMO) { $('rsErr').hidden = false; $('rsErr').textContent = 'DEMO – made-up moves to show how this page reads. Nothing here is real.'; } if (!key()) { $('rsErr').hidden = false; $('rsErr').textContent = 'Needs the guest messages staff code.'; return; }
+      (RSDEMO ? demoGm : gm)({ action: 'mvstats' }).then(function (w) {
         if (!w || w.error) { $('rsWires').innerHTML = '<p class="hint">' + esc((w && w.error) || 'No answer') + '</p>'; return; }
         $('rsWires').innerHTML = '<ul style="list-style:none;margin:0;padding:0;display:grid;gap:6px">' + w.wires.map(function (x) {
           return '<li style="display:grid;grid-template-columns:72px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line2);border-left:5px solid ' + (x.red ? '#ff6b6b' : '#4DB848') + (x.red ? ';background:rgba(255,107,107,.08)' : '') + '"><b style="font-size:18px' + (x.red ? ';color:#ff9b9b' : '') + '">' + (x.money ? (x.value < 0 ? '−$' : '+$') + Math.abs(x.value).toFixed(0) : x.value + '%') + '</b><span>' + esc(x.name) + ' <span class="hint">(' + x.n + ')</span></span><span class="hint">' + esc(x.lim) + '</span></li>';
         }).join('') + '</ul><p class="hint" style="margin:8px 0 0">' + w.moves + ' moves (' + w.guest + ' by guests online, ' + w.staff + ' by staff, ' + w.free + ' free) · ' + w.booked + ' online bookings made · 2nd moves: ' + w.second + ' · fees ' + money(w.fees) + ' + differences ' + money(w.diffs) + (w.lowered ? ' · lowered/waived ' + money(w.lowered) : '') + (w.note ? '<br>' + esc(w.note) : '') + '</p>';
       }).catch(function () { $('rsWires').innerHTML = '<p class="hint">Couldn’t reach the engine.</p>'; });
-      gm({ action: 'mvlog' }).then(function (j) {
+      (RSDEMO ? demoGm : gm)({ action: 'mvlog' }).then(function (j) {
         if (j.error) { $('rsErr').hidden = false; $('rsErr').textContent = j.error; return; }
         var L = j.list || [], fees = 0, waived = 0, diffs = 0; L.forEach(function (x) { fees += +x.fee || 0; waived += (+x.feeWas || 0) - (+x.fee || 0); diffs += +x.diff || 0; });
         $('rsNums').innerHTML = '<div class="card"><b>' + L.length + '</b><br><span class="hint">moves</span></div><div class="card"><b>' + money(fees) + '</b><br><span class="hint">fees taken</span></div><div class="card"><b>' + money(waived) + '</b><br><span class="hint">fees lowered / waived</span></div><div class="card"><b>' + money(diffs) + '</b><br><span class="hint">price differences</span></div>';
