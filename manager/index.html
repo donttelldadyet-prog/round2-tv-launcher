@@ -2629,7 +2629,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (j.error) { err(j.error); $('mvList').innerHTML = ''; return; }
         $('mvDayHint').textContent = j.list.length + ' booking' + (j.list.length === 1 ? '' : 's');
         $('mvList').innerHTML = j.list.length ? j.list.map(function (b, i) {
-          return '<button type="button" class="mvbk" data-i="' + i + '" style="--c:' + (RC[rn(b.room)] || '#888') + '" aria-pressed="' + (cur.bk && cur.bk.bid === b.bid) + '"' + (b.started ? ' disabled' : '') + '><b style="min-width:84px">' + esc(rn(b.room)) + '</b><span class="grow">' + clk(b.s) + ' – ' + clk(b.guestEnd) + ' · ' + esc(b.name || 'guest') + '</span><small>' + (b.started ? 'started' : (b.ext ? '+' + Math.round(b.ext / 60) + 'h · ' : '') + '#' + esc(b.bid)) + '</small></button>';
+          return '<button type="button" class="mvbk" data-i="' + i + '" style="--c:' + (RC[rn(b.room)] || '#888') + '" aria-pressed="' + (cur.bk && cur.bk.bid === b.bid) + '"' + (b.started ? ' disabled' : '') + '><b style="min-width:84px">' + esc(rn(b.room)) + '</b><span class="grow">' + clk(b.s) + ' – ' + clk(b.guestEnd) + ' · ' + esc(b.name || 'guest') + '</span><small>' + (b.link ? '🔗 ' : '') + (b.started ? 'started' : (b.ext ? '+' + Math.round(b.ext / 60) + 'h · ' : '') + '#' + esc(b.bid)) + '</small></button>';
         }).join('') : '<p class="hint">No guest bookings that night.</p>';
         [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.onclick = function () { pick(j.list[+el.getAttribute('data-i')]); }; });
       }).catch(function () { err('Couldn’t reach the booking engine.'); });
@@ -2638,7 +2638,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       stop(); cur.bk = b; cur.slot = null; cur.q = null; cur.ref = '';
       [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.setAttribute('aria-pressed', el.textContent.indexOf('#' + b.bid) >= 0 ? 'true' : 'false'); });
       var hrs = Math.max(3, Math.min(6, b.hours || 3));
-      $('mvFrom').innerHTML = 'Moving <b>' + esc(b.name || 'guest') + '</b> · ' + esc(rn(b.room)) + ' ' + $('mvDay').value + ' ' + clk(b.s) + '–' + clk(b.guestEnd) + (b.ext ? ' · its <b>+' + Math.round(b.ext / 60) + 'h extension moves with it</b> (only times free for the extra hours too are shown)' : '');
+      $('mvFrom').innerHTML = 'Moving <b>' + esc(b.name || 'guest') + '</b> · ' + esc(rn(b.room)) + ' ' + $('mvDay').value + ' ' + clk(b.s) + '–' + clk(b.guestEnd) + (b.ext ? ' · its <b>+' + Math.round(b.ext / 60) + 'h extension moves with it</b> (only times free for the extra hours too are shown)' : '') +
+        /* its guest link (owner, 12 Nov: re-send a lost link) – bookings made online or with Add a session have one */
+        (b.link ? '<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><span class="hint" style="align-self:center">Guest’s booking link:</span><button type="button" class="btn" id="mvCopyLink">Copy link</button><a class="btn" target="_blank" rel="noopener" href="' + esc(b.link) + '">Open</a></div>' : '<div class="hint" style="margin-top:6px">No guest booking link (made in SimplyBook directly).</div>');
+      if (b.link) $('mvCopyLink').onclick = function () { var bt = this; try { navigator.clipboard.writeText(b.link).then(function () { bt.textContent = 'Copied ✓'; }, function () { prompt('Copy this link', b.link); }); } catch (e) { prompt('Copy this link', b.link); } };
       $('mvPick').hidden = false; $('mvQuote').hidden = true; $('mvDate').value = $('mvDay').value; $('mvHours').value = String(hrs); free();
       $('mvPick').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }

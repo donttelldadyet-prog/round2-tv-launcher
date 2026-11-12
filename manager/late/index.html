@@ -181,6 +181,11 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   function renderUp() {
       $('up').innerHTML = upList.length ? upList.map(function (x, i) {
         var r = roomOf(x.unit), A = sgMin(x.s, x.night), E = sgMin(x.guestEnd, x.night), late = A >= 23 * 60 || E > 23 * 60 + 15;   /* late by its times only (owner, 5 Nov) – same rule as the engine */
+        /* a real booking made here (12 Nov): its guest link to copy / WhatsApp again; changes go through Bookings › Move a booking */
+        if (x.kind === 'booking') return '<li style="--rc:' + r[2] + '"><div class="t">' + esc(r[1] + ' · ' + x.name) + (x.pax ? ' · ' + x.pax + ' pax' : '') + ' <span class="hint">· booking' + (x.moved ? ' · moved ' + x.moved + '×' : '') + '</span></div>' +
+          '<div class="w">' + dayName(x.night) + ' · ' + hm(A) + ' → ' + hm(E) + ' · ' + ((E - A) / 60) + 'h · code ' + esc(x.code) + '</div>' +
+          '<div class="row"><button class="btn" type="button" data-cp="' + i + '">Copy link</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/' + esc((function (n) { n = String(n || '').replace(/\D/g, ''); return n.length === 8 ? '65' + n : n; })(x.phone)) + '?text=' + encodeURIComponent('Hi ' + x.name + '! Here’s your Round2 booking page (TV message, receipt, reschedule): ' + x.link) + '">WhatsApp it</a></div>' +
+          '<div class="hint" style="margin-top:4px">To change or cancel: Bookings › Move a booking, or SimplyBook.</div></li>';
         return '<li style="--rc:' + r[2] + '"><div class="t">' + (late ? '<span class="moon">🌙 Late</span> ' : '') + esc(r[1] + ' · ' + (x.name || x.text)) + (x.pax ? ' · ' + x.pax + ' pax' : '') + (editing && editing.id === x.id ? ' <span class="hint">(changing)</span>' : '') + '</div>' +
           '<div class="w">Night of ' + dayName(x.night) + ' · ' + hm(A) + (A >= 1440 ? ' (' + dayName(addDays(x.night, 1)) + ')' : '') + ' → ' + hm(E) + (E >= 1440 && A < 1440 ? ' (' + dayName(addDays(x.night, 1)) + ')' : '') + ' · ' + ((E - A) / 60) + 'h' + (x.ext ? ' · extended' : '') + (x.live ? ' · <b class="okmsg">playing now</b>' : '') + '</div>' +
           '<div class="row"><button class="btn" type="button" data-ch="' + i + '">Change</button><button class="btn danger" type="button" data-cx="' + i + '">Cancel</button></div></li>';
@@ -201,7 +206,8 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   function stopEdit() { $('clear').onclick(); renderUp(); }
   $('up').addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('button') : null; if (!b) return;
-    var ch = b.getAttribute('data-ch'), cx = b.getAttribute('data-cx');
+    var ch = b.getAttribute('data-ch'), cx = b.getAttribute('data-cx'), cp = b.getAttribute('data-cp');
+    if (cp !== null) { var L = upList[+cp].link; try { navigator.clipboard.writeText(L).then(function () { b.textContent = 'Copied ✓'; }, function () { prompt('Copy this link', L); }); } catch (e3) { prompt('Copy this link', L); } return; }
     if (ch !== null) { startEdit(upList[+ch]); return; }
     if (cx !== null) {
       var x = upList[+cx];
