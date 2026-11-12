@@ -3211,6 +3211,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }); })
       /* guest rescheduling (12 Nov): the page and the engine's own rules load; the rules give the agreed fees on a made-up booking;
          a booking link that doesn't exist is turned away politely */
+      .then(function () { return step('Moves and Vale/Atlas blocks can run (engine locks work, every Vale/Atlas booking has its twin block, no stuck paid move)', function () {
+        return gm({ action: 'mvselftest' }).then(function (j) {
+          must(j && j.ok, 'Engine didn’t answer: ' + ((j && j.error) || ''));
+          must(j.lockFirst === true && j.lockSecond === false, 'Engine locks are broken (first ' + j.lockFirst + ', second ' + j.lockSecond + ') – moves and twin blocks would never run');
+          must(!j.mirMissing.length, 'Missing twin block: ' + j.mirMissing.join('; ') + ' – fix: gm mirror adopt fix=1');
+          if (j.pending.length) throw { warn: 'Moves not finished: ' + j.pending.join(', ') + ' (paid ones are retried every 5 min; failed ones alerted)' };
+          return 'Locks work · every Vale/Atlas booking has its twin block · no stuck moves';
+        });
+      }); })
       .then(function () { return step('Guest rescheduling: page, rules and fees (made-up booking, nothing changes)', function () {
         return Promise.all([fetch(ENG + '/move/logic.js').then(function (r) { return r.text(); }), fetch(ENG + '/move?ref=R2BNOSUCHREF').then(function (r) { return r.text(); }), J('/move/api?ref=R2BNOSUCHREF')]).then(function (a) {
           must(/function gLogic\(C\)/.test(a[0]), 'Rules file /move/logic.js didn’t load'); must(/gLogic\(C\)|move\/logic\.js/.test(a[1]), 'Guest page /move didn’t load'); must(a[2] && a[2].stop === 'notfound', 'Unknown booking not turned away: ' + JSON.stringify(a[2]).slice(0, 80));
@@ -3222,7 +3231,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(L.why(1, 'Vale', 600, 3) !== '' && L.why(0, 'Vale', 1140, 3) !== '' && L.why(0, 'Vale', 1215, 3) === '', 'Before 11am / under 3 hours from now must not be allowed (3h+ from now must be)');
           C.moves = 1; var f2 = L.fee(1, 'Vale', 900, 3); C.moves = 0; must(f2 === L.fee(1, 'Vale', 900, 3) + 10, '2nd move should add $10');
           C.grace = true; must(L.fee(1, 'Vale', 900, 3) === 0, 'First 15 minutes should be free'); C.grace = false;
-          C.now = 9 * 1440; must(L.stage() === 'closed', 'Under 3 hours: no rescheduling');
+          C.now = 9 * 1440 + 960 - 60; must(L.stage() === 'closed', 'Under 3 hours: no rescheduling');   /* 1 hour before its 4pm start */
           return 'Rules load from the engine · upgrade Vale → Kai $35 · 2nd move +$10 · free in the first 15 min · closed under 3h · unknown link turned away';
         });
       }); })
