@@ -3193,7 +3193,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           var C = { now: 17 * 60, days: days, cal: cal, bk: { room: 'Vale', day: 9, t: 960, h: 3, paid: 69 }, moves: 0, grace: false }, L = gLogic(C);
           must(L.stage() === '' + 'early', 'Stage 9 days out should be 3+ days'); must(L.why(2, 'Kaeden', 960, 3) === 'taken', 'Kaeden (renovation) should be taken');
           must(L.total(2, 'Kai', 870, 3) === 35, 'Vale $69 → Kai Sat 2:30pm should be $5 upgrade + $30 = $35, got $' + L.total(2, 'Kai', 870, 3));
-          must(L.why(1, 'Vale', 600, 3) === 'taken' && L.why(0, 'Vale', 1140, 3) === 'soon', 'Before 11am / under 3 hours from now must not be allowed');
+          must(L.why(1, 'Vale', 600, 3) !== '' && L.why(0, 'Vale', 1140, 3) !== '' && L.why(0, 'Vale', 1215, 3) === '', 'Before 11am / under 3 hours from now must not be allowed (3h+ from now must be)');
           C.moves = 1; var f2 = L.fee(1, 'Vale', 900, 3); C.moves = 0; must(f2 === L.fee(1, 'Vale', 900, 3) + 10, '2nd move should add $10');
           C.grace = true; must(L.fee(1, 'Vale', 900, 3) === 0, 'First 15 minutes should be free'); C.grace = false;
           C.now = 9 * 1440; must(L.stage() === 'closed', 'Under 3 hours: no rescheduling');
