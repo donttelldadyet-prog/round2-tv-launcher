@@ -52,9 +52,15 @@ today's wrap-up messages not doubled / not orphaned · GitHub through the engine
 ## SimplyBook's daily limit (2 Nov 2026)
 SimplyBook's shared servers allow about **5,000 API requests a day** (more is "high load"; at most 2 at once, 5 a second).
 The engine counts every request it makes (`sbn:<day>` in its kv; `/gm action=auto` → `sbToday`, `sbYesterday`) and the check
-shows it ("SimplyBook requests today"; ⚠️ over 3,500, ❌ over 4,800). Measured 2 Nov: background ≈ 90 an hour; **one full
+shows it ("SimplyBook requests today"; ⚠️ over 5,000, ❌ over 9,000 – changed 12 Nov, see below). Measured 2 Nov: background ≈ 90 an hour; **one full
 System check ≈ 260**. Keep it lean: logins are reused for 20 min, one timer tick reads each day once for all its jobs, and
 the 1-hour reminder only runs on the 10-minute ticks plus :15 and :45.
+
+**12 Nov:** the reschedule demo's live calendar pushed a day to 10,500 and SimplyBook kept answering (its support forum:
+~10,000 standard, raised on request; past it, "API calls limit exhausted", HTTP 429). So ~5,000 is the shared-server
+guideline, ~10,000 the hard stop. Savings the same day: the public booking-board login is shared (was ~1,200 logins a day)
+and the board remembers free times 10 min (today 2 min) instead of 60 s – every SimplyBook change, note change, online
+booking or staff move clears it at once, and checkout always asks SimplyBook again.
 
 ## How it stays safe
 Test sessions are named `ZZTEST`, go in at 3–6am on a free night about 6 weeks ahead (so no TV message, no +credits banner,

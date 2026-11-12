@@ -3152,12 +3152,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }); }); })
       /* SimplyBook's shared servers allow about 5,000 API requests a day (owner, 2 Nov: "is that too intensive?"). The engine
          counts every request it makes (bookings page, alerts, timer, screens); this run itself adds a few hundred. */
-      .then(function () { return step('SimplyBook requests today (limit about 5,000 a day)', function () {
+      /* SimplyBook doesn't publish the limit. 12 Nov: still answering at 10,500 in a day; its support forum says ~10,000 standard,
+         raised on request; past it, SimplyBook answers "API calls limit exhausted" (429). Normal use is ~1,500–3,000 a day
+         after the 12 Nov savings (shared login, 10-min free-time memory). */
+      .then(function () { return step('SimplyBook requests today (guideline ~5,000; hard stop ~10,000)', function () {
         return gm({ action: 'auto' }).then(function (a) {
-          var n = a.sbToday || 0, y = a.sbYesterday;
-          must(n < 4800, n + ' requests to SimplyBook today – about to hit its daily limit. Bookings and alerts may start failing.');
-          warnIf(n > 3500, n + ' requests to SimplyBook today – over 70% of its daily limit.');
-          return n + ' so far today' + (y ? ' · ' + y + ' yesterday' : '') + ' · limit about 5,000';
+          var n = a.sbToday || 0, y = a.sbYesterday, top = Object.keys(a.sbBy || {}).sort(function (p, q) { return a.sbBy[q] - a.sbBy[p]; })[0];
+          must(n < 9000, n + ' requests to SimplyBook today – close to its limit (~10,000). Bookings and alerts may start failing. Biggest user: ' + top + ' (' + (a.sbBy || {})[top] + ').');
+          warnIf(n > 5000, n + ' requests to SimplyBook today – over SimplyBook’s ~5,000 guideline (normal 1,500–3,000). Biggest user: ' + top + ' (' + (a.sbBy || {})[top] + ').');
+          return n + ' so far today' + (y ? ' · ' + y + ' yesterday' : '') + ' · normal 1,500–3,000 · guideline ~5,000 · hard stop ~10,000';
         }); }); })
       /* Move a booking (owner, 12 Nov): the engine works out a move's fee for a real upcoming booking – nothing is changed */
       .then(function () { return step('Move a booking: fee for a sample move (nothing changes)', function () {
