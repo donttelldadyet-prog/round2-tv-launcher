@@ -3176,11 +3176,39 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             if (!room) throw { warn: 'No free time on ' + date + ' to test with.' };
             var m = fr.free[room][Math.floor(fr.free[room].length / 2)], U = { Vale: 5, Kaeden: 7, Scarlett: 8, Kai: 9, Bella: 10, Atlas: 12, Maximillion: 11 };
             return gm({ action: 'mvquote', bid: b.bid, unit: U[room], date: date, time: String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'), hours: 3 }).then(function (q) {
-              must(!q.error, 'Fee: ' + q.error); must([5, 15, 25, 35].indexOf(q.fee) >= 0, 'Fee $' + q.fee + ' is not one of $5 / $15 / $25 / $35');
+              must(!q.error, 'Fee: ' + q.error); must(q.fee >= 5 && q.fee <= 35 && q.fee % 5 === 0, 'Fee $' + q.fee + ' is not $5–$35 in $5 steps');
               must(q.total === Math.round((q.fee + q.diff) * 100) / 100, 'Total ≠ fee + difference');
               return b.room + ' booking #' + b.bid + ' → ' + room + ' ' + date + ': fee $' + q.fee + ' (' + q.level + ') + difference $' + q.diff + ' = $' + q.total;
             });
           });
+        });
+      }); })
+      /* guest rescheduling (12 Nov): the page and the engine's own rules load; the rules give the agreed fees on a made-up booking;
+         a booking link that doesn't exist is turned away politely */
+      .then(function () { return step('Guest rescheduling: page, rules and fees (made-up booking, nothing changes)', function () {
+        return Promise.all([fetch(ENG + '/move/logic.js').then(function (r) { return r.text(); }), fetch(ENG + '/move?ref=R2BNOSUCHREF').then(function (r) { return r.text(); }), J('/move/api?ref=R2BNOSUCHREF')]).then(function (a) {
+          must(/function gLogic\(C\)/.test(a[0]), 'Rules file /move/logic.js didn’t load'); must(/gLogic\(C\)|move\/logic\.js/.test(a[1]), 'Guest page /move didn’t load'); must(a[2] && a[2].stop === 'notfound', 'Unknown booking not turned away: ' + JSON.stringify(a[2]).slice(0, 80));
+          var gLogic = new Function(a[0] + '\nreturn gLogic;')(), days = [], cal = [];
+          for (var i = 0; i < 31; i++) { var w = (4 + i) % 7; days.push({ date: 'd' + i, peak: w === 0 || w === 5 || w === 6 }); cal.push({ Vale: [], Kaeden: [[0, 2000, 'Kaeden']], Scarlett: [], Kai: [[660, 855, 'Kai']], Bella: [], Atlas: [], Maximillion: [] }); }
+          var C = { now: 17 * 60, days: days, cal: cal, bk: { room: 'Vale', day: 9, t: 960, h: 3, paid: 69 }, moves: 0, grace: false }, L = gLogic(C);
+          must(L.stage() === '' + 'early', 'Stage 9 days out should be 3+ days'); must(L.why(2, 'Kaeden', 960, 3) === 'taken', 'Kaeden (renovation) should be taken');
+          must(L.total(2, 'Kai', 870, 3) === 35, 'Vale $69 → Kai Sat 2:30pm should be $5 upgrade + $30 = $35, got $' + L.total(2, 'Kai', 870, 3));
+          must(L.why(1, 'Vale', 600, 3) === 'taken' && L.why(0, 'Vale', 1140, 3) === 'soon', 'Before 11am / under 3 hours from now must not be allowed');
+          C.moves = 1; var f2 = L.fee(1, 'Vale', 900, 3); C.moves = 0; must(f2 === L.fee(1, 'Vale', 900, 3) + 10, '2nd move should add $10');
+          C.grace = true; must(L.fee(1, 'Vale', 900, 3) === 0, 'First 15 minutes should be free'); C.grace = false;
+          C.now = 9 * 1440; must(L.stage() === 'closed', 'Under 3 hours: no rescheduling');
+          return 'Rules load from the engine · upgrade Vale → Kai $35 · 2nd move +$10 · free in the first 15 min · closed under 3h · unknown link turned away';
+        });
+      }); })
+      .then(function () { return step('Add a session: daytime with a mobile = real booking, late = note (check only, nothing saved)', function () {
+        var d = addD(R2Day.tonight(), 40);
+        return Promise.all([gm({ action: 'late', dry: '1', unit: 9, day: d, start: '14:00', end: '17:00', name: 'System check', pax: 2, phone: '91625767' }), gm({ action: 'late', dry: '1', unit: 9, day: d, start: '23:30', end: '02:30', name: 'System check', pax: 2, phone: '91625767' }), gm({ action: 'late', dry: '1', unit: 9, day: d, start: '14:00', end: '17:00', name: 'System check', pax: 2 })]).then(function (r) {
+          must(r[0].ok && r[0].plan, 'Check refused: ' + (r[0].error || '')); 
+          if (r[0].plan.clash && r[0].plan.clash.length) throw { warn: 'Kai ' + d + ' 2–5pm isn’t free, so the booking path couldn’t be checked (' + r[0].plan.whyNote + ').' };
+          must(r[0].plan.as === 'booking', 'Daytime 3h with a mobile should be a real booking, got: ' + r[0].plan.as + ' (' + r[0].plan.whyNote + ')');
+          must(r[1].ok && r[1].plan.as === 'note', 'A late session should stay a note');
+          must(r[2].ok && r[2].plan.as === 'note', 'Without a mobile it should stay a note');
+          return 'Kai ' + d + ' 2–5pm with a mobile → real booking ($' + r[0].plan.price + ') · 11:30pm → note · no mobile → note';
         });
       }); })
       /* 3. booking page: slot board vs checkout price */

@@ -66,7 +66,7 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
 <div class="wrap">
   <header><img class="logo" id="logo" src="https://static.wixstatic.com/media/a46627_0c92a12b5ec442aeaaa57c744095d829~mv2.webp" alt="ROUND2"><div><small>Add a session</small></div></header>
   <h1>Add a session</h1>
-  <p class="sub">For WhatsApp or walk-in sessions, including ones past midnight. Writes one note into SimplyBook from arrival to the guest’s end + 15 min cleaning, with name and pax, so reminders, +1h and “That’s a wrap!” get the right times. Vale and Atlas block each other.</p>
+  <p class="sub">For WhatsApp or walk-in sessions, including ones past midnight. Daytime sessions with a mobile number become a real booking (with a link to send); late ones are one note into SimplyBook from arrival to the guest’s end + 15 min cleaning, with name and pax, so reminders, +1h and “That’s a wrap!” get the right times. Vale and Atlas block each other.</p>
 
   <div class="card" id="keyBox" hidden>
     <b>One-time setup on this phone</b>
@@ -86,6 +86,11 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
     </div>
     <div id="when"></div>
     <label style="margin-top:12px">Guest name<input id="name" type="text" maxlength="40" autocomplete="off" autocapitalize="words"></label>
+    <div class="grid" style="margin-top:12px">
+      <label>Mobile<input id="phone" type="tel" inputmode="tel" maxlength="20" autocomplete="off" placeholder="9123 4567"></label>
+      <label>Email (optional)<input id="email" type="email" inputmode="email" maxlength="80" autocomplete="off" placeholder="for the confirmation email"></label>
+    </div>
+    <p class="hint" style="margin:6px 0 0">With a mobile, a daytime session (11am–11:15pm, 3–6 hours) becomes a <b>real SimplyBook booking</b> with its own booking page link to send – the guest can see it, add a TV message, get a receipt and reschedule. Late sessions, other lengths and clashes stay a note, like before.</p>
     <label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;color:var(--ink)"><input id="msgs" type="checkbox" checked style="width:22px;height:22px;min-height:0;margin:0;flex:none"><span>Also put “About 10 minutes to go” and “That’s a wrap!” on the room’s TV<br><span class="hint">Only for sessions starting within 24 hours. Turn off if someone already set them.</span></span></label>
     <div class="row"><button class="btn primary" id="check" type="button">Check</button><button class="btn" id="clear" type="button">Clear</button></div>
     <div id="plan" class="hint plan" style="margin-top:12px"></div>
@@ -153,7 +158,7 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   function form() {
     var d = $('day').value, A = +$('start').value, E = +$('end').value;
     return { unit: unit, day: $('start').value ? addDays(d, Math.floor(A / 1440)) : d, start: $('start').value ? hhmm(A) : '', end: $('end').value ? hhmm(E) : '',
-      name: $('name').value.trim(), pax: $('pax').value, msgs: $('msgs').checked ? 'yes' : 'no', replace: editing ? editing.id : '', oldDay: editing ? editing.day : '' };
+      name: $('name').value.trim(), pax: $('pax').value, phone: $('phone').value.trim(), email: $('email').value.trim(), msgs: $('msgs').checked ? 'yes' : 'no', replace: editing ? editing.id : '', oldDay: editing ? editing.day : '' };
   }
   function call(body, action) {
     body.staff = key(); body.action = action || 'late';
@@ -219,7 +224,8 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
       var p = j.plan, clash = p.clash && p.clash.length; ready = form();
       var h = '<div class="card" style="margin:0;border-top-color:' + (clash ? 'var(--warn)' : 'var(--ok)') + '"><b>' + esc(p.room) + ' · ' + esc(p.name) + ' · ' + p.pax + ' pax</b><br>' +
         'Arrives <b>' + esc(p.arrivesDay) + ', ' + esc(p.arrives) + '</b> · leaves <b>' + esc(p.leavesDay) + ', ' + esc(p.guestEnd) + '</b> · ' + p.hours + 'h<br>' +
-        'SimplyBook note: ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.nextDay ? '. After midnight it shows at the top of the next day in SimplyBook.' : '') +
+        (p.as === 'booking' ? '<b style="color:var(--ok)">Real SimplyBook booking</b> ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.price ? ' · $' + Number(p.price).toFixed(2) : '') + ' · you get a booking link to send' + ($('email').value.trim() ? ' · the guest also gets the confirmation email' : '') :
+         'SimplyBook note: ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.nextDay ? '. After midnight it shows at the top of the next day in SimplyBook.' : '') + (p.whyNote && !editing ? ' <span class="hint">(a note because: ' + esc(p.whyNote) + ')</span>' : '')) +
         (p.twin ? '<br>' + esc(p.twin) + ' gets a SYSTEM BLOCK for the same time.' : '') +
         '<br>TV: ' + (p.msgs === 'auto' ? 'Auto wrap-up is on, so it adds “About 10 minutes to go” and “That’s a wrap!” by itself.' : p.msgs === 'off' ? 'no messages added.' : p.msgs === 'later' ? 'messages not added – the session starts more than 24 hours from now. Use +1h or Round2 messages nearer the time.' : '“About 10 minutes to go” at ' + esc(p.msgs.wrapup) + ', “That’s a wrap!” at ' + esc(p.msgs.timeup) + '.');
       if (clash) h += '<p class="warn" style="margin:10px 0 0"><b>Already in the calendar then:</b><br>' + p.clash.map(function (c) { return esc(c.room + ' · ' + c.what + ' · ' + c.name + ' · ' + c.from + '–' + c.to); }).join('<br>') + '</p>';
@@ -235,18 +241,20 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
       var p = j.plan;
       var mp = (j.msgs || []).filter(function (m) { return m.problem; });
       var was = !!editing; editing = null; $('editing').hidden = true; loadUp();
-      show('<span class="okmsg"><b>' + (was ? 'Changed in SimplyBook ✓' : 'Added to SimplyBook ✓') + '</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrivesDay + ', ' + p.arrives + ' – ' + p.leavesDay + ', ' + p.guestEnd) +
+      var bk = j.booking, bh = bk ? '<div class="card" style="margin:10px 0 0;border-top-color:var(--ok)"><b>Booking made ✓</b> · code ' + esc(bk.code) + '<br><span class="hint">Send this link on WhatsApp – their booking page (TV message, receipt, reschedule):</span><br><input id="blink" readonly value="' + esc(bk.link) + '" style="width:100%;margin-top:6px"><div class="row"><button class="btn primary" type="button" id="bcopy">Copy link</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/' + esc((function (n) { n = String(n || '').replace(/\D/g, ''); return n.length === 8 ? '65' + n : n; })(f.phone)) + '?text=' + encodeURIComponent('Hi ' + p.name + '! Your Round2 booking is confirmed: ' + p.room + ', ' + p.arrivesDay + ', ' + p.arrives + '–' + p.guestEnd + '. Your booking page (add a TV message, get your receipt, or reschedule): ' + bk.link) + '">WhatsApp it</a></div>' + (bk.emailed ? '<span class="hint">The confirmation email is on its way too.</span>' : '') + '</div>' : (p.whyNote && !was ? '<br><span class="hint">Saved as a note (' + esc(p.whyNote) + ') – no booking link for notes.</span>' : '');
+      show('<span class="okmsg"><b>' + (was ? 'Changed in SimplyBook ✓' : bk ? 'Booked in SimplyBook ✓' : 'Added to SimplyBook ✓') + '</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrivesDay + ', ' + p.arrives + ' – ' + p.leavesDay + ', ' + p.guestEnd) +
         ((j.msgs || []).length ? '<br>' + (mp.length ? '<span class="warn">TV messages: ' + esc(mp.map(function (m) { return m.problem; }).join('; ')) + ' – set them in Round2 messages.</span>' : 'TV messages set ✓') : '') +
-        (j.tied ? '<br>🔗 The guest link for this time is now tied to this session' : ''));
-      ready = null; $('name').value = ''; $('pax').value = ''; $('start').value = ''; fillEnd();
+        (j.tied ? '<br>🔗 The guest link for this time is now tied to this session' : '') + bh);
+      if (bk) { $('bcopy').onclick = function () { var i = $('blink'); i.select(); try { navigator.clipboard.writeText(i.value).then(function () { $('bcopy').textContent = 'Copied ✓'; }); } catch (e) { document.execCommand('copy'); $('bcopy').textContent = 'Copied ✓'; } }; }
+      ready = null; $('name').value = ''; $('pax').value = ''; $('phone').value = ''; $('email').value = ''; $('start').value = ''; fillEnd();
       try { if (embed) parent.postMessage({ r2late: true }, location.origin); } catch (e) {}
     }).catch(function () { show('<span class="warn">Couldn’t reach the engine. Check SimplyBook before trying again.</span>'); });
   }
   $('rooms').addEventListener('click', function (e) { var u = e.target.getAttribute && e.target.getAttribute('data-u'); if (u) { unit = u; ready = null; drawRooms(); show(''); } });
   $('day').addEventListener('change', fillStart); $('start').addEventListener('change', fillEnd); $('end').addEventListener('change', when);
-  ['day', 'start', 'end', 'name', 'pax', 'msgs'].forEach(function (k) { $(k).addEventListener(k === 'msgs' || k === 'start' || k === 'end' || k === 'day' ? 'change' : 'input', function () { if (ready) { ready = null; show(''); } }); });
+  ['day', 'start', 'end', 'name', 'pax', 'msgs', 'phone', 'email'].forEach(function (k) { $(k).addEventListener(k === 'msgs' || k === 'start' || k === 'end' || k === 'day' ? 'change' : 'input', function () { if (ready) { ready = null; show(''); } }); });
   $('check').onclick = check;
-  $('clear').onclick = function () { if (editing) { editing = null; $('editing').hidden = true; } unit = ''; drawRooms(); ['start', 'name', 'pax'].forEach(function (k) { $(k).value = ''; }); $('day').value = sgToday(); fillStart(); ready = null; show(''); };
+  $('clear').onclick = function () { if (editing) { editing = null; $('editing').hidden = true; } unit = ''; drawRooms(); ['start', 'name', 'pax', 'phone', 'email'].forEach(function (k) { $(k).value = ''; }); $('day').value = sgToday(); fillStart(); ready = null; show(''); };
   $('keySave').onclick = function () { var v = $('key').value.trim(); if (v.length < 8) return; ls('r2.guestStaff', v); $('key').value = ''; gate(); };
   $('day').value = sgToday(); fillStart(); drawRooms(); gate(); report();
   /* left open across days (Home Screen app, control centre tab): "Night of" moves on at 7am unless something is being typed or changed (overnight review 5 Nov) */
