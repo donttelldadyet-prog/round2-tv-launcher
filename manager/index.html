@@ -819,11 +819,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   <section id="tab-resched" hidden>
     <h1>Rescheduling</h1>
-    <p class="sub">Every booking moved from the control centre: from where to where, the fee (and what it would have been), price difference, how it was paid, who moved it and why. Online rescheduling for guests isn’t live yet – it’s still being designed in the demo.</p>
+    <p class="sub">Online rescheduling is live as a <b>BETA</b> (12 Nov). The trip-wires watch the last 4 weeks: if one turns red you get a push alert and we review the rules. Below: every move – by guests online and by staff – with the fee, price difference, how it was paid and why.</p>
     <div class="banner warn" id="rsErr" hidden></div>
     <div class="bsnums" id="rsNums"></div>
+    <div class="card" style="margin-top:12px"><h2 style="margin-top:0">Trip-wires · last 4 weeks</h2><div id="rsWires"><p class="hint">Loading…</p></div></div>
     <div class="card" style="margin-top:12px"><h2 style="margin-top:0">Moves</h2><div id="rsList"><p class="hint">Loading…</p></div></div>
-    <p class="hint">Guest-side design and the engine stress test: <a href="https://raw.githack.com/donttelldadyet-prog/round2sg-home/my-booking-demo/demo/manage.html" target="_blank" rel="noopener">reschedule demo</a> (Owner view).</p>
+    <p class="hint">Engine stress test and demand grid: <a href="https://raw.githack.com/donttelldadyet-prog/round2sg-home/my-booking-demo/demo/manage.html" target="_blank" rel="noopener">reschedule demo</a> (Owner view). Switch guest rescheduling off: tell Claude (engine mode gResched).</p>
   </section>
 
   <section id="tab-guestlink" hidden>
@@ -2713,6 +2714,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function log() {
       $('rsErr').hidden = true; if (!key()) { $('rsErr').hidden = false; $('rsErr').textContent = 'Needs the guest messages staff code.'; return; }
+      gm({ action: 'mvstats' }).then(function (w) {
+        if (!w || w.error) { $('rsWires').innerHTML = '<p class="hint">' + esc((w && w.error) || 'No answer') + '</p>'; return; }
+        $('rsWires').innerHTML = '<ul style="list-style:none;margin:0;padding:0;display:grid;gap:6px">' + w.wires.map(function (x) {
+          return '<li style="display:grid;grid-template-columns:72px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line2);border-left:5px solid ' + (x.red ? '#ff6b6b' : '#4DB848') + (x.red ? ';background:rgba(255,107,107,.08)' : '') + '"><b style="font-size:18px' + (x.red ? ';color:#ff9b9b' : '') + '">' + (x.money ? (x.value < 0 ? '−$' : '+$') + Math.abs(x.value).toFixed(0) : x.value + '%') + '</b><span>' + esc(x.name) + ' <span class="hint">(' + x.n + ')</span></span><span class="hint">' + esc(x.lim) + '</span></li>';
+        }).join('') + '</ul><p class="hint" style="margin:8px 0 0">' + w.moves + ' moves (' + w.guest + ' by guests online, ' + w.staff + ' by staff, ' + w.free + ' free) · ' + w.booked + ' online bookings made · 2nd moves: ' + w.second + ' · fees ' + money(w.fees) + ' + differences ' + money(w.diffs) + (w.lowered ? ' · lowered/waived ' + money(w.lowered) : '') + (w.note ? '<br>' + esc(w.note) : '') + '</p>';
+      }).catch(function () { $('rsWires').innerHTML = '<p class="hint">Couldn’t reach the engine.</p>'; });
       gm({ action: 'mvlog' }).then(function (j) {
         if (j.error) { $('rsErr').hidden = false; $('rsErr').textContent = j.error; return; }
         var L = j.list || [], fees = 0, waived = 0, diffs = 0; L.forEach(function (x) { fees += +x.fee || 0; waived += (+x.feeWas || 0) - (+x.fee || 0); diffs += +x.diff || 0; });
