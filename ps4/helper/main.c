@@ -29,7 +29,7 @@
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.1.0"
+#define R2_VERSION "1.1.1"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -57,6 +57,8 @@ int sceRegMgrSetInt(long, int);
 int sceRegMgrSetStr(long, const char *, int);
 int sceRegMgrSetBin(long, const void *, int);
 int sceUserServiceSetUserName(int32_t, const char *);
+int sceUserServiceLogin(int32_t);
+int sceUserServiceLogout(int32_t);
 int sceSystemServiceGetAppIdOfBigApp(void);
 int sceLncUtilGetAppTitleId(int, char *);
 int sceNetCtlInit(void);
@@ -687,6 +689,19 @@ static void prof_snap(const char *tag, uint32_t uid, long base) {
   snprintf(k, sizeof k, "%s/login_flag", tag); snprintf(v, sizeof v, "%d", lf); look_kv(k, v);
   snprintf(k, sizeof k, "%s/np", tag); look_kv(k, np);
 }
+static void prof_logins(const char *tag) { /* who is signed in, by name */
+  UserIdList l;
+  char v[200] = "", nm[40];
+  memset(&l, 0, sizeof l);
+  int r = sceUserServiceGetLoginUserIdList(&l);
+  for (int i = 0; i < 4; i++) {
+    if (l.userId[i] == -1 || l.userId[i] == 0) continue;
+    nm[0] = 0; sceUserServiceGetUserName(l.userId[i], nm, sizeof nm);
+    size_t n = strlen(v); snprintf(v + n, sizeof v - n, "%s%s(%08x)", n ? ", " : "", nm, (unsigned)l.userId[i]);
+  }
+  if (r) snprintf(v + strlen(v), sizeof v - strlen(v), " [call %d]", r);
+  char k[40]; snprintf(k, sizeof k, "%s/signed_in", tag); look_kv(k, v[0] ? v : "(nobody)");
+}
 static void do_prof(const char *key, const char *cid, const char *body) {
   char op[16], us[16], val[40], run[32], why[160] = "";
   jget(body, "op", op, sizeof op);
@@ -702,7 +717,10 @@ static void do_prof(const char *key, const char *cid, const char *body) {
   jadd("{\"id\":\"%s\",\"cid\":", console_id); jstr(cid);
   jadd(",\"list\":{");
   prof_snap("before", uid, base);
+  prof_logins("before");
   int r = -1;
+  int mainu = 0;
+  sceRegMgrGetInt(0x07010000, &mainu); /* the auto-login (main) profile – never signed out */
   if (!strcmp(op, "acct") && strlen(val) == 16) {
     unsigned char b[8];
     for (int i = 0; i < 8; i++) { char h[3] = { val[i * 2], val[i * 2 + 1], 0 }; b[i] = (unsigned char)strtoul(h, 0, 16); }
@@ -722,8 +740,14 @@ static void do_prof(const char *key, const char *cid, const char *body) {
     sceUserServiceGetLoginUserIdList(&l);
     for (int i = 0; i < 4; i++) if ((uint32_t)l.userId[i] == uid) { snprintf(why, sizeof why, "profile is signed in - not renamed"); break; }
     if (!why[0]) { r = sceUserServiceSetUserName((int32_t)uid, val); snprintf(why, sizeof why, "rename: %d (0x%08x)", r, (unsigned)r); }
+  } else if (!strcmp(op, "logout")) { /* 1.1.1 test: sign a spare profile out */
+    if ((uint32_t)mainu == uid) snprintf(why, sizeof why, "that is the main profile - never signed out");
+    else { r = sceUserServiceLogout((int32_t)uid); sleep(4); snprintf(why, sizeof why, "logout: %d (0x%08x)", r, (unsigned)r); }
+  } else if (!strcmp(op, "login")) { /* 1.1.1 test: sign a profile in */
+    r = sceUserServiceLogin((int32_t)uid); sleep(4); snprintf(why, sizeof why, "login: %d (0x%08x)", r, (unsigned)r);
   } else snprintf(why, sizeof why, "unknown op or bad value");
   prof_snap("after", uid, base);
+  prof_logins("after");
   jadd("},\"ok\":%d,\"refused\":0,\"why\":", r == 0); jstr(why);
   jadd("}");
   char hdr[200], rbody[200], err[120];
