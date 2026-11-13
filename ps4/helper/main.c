@@ -29,7 +29,7 @@
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.9"
+#define R2_VERSION "1.1.0"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -53,6 +53,10 @@ int sceUserServiceGetInitialUser(int32_t *);
 int sceRegMgrGetInt(long, int *);
 int sceRegMgrGetStr(long, char *, int);
 int sceRegMgrGetBin(long, void *, int);
+int sceRegMgrSetInt(long, int);
+int sceRegMgrSetStr(long, const char *, int);
+int sceRegMgrSetBin(long, const void *, int);
+int sceUserServiceSetUserName(int32_t, const char *);
 int sceSystemServiceGetAppIdOfBigApp(void);
 int sceLncUtilGetAppTitleId(int, char *);
 int sceNetCtlInit(void);
@@ -648,6 +652,85 @@ static void look_profiles(void) {
   }
 }
 
+/* 1.1.0: profile write test (staff job "prof", owner 13 Nov: test on Kai). One change per job, read back before and after:
+   op "acct"   u=<user id hex> v=<16 hex bytes>  – offline-activate with that account ID (the 3 settings Apollo writes)
+   op "unacct" u=<user id hex>                   – undo: account ID zeroed, login flag back to 2, "np" cleared
+   op "name"   u=<user id hex> v=<new name>      – rename with the PS4's own function (not for a signed-in profile)
+   Refused while a game is open. Nothing else is touched. */
+static long prof_slot_base(uint32_t uid) {
+  for (int sl = 1; sl <= 16; sl++) {
+    long base = 0x07800000L + (long)(sl - 1) * 0x10000L;
+    int x = 0;
+    if (sceRegMgrGetInt(base + 0x100, &x) == 0 && (uint32_t)x == uid) return base;
+  }
+  return 0;
+}
+static void prof_snap(const char *tag, uint32_t uid, long base) {
+  char k[64], v[96], nm[40] = "", rn[40] = "", np[24] = "", ud[40] = "";
+  unsigned char b[8] = { 0 };
+  int lf = -99;
+  sceUserServiceGetUserName((int32_t)uid, nm, sizeof nm);
+  sceRegMgrGetStr(base + 0x200, rn, 17);
+  int rb = sceRegMgrGetBin(base + 0x500, b, 8);
+  sceRegMgrGetInt(base + 0x800, &lf);
+  sceRegMgrGetStr(base + 0xB007, np, 17);
+  char p[80];
+  snprintf(p, sizeof p, "/user/home/%08x/username.dat", uid);
+  FILE *f = fopen(p, "rb");
+  if (f) { size_t n = fread(ud, 1, 17, f); ud[n < 39 ? n : 39] = 0; fclose(f); }
+  snprintf(k, sizeof k, "%s/name(service)", tag); look_kv(k, nm);
+  snprintf(k, sizeof k, "%s/name(setting)", tag); look_kv(k, rn);
+  snprintf(k, sizeof k, "%s/username.dat", tag); look_kv(k, ud);
+  snprintf(k, sizeof k, "%s/account", tag);
+  if (rb) snprintf(v, sizeof v, "(none, %d)", rb); else snprintf(v, sizeof v, "%02x%02x%02x%02x%02x%02x%02x%02x", b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]);
+  look_kv(k, v);
+  snprintf(k, sizeof k, "%s/login_flag", tag); snprintf(v, sizeof v, "%d", lf); look_kv(k, v);
+  snprintf(k, sizeof k, "%s/np", tag); look_kv(k, np);
+}
+static void do_prof(const char *key, const char *cid, const char *body) {
+  char op[16], us[16], val[40], run[32], why[160] = "";
+  jget(body, "op", op, sizeof op);
+  jget(body, "u", us, sizeof us);
+  jget(body, "v", val, sizeof val);
+  running_title(run, sizeof run);
+  if (run[0] && strcmp(run, VUE_ID)) { cmd_done(key, cid, 0, 1, 0, 0, 0, "a game is open"); return; }
+  uint32_t uid = (uint32_t)strtoul(us, 0, 16);
+  long base = uid ? prof_slot_base(uid) : 0;
+  if (!base) { cmd_done(key, cid, 0, 0, 0, 0, 0, "no profile with that user id"); return; }
+  Jn = 0;
+  look_n = 0;
+  jadd("{\"id\":\"%s\",\"cid\":", console_id); jstr(cid);
+  jadd(",\"list\":{");
+  prof_snap("before", uid, base);
+  int r = -1;
+  if (!strcmp(op, "acct") && strlen(val) == 16) {
+    unsigned char b[8];
+    for (int i = 0; i < 8; i++) { char h[3] = { val[i * 2], val[i * 2 + 1], 0 }; b[i] = (unsigned char)strtoul(h, 0, 16); }
+    r = sceRegMgrSetBin(base + 0x500, b, 8);
+    r |= sceRegMgrSetStr(base + 0xB007, "np", 3);
+    r |= sceRegMgrSetInt(base + 0x800, 6);
+    snprintf(why, sizeof why, "acct set: %d", r);
+  } else if (!strcmp(op, "unacct")) {
+    unsigned char z[8] = { 0 };
+    r = sceRegMgrSetBin(base + 0x500, z, 8);
+    r |= sceRegMgrSetInt(base + 0x800, 2);
+    r |= sceRegMgrSetStr(base + 0xB007, "", 1);
+    snprintf(why, sizeof why, "acct cleared: %d", r);
+  } else if (!strcmp(op, "name") && val[0] && strlen(val) <= 16) {
+    UserIdList l;
+    memset(&l, 0, sizeof l);
+    sceUserServiceGetLoginUserIdList(&l);
+    for (int i = 0; i < 4; i++) if ((uint32_t)l.userId[i] == uid) { snprintf(why, sizeof why, "profile is signed in - not renamed"); break; }
+    if (!why[0]) { r = sceUserServiceSetUserName((int32_t)uid, val); snprintf(why, sizeof why, "rename: %d (0x%08x)", r, (unsigned)r); }
+  } else snprintf(why, sizeof why, "unknown op or bad value");
+  prof_snap("after", uid, base);
+  jadd("},\"ok\":%d,\"refused\":0,\"why\":", r == 0); jstr(why);
+  jadd("}");
+  char hdr[200], rbody[200], err[120];
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, rbody, sizeof rbody, err, sizeof err) != 200; i++) sleep(5);
+}
+
 static void do_look(const char *key, const char *cid, const char *body) {
   Jn = 0;
   look_n = 0;
@@ -685,6 +768,7 @@ static int check_cmd(const char *key) { /* every minute; 1 = it did something (r
   if (strstr(body, "\"do\":\"clean\"")) clean_up(key, cid);
   else if (strstr(body, "\"do\":\"update\"")) do_update(key, cid, body);
   else if (strstr(body, "\"do\":\"look\"")) do_look(key, cid, body);
+  else if (strstr(body, "\"do\":\"prof\"")) do_prof(key, cid, body);
   else cmd_done(key, cid, 0, 1, 0, 0, 0, "this helper doesn't know that command - update it");
   return 1;
 }
