@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.7"
+#define R2_VERSION "1.1.8"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -49,6 +49,8 @@ int sceKernelGetSocSensorTemperature(int, int *);
 int sceKernelGetOpenPsId(uint8_t *);
 int sceKernelLoadStartModule(const char *, size_t, const void *, uint32_t, void *, int *);
 int sceKernelDlsym(int, const char *, void **);
+int sceSystemStateMgrEnterStandby(int);
+int sceSystemStateMgrIsStandbyModeEnabled(void);
 int sceUserServiceInitialize(void *);
 typedef struct { int32_t userId[4]; } UserIdList;
 int sceUserServiceGetLoginUserIdList(UserIdList *);
@@ -1021,6 +1023,18 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   free(mt);
   return ok;
 }
+/* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
+   Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
+   the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
+static int rest_after;
+static void look_rest(void) {
+  char v[80];
+  int en = sceSystemStateMgrIsStandbyModeEnabled();
+  snprintf(v, sizeof v, "%d", en); look_kv("rest/enabled", v);
+  if (sv_game_open()) { look_kv("rest/refused", "a game is open"); return; }
+  if (en <= 0) { look_kv("rest/refused", "rest mode is off in the PS4's settings"); return; }
+  rest_after = 1; look_kv("rest/result", "going to rest mode in ~3 s");
+}
 static void do_look(const char *key, const char *cid, const char *body) {
   Jn = 0;
   look_n = 0;
@@ -1039,12 +1053,19 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_save.", 7)) look_save(t, dp);
     else if (!strncmp(t, "/_sback.", 8)) look_sback(key, t);
     else if (!strncmp(t, "/_srest.", 8)) look_srest(key, t);
+    else if (!strcmp(t, "/_rest")) look_rest();
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
   char hdr[200], rbody[200], err[120];
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
   for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, rbody, sizeof rbody, err, sizeof err) != 200; i++) sleep(5);
+  if (rest_after) {
+    rest_after = 0; sleep(3);
+    int r = sceSystemStateMgrEnterStandby(0);
+    FILE *f = fopen("/data/round2/rest.log", "a");
+    if (f) { fprintf(f, "%lld enter rest mode: %d (0x%08x)\n", (long long)time(0), r, (unsigned)r); fclose(f); }
+  }
 }
 
 static int check_cmd(const char *key) { /* every minute; 1 = it did something (report again) */
