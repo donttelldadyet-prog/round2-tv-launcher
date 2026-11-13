@@ -132,7 +132,7 @@ Point Claude at this repo and the website repo. A good opening message: "Read th
 
 > **Booking times:** a SimplyBook booking ends 15 min after the guest's session (cleaning). Guest-facing timing (wrap-up / time's up messages) uses the session end. See [docs/booking-times.md](docs/booking-times.md).
 
-## How Round2's automation fits together (read first) – updated 30 Oct 2026
+## How Round2's automation fits together (read first) – updated 14 Nov 2026 (the copy in round2sg-home `README.md` is the fuller one)
 
 **Rule: Cloudflare first, Make.com last.** Make has a hard monthly budget (10,000 operations, shared by everything), so
 nothing that runs often, polls, or waits may live in Make. Anything fast or frequent runs in the **Round2 engine on
@@ -141,21 +141,20 @@ happened (a paid order). Pages must never poll Make, and Make webhook addresses 
 go through the engine.
 
 **The Round2 engine** = Cloudflare Worker `round2-book` (`https://round2-book.donttelldadyet.workers.dev`), source
-`worker/round2-book.js` in **round2sg-home** (branch `own-booking` until merged). One Durable Object (`HoldBook`) holds its
+`worker/round2-book.js` in **round2sg-home** (branch `main`). One Durable Object (`HoldBook`) holds its
 state (SQLite) and wakes itself with alarms. Deploy = upload that file through the Cloudflare API with `keep_bindings`
-(see round2sg-home `HANDOFF.md`). Secrets live only in Cloudflare (names: `HITPAY_KEY`, `HITPAY_SALT`, `HITPAY_API`,
-`SB_COMPANY`, `SB_USER`, `SB_PASS`, `GM_STAFF`, `GM_HOOK_URL`, `MENU_MAKE_K`, `TV_KEY`, `TG_BOT_TOKEN`, `STAFF_CHAT`).
+(see round2sg-home `HANDOFF.md`). Secrets live only in Cloudflare – the full list of names is in round2sg-home `README.md`.
 
 | Job | Where it runs | Notes |
 |---|---|---|
 | Booking page (`slots/`): free times, prices, holds, HitPay, writing into SimplyBook | Engine | SimplyBook is the calendar. Bookings end 15 min after the session (cleaning) – `docs/booking-times.md` |
-| Room food menu (`menu/`): pricing check, HitPay payment, payment check | Engine | Same HitPay setting as bookings (sandbox → live by changing the 3 HitPay secrets) |
+| Room food menu (`menu/`): pricing check, HitPay payment, payment check | Engine | Guests pay live (`HITPAY_LIVE_*`), test tools always the sandbox – same as bookings; never swap the keys |
 | Food order → room TV alert + kitchen Telegram slip | Engine | Instantly after payment |
 | Food order → accounting sheet + Drive slip (kitchen phone prints it) | Make `[BACKEND] ROOM MENU PAID ORDER` | Called once per paid order by the engine |
 | Telegram pickup button, Madd nightly settlement | Make (`[CONTROL] MADD PAYOUT TELEGRAM`, `[BACKEND] MADD NIGHTLY SETTLEMENT LOG`) | |
 | Guest/Round2 TV messages: every page talks to the engine's `/gm` front door | Engine → Make `[BACKEND] GUEST MESSAGE LINKS` | Engine checks codes, caches, caps edits; Make keeps the message records |
 | Message timer (send each message to its TV on time) | Engine (alarm, 1 min before) | Make's old 15-min timer is OFF |
-| Vale ↔ Atlas mirror bookings | Make `[BACKEND] SYSTEM BLOCKS MIRROR ROOMS` | Runs only on SimplyBook changes |
+| Vale ↔ Atlas mirror bookings | Engine (`mirrorOnSb`, since 11 Nov 2026) | Make's `[BACKEND] SYSTEM BLOCKS MIRROR ROOMS` is switched off (kept as fallback) |
 | TVs ⇄ control centre (messages, OKs, food alerts, website stats) | Firebase Realtime Database | Pages listen live (EventSource); no Make |
 
 Docs: round2-tv-launcher `docs/guest-messages.md` (front door, timer), `docs/booking-times.md`, `docs/site-stats.md`;
