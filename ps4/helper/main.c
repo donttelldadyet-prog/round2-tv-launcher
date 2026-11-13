@@ -29,7 +29,7 @@
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.8"
+#define R2_VERSION "1.0.9"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -46,6 +46,13 @@ int sceUserServiceInitialize(void *);
 typedef struct { int32_t userId[4]; } UserIdList;
 int sceUserServiceGetLoginUserIdList(UserIdList *);
 int sceUserServiceGetUserName(int32_t, char *, size_t);
+/* 1.0.9 profile probe (read-only) */
+typedef struct { int32_t userId[16]; int32_t spare[48]; } RegUserIdList;   /* 16 slots + room to spare */
+int sceUserServiceGetRegisteredUserIdList(RegUserIdList *);
+int sceUserServiceGetInitialUser(int32_t *);
+int sceRegMgrGetInt(long, int *);
+int sceRegMgrGetStr(long, char *, int);
+int sceRegMgrGetBin(long, void *, int);
 int sceSystemServiceGetAppIdOfBigApp(void);
 int sceLncUtilGetAppTitleId(int, char *);
 int sceNetCtlInit(void);
@@ -598,6 +605,49 @@ static void look_dir(const char *path, int depth, int maxdepth) {
   }
   closedir(d);
 }
+/* 1.0.9: read-only profile probe ("/_profiles" in a look job) – owner 13 Nov: members get their own PS4 profiles; first find
+   where a profile lives. Reads the PS4's profile list and, per used profile slot, every setting in that slot's block of the
+   settings store (0x07800000 + (slot-1)*0x10000, step 0x100 – Apollo's name/account-ID/login keys are in there). Changes nothing. */
+static void look_kv(const char *k, const char *v) { if (look_n++ < 400) { jadd("%s", look_n > 1 ? "," : ""); jstr(k); jadd(":"); jstr(v); } }
+static void look_profiles(void) {
+  char k[64], v[96], nm[64];
+  RegUserIdList L;
+  memset(&L, 0xff, sizeof L);
+  int r = sceUserServiceGetRegisteredUserIdList(&L);
+  snprintf(v, sizeof v, "%d", r); look_kv("users/registered-call", v);
+  for (int i = 0; i < 16; i++) {
+    if (L.userId[i] == -1 || L.userId[i] == 0) continue;
+    nm[0] = 0; sceUserServiceGetUserName(L.userId[i], nm, sizeof nm);
+    snprintf(k, sizeof k, "users/%08x", (unsigned)L.userId[i]); look_kv(k, nm);
+  }
+  int32_t iu = -1; sceUserServiceGetInitialUser(&iu);
+  snprintf(v, sizeof v, "%08x", (unsigned)iu); look_kv("users/initial", v);
+  static const long G[] = { 0x07010000, 0x07020000, 0x07030000, 0x07050000, 0x07060000, 0x07070000, 0x07400000, 0x07410000 };
+  static const char *GN[] = { "auto_login_user", "max_used_home_u", "init_user", "max_used_guest", "max_used_sharep", "cumulative_user", "disp_acc_info", "new_user_group" };
+  for (int i = 0; i < 8; i++) { int x = 0; if (sceRegMgrGetInt(G[i], &x) == 0) { snprintf(k, sizeof k, "reg/USER/%s", GN[i]); snprintf(v, sizeof v, "i:%d (%08x)", x, (unsigned)x); look_kv(k, v); } }
+  for (int sl = 1; sl <= 16; sl++) {
+    long base = 0x07800000L + (long)(sl - 1) * 0x10000L;
+    char name[64] = "";
+    sceRegMgrGetStr(base + 0x200, name, 17);
+    if (!name[0]) { snprintf(k, sizeof k, "reg/slot%02d", sl); look_kv(k, "(no name)"); continue; }
+    for (long off = 0; off < 0x10000; off += 0x100) {
+      long kk = base + off;
+      int x = 0;
+      unsigned char b[16];
+      char str[72];
+      if (sceRegMgrGetInt(kk, &x) == 0) { if (!x) continue; snprintf(v, sizeof v, "i:%d (%08x)", x, (unsigned)x); }
+      else if ((str[0] = 0, sceRegMgrGetStr(kk, str, 65)) == 0) { if (!str[0]) continue; snprintf(v, sizeof v, "s:%.40s", str); }
+      else if (memset(b, 0, sizeof b), sceRegMgrGetBin(kk, b, 8) == 0) {
+        int nz = 0; for (int j = 0; j < 8; j++) nz |= b[j];
+        if (!nz) continue;
+        snprintf(v, sizeof v, "b:%02x%02x%02x%02x%02x%02x%02x%02x", b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]);
+      } else continue;
+      snprintf(k, sizeof k, "reg/slot%02d/%04lx", sl, off); look_kv(k, v);
+    }
+    { char np[24] = ""; if (sceRegMgrGetStr(base + 0xB007, np, 17) == 0 && np[0]) { snprintf(k, sizeof k, "reg/slot%02d/b007", sl); snprintf(v, sizeof v, "s:%s", np); look_kv(k, v); } }
+  }
+}
+
 static void do_look(const char *key, const char *cid, const char *body) {
   Jn = 0;
   look_n = 0;
@@ -612,7 +662,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     char *bar = strchr(t, '|');
     int dp = 0;
     if (bar) { *bar = 0; dp = atoi_safe(bar + 1); }
-    if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
+    if (!strcmp(t, "/_profiles")) look_profiles();
+    else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
   char hdr[200], rbody[200], err[120];

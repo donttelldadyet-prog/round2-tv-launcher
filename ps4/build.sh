@@ -29,6 +29,6 @@ $CC -Wall -O2 -I"$D/mbedtls/include" -Itls -I"$D/inc" -DMBEDTLS_USER_CONFIG_FILE
   -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl -lScePad
 $CC -Wall -O2 -I"$D/mbedtls/include" -Itls -DMBEDTLS_USER_CONFIG_FILE='"r2_mbedtls_config.h"' \
   -o out/round2d.elf helper/main.c tls/r2tls.c "$D/ca_bundle.c" "$D/libmbedtls-ps4.a" \
-  -lSceUserService -lSceRandom -lSceSystemService -lSceNetCtl
+  -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl
 $CC -Wall -O2 -o out/round2-boot.elf boot/main.c   # the starter (AutoRun) – no network, no TLS
 ls -la out
