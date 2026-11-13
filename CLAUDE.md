@@ -13,3 +13,9 @@
 - The booking engine lives in the other repo: round2sg-home `worker/round2-book.js` (deployed to Cloudflare `round2-book`).
 - **Kaeden is under renovation (since ~30 Oct 2026, open-ended).** Its long "room blocked" note in SimplyBook stays – don't
   remove it or "fix" Kaeden having no free slots. Its TV should still run and report in like the others, ready for reopening.
+- **Each room's TV behaves differently** (TCL Safety Guard and volume on Kai, Sony running Netflix outside Android on Max,
+  Prism+ on Atlas, rooted LGs): read README "Each room's TV: what's different" before changing the TV app or the LG helper.
+  Diagnose with the TV's own records first (`tv-tools/round2tv.ps1 diag`) – guessed fixes cost the owner an update each.
+- Every push that touches the app (`web/`, `app/`, `webos/`, `tools/`) publishes a new TV version that every TV tile then
+  offers. Notes, the control centre and the PC toolkit don't (build.yml `paths-ignore`) – keep it that way.
+- **Telegram is only for the Madd Pizza ↔ Round2 food workflow.** Never send anything about bookings to Telegram (owner, 14 Nov).
