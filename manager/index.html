@@ -898,6 +898,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="banner warn" id="p4KeyBox" hidden><div class="grow">Add the <b>staff code</b> (Keys) to see the PS4s.</div></div>
     <div id="p4Tiles"></div>
     <p class="hint">🧹 <b>Clean up</b> deletes the stuck game/system update downloads (never PS Vue’s – it keeps the Vue jailbreak working) and guests’ screenshots and clips. Games, patches and saves are never touched. It won’t run if the room (or its twin) has a session now or within 15 minutes, or a game is open on the PS4 – checked here, again when the PS4 picks it up, and on the PS4 itself. The TV shows a pop-up when it starts and when it’s done.</p>
+    <p class="hint">⬆️ <b>Updates:</b> with the Round2 starter installed, a PS4 updates its helper by itself in quiet time (no game open, no session in the room or its twin within the next hour). <b>Update now</b> does it straight away (not within 10 minutes of a session). A new version that doesn’t work is swapped back to the old one by itself, and the tile says so.</p>
     <p class="hint">Offline = the PS4 hasn’t checked for jobs for 3 minutes (off, rest mode, or not jailbroken since it was switched on – the helper starts with the jailbreak).</p>
   </section>
 
@@ -2940,12 +2941,22 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   var PS4 = (function () {
     var GM = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, ready = false, fast = 0;
     var RK = function (r) { return r === 'max' ? 'maximillion' : r; }, ER = function (r) { return r === 'maximillion' ? 'max' : r; };
+    function p4newer(a, b) { var x = String(a).split('.'), y = String(b).split('.'); for (var i = 0; i < Math.max(x.length, y.length); i++) { var d = (+x[i] || 0) - (+y[i] || 0); if (d) return d > 0; } return false; }
     function sKey() { return ls('r2.guestStaff') || ''; }
     function gm(o) { return fetch(GM, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: sKey() }, o)) }).then(function (r) { return r.json(); }); }
     function ago(t) { var m = Math.round((R2Day.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; }
     function gb(mb) { mb = +mb || 0; return mb >= 1000 ? (mb / 1000).toFixed(1) + ' GB' : Math.round(mb) + ' MB'; }
     var ST = { sent: ['uw', 'Clean-up sent – the PS4 picks it up within a minute'], taken: ['uw', 'Cleaning up…'], done: ['uo', 'Cleaned'], failed: ['ub', 'Clean-up failed'], refused: ['ub', 'Clean-up not done'], expired: ['ub', 'Clean-up not picked up (PS4 off?)'] };
+    var SU = { sent: ['uw', 'Update sent – the PS4 picks it up within a minute'], taken: ['uw', 'Downloading the update…'], done: ['uw', 'Downloaded – switching to the new version'], updated: ['uo', 'Updated'], rolledback: ['ub', 'Update didn’t work – went back to the previous version'], failed: ['ub', 'Update failed'], refused: ['ub', 'Update not done'], expired: ['ub', 'Update not picked up (PS4 off?)'] };
+    var latest = null;
     function cmdLine(c) {
+      if (c && c.do === 'update') {
+        if (!SU[c.state]) return '';
+        var tu = c.doneAt || c.takenAt || c.at; if (R2Day.now() - tu > 6 * 3600e3) return '';
+        var y = SU[c.state], tx = y[1] + (c.state === 'updated' ? ' to ' + c.v + ' ' + ago(tu) + (c.by && c.by.indexOf('auto') === 0 ? ' (by itself, quiet time)' : '') : c.v ? ' (' + c.v + ')' : '');
+        if (c.res && c.res.why && c.state !== 'updated' && c.state !== 'done') tx += ': ' + c.res.why;
+        return '<br><i class="' + y[0] + '">' + esc(tx) + '</i>';
+      }
       if (!c || !ST[c.state]) return '';
       var t = c.doneAt || c.takenAt || c.at; if (R2Day.now() - t > 3 * 3600e3) return '';   /* the last result shows for 3 hours */
       var x = ST[c.state], txt = x[1];
@@ -2959,15 +2970,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (!on) lines.push('<span style="color:var(--bad);font-weight:700">Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '') + '</span>');
       else lines.push('<span style="color:var(--ok)">✓ Online' + (p.running ? ' · playing ' + esc(p.runName || p.running) : '') + '</span>');
       if (p.sony !== 'blocked') warn.push('⚠️ Sony NOT blocked – check its DNS (127.0.0.1)');
+      if (p.rolled) warn.push('↩️ Helper ' + p.rolled + ' – it stays on ' + (p.v || 'the old version') + ' until a newer one is out');
       if (p.updGuard && p.updGuard.blocked) warn.push('🛡️ Stopped ' + p.updGuard.blocked + ' system update' + (p.updGuard.blocked > 1 ? 's' : '') + (p.updGuard.agoS >= 0 ? ' (last ' + esc(ago(now - p.updGuard.agoS * 1000)) + ')' : ''));
       var cpu = p.temp && p.temp.cpu > 0 ? p.temp.cpu : 0;
       lines.push('<span>' + (p.sony === 'blocked' ? 'Sony blocked · ' : '') + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' of ' + p.disk.total.toFixed(0) + ' GB free' : '') + '</span>');
       var junk = (+p.downloadsMB || 0) + (p.captures ? +p.captures.mb || 0 : 0);
-      lines.push('<span class="tvv">v' + esc(p.v || '?') + ' · FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games · reported ' + esc(ago(p.t)) + cmdLine(p.cmd) + '</span>');
+      var vtxt = 'v' + esc(p.v || '?') + (latest && p.v && p4newer(latest, p.v) ? ' <i class="uw">(' + esc(latest) + ' out' + (p.boot ? ' – updates by itself in quiet time' : ' – needs the starter installed once') + ')</i>' : p.boot ? ' <i class="uo">up to date</i>' : '');
+      lines.push('<span class="tvv">' + vtxt + ' · FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games · reported ' + esc(ago(p.t)) + cmdLine(p.cmd) + '</span>');
       var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
       var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
           Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
-        : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ~' + gb(junk) : '') + '</button>';
+        : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ~' + gb(junk) : '') + '</button>' +
+          (p.boot && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update now to ' + esc(latest) + '</button>' : '');
       return '<div class="tvt" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><b>' + esc(R.name) + '</b>' + lines.join('') +
         (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + btn + '</div>';
     }
@@ -2976,11 +2990,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('p4KeyBox').hidden = true;
       gm({ action: 'ps4list' }).then(function (j) {
         if (!j.ok) { $('p4Tiles').innerHTML = '<p class="hint">' + esc(j.error || 'Couldn’t load the PS4s.') + '</p>'; return; }
+        latest = j.latest || null;
         var order = Object.keys(ROOMS).map(ER), L = (j.list || []).slice().sort(function (a, b) { return (a.room ? order.indexOf(a.room) : 99) - (b.room ? order.indexOf(b.room) : 99); });
         var have = L.map(function (p) { return p.room; }), missing = order.filter(function (r) { return have.indexOf(r) < 0; });
         $('p4Tiles').innerHTML = '<div class="tvgrid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div>'; }).join('') + '</div>' +
           '<p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date(R2Day.now())).toLowerCase()) + '.</p>';
-        var live = L.some(function (p) { return p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && R2Day.now() - p.cmd.at < 10 * 60000; });
+        var live = L.some(function (p) { return p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken' || (p.cmd.do === 'update' && p.cmd.state === 'done')) && R2Day.now() - p.cmd.at < 10 * 60000; });
         if (live && !fast) fast = setTimeout(function () { fast = 0; if (!$('tab-ps4s').hidden) draw(); }, 10000);   /* follow a clean-up closely */
       }, function () { $('p4Tiles').innerHTML = '<p class="hint">Couldn’t reach the engine.</p>'; });
     }
@@ -2994,6 +3009,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         gm({ action: 'ps4map', id: id, room: e.target.value }).then(function (j) { toast(j.ok ? 'Linked to ' + nm : (j.error || 'Not linked')); draw(); });
       });
       $('p4Tiles').addEventListener('click', function (e) {
+        var u = e.target.closest && e.target.closest('[data-p4upd]');
+        if (u) {
+          var un = u.getAttribute('data-p4room'), uv = u.getAttribute('data-p4v');
+          if (!confirm('Update ' + un + '’s PS4 helper to ' + uv + ' now?\n\nIt won’t send if the room (or its twin) has a session now or within 10 minutes, or a game is open. The PS4 downloads it, checks it, and switches over in about a minute (pop-ups on the TV). If the new version doesn’t work, it goes back to the old one by itself.')) return;
+          u.disabled = true; u.textContent = 'Sending…';
+          gm({ action: 'ps4update', id: u.getAttribute('data-p4upd'), by: 'control centre' }).then(function (j) {
+            toast(j.ok ? un + ': update sent – the PS4 picks it up within a minute' : un + ': ' + (j.error || 'not sent')); draw();
+          }, function () { toast('Couldn’t reach the engine.'); draw(); });
+          return;
+        }
         var b = e.target.closest && e.target.closest('[data-p4clean]'); if (!b) return;
         var nm = b.getAttribute('data-p4room'), junk = +b.getAttribute('data-p4junk') || 0;
         if (!confirm('Clean up ' + nm + '’s PS4 now?' + (junk ? '\n\nFrees about ' + gb(junk) + '.' : '') + '\n\nDeletes: stuck update downloads and guests’ screenshots/clips.\nKeeps: games, patches, saves, PS Vue’s download.\n\nIt won’t run if the room (or its twin) has a session now or within 15 minutes, or a game is open. The TV shows a pop-up when it starts and when it’s done.')) return;
