@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -32,7 +33,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.4"
+#define R2_VERSION "1.1.5"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -853,8 +854,8 @@ static int look_save(const char *spec, int dp) { /* "/_save.<user>.<title>.<save
 }
 
 /* ---- 1.1.4 backup: every file of an opened save goes to the engine (/ps4/sput -> Cloudflare storage "round2-saves"),
-   8 MB pieces, then a manifest ("<file>\t<size>\t<pieces>" per line). Stored under <console>/<user>/<title>/<save>/<stamp>/. */
-#define SV_PIECE (8u << 20)
+   1 MB pieces, then a manifest ("<file>\t<size>\t<pieces>" per line). Stored under <console>/<user>/<title>/<save>/<stamp>/. */
+#define SV_PIECE (1u << 20) /* 1 MB: the helper's memory is small (8 MB failed on Max; 1.1 MB updates work) */
 static void url_enc(char *o, size_t on, const char *s) {
   static const char hx[] = "0123456789ABCDEF";
   size_t n = 0;
@@ -918,7 +919,7 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
   char v[200], u[16] = "", t[16] = "", nm[48] = "", base[200];
   if (sscanf(spec, "/_sback.%8[0-9a-f].%9[A-Z0-9].%47[^|]", u, t, nm) != 3) { look_kv("backup/error", "bad spec"); return -1; }
   if (sv_game_open()) { look_kv("backup/refused", "a game is open"); return -1; }
-  if (!sv_buf && !(sv_buf = malloc(SV_PIECE))) { look_kv("backup/error", "no memory"); return -1; }
+  if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { look_kv("backup/error", "no memory"); return -1; } sv_buf = b; }
   sv_rights_up(v, sizeof v);
   int ok = sv_open(u, t, nm, 1, v, sizeof v);
   if (ok == 0) {
