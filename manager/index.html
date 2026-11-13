@@ -2948,7 +2948,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function gb(mb) { mb = +mb || 0; return mb >= 1000 ? (mb / 1000).toFixed(1) + ' GB' : Math.round(mb) + ' MB'; }
     var ST = { sent: ['uw', 'Clean-up sent – the PS4 picks it up within a minute'], taken: ['uw', 'Cleaning up…'], done: ['uo', 'Cleaned'], failed: ['ub', 'Clean-up failed'], refused: ['ub', 'Clean-up not done'], expired: ['ub', 'Clean-up not picked up (PS4 off?)'] };
     var SU = { sent: ['uw', 'Update sent – the PS4 picks it up within a minute'], taken: ['uw', 'Downloading the update…'], done: ['uw', 'Downloaded – switching to the new version'], updated: ['uo', 'Updated'], rolledback: ['ub', 'Update didn’t work – went back to the previous version'], failed: ['ub', 'Update failed'], refused: ['ub', 'Update not done'], expired: ['ub', 'Update not picked up (PS4 off?)'] };
-    var latest = null;
+    var latest = null, selfUp = '1.0.7';
     function cmdLine(c) {
       if (c && c.do === 'update') {
         if (!SU[c.state]) return '';
@@ -2975,13 +2975,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var cpu = p.temp && p.temp.cpu > 0 ? p.temp.cpu : 0;
       lines.push('<span>' + (p.sony === 'blocked' ? 'Sony blocked · ' : '') + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' of ' + p.disk.total.toFixed(0) + ' GB free' : '') + '</span>');
       var junk = (+p.downloadsMB || 0) + (p.captures ? +p.captures.mb || 0 : 0);
-      var vtxt = 'v' + esc(p.v || '?') + (latest && p.v && p4newer(latest, p.v) ? ' <i class="uw">(' + esc(latest) + ' out' + (p.boot ? ' – updates by itself in quiet time' : ' – needs the starter installed once') + ')</i>' : p.boot ? ' <i class="uo">up to date</i>' : '');
+      var old = p.v && p4newer(selfUp, p.v);   /* helpers before 1.0.7 can't hand over safely – FTP once */
+      var vtxt = 'v' + esc(p.v || '?') + (latest && p.v && p4newer(latest, p.v) ? ' <i class="uw">(' + esc(latest) + ' out' + (old || !p.boot ? ' – needs ' + esc(selfUp) + '+ and the new starter by FTP once' : ' – updates by itself in quiet time') + ')</i>' : p.boot ? ' <i class="uo">up to date</i>' : '');
       lines.push('<span class="tvv">' + vtxt + ' · FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games · reported ' + esc(ago(p.t)) + cmdLine(p.cmd) + '</span>');
       var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
       var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
           Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
         : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ~' + gb(junk) : '') + '</button>' +
-          (p.boot && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update now to ' + esc(latest) + '</button>' : '');
+          (p.boot && !old && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update now to ' + esc(latest) + '</button>' : '');
       return '<div class="tvt" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><b>' + esc(R.name) + '</b>' + lines.join('') +
         (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + btn + '</div>';
     }
@@ -2990,7 +2991,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('p4KeyBox').hidden = true;
       gm({ action: 'ps4list' }).then(function (j) {
         if (!j.ok) { $('p4Tiles').innerHTML = '<p class="hint">' + esc(j.error || 'Couldn’t load the PS4s.') + '</p>'; return; }
-        latest = j.latest || null;
+        latest = j.latest || null; selfUp = j.selfUp || selfUp;
         var order = Object.keys(ROOMS).map(ER), L = (j.list || []).slice().sort(function (a, b) { return (a.room ? order.indexOf(a.room) : 99) - (b.room ? order.indexOf(b.room) : 99); });
         var have = L.map(function (p) { return p.room; }), missing = order.filter(function (r) { return have.indexOf(r) < 0; });
         $('p4Tiles').innerHTML = '<div class="tvgrid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div>'; }).join('') + '</div>' +
