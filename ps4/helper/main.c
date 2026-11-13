@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.6"
+#define R2_VERSION "1.1.7"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -969,6 +969,7 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   char *mt = malloc(mlen + 1); memcpy(mt, man, mlen); mt[mlen] = 0; free(man);
   sv_rights_up(v, sizeof v);
   char first_err[160] = "";
+  if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { look_kv("restore/error", "no memory"); free(mt); return -1; } sv_buf = b; }
   int ok = sv_open(u, t, nm, 0, v, sizeof v), files = 0, fail = 0, skipped = 0;
   unsigned long long bytes = 0;
   if (ok == 0) {
@@ -979,8 +980,10 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
       unsigned long long sz = strtoull(t1, 0, 10); int pieces = atoi_safe(t2);
       if (!strncmp(ln, "sce_sys/", 8) || strstr(ln, "..")) { skipped++; continue; } /* the receiving save keeps its own labels */
       char out[512], tmp[520], k[700];
-      snprintf(out, sizeof out, "%s/%s", SV_MNT, ln); snprintf(tmp, sizeof tmp, "%s.r2new", out);
-      mkdirs_for(out);
+      /* 1.1.7: download the whole file to the PS4's own storage first (the save has no room for a 2nd copy – 32 MB GT Sport
+         memory.dat failed at 3 MB), check it's complete, only then write it into the save in one go. */
+      snprintf(out, sizeof out, "%s/%s", SV_MNT, ln); snprintf(tmp, sizeof tmp, "/data/round2/stage/%s", ln);
+      mkdirs_for(out); mkdirs_for(tmp);
       int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0;
       char why[160] = "";
       if (bad) snprintf(why, sizeof why, "%s: can't create (errno %d)", ln, errno);
@@ -997,7 +1000,16 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
       if (fd >= 0) { fsync(fd); close(fd); }
       if (!bad && got != sz) { bad = 1; snprintf(why, sizeof why, "%s: got %llu of %llu bytes", ln, got, sz); }
       if (bad) { unlink(tmp); fail++; if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); continue; }
-      if (rename(tmp, out)) { if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s: swap-in failed (errno %d)", ln, errno); unlink(tmp); fail++; continue; }
+      { /* copy the complete staged file into the save */
+        int in = open(tmp, O_RDONLY), of = in >= 0 ? open(out, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
+        unsigned long long cp = 0; int cbad = in < 0 || of < 0, cerr = cbad ? errno : 0;
+        while (!cbad) { ssize_t x = read(in, sv_buf, SV_PIECE); if (x < 0) { cbad = 1; cerr = errno; break; } if (x == 0) break;
+          if (write(of, sv_buf, (size_t)x) != x) { cbad = 1; cerr = errno; break; } cp += (unsigned long long)x; }
+        if (of >= 0) { fsync(of); close(of); }
+        if (in >= 0) close(in);
+        unlink(tmp);
+        if (cbad || cp != sz) { if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s: copy into save %llu of %llu (errno %d)", ln, cp, sz, cerr); fail++; continue; }
+      }
       files++; bytes += sz;
     }
     int cr = sv_close();
