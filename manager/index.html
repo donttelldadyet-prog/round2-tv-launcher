@@ -2977,6 +2977,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var junk = (+p.downloadsMB || 0) + (p.captures ? +p.captures.mb || 0 : 0);
       var old = p.v && p4newer(selfUp, p.v);   /* helpers before 1.0.7 can't hand over safely – FTP once */
       var vtxt = 'v' + esc(p.v || '?') + (latest && p.v && p4newer(latest, p.v) ? ' <i class="uw">(' + esc(latest) + ' out' + (old || !p.boot ? ' – needs ' + esc(selfUp) + '+ and the new starter by FTP once' : ' – updates by itself in quiet time') + ')</i>' : p.boot ? ' <i class="uo">up to date</i>' : '');
+      if (p.wifi && p.wifi.ip) lines.push('<span class="tvv">FTP <b>' + esc(p.wifi.ip) + ':2121</b>' + (p.wifi.pct ? ' · Wi-Fi ' + (+p.wifi.pct) + '%' : '') + '</span>');   /* from its latest report – always current */
       lines.push('<span class="tvv">' + vtxt + ' · FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games · reported ' + esc(ago(p.t)) + cmdLine(p.cmd) + '</span>');
       var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
       var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
