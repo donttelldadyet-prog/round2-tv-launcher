@@ -149,7 +149,7 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
     <fieldset>
       <legend>When should it pop up?</legend>
       <div class="seg times" id="times" role="group" aria-label="Show time"></div>
-      <p class="fine">Any time in the first hour of your session. If they're watching something, it shows as a small card over it.</p>
+      <p class="fine" id="timesFine">Any time in the first hour of your session. If they're watching something, it shows as a small card over it.</p>
     </fieldset>
 
     <div class="tv" aria-live="polite">
@@ -265,6 +265,14 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
   }
   function drawTimes() {
     var now = Date.now(), html = '', m;
+    /* Round2 set the pop-up time for this message (control centre › Change pop-up time): it stays, whatever else the guest
+       edits – before 14 Nov the page let them pick another time and then said THEIR time, while the TV kept Round2's */
+    if (link.retimed && link.at) {
+      at = +link.at;
+      $('times').innerHTML = '<button type="button" aria-pressed="true" disabled>' + esc(clock(at)) + '<small>set by Round2</small></button>';
+      $('timesFine').textContent = 'Round2 set this time for you (' + day(at) + '). You can still change the words. For another time, message us on WhatsApp.';
+      return;
+    }
     for (m = 0; m <= 60; m += 15) {
       var t = link.start + m * 60000, past = t < now - 60000 && m < 60;
       html += '<button type="button" data-t="' + t + '" aria-pressed="' + (t === at) + '"' + (past ? ' disabled' : '') + '>' + esc(clock(t)) + '<small>' + (m === 0 ? 'at start' : '+' + m + ' min') + '</small></button>';
@@ -292,6 +300,7 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
     drawKinds(); fillTitle(); preview();
   });
   $('times').addEventListener('click', function (e) {
+    if (link.retimed) return;
     var b = e.target.closest('button[data-t]'); if (!b) return;
     at = Number(b.getAttribute('data-t')); drawTimes(); markDirty();
   });
@@ -308,7 +317,7 @@ textarea { min-height: 130px; resize: vertical; line-height: 1.45; }
     if (saved !== null && sig() === saved) { showDone(); return; }
     $('send').disabled = true; $('send').textContent = 'Sending…';
     call(Object.assign({ action: 'submit', code: code, at: at }, d)).then(function () {
-      link.status = 'approved'; Object.assign(link, d, { at: at }); saved = sig(); $('send').textContent = ''; showDone();
+      link.status = 'approved'; Object.assign(link, d, { at: link.retimed && link.at ? +link.at : at }); at = +link.at; saved = sig(); $('send').textContent = ''; showDone();
     }).catch(function (er) { st.textContent = er.message; st.hidden = false; st.scrollIntoView({ behavior: 'smooth', block: 'center' }); $('send').textContent = ''; })
       .then(function () { markDirty(); });
   });

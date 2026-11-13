@@ -434,14 +434,17 @@ details.past .list { margin-top: 10px; }
       : '<button class="btn" data-a="later" data-c="' + c + '">Show again at…</button>';
     if (untied(x, st)) btns += '<button class="btn ok" data-a="pair" data-c="' + c + '">Pair with booking</button>';
     if ((st === 'scheduled' || st === 'ontv') && d.title) btns += '<button class="btn" data-a="retime" data-c="' + c + '">Change pop-up time</button>';   /* owner, 9 Nov: only when the message shows */
-    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Change booking time or room</button>' + (r2 ? '' : '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>') + '<button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
+    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Fix this link’s room or start</button>' + (r2 ? '' : '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>') + '<button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
     if (btns) h += '<div class="row">' + btns + '</div>';
     if (open && open.code === x.key) {
       var a = open.a;
       if (a === 'move') {
         var p = sgParts(d.start);
         var nr = open.room || d.room;
-        h += '<div class="confirm">The <b>booking</b> moved or changed rooms? Set the booking’s new room and start time. ' + (d.title ? 'The message moves with it, keeping the same gap after the start. To change only when the message pops up, use <b>Change pop-up time</b> instead.' : '') +
+        /* reworded 14 Nov (review): this never touched the booking – it only corrects what this LINK believes */
+        h += '<div class="confirm"><b>This does not move the booking.</b> It only corrects the room or start time this link has on record – for a link made with the wrong room or time. ' +
+          'A link follows its booking by itself: to move the booking, use <b>Bookings › Move a booking</b> (or SimplyBook) and the link moves with it. ' +
+          (d.title ? 'To change only when the message pops up, use <b>Change pop-up time</b>. ' : '') +
           '<div class="rooms" id="mvRooms">' + Object.keys(ROOMS).map(function (k) { return '<button type="button" data-a="mvroom" data-r="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (k === nr) + '">' + ROOMS[k][0] + '</button>'; }).join('') + '</div>' +
           '<div class="two"><input type="date" id="mvDate" value="' + p.year + '-' + p.month + '-' + p.day + '" aria-label="New date"><select id="mvTime" aria-label="New start time">' + timeOpts(p.hour + ':' + p.minute) + '</select></div>' +
           '<div class="row"><button class="btn ok" data-a="do" data-c="' + c + '">Save changes</button><button class="btn" data-a="no">Keep as is</button></div><div class="msg" id="cmsg"></div></div>';
