@@ -888,7 +888,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <p class="sub">Each room’s TV: on or off, what’s on screen, and its app version. Checks in every 5 minutes; updates here every 20 seconds.</p>
     <div class="banner warn" id="tvKeyBox" hidden><div class="grow">Add the <b>TV messages key</b> (Keys) to see the TVs.</div></div>
     <div id="tvTiles"></div>
-    <p class="hint">⬆️ <b>Update now</b> won’t send if the TV is off, its Staff tools say updates are NOT ALLOWED, or the room (or its twin) has a session now or starting within 10 minutes. Updating by hand on the TV always works.</p>
+    <p class="hint">⬆️ <b>Update now</b> won’t send if the TV is off, its Staff tools say updates are NOT ALLOWED, or the room has guests (its own – not the twin’s system block) now or starting within 10 minutes. Updating by hand on the TV always works.</p>
     <p class="hint">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won’t get messages. Open Round2 Home on that TV to restart it, or see Help › If a TV is stuck.</p>
   </section>
 
@@ -897,8 +897,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <p class="sub">Each room’s PS4 (once its Round2 helper is installed): online, Sony blocked, temperature, free space, what’s being played. The PS4 reports every 15 minutes and checks for jobs from here every minute.</p>
     <div class="banner warn" id="p4KeyBox" hidden><div class="grow">Add the <b>staff code</b> (Keys) to see the PS4s.</div></div>
     <div id="p4Tiles"></div>
-    <p class="hint">🧹 <b>Clean up</b> deletes the stuck game/system update downloads (never PS Vue’s – it keeps the Vue jailbreak working) and guests’ screenshots and clips. Games, patches and saves are never touched. It won’t run if the room (or its twin) has a session now or within 15 minutes, or a game is open on the PS4 – checked here, again when the PS4 picks it up, and on the PS4 itself. The TV shows a pop-up when it starts and when it’s done.</p>
-    <p class="hint">⬆️ <b>Updates:</b> with the Round2 starter installed, a PS4 updates its helper by itself in quiet time (no game open, no session in the room or its twin within the next hour). <b>Update now</b> does it straight away (not within 10 minutes of a session). A new version that doesn’t work is swapped back to the old one by itself, and the tile says so.</p>
+    <p class="hint">🧹 <b>Clean up</b> deletes the stuck game/system update downloads (never PS Vue’s – it keeps the Vue jailbreak working) and guests’ screenshots and clips. Games, patches and saves are never touched. It won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open on the PS4 – checked here, again when the PS4 picks it up, and on the PS4 itself. The TV shows a pop-up when it starts and when it’s done.</p>
+    <p class="hint">⬆️ <b>Updates:</b> with the Round2 starter installed, a PS4 updates its helper by itself in quiet time (no game open, no guests in the room within the next hour). <b>Update now</b> does it straight away (not within 10 minutes of a session). A new version that doesn’t work is swapped back to the old one by itself, and the tile says so.</p>
     <p class="hint">Offline = the PS4 hasn’t checked for jobs for 3 minutes (off, rest mode, or not jailbroken since it was switched on – the helper starts with the jailbreak).</p>
   </section>
 
@@ -1805,7 +1805,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (tu) {
           if (!gKey()) { toast('Needs the staff code (Keys).'); return; }
           var nm = ROOMS[tu].name;
-          if (!confirm('Update ' + nm + '’s TV now?\n\nIt won’t send if the TV is off, updates are NOT ALLOWED in its Staff tools, or the room (or its twin) has a session now or within 10 minutes. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.')) return;
+          if (!confirm('Update ' + nm + '’s TV now?\n\nIt won’t send if the TV is off, updates are NOT ALLOWED in its Staff tools, or the room has guests (its own – not the twin’s system block) now or within 10 minutes. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.')) return;
           e.target.disabled = true; e.target.textContent = 'Sending…';
           fetch(HOOK, { method: 'POST', body: new URLSearchParams({ staff: gKey(), action: 'tvupdate', room: tu, by: 'control centre' }) }).then(function (r) { return r.json(); })
             .then(function (j) { toast(j.ok ? nm + ': update sent' + (j.tv === 'android' ? ' – it will say Ready, then Install in Staff tools.' : ' – watch the tile.') : nm + ': ' + (j.error || 'not sent')); status(); setTimeout(status, 20000); setTimeout(status, 60000); setTimeout(status, 120000); },
@@ -3012,7 +3012,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var u = e.target.closest && e.target.closest('[data-p4upd]');
         if (u) {
           var un = u.getAttribute('data-p4room'), uv = u.getAttribute('data-p4v');
-          if (!confirm('Update ' + un + '’s PS4 helper to ' + uv + ' now?\n\nIt won’t send if the room (or its twin) has a session now or within 10 minutes, or a game is open. The PS4 downloads it, checks it, and switches over in about a minute (pop-ups on the TV). If the new version doesn’t work, it goes back to the old one by itself.')) return;
+          if (!confirm('Update ' + un + '’s PS4 helper to ' + uv + ' now?\n\nIt won’t send if the room has guests (its own – not the twin’s system block) now or within 10 minutes, or a game is open. The PS4 downloads it, checks it, and switches over in about a minute (pop-ups on the TV). If the new version doesn’t work, it goes back to the old one by itself.')) return;
           u.disabled = true; u.textContent = 'Sending…';
           gm({ action: 'ps4update', id: u.getAttribute('data-p4upd'), by: 'control centre' }).then(function (j) {
             toast(j.ok ? un + ': update sent – the PS4 picks it up within a minute' : un + ': ' + (j.error || 'not sent')); draw();
@@ -3021,7 +3021,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }
         var b = e.target.closest && e.target.closest('[data-p4clean]'); if (!b) return;
         var nm = b.getAttribute('data-p4room'), junk = +b.getAttribute('data-p4junk') || 0;
-        if (!confirm('Clean up ' + nm + '’s PS4 now?' + (junk ? '\n\nFrees about ' + gb(junk) + '.' : '') + '\n\nDeletes: stuck update downloads and guests’ screenshots/clips.\nKeeps: games, patches, saves, PS Vue’s download.\n\nIt won’t run if the room (or its twin) has a session now or within 15 minutes, or a game is open. The TV shows a pop-up when it starts and when it’s done.')) return;
+        if (!confirm('Clean up ' + nm + '’s PS4 now?' + (junk ? '\n\nFrees about ' + gb(junk) + '.' : '') + '\n\nDeletes: stuck update downloads and guests’ screenshots/clips.\nKeeps: games, patches, saves, PS Vue’s download.\n\nIt won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open. The TV shows a pop-up when it starts and when it’s done.')) return;
         b.disabled = true; b.textContent = 'Sending…';
         gm({ action: 'ps4clean', id: b.getAttribute('data-p4clean'), by: 'control centre' }).then(function (j) {
           toast(j.ok ? nm + ': clean-up sent – the PS4 picks it up within a minute' : nm + ': ' + (j.error || 'not sent')); draw();
