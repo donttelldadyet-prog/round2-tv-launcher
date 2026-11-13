@@ -29,7 +29,7 @@
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.4"
+#define R2_VERSION "1.0.5"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -542,6 +542,40 @@ static void do_update(const char *key, const char *cid, const char *body) {
   _exit(0); /* lock released -> the starter swaps it in */
 }
 
+/* look (1.0.5): read-only listing of folders for staff/Claude (names, sizes, dates) – e.g. what the Capture Gallery keeps after a
+   clean-up. Changes nothing. Sent to /ps4/done as "list". */
+static int look_n;
+static void look_dir(const char *path, int depth, int maxdepth) {
+  DIR *d = opendir(path);
+  if (!d) { if (look_n++ < 400) { jadd("%s", look_n > 1 ? "," : ""); jstr(path); jadd(":\"(can't open)\""); } return; }
+  struct dirent *e;
+  char p[512];
+  while ((e = readdir(d)) && look_n < 400) {
+    if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+    snprintf(p, sizeof p, "%s/%s", path, e->d_name);
+    struct stat st;
+    if (lstat(p, &st)) continue;
+    char v[64];
+    if (S_ISDIR(st.st_mode)) snprintf(v, sizeof v, "dir");
+    else snprintf(v, sizeof v, "%lld %lld", (long long)st.st_size, (long long)st.st_mtime);
+    jadd("%s", look_n++ ? "," : ""); jstr(p); jadd(":"); jstr(v);
+    if (S_ISDIR(st.st_mode) && depth < maxdepth) look_dir(p, depth + 1, maxdepth);
+  }
+  closedir(d);
+}
+static void do_look(const char *key, const char *cid) {
+  Jn = 0;
+  look_n = 0;
+  jadd("{\"id\":\"%s\",\"cid\":", console_id); jstr(cid);
+  jadd(",\"ok\":1,\"refused\":0,\"why\":\"listing\",\"list\":{");
+  look_dir("/user/av_contents", 0, 4);
+  look_dir("/system_data/priv/mms", 0, 0);
+  jadd("}}");
+  char hdr[200], body[200], err[120];
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, body, sizeof body, err, sizeof err) != 200; i++) sleep(5);
+}
+
 static int check_cmd(const char *key) { /* every minute; 1 = it did something (report again) */
   char hdr[200], body[400], err[120], req[80];
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
@@ -555,6 +589,7 @@ static int check_cmd(const char *key) { /* every minute; 1 = it did something (r
   cid[i] = 0;
   if (strstr(body, "\"do\":\"clean\"")) clean_up(key, cid);
   else if (strstr(body, "\"do\":\"update\"")) do_update(key, cid, body);
+  else if (strstr(body, "\"do\":\"look\"")) do_look(key, cid);
   else cmd_done(key, cid, 0, 1, 0, 0, 0, "this helper doesn't know that command - update it");
   return 1;
 }
@@ -601,7 +636,7 @@ int main(void) {
   get_console_id();
   char key[128] = "", status[400] = "starting";
   int warned = 0;
-  write_status("started, first report in 1 minute");
+  write_status("started, first report in about 10 seconds");
   update_guard();
   for (unsigned long m = 0;; m++) {
     char run[32];
@@ -609,14 +644,16 @@ int main(void) {
     note_playing(run);
     FILE *a = fopen("/data/round2/alive", "w"); /* for the starter (later) */
     if (a) { fprintf(a, "%lu\n", m); fclose(a); }
-    if (m % REPORT_EVERY == 1) {
+    if (m % REPORT_EVERY == 0) { /* 1.0.5: first report ~10 s after start (was 1 min), retried while the network settles */
       if (!read_key(key, sizeof key)) {
         write_status("no key – put the PS4 key in /data/round2/key.txt");
         if (!warned++) notify("Round2 helper: key missing (/data/round2/key.txt)");
       } else {
+        if (m == 0) sleep(10);
         int st = report(key, status, sizeof status);
+        for (int i = 0; m == 0 && st != 200 && i < 6; i++) { sleep(8); st = report(key, status, sizeof status); }
         write_status(status);
-        if (m == 1) {
+        if (m == 0) {
           char msg[200];
           snprintf(msg, sizeof msg, "Round2 helper %s: %s", R2_VERSION, st == 200 ? "connected" : "can't reach Round2 (will retry)");
           notify(msg);
