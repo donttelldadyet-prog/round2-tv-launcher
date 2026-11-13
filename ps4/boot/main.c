@@ -20,13 +20,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/file.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
-#define BOOT_VERSION "1"
+#define BOOT_VERSION "2"   /* 2 (13 Nov): logs stops + an hourly line, finishes a half-done switch at start, notes a stuck hand-over */
 #define APP "/data/round2/app"
 #define CUR APP "/current.elf"
 #define PREV APP "/previous.elf"
@@ -201,7 +202,15 @@ static void swap_in(void) {
   start_and_wait("new version");
 }
 
+static void on_sig(int sig) { /* log it; never exit (exiting got stuck half-way on Max, 13 Nov) */
+  blog("starter stopped by signal %d", sig);
+  signal(sig, SIG_IGN);
+  for (;;) sleep(3600);
+}
+
 int main(void) {
+  signal(SIGPIPE, SIG_IGN); /* BinLoader closing the connection early must not stop the starter */
+  for (int sg = 1; sg < 32; sg++) if (sg != SIGKILL && sg != SIGSTOP && sg != SIGPIPE && sg != SIGALRM && sg != SIGCHLD) signal(sg, on_sig);
   mkdir("/data/round2", 0777);
   mkdir(APP, 0777);
   put(BOOTVER, BOOT_VERSION);
@@ -218,14 +227,24 @@ int main(void) {
   if (exists(TRIALF)) { get(TRIALF, trial_v, sizeof trial_v); trial_t = mono(); } /* restarted mid-trial: the trial goes on */
   double launches[4] = { -1e9, -1e9, -1e9, -1e9 };
   int li = 0, held = 0;
-  if (!helper_running()) { start_and_wait("PS4 started"); launches[li++ % 4] = mono(); }
+  if (!helper_running()) {
+    if (exists(SWITCHF) && exists(NEWF)) { blog("a switch was left half-done - finishing it"); swap_in(); }   /* e.g. restarted mid-update */
+    else { unlink(SWITCHF); start_and_wait("PS4 started"); }
+    launches[li++ % 4] = mono();
+  }
+  double beat = mono(), sw_since = 0;
+  int sw_noted = 0;
   for (;;) {
     sleep(5);
     int run = helper_running();
+    if (mono() - beat > 3600) { beat = mono(); blog("hourly: helper %s%s", run ? "running" : "NOT running", trial_v[0] ? " (trial)" : ""); }
     if (exists(SWITCHF)) {
-      if (!run) { swap_in(); launches[li++ % 4] = mono(); }
-      continue; /* the helper is still finishing (it exits by itself after writing switch) */
+      if (!run) { swap_in(); launches[li++ % 4] = mono(); sw_since = 0; sw_noted = 0; continue; }
+      if (!sw_since) sw_since = mono();
+      if (mono() - sw_since > 120 && !sw_noted++) blog("switch waiting: the old helper still holds the lock after 2 minutes");
+      continue; /* the old helper is still letting go (1.0.7+ steps aside right after writing switch) */
     }
+    sw_since = 0;
     if (trial_v[0]) {
       char h[40];
       get(HELLO, h, sizeof h);

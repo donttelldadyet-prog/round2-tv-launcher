@@ -29,7 +29,7 @@
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.6"
+#define R2_VERSION "1.0.7"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -520,6 +520,14 @@ static void jget(const char *b, const char *k, char *out, size_t n) { /* "k":"va
   while (p[i] && p[i] != '"' && p[i] != ',' && p[i] != '}' && i < n - 1) { out[i] = p[i]; i++; }
   out[i] = 0;
 }
+/* 1.0.7: stepping aside instead of exiting. On Max (13 Nov) the old helper's _exit after an update ended in stop signal 12 and
+   apparently left it half-closed still holding the lock, so the starter never swapped. Now: let go of the lock and sleep for
+   good (a few MB until the next real restart); the starter takes over. Used for updates, the starter's stop, and stop signals. */
+static int g_lock = -1;
+static void step_aside(void) {
+  if (g_lock >= 0) { flock(g_lock, LOCK_UN); close(g_lock); g_lock = -1; }
+  for (;;) sleep(3600);
+}
 static void put_file(const char *p, const char *txt) { FILE *f = fopen(p, "w"); if (f) { fputs(txt, f); fclose(f); } }
 static int file_exists(const char *p) { struct stat st; return !stat(p, &st); }
 /* update (1.0.4): download the new helper through the engine, check size + SHA-256 + ELF, save it as app/new.elf, tell the
@@ -566,7 +574,7 @@ static void do_update(const char *key, const char *cid, const char *body) {
   put_file(APP "/switch", v);
   snprintf(msg, sizeof msg, "Round2 helper: switching to %s", v);
   notify(msg);
-  _exit(0); /* lock released -> the starter swaps it in */
+  step_aside(); /* lock released -> the starter swaps it in (1.0.6 and older exited here) */
 }
 
 /* look (1.0.5): read-only listing of folders for staff/Claude (names, sizes, dates) – e.g. what the Capture Gallery keeps after a
@@ -643,8 +651,15 @@ static void write_status(const char *line) {
 
 static void on_sig(int sig) {
   FILE *f = fopen("/data/round2/helper-stopped.txt", "a");
-  if (f) { fprintf(f, "stopped by signal %d\n", sig); fclose(f); }
-  _exit(0);
+  if (f) {
+    time_t t = time(0) + 8 * 3600;
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    fprintf(f, "%02d/%02d %02d:%02d:%02d helper %s stopped by signal %d\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec, R2_VERSION, sig);
+    fclose(f);
+  }
+  signal(sig, SIG_IGN);
+  step_aside(); /* never _exit (see step_aside); the starter starts a fresh one */
 }
 
 static int read_key(char *key, size_t n) {
@@ -663,7 +678,8 @@ int main(void) {
   /* only one helper at a time: hold the lock while running (the starter watches it). Another one has it -> leave quietly. */
   int lk = open(LOCKF, O_RDWR | O_CREAT, 0666), got = 0;
   for (int i = 0; i < 10 && lk >= 0 && !(got = flock(lk, LOCK_EX | LOCK_NB) == 0); i++) sleep(1);
-  if (lk >= 0 && !got) return 0;
+  if (lk >= 0 && !got) for (;;) sleep(3600); /* another helper runs: stay out of the way (returning = exiting, see step_aside) */
+  g_lock = lk;
   put_file(APP "/hello", R2_VERSION); /* the starter keeps a new version once it says hello */
   signal(SIGPIPE, SIG_IGN); /* a dropped connection must never stop the helper */
   for (int sg = 1; sg < 32; sg++) if (sg != SIGKILL && sg != SIGSTOP && sg != SIGPIPE && sg != SIGALRM && sg != SIGCHLD) signal(sg, on_sig);
@@ -698,7 +714,7 @@ int main(void) {
     }
     if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
     for (int t = 0; t < 30; t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
-      if (file_exists(APP "/stop")) _exit(0); /* the starter asked (roll-back) */
+      if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
       if (update_guard()) {
         notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
         if (read_key(key, sizeof key)) { report(key, status, sizeof status); write_status(status); } /* tell the engine now */
