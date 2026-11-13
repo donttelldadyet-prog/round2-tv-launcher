@@ -76,3 +76,61 @@ Little room in an iPhone banner, so details are one line and extras go at the en
 - Engine: `soonMsg`, `soonExtra`, `bookingAlert`; `/push/preview {kind:'soon', key, day}` shows one session's reminder
   (System check step "1-hour reminder shows the guest message").
 
+
+## Why alerts sometimes come late, and in twos or threes (looked into 14 Nov 2026)
+What the engine's delivery log shows (KV `diag:push`, each phone reports back when it has shown an alert):
+- Every alert leaves the engine within seconds and Apple accepts it. Most phones show it in 1–3 s.
+- Any of the iPhones is sometimes late (never the same one), mostly when it has been lying locked for a while.
+- **Nearly every late alert appeared within 2 s of one of our re-sends** (then every 5 min). So a push that reaches an idle
+  iPhone can sit undelivered, and the next push to that phone releases it – together with every copy sent meanwhile. That
+  is where "late, and 3 at once" came from: the original + two re-sends, all arriving in the same second.
+- This is on Apple's side (others report the same on iOS 18.7 / 26 for locked, idle phones – Apple forum thread 802239);
+  the control centre being open, in the background or closed makes no difference.
+
+What we changed (engine c9958b6 + `manager/sw.js`, 11 and 14 Nov):
+1. **First re-send after ~50 s** (then ~4 and ~9 min, 3 at most) instead of waiting for the 5-minute timer. It runs on the
+   hold timer's alarm (DO kv `pushchk`, `pushChk()`, `pushRetry`); the 5-minute timer is the backstop. Only to phones that
+   haven't reported showing it, and only phones that reported anything in the last 3 days.
+2. **`Topic` header** = the alert's tag: while a phone hasn't taken an alert, a newer copy replaces it at Apple instead of
+   queueing behind it. If a push service refuses the header (HTTP 400) the alert is sent again without it.
+3. **The phone closes an older alert with the same tag** before showing a new one (`sw.js`) – iPhones don't do that by
+   themselves. A phone gets this the next time the control centre is opened on it.
+4. **One signed pass per push service, reused for 2 hours** (`vapidAuth`, kept in KV `vapid:<service>`). Apple's rule is
+   "don't refresh your JWT more than once per hour"; until now every alert to every phone carried a fresh one. Whether this
+   was slowing delivery isn't known – it now follows the rule.
+To check afterwards: `diag:push` – late alerts should now show `+50s`-ish instead of `+300s` / `+600s`.
+Still not good enough on a phone? See the Telegram section below (prepared, off).
+
+## Telegram staff alerts – PREPARED, NOT SWITCHED ON (owner, 14 Nov 2026: wait until things are settled with Madd Pizza)
+The engine can also post staff alerts to a Telegram group. The code is there (`staffAlert`), but the group was never set
+(secret `STAFF_CHAT` is not in Cloudflare), so **nothing is sent to Telegram today**. Earlier notes that say "phone alert +
+Telegram staff chat" mean: phone alert only, until this is switched on. (2 Nov: Telegram *booking* alerts were dropped
+because the phone alerts cover them – this section is about keeping Telegram as a second road for the important ones.)
+
+**What would go to the group the moment it is switched on** (no code change):
+- 🎮 NEW ONLINE BOOKING (room, date, time, name, paid amount)
+- "Needs a human" alerts: paid but couldn't be booked / refund needed, a booking stuck half-way, a moved booking whose
+  extra-hours note didn't follow, a paid move that couldn't run
+- 🔊 NOISE RULE · … ALREADY BOOKED
+- Safe mode / switches changed (who and what)
+
+**What would need a small engine change first** (not built): the SimplyBook booking alerts (new / moved / cancelled, with
+1st-visit tag) and the 1-hour reminders – i.e. using Telegram as the backup for a phone whose alerts come late. One line in
+`pushAll` (`staffAlert(title + body)` for kinds `booking` and `soon`). Note: iPhones that hold back pushes while locked may
+hold Telegram's too, so test before relying on it.
+
+**Why it waits:** the only Telegram bot is the kitchen bot (`TG_BOT_TOKEN`), and its existing group is the kitchen group
+with Madd Pizza's staff (chat id in the engine as `KITCHEN_CHAT`). Booking details and guests' names and numbers must not go
+there. Staff alerts need their **own group, Round2 people only**, and who is in which group depends on what is agreed
+with Madd Pizza.
+
+**To switch on (10 minutes, owner):**
+1. Telegram: new group, e.g. "Round2 staff alerts" – Round2 people only. Add the kitchen bot to it.
+2. Get the group's chat id: send any message in the group, then ask Claude to read it (the bot's `getUpdates`), or add
+   @RawDataBot for a moment and remove it. A group id is a negative number.
+3. Cloudflare dashboard › Workers › `round2-book` › Settings › Variables and Secrets › **Add** › type **Secret**, name
+   `STAFF_CHAT`, value = the id › Deploy. (The owner adds secrets himself; never paste keys in chat. Adding a secret keeps
+   the other 27 settings.)
+4. Test: control centre › Tests & systems › Test bench › a sandbox booking → "🎮 NEW ONLINE BOOKING" should appear in the
+   group (test bookings are marked). Then update `manager/systems.json` ("Telegram staff alerts" → live) and the System check.
+**To switch off:** delete the `STAFF_CHAT` secret. Nothing else changes.
