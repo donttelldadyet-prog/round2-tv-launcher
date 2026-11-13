@@ -26,7 +26,7 @@
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.2"
+#define R2_VERSION "1.0.3"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -395,6 +395,97 @@ static int report(const char *key, char *status, size_t slen) {
   return st;
 }
 
+/* ---------- staff commands (1.0.3, owner 13 Nov: one-tap clean-up from the control centre) ----------
+   Every minute the helper asks the engine (/ps4/cmd) whether staff sent something. The engine only hands out a clean-up when
+   the room and its twin have no session now or within 15 minutes; the helper also refuses while a game is open.
+   Clean-up = stuck update downloads in /user/download (every title EXCEPT PS Vue CUSA00960 – its half download keeps the Vue
+   jailbreak working) + guests' screenshots and clips in /user/av_contents (files only, the folders stay).
+   Never touched: installed games (/user/app), installed patches (/user/patch), saves, the update blocker files. */
+static int is_media(const char *n) { /* captures: pictures and clips only */
+  const char *x = strrchr(n, '.');
+  if (!x) return 0;
+  char e[8] = "";
+  for (int i = 0; i < 7 && x[i + 1]; i++) e[i] = (x[i + 1] >= 'A' && x[i + 1] <= 'Z') ? x[i + 1] + 32 : x[i + 1];
+  return !strcmp(e, "jpg") || !strcmp(e, "jpeg") || !strcmp(e, "png") || !strcmp(e, "mp4") || !strcmp(e, "webm");
+}
+static uint64_t rm_files(const char *path, int depth, int *files, int keep_dirs) { /* never follows links; keep_dirs = captures mode (media files only) */
+  uint64_t freed = 0;
+  DIR *d = opendir(path);
+  if (!d) return 0;
+  struct dirent *e;
+  char p[512];
+  while ((e = readdir(d))) {
+    if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+    snprintf(p, sizeof p, "%s/%s", path, e->d_name);
+    struct stat st;
+    if (lstat(p, &st)) continue;
+    if (S_ISDIR(st.st_mode)) {
+      if (depth < 8) { freed += rm_files(p, depth + 1, files, keep_dirs); if (!keep_dirs) rmdir(p); }
+    } else if ((!keep_dirs || is_media(e->d_name)) && unlink(p) == 0) { freed += st.st_size; (*files)++; }
+  }
+  closedir(d);
+  return freed;
+}
+static void cmd_done(const char *key, const char *cid, int ok, int refused, double dl, double cap, int files, const char *why) {
+  char body[200], err[120];
+  Jn = 0;
+  jadd("{\"id\":\"%s\",\"cid\":", console_id); jstr(cid);
+  jadd(",\"ok\":%d,\"refused\":%d,\"dlMB\":%.0f,\"capMB\":%.0f,\"files\":%d,\"why\":", ok, refused, dl, cap, files); jstr(why);
+  jadd("}");
+  char hdr[200];
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, body, sizeof body, err, sizeof err) != 200; i++) sleep(5);
+}
+static void clean_up(const char *key, const char *cid) {
+  char run[32];
+  running_title(run, sizeof run);
+  if (run[0] && strcmp(run, VUE_ID)) {
+    notify("Round2 clean-up skipped: a game is open. Close it, then press Clean up again.");
+    char why[80]; snprintf(why, sizeof why, "a game is open (%s)", run);
+    cmd_done(key, cid, 0, 1, 0, 0, 0, why);
+    return;
+  }
+  notify("Round2: cleaning up the PS4 (old update downloads, screenshots and clips)...");
+  int files = 0;
+  uint64_t dl = 0, cap;
+  DIR *d = opendir("/user/download");
+  if (d) {
+    struct dirent *e;
+    char p[300];
+    while ((e = readdir(d))) {
+      if (!is_title_id(e->d_name) || !strcmp(e->d_name, VUE_ID)) continue; /* PS Vue's download: KEEP */
+      snprintf(p, sizeof p, "/user/download/%s", e->d_name);
+      dl += rm_files(p, 0, &files, 0);
+      rmdir(p);
+    }
+    closedir(d);
+  }
+  cap = rm_files("/user/av_contents", 0, &files, 1);
+  char msg[160];
+  double tot = (dl + cap) / 1e6;
+  if (tot >= 1000) snprintf(msg, sizeof msg, "Round2 clean-up done: %.1f GB freed (update downloads %.1f GB, screenshots/clips %.1f GB)",
+                            tot / 1000, dl / 1e9, cap / 1e9);
+  else snprintf(msg, sizeof msg, "Round2 clean-up done: %.0f MB freed (update downloads %.0f MB, screenshots/clips %.0f MB)",
+                tot, dl / 1e6, cap / 1e6);
+  notify(msg);
+  cmd_done(key, cid, 1, 0, dl / 1e6, cap / 1e6, files, "");
+}
+static int check_cmd(const char *key) { /* every minute; 1 = it did something (report again) */
+  char hdr[200], body[400], err[120], req[80];
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  int n = snprintf(req, sizeof req, "{\"id\":\"%s\"}", console_id);
+  if (r2tls_request(ENGINE_HOST, "POST", "/ps4/cmd", hdr, req, n, body, sizeof body, err, sizeof err) != 200) return 0;
+  char *c = strstr(body, "\"cid\":\""), cid[24] = "";
+  if (!c) return 0;
+  c += 7;
+  int i = 0;
+  while (c[i] && c[i] != '"' && i < 23) { cid[i] = c[i]; i++; }
+  cid[i] = 0;
+  if (strstr(body, "\"do\":\"clean\"")) clean_up(key, cid);
+  else cmd_done(key, cid, 0, 1, 0, 0, 0, "this helper doesn't know that command - update it");
+  return 1;
+}
+
 static void write_status(const char *line) {
   FILE *f = fopen("/data/round2/helper.txt", "w");
   if (!f) return;
@@ -453,6 +544,7 @@ int main(void) {
         }
       }
     }
+    if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
     for (int t = 0; t < 30; t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
       if (update_guard()) {
         notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
