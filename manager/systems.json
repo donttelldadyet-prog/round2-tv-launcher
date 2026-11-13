@@ -1,6 +1,6 @@
 {
   "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-11-12",
+  "updated": "2026-11-13",
   "areas": [
     {
       "name": "Website & booking",
@@ -119,6 +119,27 @@
           "code": "not started"
         },
         {
+          "name": "PS4s: Sony blocked (nanoDNS)",
+          "status": "test",
+          "what": "A small program on each PS4 (nanoDNS) that answers every address lookup: Round2 and Google's clock get through, everything else – all of Sony's update and game-update servers – is blocked. The PS4's internet setting points only at it (DNS 127.0.0.1), so if it ever isn't running the PS4 is simply offline. Starts by itself after every jailbreak (GoldHEN AutoRun). Running on Kai and Vale since 13 Nov.",
+          "runs": "PS4 (GoldHEN 2.4b18.10+ AutoRun)",
+          "code": "round2-tv-launcher · ps4/nanodns/nanodns.ini (branch ps4-helper)"
+        },
+        {
+          "name": "PS4 probe (read-only check of a room PS4)",
+          "status": "test",
+          "what": "Reads a PS4 and writes a report: temperature, disk, Wi-Fi, profiles, games, saves, stuck downloads, screenshots, controllers, Sony blocked, Round2's own secure connection, speed. Run on Kai and Vale (13 Nov). Proved the Round2 PS4 code can reach the booking engine securely.",
+          "runs": "PS4 (GoldHEN PayLoader, by hand)",
+          "code": "round2-tv-launcher · ps4/probe (branch ps4-helper)"
+        },
+        {
+          "name": "PS4 helper: check-ins + games list",
+          "status": "build",
+          "what": "Runs on every PS4 next to nanoDNS and reports to the booking engine every 15 min: room, temperature, disk, Wi-Fi, Sony blocked, installed games, stuck downloads (never PS Vue's), screenshots size, what's being played, controllers. Feeds a PS4 tab in the control centre and the website's games list (plus a hand-kept list of lobby disc games). Changes nothing on the PS4. First step towards the save agent.",
+          "runs": "PS4 (GoldHEN AutoRun) · booking engine",
+          "code": "being built · round2-tv-launcher ps4/ (branch ps4-helper)"
+        },
+        {
           "name": "Game saves – step 1: staged restore (one press)",
           "status": "planned",
           "what": "~10 min before a member's session the TV helper copies their saves into the PS4's External saves folder; TV shows 'Your saves are ready'; staff/guest open Apollo › External saves › copy + resign (~30 s per game).",
@@ -127,13 +148,13 @@
         {
           "name": "Game saves – step 2: Round2 save agent (no presses)",
           "status": "planned",
-          "what": "Small homebrew built from Apollo (GPL) running on each PS4: import + resign, export what changed, wipe – on command from the TV helper. Must start itself after every reboot (GoldHEN plugin); TV check-in reports if it's down. Later: 'Continue a game' tile on the Round2 home screen.",
-          "runs": "PS4 homebrew (OpenOrbis) · several rounds of testing on one console"
+          "what": "Small homebrew built from Apollo (GPL) running on each PS4: import + resign, export what changed, wipe (and delete guests' screenshots). Talks straight to the booking engine over Round2's own secure connection (proved on Vale, 13 Nov) – the TV helper isn't needed in between. Starts itself after every jailbreak (GoldHEN AutoRun, like nanoDNS). Later: 'Continue a game' tile on the Round2 home screen.",
+          "runs": "PS4 payload (GoldHEN AutoRun) · booking engine · several rounds of testing on one console"
         },
         {
           "name": "Game saves – tests before building",
           "status": "planned",
-          "what": "1) By hand: Bella → Max, one game, Apollo export → import + resign – proves cross-console resume. 2) Raw encrypted saves pulled by FTP resign on another console? 3) GoldHEN/FTP up after every power cut? 4) Measure save sizes of 5 popular games (sets R2 cost; 10 GB free ≈ 150 members). 5) Mark online-only games 'progress not kept'. 6) Same game versions on every console. Then System check steps: backup → restore → wipe on a test console.",
+          "what": "1) By hand: Bella → Max, one game, Apollo export → import + resign – proves cross-console resume. 2) Raw encrypted saves pulled by FTP resign on another console? 3) GoldHEN/FTP up after every power cut? 4) Measure save sizes of 5 popular games (sets R2 cost; 10 GB free ≈ 150 members). 5) Mark online-only games 'progress not kept'. 6) Same game versions on every console. Then System check steps: backup → restore → wipe on a test console. Progress 13 Nov: 4) Vale's saves 4.1 GB over 2 profiles, Kai's spread over 5 profiles (save every profile); 6) game versions now readable per PS4. Found: account IDs differ per console (resign needed); themed profile names are characters (Valentine), so rooms are matched by console ID.",
           "runs": "By hand on two consoles, then System check"
         },
         {
