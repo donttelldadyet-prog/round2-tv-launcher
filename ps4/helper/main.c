@@ -32,7 +32,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.2"
+#define R2_VERSION "1.1.3"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -764,6 +764,13 @@ static void do_prof(const char *key, const char *cid, const char *body) {
    saves decrypted. Apollo's way (apollo-ps4 source/sd.c + orbis_jbc.c): unlock the save's own key (<name>.bin) with the PS4's
    key service, open the save image READ-ONLY in a private folder, list what's inside, close it again. Raises its rights only for
    the job (same as Apollo) and puts them back. Refused while a game is open (the game may have the save open). Changes nothing. */
+/* owner 14 Nov: Max's Gran Turismo Sport save has everything unlocked (the shop's racing-sim USP, only on Max) – never open,
+   back up, restore, overwrite or delete it, on any profile. Every save job checks this list first. */
+static const char *R2_PROTECTED_TITLES[] = { "CUSA02168" /* Gran Turismo Sport */ };
+static int r2_protected(const char *tid) {
+  for (unsigned i = 0; i < sizeof R2_PROTECTED_TITLES / sizeof *R2_PROTECTED_TITLES; i++) if (!strcmp(tid, R2_PROTECTED_TITLES[i])) return 1;
+  return 0;
+}
 typedef struct { bool readOnly; char *budgetid; } R2MountOpt;
 typedef struct { bool dummy; } R2UmountOpt;
 static int (*fsInitMount)(R2MountOpt *);
@@ -773,6 +780,7 @@ static int (*fsUmount)(R2UmountOpt *, const char *, int, bool);
 static int look_save(const char *spec, int dp) {
   char k[48], v[200], u[16] = "", t[16] = "", nm[40] = "";
   if (sscanf(spec, "/_save.%8[0-9a-f].%9[A-Z0-9].%39[^|]", u, t, nm) != 3) { look_kv("save/error", "bad spec"); return -1; }
+  if (r2_protected(t)) { look_kv("save/refused", "protected game - never touched (owner)"); return -1; }
   char run[32]; running_title(run, sizeof run);
   if (run[0] && strcmp(run, VUE_ID)) { look_kv("save/refused", "a game is open"); return -1; }
   char img[200], keyp[200], mnt[] = "/data/round2/mnt";
