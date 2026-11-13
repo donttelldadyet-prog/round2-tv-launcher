@@ -121,7 +121,7 @@
         {
           "name": "PS4s: Sony blocked (nanoDNS)",
           "status": "test",
-          "what": "A small program on each PS4 (nanoDNS) that answers every address lookup: Round2 and Google's clock get through, everything else – all of Sony's update and game-update servers – is blocked. The PS4's internet setting points only at it (DNS 127.0.0.1), so if it ever isn't running the PS4 is simply offline. Starts by itself after every jailbreak (GoldHEN AutoRun). Running on Kai and Vale since 13 Nov.",
+          "what": "A small program on each PS4 (nanoDNS) that answers every address lookup: Round2 and Google's clock get through, everything else – all of Sony's update and game-update servers – is blocked. The PS4's internet setting points only at it (DNS 127.0.0.1), so if it ever isn't running the PS4 is simply offline. Starts by itself after every jailbreak (GoldHEN AutoRun). Running on Kai and Vale since 13 Nov. Planned: its settings can be changed from the control centre (owner key only) – checked twice that Sony stays blocked, tested on the PS4 after the change, and put back by itself if anything fails.",
           "runs": "PS4 (GoldHEN 2.4b18.10+ AutoRun)",
           "code": "round2-tv-launcher · ps4/nanodns/nanodns.ini (branch ps4-helper)"
         },
