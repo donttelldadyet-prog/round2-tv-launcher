@@ -28,3 +28,7 @@ $CC -Wall -O2 -I"$D/mbedtls/include" -Itls -I"$D/inc" -DMBEDTLS_USER_CONFIG_FILE
   -o out/round2-probe.elf probe/main.c tls/r2tls.c "$D/ca_bundle.c" "$D/libmbedtls-ps4.a" "$D/sqlite3.o" \
   -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl -lScePad
 ls -la out
+$CC -Wall -O2 -I"$D/mbedtls/include" -Itls -DMBEDTLS_USER_CONFIG_FILE='"r2_mbedtls_config.h"' \
+  -o out/round2d.elf helper/main.c tls/r2tls.c "$D/ca_bundle.c" "$D/libmbedtls-ps4.a" \
+  -lSceUserService -lSceRandom -lSceSystemService -lSceNetCtl -lScePad
+ls -la out
