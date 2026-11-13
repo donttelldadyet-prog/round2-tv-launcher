@@ -113,28 +113,22 @@
         },
         {
           "name": "Guest game saves (PS4)",
-          "status": "planned",
-          "what": "Guests continue their PS4 games on a later visit, in any room. Backed up at the guest end (during cleaning, after any EXT chain), stored in Cloudflare R2 (new bucket, same account) under saves/<member>/<platform>/<game>/, last 3 versions; console wiped before the next guest. Non-members: session held 14 days, one free resume on the 2nd visit; a new number just starts clean. Unlock = booking's phone number, or a 4-digit PIN (note bookings, friend booked). Note bookings: optional phone field in Add a session; QR claim on That's a wrap. Ignore SYSTEM BLOCK, room blocked, ↓ labels.",
-          "runs": "PS4 (GoldHEN FTP + Apollo) · room TV helper · booking engine · Cloudflare R2",
-          "code": "not started"
+          "status": "build",
+          "what": "Members continue their PS4 games on a later visit, in any room. One membership = up to 2 personal PS4 profiles (member + partner) next to the room's main profile. At login their profiles appear with their saves; at session end the saves go to the cloud and the profiles are removed. Non-members: their saves are parked (kept, tied to the booking) so they can still be given back if the guest signs up; the next guest starts clean. Never touched: Gran Turismo Sport's save in Max's main profile (fully unlocked – the racing-sim draw). Saves prepared on each PS4 ahead of the day's bookings so a dropped internet connection can't block a login.",
+          "runs": "Round2 PS4 helper (round2d, on every room PS4) · booking engine · Cloudflare storage (bucket round2-saves)",
+          "code": "round2-tv-launcher branch ps4-helper folder ps4/ · round2sg-home worker/round2-book.js (ps4*) · full log: project doc ps4-game-saves.md"
         },
         {
-          "name": "Game saves – step 1: staged restore (one press)",
-          "status": "planned",
-          "what": "~10 min before a member's session the TV helper copies their saves into the PS4's External saves folder; TV shows 'Your saves are ready'; staff/guest open Apollo › External saves › copy + resign (~30 s per game).",
-          "runs": "TV helper (Android FoodAlerts / LG round2d.sh) + engine"
+          "name": "Game saves – proven so far (13–14 Nov 2026)",
+          "status": "test",
+          "what": "All done remotely by the helper on Max: rename a spare profile; sign a profile in and out; open a save decrypted (read-only); back a save up to the cloud; restore it into another profile (Gran Turismo Sport, Max → User4, checked on the TV by the owner); put the PS4 into rest mode. Saves load in profiles that are not activated. The real game data is small (KBs to ~32 MB).",
+          "runs": "Staff actions ps4prof, ps4look (/_save, /_sback, /_srest, /_rest), ps4saves · System check step 'PS4 helpers + game-save storage'"
         },
         {
-          "name": "Game saves – step 2: Round2 save agent (no presses)",
+          "name": "Game saves – still to build, in order",
           "status": "planned",
-          "what": "Small homebrew built from Apollo (GPL) running on each PS4: import + resign, export what changed, wipe – on command from the TV helper. Must start itself after every reboot (GoldHEN plugin); TV check-in reports if it's down. Later: 'Continue a game' tile on the Round2 home screen.",
-          "runs": "PS4 homebrew (OpenOrbis) · several rounds of testing on one console"
-        },
-        {
-          "name": "Game saves – tests before building",
-          "status": "planned",
-          "what": "1) By hand: Bella → Max, one game, Apollo export → import + resign – proves cross-console resume. 2) Raw encrypted saves pulled by FTP resign on another console? 3) GoldHEN/FTP up after every power cut? 4) Measure save sizes of 5 popular games (sets R2 cost; 10 GB free ≈ 150 members). 5) Mark online-only games 'progress not kept'. 6) Same game versions on every console. Then System check steps: backup → restore → wipe on a test console.",
-          "runs": "By hand on two consoles, then System check"
+          "what": "1) Restore between a 9.00 and an 11.00 PS4. 2) Restore into a profile that has no save for that game yet. 3) Check each game is the same version in every room. 4) Member profile from start to end (name → sign in → restore → play → back up → sign out → remove). 5) Parking non-members' saves; clean slate through the PS4's own delete. 6) Back up during the session + a to-do list on the PS4 that survives rest mode (test: rest mode in the middle of a job). 7) Prepare the day's saves from the bookings. 8) Guest login on the PS4 (QR). 9) Morning wake-up of booked rooms (TV on → PS4 wakes; to check at the shop). Saves filed by member, not by PS4, so a second outlet works.",
+          "runs": "PS4 helper + engine; owner at a PS4 for the checks on the TV"
         },
         {
           "name": "Game saves – later: other branches / PC room",
