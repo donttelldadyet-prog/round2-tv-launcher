@@ -3439,6 +3439,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           return yes.length ? 'Online TVs report it: ' + yes.join(', ') : 'No TV online right now';
         });
       }); })
+      .then(function () { return step('PS4 helpers + game-save storage (nothing changes)', function () {
+        /* 14 Nov: the helper backs up PS4 saves into Cloudflare storage (bucket round2-saves) through /ps4/sput + /ps4/sget */
+        return Promise.all([gm({ action: 'ps4list' }), gm({ action: 'ps4saves', p: 'zz-none/' }),
+          fetch(ENG + '/ps4/sput?k=zz-check', { method: 'POST', body: 'x' }).then(function (r) { return r.status; }),
+          fetch(ENG + '/ps4/sget?k=zz-check').then(function (r) { return r.status; })]).then(function (r) {
+          must(r[0].ok && r[0].list, 'PS4 list didn’t load: ' + (r[0].error || ''));
+          must(r[1].ok, 'Game-save storage isn’t connected to the engine: ' + (r[1].error || ''));
+          must(r[2] === 403 && r[3] === 403, 'Save storage must refuse anyone without the PS4 key (got ' + r[2] + ' / ' + r[3] + ')');
+          var now = r[0].now || Date.now(), on = r[0].list.filter(function (p) { return p.poll && now - p.poll < 3 * 60e3; });
+          return r[0].list.length + ' PS4s known, ' + on.length + ' answering now · save storage connected and locked';
+        });
+      }); })
       /* 7. the test night */
       .then(function () { return step('Test night free (3–7am, ~6 weeks ahead)', function () { return findNight().then(function (d) { T.night = addD(d, -1); T.day = d; return 'Using the night of ' + T.night + ' (sessions at 3am on ' + d + ')'; }); }); })
       .then(function () { return step('Add a session (late, 3–5am): write the note, In session and the list see it', function () {
