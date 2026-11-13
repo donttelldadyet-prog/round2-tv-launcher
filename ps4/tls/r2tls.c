@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <strings.h>
 
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/entropy.h"
@@ -33,8 +35,8 @@ unsigned long long r2tls_last_bytes = 0;
 static mbedtls_x509_crt cacert;
 static int ca_ready = 0;
 
-int r2tls_request(const char *host, const char *method, const char *path, const char *headers, const char *body,
-                  size_t blen, char *out, size_t outlen, char *err, size_t errlen) {
+static int tls_go(const char *host, const char *method, const char *path, const char *headers, const char *body,
+                  size_t blen, char **rbuf, size_t *rlen, size_t max, char *err, size_t errlen) {
   int ret, status = -1;
   mbedtls_net_context net;
   mbedtls_ssl_context ssl;
@@ -42,7 +44,8 @@ int r2tls_request(const char *host, const char *method, const char *path, const 
   mbedtls_entropy_context ent;
   mbedtls_ctr_drbg_context drbg;
   if (err && errlen) err[0] = 0;
-  if (out && outlen) out[0] = 0;
+  *rbuf = 0;
+  *rlen = 0;
 
   if (!ca_ready) {
     mbedtls_x509_crt_init(&cacert);
@@ -96,23 +99,24 @@ int r2tls_request(const char *host, const char *method, const char *path, const 
   }
 
   {
-    size_t got = 0;
-    static char resp[65536];
+    size_t got = 0, cap = 65536;
+    char *resp = malloc(cap + 1);
     static unsigned char scratch[16384];
     r2tls_last_bytes = 0;
     for (;;) {
-      int room = got < sizeof resp - 1;
-      ret = room ? mbedtls_ssl_read(&ssl, (unsigned char *)resp + got, sizeof resp - 1 - got)
-                 : mbedtls_ssl_read(&ssl, scratch, sizeof scratch); /* keep counting, don't keep */
+      if (resp && got == cap && cap < max) { size_t nc = cap * 2 > max ? max : cap * 2; char *x = realloc(resp, nc + 1); if (x) { resp = x; cap = nc; } }
+      int room = resp && got < cap;
+      ret = room ? mbedtls_ssl_read(&ssl, (unsigned char *)resp + got, cap - got)
+                 : mbedtls_ssl_read(&ssl, scratch, sizeof scratch); /* past max: keep counting, don't keep */
       if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) continue;
       if (ret <= 0) break;
       if (room) got += ret;
       r2tls_last_bytes += ret;
     }
-    resp[got] = 0;
-    if (got > 12 && !strncmp(resp, "HTTP/1.", 7)) status = atoi_safe(resp + 9);
-    char *b = strstr(resp, "\r\n\r\n");
-    if (out && outlen) snprintf(out, outlen, "%s", b ? b + 4 : resp);
+    if (resp) resp[got] = 0;
+    if (resp && got > 12 && !strncmp(resp, "HTTP/1.", 7)) status = atoi_safe(resp + 9);
+    *rbuf = resp;
+    *rlen = got;
   }
   goto done;
 
@@ -130,6 +134,76 @@ done:
   mbedtls_ctr_drbg_free(&drbg);
   mbedtls_entropy_free(&ent);
   return status;
+}
+
+
+/* text replies (small): body copied into out as a string */
+int r2tls_request(const char *host, const char *method, const char *path, const char *headers, const char *body,
+                  size_t blen, char *out, size_t outlen, char *err, size_t errlen) {
+  char *r = 0;
+  size_t n = 0;
+  if (out && outlen) out[0] = 0;
+  int st = tls_go(host, method, path, headers, body, blen, &r, &n, 65536, err, errlen);
+  if (r) {
+    char *b = strstr(r, "\r\n\r\n");
+    if (out && outlen) snprintf(out, outlen, "%s", b ? b + 4 : r);
+    free(r);
+  }
+  return st;
+}
+
+static int hdr_has(const char *h, size_t hl, const char *name, const char *val) { /* case-insensitive "Name: ...val..." */
+  size_t nl = strlen(name);
+  for (size_t i = 0; i + nl < hl; i++) {
+    if ((i == 0 || h[i - 1] == '\n') && !strncasecmp(h + i, name, nl) && h[i + nl] == ':') {
+      const char *e = memchr(h + i, '\n', hl - i);
+      size_t ll = e ? (size_t)(e - (h + i)) : hl - i;
+      for (size_t k = 0; k + strlen(val) <= ll; k++) if (!strncasecmp(h + i + k, val, strlen(val))) return 1;
+      return 0;
+    }
+  }
+  return 0;
+}
+
+/* binary download (e.g. a new helper): *data = malloc'd body (chunked replies decoded), *len its size. Caller frees. */
+int r2tls_fetch(const char *host, const char *method, const char *path, const char *headers, const char *body, size_t blen,
+                unsigned char **data, size_t *len, size_t max, char *err, size_t errlen) {
+  char *r = 0;
+  size_t n = 0;
+  *data = 0;
+  *len = 0;
+  int st = tls_go(host, method, path, headers, body, blen, &r, &n, max + 65536, err, errlen);
+  if (!r) return st;
+  char *b = 0;
+  for (size_t i = 0; i + 3 < n; i++) if (!memcmp(r + i, "\r\n\r\n", 4)) { b = r + i + 4; break; }
+  if (!b) { free(r); if (err) snprintf(err, errlen, "no reply body"); return -1; }
+  size_t hl = b - r, bl = n - hl;
+  if (hdr_has(r, hl, "Transfer-Encoding", "chunked")) { /* decode in place */
+    size_t in = 0, o = 0;
+    while (in < bl) {
+      size_t sz = 0;
+      while (in < bl && b[in] != '\r') {
+        char c = b[in++];
+        int v = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+        if (v < 0) { while (in < bl && b[in] != '\r') in++; break; } /* chunk extensions */
+        sz = sz * 16 + v;
+      }
+      in += 2;
+      if (!sz || in + sz > bl) break;
+      memmove(b + o, b + in, sz);
+      o += sz;
+      in += sz + 2;
+    }
+    bl = o;
+  }
+  if (bl > max) { free(r); if (err) snprintf(err, errlen, "too big"); return -1; }
+  unsigned char *d = malloc(bl ? bl : 1);
+  if (!d) { free(r); if (err) snprintf(err, errlen, "no memory"); return -1; }
+  memcpy(d, b, bl);
+  free(r);
+  *data = d;
+  *len = bl;
+  return st;
 }
 
 int atoi_safe(const char *s) {

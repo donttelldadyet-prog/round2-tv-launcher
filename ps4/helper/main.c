@@ -23,13 +23,19 @@
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <sys/file.h>
+#include "mbedtls/sha256.h"
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.3"
+#define R2_VERSION "1.0.4"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
+/* 1.0.4: run by the starter (round2-boot.elf) – see boot/main.c */
+#define APP "/data/round2/app"
+#define LOCKF "/data/round2/helper.lock"
 
 typedef struct notify_request { char useless1[45]; char message[3075]; } notify_request_t;
 int sceKernelSendNotificationRequest(int, notify_request_t *, size_t, int);
@@ -375,6 +381,11 @@ static int report(const char *key, char *status, size_t slen) {
   add_storage();
   jadd(",\"updGuard\":{\"blocked\":%d,\"lastMB\":%d,\"agoS\":%lld,\"discUpd\":%d}", upd_blocked, upd_last_mb,
        upd_last ? (long long)(time(0) - upd_last) : -1LL, disc_pup);
+  { char bv[16] = "", rb[200] = "";
+    FILE *f = fopen(APP "/boot.ver", "r"); if (f) { if (!fgets(bv, sizeof bv, f)) bv[0] = 0; fclose(f); bv[strcspn(bv, "\r\n")] = 0; }
+    f = fopen(APP "/rolled-back.txt", "r"); if (f) { if (!fgets(rb, sizeof rb, f)) rb[0] = 0; fclose(f); rb[strcspn(rb, "\r\n")] = 0; }
+    if (bv[0]) { jadd(",\"boot\":"); jstr(bv); }
+    if (rb[0]) { jadd(",\"rolled\":"); jstr(rb); } }
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
   jadd("}");
@@ -470,6 +481,67 @@ static void clean_up(const char *key, const char *cid) {
   notify(msg);
   cmd_done(key, cid, 1, 0, dl / 1e6, cap / 1e6, files, "");
 }
+static void jget(const char *b, const char *k, char *out, size_t n) { /* "k":"value" from a small JSON reply */
+  char pat[40];
+  snprintf(pat, sizeof pat, "\"%s\":", k);
+  out[0] = 0;
+  const char *p = strstr(b, pat);
+  if (!p) return;
+  p += strlen(pat);
+  if (*p == '"') p++;
+  size_t i = 0;
+  while (p[i] && p[i] != '"' && p[i] != ',' && p[i] != '}' && i < n - 1) { out[i] = p[i]; i++; }
+  out[i] = 0;
+}
+static void put_file(const char *p, const char *txt) { FILE *f = fopen(p, "w"); if (f) { fputs(txt, f); fclose(f); } }
+static int file_exists(const char *p) { struct stat st; return !stat(p, &st); }
+/* update (1.0.4): download the new helper through the engine, check size + SHA-256 + ELF, save it as app/new.elf, tell the
+   starter (app/switch) and exit – the starter swaps it in and rolls back by itself if the new one doesn't work */
+static void do_update(const char *key, const char *cid, const char *body) {
+  char v[24], sha[80], sz[24], run[32];
+  jget(body, "v", v, sizeof v);
+  jget(body, "sha", sha, sizeof sha);
+  jget(body, "size", sz, sizeof sz);
+  if (!file_exists(APP "/boot.ver")) { cmd_done(key, cid, 0, 1, 0, 0, 0, "no starter: put round2-boot.elf in AutoRun first"); return; }
+  running_title(run, sizeof run);
+  if (run[0] && strcmp(run, VUE_ID)) { cmd_done(key, cid, 0, 1, 0, 0, 0, "a game is open"); return; }
+  if (!v[0] || strlen(sha) != 64 || atoi_safe(sz) < 1024) { cmd_done(key, cid, 0, 0, 0, 0, 0, "bad update details"); return; }
+  if (!strcmp(v, R2_VERSION)) { cmd_done(key, cid, 1, 0, 0, 0, 0, "already on this version"); return; }
+  char msg[160], hdr[200], req[120], err[160];
+  snprintf(msg, sizeof msg, "Round2 helper: downloading %s...", v);
+  notify(msg);
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  int n = snprintf(req, sizeof req, "{\"id\":\"%s\",\"v\":\"%s\"}", console_id, v);
+  unsigned char *d = 0;
+  size_t len = 0;
+  int st = r2tls_fetch(ENGINE_HOST, "POST", "/ps4/app", hdr, req, n, &d, &len, 16 * 1024 * 1024, err, sizeof err);
+  char why[200] = "";
+  unsigned char h[32];
+  char hx[65];
+  if (st != 200 || !d) snprintf(why, sizeof why, "download failed (%d %s)", st, err);
+  else if (len != (size_t)atoi_safe(sz)) snprintf(why, sizeof why, "download size %zu, expected %s", len, sz);
+  else {
+    mbedtls_sha256(d, len, h, 0);
+    for (int i = 0; i < 32; i++) sprintf(hx + i * 2, "%02x", h[i]);
+    if (strcasecmp(hx, sha)) snprintf(why, sizeof why, "file check failed (SHA-256)");
+    else if (memcmp(d, "\x7f" "ELF", 4)) snprintf(why, sizeof why, "not a PS4 program");
+  }
+  if (!why[0]) {
+    FILE *f = fopen(APP "/new.elf.tmp", "wb");
+    if (!f || fwrite(d, 1, len, f) != len) snprintf(why, sizeof why, "couldn't save it");
+    if (f) { fflush(f); fsync(fileno(f)); fclose(f); }
+    if (!why[0] && rename(APP "/new.elf.tmp", APP "/new.elf")) snprintf(why, sizeof why, "couldn't save it (rename)");
+  }
+  free(d);
+  if (why[0]) { unlink(APP "/new.elf.tmp"); cmd_done(key, cid, 0, 0, 0, 0, 0, why); notify("Round2 helper: update not done - still on the old version."); return; }
+  snprintf(why, sizeof why, "downloaded %s - switching", v);
+  cmd_done(key, cid, 1, 0, 0, 0, 0, why);
+  put_file(APP "/switch", v);
+  snprintf(msg, sizeof msg, "Round2 helper: switching to %s", v);
+  notify(msg);
+  _exit(0); /* lock released -> the starter swaps it in */
+}
+
 static int check_cmd(const char *key) { /* every minute; 1 = it did something (report again) */
   char hdr[200], body[400], err[120], req[80];
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
@@ -482,6 +554,7 @@ static int check_cmd(const char *key) { /* every minute; 1 = it did something (r
   while (c[i] && c[i] != '"' && i < 23) { cid[i] = c[i]; i++; }
   cid[i] = 0;
   if (strstr(body, "\"do\":\"clean\"")) clean_up(key, cid);
+  else if (strstr(body, "\"do\":\"update\"")) do_update(key, cid, body);
   else cmd_done(key, cid, 0, 1, 0, 0, 0, "this helper doesn't know that command - update it");
   return 1;
 }
@@ -515,6 +588,12 @@ static int read_key(char *key, size_t n) {
 
 int main(void) {
   mkdir("/data/round2", 0777);
+  mkdir(APP, 0777);
+  /* only one helper at a time: hold the lock while running (the starter watches it). Another one has it -> leave quietly. */
+  int lk = open(LOCKF, O_RDWR | O_CREAT, 0666), got = 0;
+  for (int i = 0; i < 10 && lk >= 0 && !(got = flock(lk, LOCK_EX | LOCK_NB) == 0); i++) sleep(1);
+  if (lk >= 0 && !got) return 0;
+  put_file(APP "/hello", R2_VERSION); /* the starter keeps a new version once it says hello */
   signal(SIGPIPE, SIG_IGN); /* a dropped connection must never stop the helper */
   for (int sg = 1; sg < 32; sg++) if (sg != SIGKILL && sg != SIGSTOP && sg != SIGPIPE && sg != SIGALRM && sg != SIGCHLD) signal(sg, on_sig);
   sceUserServiceInitialize(0);
@@ -546,6 +625,7 @@ int main(void) {
     }
     if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
     for (int t = 0; t < 30; t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
+      if (file_exists(APP "/stop")) _exit(0); /* the starter asked (roll-back) */
       if (update_guard()) {
         notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
         if (read_key(key, sizeof key)) { report(key, status, sizeof status); write_status(status); } /* tell the engine now */
