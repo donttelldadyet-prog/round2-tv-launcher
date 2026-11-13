@@ -108,7 +108,7 @@ only**: the kitchen slip for a paid food order and the "Food is at the pickup po
 guest names or numbers. Madd Pizza doesn't need to know them.
 
 - The engine used to have a second, unused road (`staffAlert` → a staff group named by secret `STAFF_CHAT`, never set, so
-  nothing was ever sent). Since engine 19aad40 (14 Nov) `staffAlert` never sends, whatever is set. Don't revive it, and
+  nothing was ever sent). Since engine ed9d0be (14 Nov) `staffAlert` never sends, whatever is set. Don't revive it, and
   don't add booking messages to the kitchen chat.
 - Booking alerts reach staff through the control centre's phone alerts only (this document).
 - What may be added to the Telegram chat later is food-side only, and depends on what is agreed with Madd Pizza (still being
