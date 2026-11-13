@@ -40,7 +40,9 @@ To put everything back: `.\round2tv.ps1 undo`. When finished with a TV: `.\round
 
 1. Edit `web/index.html` on GitHub (pencil icon) and commit to `main`.
 2. Wait for the **Build Round2 Home** action to finish (Actions tab). It publishes a new release.
-3. Run `.\round2tv.ps1 launcher` again on each TV to install the update.
+3. Update each TV: control centre › TVs › **Update to x** on its tile (LG installs by itself; Android gets it ready and staff
+   press Install in Options › Staff › Update app), or on the TV itself: Options › Staff › **Update app**. The laptop
+   (`.\round2tv.ps1 install donttelldadyet-prog/round2-tv-launcher`) is only needed when a TV can't be reached that way.
 
 To preview the menu on a computer, open `web/index.html` in a browser and use the arrow keys and Enter.
 
@@ -54,6 +56,28 @@ To add a scene loop (e.g. for another room):
 3. Commit. The build downloads, compresses and thumbnails the video and puts it in the app.
 
 The Kai loops (Neon Summit) were made in OpenArt: still images with Nano Banana 2.1 from the Round2 logo plus style references, animated with Veo 3.1 using the same first and last frame so they loop.
+
+## Each room's TV: what's different (reviewed 14 Nov 2026)
+
+One menu (`web/index.html`) runs everywhere; the differences are in how each TV lets an app be the home screen, play sound
+and stay alive. Read this before changing anything "for all TVs".
+
+| Room | TV | Home button | Things only this TV does |
+| --- | --- | --- | --- |
+| **Kai** | TCL Google TV, Android 11 | Accessibility helper `HomeGuard` (own process `:guard`) catches the Home key – no flash of the Google home | **TCL Safety Guard** (`com.tcl.guard`, "tguard-kill") closes background apps and blocks the helper unless Round2 Home has TCL's auto-start permission (`APP_AUTO_START`, granted by `round2tv.ps1 homeguard`; on the TV: Safety Guard › Auto launch + Relevance start › Round2 Home ON). The TV moves the **volume** itself before the helper sees the key, so on TCL the helper swallows volume keys and does nothing (anything else = 2 steps). TCL refuses our foreground notification, so `GuardKeep` is **not** started on TCL (starting it got the helper killed). Background video is drawn natively (Realtek chip). |
+| **Max** | Sony Android TV | `HomeGuard` | Sony runs Netflix and the HDMI inputs **outside Android**: the menu is never paused/resumed, so Home arrives as `onNewIntent` → `r2Home`, `leavingAt` decides whether a message shows on the menu or as the small banner, and the menu can stay marked "away" (ambience silent) until a key press clears it (1.0.278). Sony keeps the app running in standby (the check-in reports the screen state so the control centre doesn't show it online forever). Sound goes headphone jack → amp → passive speakers. |
+| **Kaeden** | Sony Android TV | `HomeGuard` | Under renovation since ~30 Oct 2026 – TV keeps running and reporting. (One of the Sonys is a 2015 model with the old `leanbacklauncher` and no web-audio output – hence `NativeSound`, which every Android TV now uses.) |
+| **Atlas** | Prism+, Android 9 | `HomeWatch`: polls "Usage access" every 0.3 s and jumps back when the TV's home shows – the stock home **flashes for a moment** | Prism+ hides the Accessibility switch (it can be listed as on while Android never starts it) and locks network debugging, so: `HomeWatch` instead of `HomeGuard`, `BootReceiver` opens the menu at power-on, Staff tools walk through the hidden permission pages, and the laptop connects by USB (`connect usb`). |
+| **Vale, Scarlett** | LG webOS, rooted (Homebrew Channel) | LG Input Hook button `773` → `round2d.sh key`; Home ×3 = LG's home | The helper `webos/service/round2d.sh` does what the Android app does natively: opens the menu at power-on, food/message cards over apps (`webos/alerts`), check-ins, updates through Homebrew Channel (SHA-256 checked), screensaver block. The menu reloads itself after 10+ minutes away and checks the sound engine's speed every minute (LG's web audio could break up or run fast). Never let LG install a system update. |
+| **Bella** | LG webOS, rooted | as Vale/Scarlett | Also runs **our own AirPlay receiver** (`airplay-webos/`, app `sg.round2.airplay`, listed in `manager/lg.json` by `tools/hbrepo.py`) because this LG can't get LG's AirPlay. The sound-speed check was added for this TV. |
+
+The Android TVs' AirPlay is someone else's app (`io.github.jqssun.airplay` or PhairPlay) – the menu only opens it.
+PC toolkit: `round2tv.ps1 diag` saves a report (helper state, who closed it and why, volume changes, audio focus, the log).
+
+Known leftovers, harmless (not cleaned up to avoid a TV update for nothing): `HomeGuard` still carries the removed
+"let go of the buttons when late" switch (`LAG_MS`, `keysOn`/`setKeys`); `web/index.html` has Samsung/Tizen app ids and two
+unused functions (`nZoom`, `surface`); the TVs still tell **Make** directly when a guest OKs "Loot dropped"
+(`ACK_URL` in `web/index.html`, `FoodAlerts.java`, `round2d.sh`) – to move behind the engine with the rest of the food menu.
 
 ## Other TV brands
 
@@ -88,8 +112,8 @@ Scarlett, Vale and Bella have LG TVs. They run the same menu as the other rooms,
 With Homebrew Channel on the TV, Round2 Home installs and updates from the TV remote, has no Developer Mode timer, and a small helper makes the TV behave like the other rooms:
 
 - switching the TV on opens Round2 Home (also with Quick Start+ on), and the guest's Options changes are reset;
-- pressing **Home** in Netflix, an HDMI input or any other app opens Round2 Home;
-- pressing **Home** while Round2 Home is showing opens LG's own home screen (for staff: LG settings, the app list, Homebrew Channel).
+- pressing **Home** anywhere – Netflix, an HDMI input, any app, or Round2 Home itself – opens Round2 Home's main menu;
+- pressing **Home 3 times quickly** opens LG's own home screen (for staff: LG settings, the app list, Homebrew Channel).
 
 **Setup, once per TV (with the remote):**
 
@@ -123,7 +147,7 @@ How it works: `webos/service/round2d.sh` watches LG's power state and which app 
   so a TV left on overnight still goes to its screensaver and sleeps. Apps (Netflix, HDMI) are never touched.
 
 - The signing key is in this repo on purpose so builds stay installable over each other. Anyone with the key could build an update, but installing it still needs adb access to the TV, which `lockdown` turns off.
-- Background videos and fonts are bundled in the app, so the menu looks right without internet. Rain and menu sounds are generated on the TV, not downloaded.
+- Background videos and fonts are bundled in the app, so the menu looks right without internet. Rain and menu sounds are generated on the TV; event backgrounds and uploaded ambience sounds (Theme manager › Sounds) are downloaded in the background.
 - Useful toolkit commands: `tizentube` (installs TizenTube from its GitHub releases), `airplay` (PhairPlay), `perf` (measures how smooth the menu is), `status`, `monitor`, `undo`.
 
 ## Working on this with Claude
