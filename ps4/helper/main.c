@@ -25,6 +25,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/file.h>
 #include "mbedtls/sha256.h"
@@ -33,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.5"
+#define R2_VERSION "1.1.6"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -929,9 +930,9 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
     int cr = sv_close();
     char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", base);
     int mr = sv_fail ? -1 : sv_put(key, mk, (const unsigned char *)(sv_man ? sv_man : ""), sv_man_n);
-    look_kv("backup/where", base);
+    { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/where", nm); look_kv(kk, base); }
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, manifest %s, closed %d", sv_files, sv_bytes, sv_fail, mr ? "NOT saved" : "saved", cr);
-    look_kv("backup/result", v);
+    { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/result", nm); look_kv(kk, v); }
     ok = sv_fail || mr ? -1 : 0;
   } else look_kv("backup/error", v);
   sv_rights_back();
@@ -942,12 +943,14 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
    Max's GT Sport -> User4's GT Sport, so he can see it on the TV). The receiving save keeps its own sce_sys (param.sfo with
    that profile's IDs, keystone) – only the game's files are replaced. Never into the main profile's protected save. The
    receiving save should be backed up first (look_sback). */
-static int sv_get(const char *key, const char *k, unsigned char **data, size_t *len) {
+static int sv_get(const char *key, const char *k, unsigned char **data, size_t *len, char *why, size_t wn) {
   char path[900], hdr[200], err[120];
   int m = snprintf(path, sizeof path, "/ps4/sget?k=");
   url_enc(path + m, sizeof path - m, k);
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\n", key);
-  for (int i = 0; i < 3; i++) { *data = 0; *len = 0; if (r2tls_fetch(ENGINE_HOST, "GET", path, hdr, 0, 0, data, len, SV_PIECE + 65536, err, sizeof err) == 200) return 0; free(*data); *data = 0; sleep(3); }
+  int st = -1;
+  for (int i = 0; i < 3; i++) { *data = 0; *len = 0; err[0] = 0; st = r2tls_fetch(ENGINE_HOST, "GET", path, hdr, 0, 0, data, len, SV_PIECE + 65536, err, sizeof err); if (st == 200) return 0; free(*data); *data = 0; sleep(3); }
+  if (why) snprintf(why, wn, "download %d %s", st, err);
   return -1;
 }
 static void mkdirs_for(const char *file) {
@@ -962,9 +965,10 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   if (strstr(src, "..") || !strstr(src, t)) { look_kv("restore/error", "backup is for another game"); return -1; }
   char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", src);
   unsigned char *man = 0; size_t mlen = 0;
-  if (sv_get(key, mk, &man, &mlen) || !mlen) { free(man); look_kv("restore/error", "backup not found"); return -1; }
+  if (sv_get(key, mk, &man, &mlen, 0, 0) || !mlen) { free(man); look_kv("restore/error", "backup not found"); return -1; }
   char *mt = malloc(mlen + 1); memcpy(mt, man, mlen); mt[mlen] = 0; free(man);
   sv_rights_up(v, sizeof v);
+  char first_err[160] = "";
   int ok = sv_open(u, t, nm, 0, v, sizeof v), files = 0, fail = 0, skipped = 0;
   unsigned long long bytes = 0;
   if (ok == 0) {
@@ -978,22 +982,27 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
       snprintf(out, sizeof out, "%s/%s", SV_MNT, ln); snprintf(tmp, sizeof tmp, "%s.r2new", out);
       mkdirs_for(out);
       int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0;
+      char why[160] = "";
+      if (bad) snprintf(why, sizeof why, "%s: can't create (errno %d)", ln, errno);
       unsigned long long got = 0;
       for (int pi = 0; !bad && pi < pieces; pi++) {
         unsigned char *d = 0; size_t dl = 0;
+        char gw[130] = "";
         snprintf(k, sizeof k, "%s/f/%s~%d", src, ln, pi);
-        if (sv_get(key, k, &d, &dl)) { bad = 1; free(d); break; }
-        if (write(fd, d, dl) != (ssize_t)dl) bad = 1;
+        if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { bad = 1; free(d); snprintf(why, sizeof why, "%s piece %d: %s", ln, pi, gw); break; }
+        ssize_t wr = write(fd, d, dl);
+        if (wr != (ssize_t)dl) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", ln, pi, wr, dl, errno); }
         got += dl; free(d);
       }
       if (fd >= 0) { fsync(fd); close(fd); }
-      if (bad || got != sz) { unlink(tmp); fail++; continue; }
-      if (rename(tmp, out)) { unlink(tmp); fail++; continue; }
+      if (!bad && got != sz) { bad = 1; snprintf(why, sizeof why, "%s: got %llu of %llu bytes", ln, got, sz); }
+      if (bad) { unlink(tmp); fail++; if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); continue; }
+      if (rename(tmp, out)) { if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s: swap-in failed (errno %d)", ln, errno); unlink(tmp); fail++; continue; }
       files++; bytes += sz;
     }
     int cr = sv_close();
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, %d kept (sce_sys), closed %d", files, bytes, fail, skipped, cr);
-    look_kv("restore/result", v);
+    { char kk[80]; snprintf(kk, sizeof kk, "restore/%s/result", nm); look_kv(kk, v); if (first_err[0]) { snprintf(kk, sizeof kk, "restore/%s/first-problem", nm); look_kv(kk, first_err); } }
     ok = fail ? -1 : 0;
   } else look_kv("restore/error", v);
   sv_rights_back();
