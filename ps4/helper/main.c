@@ -2,7 +2,7 @@
    Runs in the background after the jailbreak (GoldHEN AutoRun). Every minute it notes which game is running (play time);
    every 15 minutes it reports to the Round2 booking engine: console ID, firmware, temperature, disk, Wi-Fi, who's signed in,
    Sony blocked?, installed games (only when the list changed), stuck downloads (never PS Vue's), captures, crashes,
-   controllers, minutes played per game. It changes nothing on the PS4.
+   minutes played per game. (Controllers are not touched – see add_users.) It changes nothing on the PS4.
    Key: /data/round2/key.txt (one line, the engine's PS4_KEY). Status for staff: /data/round2/helper.txt.
    GPL-3.0. Built with ps4-payload-dev/sdk; TLS via mbedTLS (Apache-2.0). */
 
@@ -22,10 +22,11 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.0"
+#define R2_VERSION "1.0.1"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -43,10 +44,6 @@ int sceSystemServiceGetAppIdOfBigApp(void);
 int sceLncUtilGetAppTitleId(int, char *);
 int sceNetCtlInit(void);
 int sceNetCtlGetInfo(int, void *);
-int scePadInit(void);
-int scePadOpen(int32_t, int32_t, int32_t, void *);
-int scePadClose(int32_t);
-int scePadGetControllerInformation(int32_t, void *);
 
 /* ---------- small helpers ---------- */
 static void notify(const char *msg) {
@@ -253,11 +250,12 @@ static void add_wifi(void) {
   jadd(",\"pct\":%d,\"ch\":%d,\"ip\":\"%s\"}", pct, ch, ip);
 }
 
-static void add_users_pads(int game_running) {
+static void add_users(void) {
+  /* Controllers are NOT opened any more: the probe opened them on Vale (13 Nov) and stopped a minute later, while a
+     plain background test that never touched them ran fine through the menu, a game and back. */
   UserIdList l;
   memset(&l, 0xff, sizeof l);
   sceUserServiceGetLoginUserIdList(&l);
-  int pads = game_running ? -1 : 0;
   jadd(",\"users\":[");
   int first = 1;
   for (int i = 0; i < 4; i++) {
@@ -267,16 +265,8 @@ static void add_users_pads(int game_running) {
     jadd(first ? "" : ",");
     jstr(name);
     first = 0;
-    if (!game_running) { /* only look at controllers on the home screen – never while a game is using them */
-      int h = scePadOpen(l.userId[i], 0, 0, 0);
-      if (h >= 0) {
-        uint8_t ci[256] = { 0 };
-        if (!scePadGetControllerInformation(h, ci) && ci[12]) pads++;
-        scePadClose(h);
-      }
-    }
   }
-  jadd("],\"pads\":%d", pads);
+  jadd("]");
 }
 
 static void add_storage(void) {
@@ -338,7 +328,7 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"temp\":{\"cpu\":%d,\"soc\":%d},\"psClock\":%lld", c, s, (long long)time(0));
   jadd(",\"sony\":%s,\"running\":", sony_blocked() ? "\"blocked\"" : "\"OPEN\"");
   jstr(run);
-  add_users_pads(run[0] != 0);
+  add_users();
   add_wifi();
   add_storage();
   jadd(",\"played\":{");
@@ -372,6 +362,12 @@ static void write_status(const char *line) {
   fclose(f);
 }
 
+static void on_sig(int sig) {
+  FILE *f = fopen("/data/round2/helper-stopped.txt", "a");
+  if (f) { fprintf(f, "stopped by signal %d\n", sig); fclose(f); }
+  _exit(0);
+}
+
 static int read_key(char *key, size_t n) {
   FILE *f = fopen("/data/round2/key.txt", "r");
   if (!f) return 0;
@@ -384,9 +380,10 @@ static int read_key(char *key, size_t n) {
 
 int main(void) {
   mkdir("/data/round2", 0777);
+  signal(SIGPIPE, SIG_IGN); /* a dropped connection must never stop the helper */
+  for (int sg = 1; sg < 32; sg++) if (sg != SIGKILL && sg != SIGSTOP && sg != SIGPIPE && sg != SIGALRM && sg != SIGCHLD) signal(sg, on_sig);
   sceUserServiceInitialize(0);
   sceNetCtlInit();
-  scePadInit();
   get_console_id();
   char key[128] = "", status[400] = "starting";
   int warned = 0;
