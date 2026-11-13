@@ -358,10 +358,11 @@
           "code": "round2-tv-launcher · docs/staff-alerts.md"
         },
         {
-          "name": "Telegram staff alerts (second road)",
-          "status": "parked",
-          "what": "The engine can also post the important staff alerts (new online booking, needs-a-human, noise clash) to a Telegram group. Prepared but OFF: no staff group is set (STAFF_CHAT), so nothing goes to Telegram. Waiting until things are settled with Madd Pizza – the kitchen bot’s only group is the kitchen group, and booking details must not go there. How to switch on: docs/staff-alerts.md.",
-          "runs": "Booking engine (staffAlert) + Telegram kitchen bot"
+          "name": "Telegram = food workflow only (rule)",
+          "status": "live",
+          "what": "Owner’s rule (14 Nov 2026): the Telegram chat is only for the Madd Pizza ↔ Round2 food workflow (kitchen slip, pickup button). Nothing about bookings ever goes to Telegram – Madd Pizza doesn’t need to know them. The engine’s old unused booking-to-Telegram road is switched off in the code. Booking alerts reach staff through the control centre’s phone alerts only.",
+          "runs": "Booking engine (kitchen slip only) + Telegram kitchen bot",
+          "code": "round2-tv-launcher · docs/staff-alerts.md"
         },
         {
           "name": "One staff code for TV setup",

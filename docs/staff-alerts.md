@@ -99,38 +99,20 @@ What we changed (engine c9958b6 + `manager/sw.js`, 11 and 14 Nov):
    "don't refresh your JWT more than once per hour"; until now every alert to every phone carried a fresh one. Whether this
    was slowing delivery isn't known – it now follows the rule.
 To check afterwards: `diag:push` – late alerts should now show `+50s`-ish instead of `+300s` / `+600s`.
-Still not good enough on a phone? See the Telegram section below (prepared, off).
+Telegram is not a backup for these – see the next section.
 
-## Telegram staff alerts – PREPARED, NOT SWITCHED ON (owner, 14 Nov 2026: wait until things are settled with Madd Pizza)
-The engine can also post staff alerts to a Telegram group. The code is there (`staffAlert`), but the group was never set
-(secret `STAFF_CHAT` is not in Cloudflare), so **nothing is sent to Telegram today**. Earlier notes that say "phone alert +
-Telegram staff chat" mean: phone alert only, until this is switched on. (2 Nov: Telegram *booking* alerts were dropped
-because the phone alerts cover them – this section is about keeping Telegram as a second road for the important ones.)
+## Telegram: only the food workflow with Madd Pizza – never bookings (owner's rule, 14 Nov 2026)
+The Telegram chat (the kitchen bot's group, `KITCHEN_CHAT` in the engine) is for the **Madd Pizza ↔ Round2 food workflow
+only**: the kitchen slip for a paid food order and the "Food is at the pickup point" button. Madd Pizza's people are in it.
+**Nothing about bookings goes to Telegram** – no new-booking, reminder, noise-rule, reschedule or "needs a human" alerts, no
+guest names or numbers. Madd Pizza doesn't need to know them.
 
-**What would go to the group the moment it is switched on** (no code change):
-- 🎮 NEW ONLINE BOOKING (room, date, time, name, paid amount)
-- "Needs a human" alerts: paid but couldn't be booked / refund needed, a booking stuck half-way, a moved booking whose
-  extra-hours note didn't follow, a paid move that couldn't run
-- 🔊 NOISE RULE · … ALREADY BOOKED
-- Safe mode / switches changed (who and what)
-
-**What would need a small engine change first** (not built): the SimplyBook booking alerts (new / moved / cancelled, with
-1st-visit tag) and the 1-hour reminders – i.e. using Telegram as the backup for a phone whose alerts come late. One line in
-`pushAll` (`staffAlert(title + body)` for kinds `booking` and `soon`). Note: iPhones that hold back pushes while locked may
-hold Telegram's too, so test before relying on it.
-
-**Why it waits:** the only Telegram bot is the kitchen bot (`TG_BOT_TOKEN`), and its existing group is the kitchen group
-with Madd Pizza's staff (chat id in the engine as `KITCHEN_CHAT`). Booking details and guests' names and numbers must not go
-there. Staff alerts need their **own group, Round2 people only**, and who is in which group depends on what is agreed
-with Madd Pizza.
-
-**To switch on (10 minutes, owner):**
-1. Telegram: new group, e.g. "Round2 staff alerts" – Round2 people only. Add the kitchen bot to it.
-2. Get the group's chat id: send any message in the group, then ask Claude to read it (the bot's `getUpdates`), or add
-   @RawDataBot for a moment and remove it. A group id is a negative number.
-3. Cloudflare dashboard › Workers › `round2-book` › Settings › Variables and Secrets › **Add** › type **Secret**, name
-   `STAFF_CHAT`, value = the id › Deploy. (The owner adds secrets himself; never paste keys in chat. Adding a secret keeps
-   the other 27 settings.)
-4. Test: control centre › Tests & systems › Test bench › a sandbox booking → "🎮 NEW ONLINE BOOKING" should appear in the
-   group (test bookings are marked). Then update `manager/systems.json` ("Telegram staff alerts" → live) and the System check.
-**To switch off:** delete the `STAFF_CHAT` secret. Nothing else changes.
+- The engine used to have a second, unused road (`staffAlert` → a staff group named by secret `STAFF_CHAT`, never set, so
+  nothing was ever sent). Since engine 19aad40 (14 Nov) `staffAlert` never sends, whatever is set. Don't revive it, and
+  don't add booking messages to the kitchen chat.
+- Booking alerts reach staff through the control centre's phone alerts only (this document).
+- What may be added to the Telegram chat later is food-side only, and depends on what is agreed with Madd Pizza (still being
+  discussed, 14 Nov): e.g. kitchen opening hours / "kitchen closed" notices, an order not picked up, payout messages
+  (today: Make's [CONTROL] MADD PAYOUT TELEGRAM). Ask the owner before adding any message there.
+- If the owner's phone alerts stay late after the 14 Nov changes above, the next thing to try is on the phone side
+  (re-adding the Home Screen app, iOS update), not Telegram.
