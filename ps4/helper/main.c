@@ -26,7 +26,7 @@
 
 #include "r2tls.h"
 
-#define R2_VERSION "1.0.1"
+#define R2_VERSION "1.0.2"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -311,6 +311,48 @@ static void note_playing(const char *tid) {
   played_min[k]++;
 }
 
+/* ---------- update guard (1.0.2, owner 13 Nov: refuse a system update, e.g. one coming from a game disc) ----------
+   The PS4 puts a system update it is about to install in one of these folders as PS4UPDATE.PUP (downloads: also .net.temp).
+   Round2 keeps 0-byte files there as the blocker. Every 2 s: any *PUP* file that has grown is cut back to 0 bytes (the PS4's
+   own check then fails and it can't install), and a missing /update/PS4UPDATE.PUP blocker is put back. Game patches and
+   PS Vue's download live elsewhere (/user/patch, /user/download) - never looked at here.
+   Only works while the PS4 is jailbroken (the helper isn't running before that). */
+static const char *UPD_DIRS[] = { "/update", "/system_data/update", "/user/update", "/system_data/priv/update" };
+static int upd_blocked, upd_last_mb, disc_pup, disc_warned;
+static time_t upd_last;
+static int has_pup(const char *n) {
+  for (; n[0] && n[1] && n[2]; n++)
+    if ((n[0] == 'P' || n[0] == 'p') && (n[1] == 'U' || n[1] == 'u') && (n[2] == 'P' || n[2] == 'p')) return 1;
+  return 0;
+}
+static int update_guard(void) { /* 1 = it stopped something just now */
+  int hit = 0;
+  struct stat st;
+  for (unsigned i = 0; i < sizeof UPD_DIRS / sizeof *UPD_DIRS; i++) {
+    DIR *d = opendir(UPD_DIRS[i]);
+    if (!d) continue;
+    struct dirent *e;
+    while ((e = readdir(d))) {
+      if (!has_pup(e->d_name)) continue;
+      char p[300];
+      snprintf(p, sizeof p, "%s/%s", UPD_DIRS[i], e->d_name);
+      if (stat(p, &st) || !S_ISREG(st.st_mode) || st.st_size == 0) continue;
+      if (truncate(p, 0) == 0) { hit = 1; upd_blocked++; upd_last = time(0); upd_last_mb = (int)(st.st_size >> 20); }
+    }
+    closedir(d);
+  }
+  if (stat("/update", &st) == 0 && stat("/update/PS4UPDATE.PUP", &st) != 0) { /* blocker gone -> put it back */
+    FILE *f = fopen("/update/PS4UPDATE.PUP", "w");
+    if (f) fclose(f);
+  }
+  /* a disc carrying a system update: warn once per disc (most game discs carry one; the PS4 only offers it if newer) */
+  int pup = stat("/mnt/disc/PS4/UPDATE/PS4UPDATE.PUP", &st) == 0 || stat("/mnt/disc/ps4/update/ps4update.pup", &st) == 0;
+  if (pup && !disc_warned) { disc_warned = 1; notify("Round2: if this disc asks to update the PS4, choose CANCEL and ask staff"); }
+  if (!pup) disc_warned = 0;
+  disc_pup = pup;
+  return hit;
+}
+
 /* ---------- report ---------- */
 static uint64_t games_sent_hash;
 static int report(const char *key, char *status, size_t slen) {
@@ -331,6 +373,8 @@ static int report(const char *key, char *status, size_t slen) {
   add_users();
   add_wifi();
   add_storage();
+  jadd(",\"updGuard\":{\"blocked\":%d,\"lastMB\":%d,\"agoS\":%lld,\"discUpd\":%d}", upd_blocked, upd_last_mb,
+       upd_last ? (long long)(time(0) - upd_last) : -1LL, disc_pup);
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
   jadd("}");
@@ -388,6 +432,7 @@ int main(void) {
   char key[128] = "", status[400] = "starting";
   int warned = 0;
   write_status("started, first report in 1 minute");
+  update_guard();
   for (unsigned long m = 0;; m++) {
     char run[32];
     running_title(run, sizeof run);
@@ -408,7 +453,13 @@ int main(void) {
         }
       }
     }
-    sleep(60);
+    for (int t = 0; t < 30; t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
+      if (update_guard()) {
+        notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
+        if (read_key(key, sizeof key)) { report(key, status, sizeof status); write_status(status); } /* tell the engine now */
+      }
+      sleep(2);
+    }
   }
   return 0;
 }
