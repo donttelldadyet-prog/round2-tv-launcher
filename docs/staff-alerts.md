@@ -99,6 +99,8 @@ What we changed (engine c9958b6 + `manager/sw.js`, 11 and 14 Nov):
    "don't refresh your JWT more than once per hour"; until now every alert to every phone carried a fresh one. Whether this
    was slowing delivery isn't known – it now follows the rule.
 To check afterwards: `diag:push` – late alerts should now show `+50s`-ish instead of `+300s` / `+600s`.
+In the control centre: Tests & systems › Phone alert setup › **Did the alerts arrive?** (gm `pushsubs`, reading only) – each of
+the last alerts and how long each phone took; a phone that hasn't reported for 3+ days is marked as an old sign-up.
 Telegram is not a backup for these – see the next section.
 
 ## Telegram: only the food workflow with Madd Pizza – never bookings (owner's rule, 14 Nov 2026)

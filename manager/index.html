@@ -889,6 +889,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="banner warn" id="tvKeyBox" hidden><div class="grow">Add the <b>TV messages key</b> (Keys) to see the TVs.</div></div>
     <div id="tvTiles"></div>
     <p class="hint">⬆️ <b>Update now</b> won’t send if the TV is off, its Staff tools say updates are NOT ALLOWED, or the room has guests (its own – not the twin’s system block) now or starting within 10 minutes. Updating by hand on the TV always works.</p>
+    <p class="hint">⚠️ <b>Home-button helper stopped</b> (Kai) = TCL’s Safety Guard closed the part that makes Home open Round2. It restarts by itself within about 20 seconds; if Home still opens the TV’s own screen, see Help › If a TV is stuck › Kai only.</p>
     <p class="hint">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won’t get messages. Open Round2 Home on that TV to restart it, or see Help › If a TV is stuck.</p>
   </section>
 
@@ -975,6 +976,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <h1>Phone alert setup</h1>
     <p class="sub">Get a notification on this phone when something happens, like a new booking. Each phone chooses its own alerts.</p>
     <div id="alBox"></div>
+    <div class="card" id="alDeliv" style="margin-top:12px" hidden></div>
   </section>
 
   <section id="tab-planned" hidden>
@@ -1046,8 +1048,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <h1>How it works</h1>
     <p class="sub">Every job in the control centre, in pictures. Tap a topic to open it.</p>
     <div class="hjump" id="hJump">
-      <a href="#h-basics">⭐ Basics</a><a href="#h-phone">📱 Set up</a><a href="#h-extend">⏱️ +1h</a><a href="#h-late">🌙 Late</a>
-      <a href="#h-latechange">✏️ Move / cancel</a><a href="#h-labels">↓ Labels</a><a href="#h-r2">💬 TV messages</a><a href="#h-auto">⚙ Auto wrap-up</a>
+      <a href="#h-basics">⭐ Basics</a><a href="#h-phone">📱 Set up</a><a href="#h-extend">⏱️ +1h</a><a href="#h-late">➕ Add a session</a>
+      <a href="#h-move">🔁 Move a booking</a><a href="#h-latechange">✏️ Change a note</a><a href="#h-labels">↓ Labels</a><a href="#h-r2">💬 TV messages</a><a href="#h-auto">⚙ Auto wrap-up</a>
       <a href="#h-guest">🎂 Guest links</a><a href="#h-alerts">🔔 Alerts</a><a href="#h-food">🍕 Food orders</a><a href="#h-themes">🎨 TV looks</a><a href="#h-check">✅ Check</a><a href="#h-wrong">🆘 Help!</a>
     </div>
 
@@ -1083,15 +1085,30 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div class="hkeys"><span><b class="kgrey">grey</b> = next booking in the way</span><span><b class="kdash">dashed</b> = past 11:15pm (fine if agreed)</span><span><b>↩︎ Undo</b> = for 30 min</span></div>
     </details>
 
-    <details class="hcard" id="h-late"><summary><span class="hi">🌙</span>Key in a late or walk-in guest</summary>
+    <details class="hcard" id="h-late"><summary><span class="hi">➕</span>Add a session: walk-in, WhatsApp or late guest</summary>
       <div class="hflow"><div class="hstep"><i>🚪</i>Room</div><em>›</em><div class="hstep"><i>🌙</i>Night you’re working</div><em>›</em><div class="hstep"><i>🕐</i>Arrives</div><em>›</em><div class="hstep"><i>👋</i>Leaves</div><em>›</em><div class="hstep"><i>🙋</i>Name + pax</div><em>›</em><div class="hstep"><i>🔍</i>Check</div><em>›</em><div class="hstep ok"><i>📅</i>Add</div></div>
       <div class="hex"><span class="hexl">Example</span> Night of <b>Mon 2 Nov</b> · arrives <b>1:00am · Tue 3 Nov</b> <span class="hwarn">⚠ that’s already Tue!</span></div>
       <p class="tip">✔ Tick = TV gets “10 minutes to go” and “That’s a wrap!”. Untick = no messages for this guest.</p>
+      <p class="hh">📅 Booking or note?</p>
+      <div class="hgrid">
+        <div class="hmini"><div class="hbig">📅 🔗</div><b>Daytime + a mobile number</b><span>11am–11:15pm, 3–6 whole hours, nothing in the way → a <b>real SimplyBook booking</b>. You get <b>Copy link / WhatsApp it</b>: the guest’s own booking page (TV message, receipt, reschedule).</span></div>
+        <div class="hmini"><div class="hbig">📝 🌙</div><b>Anything else</b><span>late, odd length, a clash, or no mobile → a <b>calendar note</b>, like before. No link.</span></div>
+      </div>
     </details>
 
-    <details class="hcard" id="h-latechange"><summary><span class="hi">✏️</span>Move or cancel a late guest</summary>
+    <details class="hcard" id="h-move"><summary><span class="hi">🔁</span>Move a booking · guests rescheduling online</summary>
+      <p class="hh">🧑‍💼 You move it</p>
+      <div class="hflow"><div class="hstep"><i>🕐</i>Bookings › Move a booking</div><em>›</em><div class="hstep"><i>📅</i>Pick the day + booking</div><em>›</em><div class="hstep"><i>🚪</i>New room / day / time</div><em>›</em><div class="hstep"><i>💵</i>Fee (lower or waive, with a reason)</div><em>›</em><div class="hstep ok"><i>✅</i>Move</div></div>
+      <p>Everything follows by itself: SimplyBook, the Vale/Atlas block, the noise block, +h notes and TV messages. Each booking there also shows its <b>🔗 guest link</b> – that’s where to find it again if a guest lost theirs.</p>
+      <p class="hh">📱 The guest moves it</p>
+      <div class="hflow"><div class="hstep"><i>🔗</i>Their booking link</div><em>›</em><div class="hstep"><i>🔁</i>Reschedule</div><em>›</em><div class="hstep"><i>💳</i>Pays the fee online</div><em>›</em><div class="hstep ok"><i>🔔</i>Your phone: RESCHEDULED</div></div>
+      <div class="hkeys"><span><b>2 moves</b> per booking</span><span>until <b>3 hours</b> before</span><span><b>Adding hours only</b> = just the extra hours, not a move</span><span>your own moves <b>don’t count</b> against their 2</span></div>
+      <p class="tip">Rescheduling is a <b>BETA</b>. Bookings › <b>Rescheduling</b> shows every move and the trip-wires that warn the owner if it starts costing sales. Prefer Move a booking over changing a booking in SimplyBook by hand: the fee, the move count and the guest’s page stay right.</p>
+    </details>
+
+    <details class="hcard" id="h-latechange"><summary><span class="hi">✏️</span>Change or cancel a session keyed in as a note</summary>
       <div class="hflow"><div class="hstep"><i>➕</i>Add a session</div><em>›</em><div class="hstep"><i>⬇️</i>Upcoming sessions</div><em>›</em><div class="hstep"><i>✏️</i>Change</div><em>or</em><div class="hstep bad"><i>✖️</i>Cancel ×2</div></div>
-      <p class="tip">TV messages and the SimplyBook label follow by themselves. Normal online bookings: change them in SimplyBook.</p>
+      <p class="tip">TV messages and the SimplyBook label follow by themselves. This is for <b>notes</b> (late guests). A real booking – made online or in Add a session with a link – is moved in <b>Bookings › Move a booking</b>.</p>
     </details>
 
     <details class="hcard" id="h-labels"><summary><span class="hi">↓</span>The “↓” notes in SimplyBook</summary>
@@ -1130,14 +1147,20 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <p><b>Who’s it for:</b> after picking the room and time, tap the booking or note that’s in SimplyBook then. The link sticks to it: <b>moved → the message moves</b>, <b>deleted or cancelled → the message is cancelled</b>.</p>
       <p><b>Made the link first?</b> Fine – it shows <b>⏳ Not tied yet</b> and ties itself once the booking or note is in at that exact time (Add a session does it straight away). Different time by mistake? Tap <b>Pair with booking</b> in Guest messages. Still not tied 3 hours before? Your phone gets a heads-up.</p>
       <p class="tip">See them in <b>Tonight</b>; move or cancel them in <b>Guest links</b>: 🔗 = tied to its booking or note.</p>
-    </details>
+          <p class="hh">🛠️ In Guest links, on each link</p>
+      <div class="hkeys"><span><b>Change pop-up time</b> = only when the message shows (5-min steps, any time in the session). Your time wins – the guest can still change the words.</span><span><b>Fix this link’s room or start</b> = the link was made with the wrong room or time. It does <b>not</b> move the booking.</span><span><b>Send to TV now</b> = show it this minute.</span></div>
+</details>
 
     <details class="hcard" id="h-alerts"><summary><span class="hi">🔔</span>Booking alerts on your phone</summary>
       <div class="hphone"><div class="hpn"><b>⛵ ATLAS · Amir</b><span>Sun 8 Nov, 7pm–10pm · 3h · S$49 paid (Peak) · 4 pax · 6d ahead</span></div><div class="hpn"><b>🎀 VALE · karen · in 1 hour</b><span>7pm–10pm · 3h · 2 pax<br>🧹 Last group leaves 6:45pm · 🎂 Message 7:15pm</span></div></div>
       <p>New, changed and cancelled bookings (<b>⚡ in 3h</b> = same day, <b>6d ahead</b> = booked early), plus a reminder <b>exactly 1 hour before</b> each guest, with SimplyBook’s email.</p>
       <p>Second line of the reminder, only when there’s something to do: <b>🧹 Last group leaves 6:45pm</b> = the room isn’t free yet · <b>🎂 Message 7:15pm</b> = their TV message pops up then · <b>🔗 Message not written yet</b> = link sent, guest hasn’t written it.</p>
       <p class="tip">Turn on: Tests &amp; systems › <b>Phone alert setup</b>. Only works from the Home Screen icon. Press <b>Test</b> to try.</p>
-    </details>
+          <p class="hh">🐢 An alert came late, or twice?</p>
+      <p>iPhones sometimes hold an alert back while the phone lies locked. If your phone hasn’t shown one after about a minute, the system sends it again (up to 3 times) – that usually shakes it loose, and you only ever see one copy. It doesn’t matter whether this app is open or closed.</p>
+      <div class="hkeys"><span>🔋 <b>Low Power Mode</b> off while working</span><span>🌙 <b>Focus</b>: allow Round2</span><span>📲 open this app once a day</span></div>
+      <p class="tip">See how fast each phone got each alert: <b>Tests &amp; systems › Phone alert setup › Did the alerts arrive?</b> · Missed one? <b>Home › Alert history</b> keeps the last 24 hours.</p>
+</details>
 
     <details class="hcard" id="h-food"><summary><span class="hi">🍕</span>Food orders – what happens</summary>
       <div class="hflow"><div class="hstep ok"><i>📱</i>Guest orders + pays from the room</div></div>
@@ -1177,7 +1200,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <div class="hmini"><div class="hbig">🔒</div><b>Page locked</b><span>Tests &amp; systems › Keys › paste the key message again</span></div>
         <div class="hmini"><div class="hbig">🤷</div><b>Not sure</b><span>run the System check, send the owner a screenshot</span></div>
       </div>
-    </details>
+          <div class="hgrid">
+        <div class="hmini"><div class="hbig">🔇</div><b>Menu music stopped</b><span>press any button on the remote – it starts again</span></div>
+        <div class="hmini"><div class="hbig">🏠</div><b>Home doesn’t open Round2</b><span>Help › If a TV is stuck (Kai: check Safety Guard)</span></div>
+        <div class="hmini"><div class="hbig">🐢</div><b>Alert came late</b><span>see 🔔 Alerts above</span></div>
+      </div>
+</details>
   </section>
 
   <section id="tab-tvhelp" hidden>
@@ -1265,6 +1293,26 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       </div>
       <div class="hex"><span class="hexl">Easier way</span> 🏠 Round2 <b>Options › Staff</b> (PIN) › <b>Staff tools › Home button</b> › switch to <b>TV HOME</b>. Home now opens the TV’s own screen until you switch it back to <b>OPENS ROUND2</b>. (Same menu: <b>Android home screen</b> = the TV’s own home for 5 min.)</div>
       <p class="tip">⛵ <b>Atlas:</b> step 3’s Settings switch is hidden on it – always use the easier way above.</p>
+    </details>
+
+    <details class="hcard" id="s-tcl"><summary><span class="hi">🏔️</span>Kai only (TCL): Home stopped opening Round2</summary>
+      <p>Kai’s TV has TCL’s own <b>Safety Guard</b> app. It closes apps in the background, and can stop our Home button helper. The TVs page then shows <b>⚠️ Home-button helper stopped</b> on Kai’s tile.</p>
+      <div class="hsteps">
+        <div class="hnum"><b>1</b><i>⏳</i><div><b>Wait 20 seconds, press Home again</b><span>The helper restarts by itself. Most of the time that’s all.</span></div></div>
+        <div class="hnum"><b>2</b><i>🏠</i><div><b>Switch it on again from the menu</b><span>Round2 <b>Options › Staff</b> (PIN) › <b>Staff tools › Home button</b> › press OK once so it reads <b>OPENS ROUND2</b>.</span></div></div>
+        <div class="hnum"><b>3</b><i>🛡️</i><div><b>Check Safety Guard</b><span>On the TV: <b>Safety Guard</b> › <b>Auto launch permissions</b> – keep the manager <b>on</b> and <b>Round2 Home ON</b>. Same in <b>Relevance start permission</b>. (“Closed” there means nothing may start by itself – that breaks the Home button.)</span></div></div>
+        <div class="hnum"><b>4</b><i>💻</i><div><b>Still not? Owner’s laptop</b><span><code>.\round2tv.ps1 connect kai</code> then <code>.\round2tv.ps1 homeguard</code> – gives TCL’s start permission back and restarts the helper.</span></div></div>
+      </div>
+      <p class="tip">Volume on Kai is left to the TV on purpose (the helper used to move it twice). The other Android TVs don’t have Safety Guard.</p>
+    </details>
+
+    <details class="hcard" id="s-sound"><summary><span class="hi">🔇</span>Menu music went quiet (any room)</summary>
+      <div class="hsteps">
+        <div class="hnum"><b>1</b><i>🎮</i><div><b>Press any button on the remote</b><span>The menu notices it’s in front again and starts the ambience within a second or two (app 1.0.278 or newer). Seen on Max.</span></div></div>
+        <div class="hnum"><b>2</b><i>🌧️</i><div><b>Check it isn’t switched off</b><span>Options › <b>Ambience</b> isn’t OFF, and <b>Ambience volume</b> isn’t at the bottom.</span></div></div>
+        <div class="hnum"><b>3</b><i>🔊</i><div><b>Clicks play but no music at all?</b><span>Tell the owner which room and what time – the TV’s log shows what took the sound.</span></div></div>
+      </div>
+      <p class="tip">Max’s sound goes through the headphone jack to the amp. If <b>nothing</b> plays (no clicks either), check the amp is on and on the right input.</p>
     </details>
 
     <details class="hcard" id="s-lg"><summary><span class="hi">🌀</span>Scarlett, Vale, Bella</summary>
@@ -2510,7 +2558,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function live(it) {
       if (!st) return '';
       if (it.check === 'payments') return '<div class="live">Payments now: ' + (st.payments === 'live' ? '<b class="cbad">LIVE · real money</b>' : '<b class="cwarn">TEST · sandbox</b>') + (st.booking === 'simplybook' && /booking/i.test(it.name) ? ' · <b class="cwarn">SAFE MODE: guests sent to SimplyBook</b>' : '') + '</div>';
-      if (it.check === 'engine') return '<div class="live"><b class="cok">● Running</b> · payments ' + st.payments.toUpperCase() + ' · booking ' + (st.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</div>';
+      if (it.check === 'engine') return '<div class="live"><b class="cok">● Running</b> · payments ' + String(st.payments || '?').toUpperCase() + ' · booking ' + (st.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</div>';
       if (it.check === 'release' && it._rel) return '<div class="live">Latest build: <b>' + esc(it._rel) + '</b></div>';
       return '';
     }
@@ -2593,7 +2641,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var y = function (ok, txt) { return '<span class="' + (ok ? 'cok' : 'cbad') + '">' + (ok ? '✔' : '✖') + '</span><span>' + txt + '</span>'; };
         $('tbChk').innerHTML = y(true, 'Booking engine answers (' + (Date.now() - t0) + ' ms)') +
           y(j.sbLogin === 'ok', 'SimplyBook staff login ' + esc(j.sbLogin)) + y(j.sbPublic === 'ok', 'SimplyBook public calendar ' + esc(j.sbPublic)) +
-          '<span class="cwarn">●</span><span>Payments: <b>' + j.payments.toUpperCase() + '</b> · booking: <b>' + (j.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</b></span>' +
+          '<span class="cwarn">●</span><span>Payments: <b>' + String(j.payments || '?').toUpperCase() + '</b> · booking: <b>' + (j.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</b></span>' +
           y(j.kitchenBot, 'Kitchen Telegram bot set') + y(j.guestMessages, 'Guest messages set') + y(j.menuSheet, 'Menu → accounts sheet set') +
           y(j.sbSecret, 'SimplyBook secret key set') + y(j.liveKeys, 'Live HitPay key in Cloudflare') + y(j.switchSet, 'Switch passwords set') +
           '<span class="hint">●</span><span>TV messages waiting in the timer: ' + (j.timerQueue == null ? '?' : j.timerQueue) + '</span>';
@@ -3738,11 +3786,66 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (!confirm('Stop alerts on this phone?')) return;
       withSub(function (sub) { return api('/push/unsub', { endpoint: sub.endpoint }).then(function () { return sub.unsubscribe(); }).then(function () { toast('Alerts are off for this phone.'); return refresh(); }); });
     }
+    /* Did the alerts arrive? (owner, 14 Nov: "the reminders don't come on time", 2–3 copies at once). Every phone tells the
+       engine the moment it shows an alert (sw.js → /push/seen); the engine's read-out (gm pushsubs) is drawn here: each of
+       the last alerts, and how long each phone took. Reading only. docs/staff-alerts.md "Why alerts sometimes come late". */
+    function myId() {
+      if (!supported() || !window.crypto || !crypto.subtle) return Promise.resolve('');
+      return current().then(function (sub) {
+        if (!sub) return '';
+        return crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(sub.endpoint))).then(function (h) {
+          var b = ''; new Uint8Array(h).forEach(function (x) { b += String.fromCharCode(x); });
+          return btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '').slice(0, 6);
+        });
+      }).catch(function () { return ''; });
+    }
+    function tms(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).replace(/\s(am|pm)/i, '$1').toLowerCase().replace(/^./, function (c) { return c.toUpperCase(); }); }
+    function took(ms) { var sec = Math.max(1, Math.round(ms / 1000)); return sec < 60 ? sec + 's' : sec < 3600 ? Math.round(sec / 60) + ' min' : Math.round(sec / 3600) + ' h'; }
+    function delivHtml(j, me) {
+      var NUM = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'], now = j.now || R2Day.now();
+      var al = (j.alerts || []).filter(function (x) { return !/^TEST/.test(x.title || ''); }).slice(0, 12);
+      var ph = (j.phones || []).slice().sort(function (a, b) { return (b.id === me) - (a.id === me) || a.since - b.since; }).slice(0, 9);
+      var h = '<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Did the alerts arrive?</h2><button class="btn ghost" type="button" id="alDelivGo">Refresh</button></div>' +
+        '<p class="hint" style="margin-top:6px">Each phone reports the moment it shows an alert. Seconds = fine. Minutes = Apple held it back on that phone (usually a locked, idle iPhone); it is sent again after about a minute, then twice more.</p>';
+      if (!ph.length) return h + '<p class="hint">No phone is signed up for alerts yet.</p>';
+      h += '<div style="display:grid;gap:6px;margin:10px 0 14px">' + ph.map(function (p, i) {
+        var mine = al.filter(function (x) { return x.t >= p.since; }), got = mine.filter(function (x) { return x.seen && x.seen[p.id]; });
+        var fast = got.filter(function (x) { return x.seen[p.id] - x.t < 20000; }).length, last = 0;
+        (j.alerts || []).forEach(function (x) { if (x.seen && x.seen[p.id] > last) last = x.seen[p.id]; });
+        var quiet = !last || now - last > 3 * 86400e3;
+        var note = !mine.length ? 'no alerts since it signed up' : quiet ? 'hasn’t reported for 3+ days – an old sign-up? (re-added the app, or alerts switched off in iPhone Settings)' : fast + ' of ' + mine.length + ' within 20 s' + (got.length < mine.length ? ' · ' + (mine.length - got.length) + ' not shown' : '');
+        return '<div><b>' + NUM[i] + ' ' + esc(p.label || 'Phone') + '</b>' + (p.id === me ? ' <span class="st" style="--sc:var(--ok)">this phone</span>' : '') + '<br><span class="hint">' + esc(note) + (p.last && p.last.r && p.last.r !== 'ok' ? ' · last send: ' + esc(String(p.last.r).slice(0, 60)) : '') + '</span></div>';
+      }).join('') + '</div>';
+      if (!al.length) return h + '<p class="hint">No alerts in the last 3 days.</p>';
+      h += al.map(function (x) {
+        return '<div style="padding:8px 0;border-top:1px solid var(--line, rgba(255,255,255,.12))"><div><span class="hint">' + esc(tms(x.t)) + '</span> · ' + esc(String(x.title || '').slice(0, 60)) + '</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px">' +
+          ph.map(function (p, i) {
+            if (x.t < p.since) return '';
+            var s = x.seen && x.seen[p.id], d = s ? s - x.t : 0, waiting = !s && now - x.t < 15 * 60000;
+            var col = !s ? 'var(--mute)' : d < 20000 ? 'var(--ok)' : 'var(--warn)';
+            return '<span style="color:' + col + ';white-space:nowrap">' + NUM[i] + ' ' + (s ? took(d) : waiting ? '…' : '—') + '</span>';
+          }).join('') + '</div></div>';
+      }).join('');
+      return h + '<p class="hint" style="margin-top:10px">— = that phone never reported showing it. A phone that is late a lot: Low Power Mode off, allow Round2 in its Focus modes, and open this app once a day.</p>';
+    }
+    var delivBusy = false;
+    function deliv() {
+      var box = $('alDeliv'); if (!box || delivBusy) return;
+      if (!staff()) { box.hidden = true; return; }
+      delivBusy = true; box.hidden = false;
+      if (!box.innerHTML) box.innerHTML = '<h2 style="margin-top:0">Did the alerts arrive?</h2><p class="hint">Checking…</p>';
+      Promise.all([fetch(ENG + '/gm', { method: 'POST', body: new URLSearchParams({ staff: staff(), action: 'pushsubs' }) }).then(function (r) { return r.json(); }), myId()]).then(function (a) {
+        if (a[0].error) throw new Error(a[0].error);
+        box.innerHTML = delivHtml(a[0], a[1]);
+      }).catch(function (e) { box.innerHTML = '<h2 style="margin-top:0">Did the alerts arrive?</h2><p class="hint">Couldn’t check: ' + esc(e.message) + ' <button class="btn ghost" type="button" id="alDelivGo">Try again</button></p>'; })
+        .then(function () { delivBusy = false; });
+    }
     var ready = false;
     return {
       open: function () {
         if (!ready) {
           ready = true;
+          $('alDeliv').addEventListener('click', function (e) { if (e.target.id === 'alDelivGo') deliv(); });
           $('alBox').addEventListener('click', function (e) {
             var id = e.target.id;
             var tk = e.target.getAttribute && e.target.getAttribute('data-alt');
@@ -3750,7 +3853,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             if (id === 'alOn') turnOn(); else if (id === 'alSave') save(); else if (id === 'alOff') off();
           });
         }
-        draw(); refresh();
+        draw(); refresh(); deliv();
       }
     };
   }());
@@ -3934,7 +4037,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     home: ['Home', '<path d="M3 11l9-7 9 7v9h-6v-6H9v6H3z"/>'],
     sess: ['Bookings', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 'Rooms running today (In session), extra hours, late or walk-in sessions, and moving a booking to another room, day or time.'],
     notif: ['TV messages', '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>', 'Tonight: every message on the TVs, room by room. Send birthday notes and house reminders, make guest links, and see later days on the calendar.'],
-    tvs: ['TVs', '<rect x="2" y="5" width="20" height="13" rx="1"/><path d="M9 21h6"/><circle cx="12" cy="11.5" r="2.5"/>', 'Is each TV on, what’s on screen and its app version. Update a TV from here, or send it a test.'],
+    tvs: ['TVs', '<rect x="2" y="5" width="20" height="13" rx="1"/><path d="M9 21h6"/><circle cx="12" cy="11.5" r="2.5"/>', 'Is each TV on, what’s on screen and its app version. Update a TV from here, or send it a test. The room PS4s report here too.'],
     themes: ['TV setup', '<rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/>', 'How the TVs look and behave: event backgrounds, each room’s default look, ambience sounds, staff PIN and app updates.'],
     menu: ['Food menu', '<path d="M4 11h16a8 8 0 0 1-16 0z"/><path d="M9 4v4M12 3v5M15 4v4"/>', 'Edit the room food menu and prices, and run a test order through the kitchen and TV chain.'],
     web: ['Website', '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/>', 'Who is on round2.sg right now, the busy hours, and how far people get towards booking.'],

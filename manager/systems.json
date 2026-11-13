@@ -353,7 +353,7 @@
         {
           "name": "Staff phone alerts (push)",
           "status": "test",
-          "what": "Alerts tab: new / changed / cancelled bookings and a 1-hour reminder (bookings and notes) on this phone, with the room's character icon. Needs the app opened from the Home Screen (iOS 16.4+).",
+          "what": "Alerts tab: new / changed / cancelled bookings and a 1-hour reminder (bookings and notes) on this phone, with the room's character icon. Needs the app opened from the Home Screen (iOS 16.4+). Since 14 Nov: an alert a phone hasn’t shown is sent again after about a minute (then twice more), never more than one copy on screen; Phone alert setup › “Did the alerts arrive?” shows how fast each phone got each alert.",
           "runs": "Booking engine (Web Push) + staff.round2.sg",
           "code": "round2-tv-launcher · docs/staff-alerts.md"
         },
