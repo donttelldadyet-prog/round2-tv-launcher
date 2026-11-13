@@ -3342,7 +3342,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(L.why(1, 'Vale', 600, 3) !== '' && L.why(0, 'Vale', 1140, 3) !== '' && L.why(0, 'Vale', 1215, 3) === '', 'Before 11am / under 3 hours from now must not be allowed (3h+ from now must be)');
           C.moves = 1; var f2 = L.fee(1, 'Vale', 900, 3); C.moves = 0; must(f2 === L.fee(1, 'Vale', 900, 3) + 10, '2nd move should add $10');
           C.grace = true; must(L.fee(1, 'Vale', 900, 3) === 0, 'First 15 minutes should be free'); C.grace = false;
-          C.now = 9 * 1440 + 960 - 60; must(L.stage() === 'closed', 'Under 3 hours: no rescheduling');   /* 1 hour before its 4pm start */
+          C.now = 9 * 1440 + 960 - 60; must(gLogic(C).stage() === 'closed', 'Under 3 hours: no rescheduling'); C.now = 17 * 60;   /* 1 hour before its 4pm start; the rules read the clock once, so build them again */
           return 'Rules load from the engine · upgrade Vale → Kai $35 · 2nd move +$10 · free in the first 15 min · closed under 3h · unknown link turned away';
         });
       }); })
