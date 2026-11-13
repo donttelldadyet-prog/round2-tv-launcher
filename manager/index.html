@@ -892,6 +892,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <p class="hint">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won’t get messages. Open Round2 Home on that TV to restart it, or see Help › If a TV is stuck.</p>
   </section>
 
+  <section id="tab-ps4s" hidden>
+    <div class="row" style="justify-content:space-between;align-items:flex-end"><h1 style="margin:0">PS4s</h1><button class="btn ghost" type="button" id="p4Refresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
+    <p class="sub">Each room’s PS4 (once its Round2 helper is installed): online, Sony blocked, temperature, free space, what’s being played. The PS4 reports every 15 minutes and checks for jobs from here every minute.</p>
+    <div class="banner warn" id="p4KeyBox" hidden><div class="grow">Add the <b>staff code</b> (Keys) to see the PS4s.</div></div>
+    <div id="p4Tiles"></div>
+    <p class="hint">🧹 <b>Clean up</b> deletes the stuck game/system update downloads (never PS Vue’s – it keeps the Vue jailbreak working) and guests’ screenshots and clips. Games, patches and saves are never touched. It won’t run if the room (or its twin) has a session now or within 15 minutes, or a game is open on the PS4 – checked here, again when the PS4 picks it up, and on the PS4 itself. The TV shows a pop-up when it starts and when it’s done.</p>
+    <p class="hint">Offline = the PS4 hasn’t checked for jobs for 3 minutes (off, rest mode, or not jailbroken since it was switched on – the helper starts with the jailbreak).</p>
+  </section>
+
   <section id="tab-tests" hidden>
     <h1>TV tests</h1>
     <p class="sub">Check any room's TV from here: send a test message or a test food alert and watch it arrive. Nothing reaches the kitchen, and the test order isn't real.</p>
@@ -2925,6 +2934,81 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     };
   }());
 
+  /* ===== PS4s (13 Nov 2026): the room PS4s' Round2 helper (round2d) reports to the engine (/ps4/in every 15 min, /ps4/cmd every
+     minute). Staff actions through the engine: ps4list, ps4map (link a PS4 to a room), ps4clean (one-tap clean-up). The engine
+     names rooms like the booking side ('max'); this page uses ROOMS ('maximillion'). Times use R2Day.now() (engine clock). */
+  var PS4 = (function () {
+    var GM = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, ready = false, fast = 0;
+    var RK = function (r) { return r === 'max' ? 'maximillion' : r; }, ER = function (r) { return r === 'maximillion' ? 'max' : r; };
+    function sKey() { return ls('r2.guestStaff') || ''; }
+    function gm(o) { return fetch(GM, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: sKey() }, o)) }).then(function (r) { return r.json(); }); }
+    function ago(t) { var m = Math.round((R2Day.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; }
+    function gb(mb) { mb = +mb || 0; return mb >= 1000 ? (mb / 1000).toFixed(1) + ' GB' : Math.round(mb) + ' MB'; }
+    var ST = { sent: ['uw', 'Clean-up sent – the PS4 picks it up within a minute'], taken: ['uw', 'Cleaning up…'], done: ['uo', 'Cleaned'], failed: ['ub', 'Clean-up failed'], refused: ['ub', 'Clean-up not done'], expired: ['ub', 'Clean-up not picked up (PS4 off?)'] };
+    function cmdLine(c) {
+      if (!c || !ST[c.state]) return '';
+      var t = c.doneAt || c.takenAt || c.at; if (R2Day.now() - t > 3 * 3600e3) return '';   /* the last result shows for 3 hours */
+      var x = ST[c.state], txt = x[1];
+      if (c.state === 'done' && c.res) txt += ' ' + ago(t) + ': ' + gb(c.res.dlMB + c.res.capMB) + ' freed (downloads ' + gb(c.res.dlMB) + ', screenshots/clips ' + gb(c.res.capMB) + ')';
+      else if (c.res && c.res.why) txt += ': ' + c.res.why;
+      return '<br><i class="' + x[0] + '">' + esc(txt) + '</i>';
+    }
+    function tile(p) {
+      var R = ROOMS[RK(p.room)] || { name: 'New PS4', c: '#888' }, now = R2Day.now(), on = p.poll && now - p.poll < 3 * 60000;
+      var lines = [], warn = [];
+      if (!on) lines.push('<span style="color:var(--bad);font-weight:700">Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '') + '</span>');
+      else lines.push('<span style="color:var(--ok)">✓ Online' + (p.running ? ' · playing ' + esc(p.runName || p.running) : '') + '</span>');
+      if (p.sony !== 'blocked') warn.push('⚠️ Sony NOT blocked – check its DNS (127.0.0.1)');
+      if (p.updGuard && p.updGuard.blocked) warn.push('🛡️ Stopped ' + p.updGuard.blocked + ' system update' + (p.updGuard.blocked > 1 ? 's' : '') + (p.updGuard.agoS >= 0 ? ' (last ' + esc(ago(now - p.updGuard.agoS * 1000)) + ')' : ''));
+      var cpu = p.temp && p.temp.cpu > 0 ? p.temp.cpu : 0;
+      lines.push('<span>' + (p.sony === 'blocked' ? 'Sony blocked · ' : '') + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' of ' + p.disk.total.toFixed(0) + ' GB free' : '') + '</span>');
+      var junk = (+p.downloadsMB || 0) + (p.captures ? +p.captures.mb || 0 : 0);
+      lines.push('<span class="tvv">v' + esc(p.v || '?') + ' · FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games · reported ' + esc(ago(p.t)) + cmdLine(p.cmd) + '</span>');
+      var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
+      var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
+          Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
+        : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ~' + gb(junk) : '') + '</button>';
+      return '<div class="tvt' + (on ? ' ok' : ' bad') + '" style="--rc:' + R.c + '"><b>' + esc(R.name) + '</b>' + lines.join('') +
+        (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + btn + '</div>';
+    }
+    function draw() {
+      if (!sKey()) { $('p4KeyBox').hidden = false; $('p4Tiles').innerHTML = ''; return; }
+      $('p4KeyBox').hidden = true;
+      gm({ action: 'ps4list' }).then(function (j) {
+        if (!j.ok) { $('p4Tiles').innerHTML = '<p class="hint">' + esc(j.error || 'Couldn’t load the PS4s.') + '</p>'; return; }
+        var order = Object.keys(ROOMS).map(ER), L = (j.list || []).slice().sort(function (a, b) { return (a.room ? order.indexOf(a.room) : 99) - (b.room ? order.indexOf(b.room) : 99); });
+        var have = L.map(function (p) { return p.room; }), missing = order.filter(function (r) { return have.indexOf(r) < 0; });
+        $('p4Tiles').innerHTML = '<div class="tvgrid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div>'; }).join('') + '</div>' +
+          '<p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date(R2Day.now())).toLowerCase()) + '.</p>';
+        var live = L.some(function (p) { return p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && R2Day.now() - p.cmd.at < 10 * 60000; });
+        if (live && !fast) fast = setTimeout(function () { fast = 0; if (!$('tab-ps4s').hidden) draw(); }, 10000);   /* follow a clean-up closely */
+      }, function () { $('p4Tiles').innerHTML = '<p class="hint">Couldn’t reach the engine.</p>'; });
+    }
+    function init() {
+      if (ready) return; ready = true;
+      $('p4Refresh').onclick = draw;
+      $('p4Tiles').addEventListener('change', function (e) {
+        var id = e.target.getAttribute && e.target.getAttribute('data-p4map'); if (!id || !e.target.value) return;
+        var nm = e.target.options[e.target.selectedIndex].text;
+        if (!confirm('This PS4 is in ' + nm + '?\n\n(If another PS4 was linked to ' + nm + ', it gets unlinked.)')) { e.target.value = ''; return; }
+        gm({ action: 'ps4map', id: id, room: e.target.value }).then(function (j) { toast(j.ok ? 'Linked to ' + nm : (j.error || 'Not linked')); draw(); });
+      });
+      $('p4Tiles').addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('[data-p4clean]'); if (!b) return;
+        var nm = b.getAttribute('data-p4room'), junk = +b.getAttribute('data-p4junk') || 0;
+        if (!confirm('Clean up ' + nm + '’s PS4 now?' + (junk ? '\n\nFrees about ' + gb(junk) + '.' : '') + '\n\nDeletes: stuck update downloads and guests’ screenshots/clips.\nKeeps: games, patches, saves, PS Vue’s download.\n\nIt won’t run if the room (or its twin) has a session now or within 15 minutes, or a game is open. The TV shows a pop-up when it starts and when it’s done.')) return;
+        b.disabled = true; b.textContent = 'Sending…';
+        gm({ action: 'ps4clean', id: b.getAttribute('data-p4clean'), by: 'control centre' }).then(function (j) {
+          toast(j.ok ? nm + ': clean-up sent – the PS4 picks it up within a minute' : nm + ': ' + (j.error || 'not sent')); draw();
+        }, function () { toast('Couldn’t reach the engine.'); draw(); });
+      });
+    }
+    return {
+      open: function () { init(); draw(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) draw(); }, 30000); },
+      close: function () { clearInterval(timer); timer = null; }
+    };
+  })();
+
   var Tests = (function () {
     var timer = null;
     function key() { return ls('r2m.msgKey') || ''; }
@@ -3791,14 +3875,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'move', 'resched', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'tests', 'website', 'bookstats', 'alertlog', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'move', 'resched', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'ps4s', 'tests', 'website', 'bookstats', 'alertlog', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
     home: [['home', 'Overview'], ['alertlog', 'Alert history']],
     sess: [['insession', 'In session'], ['late', 'Add a session'], ['move', 'Move a booking'], ['resched', 'Rescheduling']],
     notif: [['tonight', 'Tonight'], ['messages', 'Send'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up']],
-    tvs: [['tvs', 'Status'], ['tests', 'Test a TV']],
+    tvs: [['tvs', 'Status'], ['ps4s', 'PS4s'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors'], ['bookstats', 'Booking page']],
@@ -3907,6 +3991,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'settings') renderSettings();
     if (n === 'messages') Msgs.open(); else Msgs.close();
     if (n === 'tvs') Msgs.tvsOpen(); else Msgs.tvsClose();
+    if (n === 'ps4s') PS4.open(); else PS4.close();
     if (n === 'tonight' || n === 'calendar') { Cal.open(n); Msgs.live(); } else Msgs.unlive();
     if (n === 'home') { homeTvs(); homeHuman(); homeAlerts(); }
     if (n === 'tests') Tests.open(); else Tests.close();
