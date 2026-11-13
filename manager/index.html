@@ -2679,7 +2679,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         $('mvQ').innerHTML = (q.ok ? '' : '<div class="banner warn">Not free: ' + esc(q.clash.join('; ')) + '</div>') +
           '<div><b>' + esc(rn(q.from.room)) + ' ' + q.from.date + ' ' + q.from.time + '</b> → <b>' + esc(rn(q.to.room)) + ' ' + q.to.date + ' ' + q.to.time + '–' + q.to.end + '</b> (' + q.to.hours + 'h' + (q.ext ? ' + ' + Math.round(q.ext / 60) + 'h extension' : '') + ')</div>' +
           '<div class="hint" style="margin-top:4px">Paid ' + money(q.from.paid) + (q.from.online ? ' online' : ' (list price)') + ' · new slot ' + money(q.to.price) + (q.to.earlyBird ? ' (early bird)' : q.to.peak ? ' (peak)' : ' (off-peak)') + '</div>' +
-          '<div style="margin-top:6px">Change fee <b>' + money(q.base) + '</b> <span class="hint">· ' + esc(q.level === 'upgrade' ? 'upgrade to a bigger room' : q.level === 'peak time' ? 'moving to a peak time (pays the difference)' : 'move') + '</span></div>' +
+          '<div style="margin-top:6px">Change fee <b>' + money(q.base) + '</b> <span class="hint">· ' + esc(q.level === 'add hours' ? 'adding hours only – no fee, just the extra hours' : q.level === 'upgrade' ? 'upgrade to a bigger room' : q.level === 'peak time' ? 'moving to a peak time (pays the difference)' : 'move') + '</span></div>' +
           (q.add ? '<div>Popular time <b>+' + money(q.add) + '</b> <span class="hint">· this slot is likely to be booked' + (q.reason ? ' · ' + esc(q.reason) : '') + '</span></div>' : (q.reason ? '<div class="hint">' + esc(q.reason) + '</div>' : '')) +
           '<div>Price difference <b>' + money(q.diff) + '</b>' + (q.to.price < q.from.paid ? ' <span class="hint">· new slot is cheaper – no refund</span>' : '') + '</div>';
         total();
@@ -3326,9 +3326,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return gm({ action: 'mvselftest' }).then(function (j) {
           must(j && j.ok, 'Engine didn’t answer: ' + ((j && j.error) || ''));
           must(j.lockFirst === true && j.lockSecond === false, 'Engine locks are broken (first ' + j.lockFirst + ', second ' + j.lockSecond + ') – moves and twin blocks would never run');
+          must(j.holdWorks === true, 'A move’s 10-minute hold doesn’t block the slot (or doesn’t let go)');
           must(!j.mirMissing.length, 'Missing twin block: ' + j.mirMissing.join('; ') + ' – fix: gm mirror adopt fix=1');
           if (j.pending.length) throw { warn: 'Moves not finished: ' + j.pending.join(', ') + ' (paid ones are retried every 5 min; failed ones alerted)' };
-          return 'Locks work · every Vale/Atlas booking has its twin block · no stuck moves';
+          return 'Locks work · a move’s 10-min hold blocks the slot and lets go · every Vale/Atlas booking has its twin block · no stuck moves';
         });
       }); })
       .then(function () { return step('Guest rescheduling: page, rules and fees (made-up booking, nothing changes)', function () {
@@ -3340,6 +3341,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(L.stage() === '' + 'early', 'Stage 9 days out should be 3+ days'); must(L.why(2, 'Kaeden', 960, 3) === 'taken', 'Kaeden (renovation) should be taken');
           must(L.total(2, 'Kai', 870, 3) === 35, 'Vale $69 → Kai Sat 2:30pm should be $5 upgrade + $30 = $35, got $' + L.total(2, 'Kai', 870, 3));
           must(L.why(1, 'Vale', 600, 3) !== '' && L.why(0, 'Vale', 1140, 3) !== '' && L.why(0, 'Vale', 1215, 3) === '', 'Before 11am / under 3 hours from now must not be allowed (3h+ from now must be)');
+          must(L.feeOf(9, 'Vale', 960, 4).name === 'ADD HOURS' && L.fee(9, 'Vale', 960, 4) === 0, 'Adding hours to the same slot should have no change fee'); must(L.feeOf(10, 'Scarlett', 960, 4).name === 'MOVE', 'Longer hours alone must not count as peak time / upgrade');
           C.moves = 1; var f2 = L.fee(1, 'Vale', 900, 3); C.moves = 0; must(f2 === L.fee(1, 'Vale', 900, 3) + 10, '2nd move should add $10');
           C.grace = true; must(L.fee(1, 'Vale', 900, 3) === 0, 'First 15 minutes should be free'); C.grace = false;
           C.now = 9 * 1440 + 960 - 60; must(gLogic(C).stage() === 'closed', 'Under 3 hours: no rescheduling'); C.now = 17 * 60;   /* 1 hour before its 4pm start; the rules read the clock once, so build them again */
