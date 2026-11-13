@@ -11,6 +11,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,8 +29,10 @@
 #include "mbedtls/sha256.h"
 
 #include "r2tls.h"
+#include <ps4/kernel.h>
+#include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.1"
+#define R2_VERSION "1.1.2"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -42,6 +45,8 @@ int sceKernelSendNotificationRequest(int, notify_request_t *, size_t, int);
 int sceKernelGetCpuTemperature(int *);
 int sceKernelGetSocSensorTemperature(int, int *);
 int sceKernelGetOpenPsId(uint8_t *);
+int sceKernelLoadStartModule(const char *, size_t, const void *, uint32_t, void *, int *);
+int sceKernelDlsym(int, const char *, void **);
 int sceUserServiceInitialize(void *);
 typedef struct { int32_t userId[4]; } UserIdList;
 int sceUserServiceGetLoginUserIdList(UserIdList *);
@@ -755,6 +760,69 @@ static void do_prof(const char *key, const char *cid, const char *body) {
   for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, rbody, sizeof rbody, err, sizeof err) != 200; i++) sleep(5);
 }
 
+/* 1.1.2: read-only save probe ("/_save.<user id>.<title id>.<save name>|depth" in a look job) – owner 14 Nov: back up members'
+   saves decrypted. Apollo's way (apollo-ps4 source/sd.c + orbis_jbc.c): unlock the save's own key (<name>.bin) with the PS4's
+   key service, open the save image READ-ONLY in a private folder, list what's inside, close it again. Raises its rights only for
+   the job (same as Apollo) and puts them back. Refused while a game is open (the game may have the save open). Changes nothing. */
+typedef struct { bool readOnly; char *budgetid; } R2MountOpt;
+typedef struct { bool dummy; } R2UmountOpt;
+static int (*fsInitMount)(R2MountOpt *);
+static int (*fsMount)(R2MountOpt *, const char *, const char *, uint8_t *);
+static int (*fsInitUmount)(R2UmountOpt *);
+static int (*fsUmount)(R2UmountOpt *, const char *, int, bool);
+static int look_save(const char *spec, int dp) {
+  char k[48], v[200], u[16] = "", t[16] = "", nm[40] = "";
+  if (sscanf(spec, "/_save.%8[0-9a-f].%9[A-Z0-9].%39[^|]", u, t, nm) != 3) { look_kv("save/error", "bad spec"); return -1; }
+  char run[32]; running_title(run, sizeof run);
+  if (run[0] && strcmp(run, VUE_ID)) { look_kv("save/refused", "a game is open"); return -1; }
+  char img[200], keyp[200], mnt[] = "/data/round2/mnt";
+  snprintf(img, sizeof img, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm);
+  snprintf(keyp, sizeof keyp, "/user/home/%s/savedata/%s/%s.bin", u, t, nm);
+  struct stat st;
+  if (stat(img, &st) || stat(keyp, &st)) { look_kv("save/error", "no such save"); return -1; }
+  pid_t me = getpid();
+  uint64_t old_auth = kernel_get_ucred_authid(me);
+  uint8_t old_caps[16], caps[16];
+  int rc = kernel_get_ucred_caps(me, old_caps);
+  memcpy(caps, old_caps, 16); caps[7] |= 0x40; /* Apollo: sonyCred |= 0x4000000000000000 */
+  int ra = kernel_set_ucred_authid(me, 0x3801000000000013ULL), rcap = rc ? -1 : kernel_set_ucred_caps(me, caps);
+  snprintf(v, sizeof v, "authid %016llx -> set %d, caps get %d set %d", (unsigned long long)old_auth, ra, rc, rcap); look_kv("save/1-rights", v);
+  int ok = -1;
+  if (!fsMount) {
+    int m = sceKernelLoadStartModule("/system/priv/lib/libSceFsInternalForVsh.sprx", 0, 0, 0, 0, 0);
+    if (m >= 0) {
+      sceKernelDlsym(m, "sceFsInitMountSaveDataOpt", (void **)&fsInitMount); sceKernelDlsym(m, "sceFsMountSaveData", (void **)&fsMount);
+      sceKernelDlsym(m, "sceFsInitUmountSaveDataOpt", (void **)&fsInitUmount); sceKernelDlsym(m, "sceFsUmountSaveData", (void **)&fsUmount);
+    }
+    snprintf(v, sizeof v, "module %d, mount fn %s", m, fsMount && fsUmount && fsInitMount && fsInitUmount ? "found" : "MISSING"); look_kv("save/2-library", v);
+  }
+  uint8_t enc[0x90]; /* the key service writes 0x84 bytes (Apollo pads it the same way) */
+  memset(enc, 0, sizeof enc);
+  int kf = open(keyp, O_RDONLY), kr = kf >= 0 ? (int)read(kf, enc, 0x60) : -1;
+  if (kf >= 0) close(kf);
+  int sb = open("/dev/sbl_srv", O_RDWR), io = -1;
+  if (sb >= 0 && kr == 0x60) { io = ioctl(sb, 0xc0845302, enc); close(sb); }
+  snprintf(v, sizeof v, "key file %d bytes, key service %s, unlock %d", kr, sb >= 0 ? "open" : "CAN'T OPEN", io); look_kv("save/3-key", v);
+  if (io == 0 && fsMount && fsInitMount && fsUmount && fsInitUmount) {
+    mkdir(mnt, 0777);
+    R2MountOpt mo; memset(&mo, 0, sizeof mo); fsInitMount(&mo); mo.readOnly = true; mo.budgetid = "system";
+    int mr = fsMount(&mo, img, mnt, enc + 0x60);
+    snprintf(v, sizeof v, "%d (0x%08x) read-only", mr, (unsigned)mr); look_kv("save/4-open", v);
+    if (mr >= 0) {
+      ok = 0;
+      look_dir(mnt, 0, dp > 4 ? 4 : dp);
+      R2UmountOpt uo; memset(&uo, 0, sizeof uo); fsInitUmount(&uo);
+      int ur = fsUmount(&uo, mnt, 0, false);
+      if (ur < 0) { sleep(2); ur = fsUmount(&uo, mnt, 0, true); }
+      snprintf(v, sizeof v, "%d (0x%08x)", ur, (unsigned)ur); look_kv("save/5-close", v);
+    }
+    rmdir(mnt);
+  }
+  memset(enc, 0, sizeof enc);
+  int ba = kernel_set_ucred_authid(me, old_auth), bc = rc ? 0 : kernel_set_ucred_caps(me, old_caps);
+  snprintf(k, sizeof k, "save/6-rights-back"); snprintf(v, sizeof v, "authid %d, caps %d", ba, bc); look_kv(k, v);
+  return ok;
+}
 static void do_look(const char *key, const char *cid, const char *body) {
   Jn = 0;
   look_n = 0;
@@ -770,6 +838,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     int dp = 0;
     if (bar) { *bar = 0; dp = atoi_safe(bar + 1); }
     if (!strcmp(t, "/_profiles")) look_profiles();
+    else if (!strncmp(t, "/_save.", 7)) look_save(t, dp);
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
