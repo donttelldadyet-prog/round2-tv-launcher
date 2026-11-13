@@ -135,7 +135,7 @@
         {
           "name": "PS4 helper: check-ins + games list",
           "status": "build",
-          "what": "Runs on every PS4 next to nanoDNS and reports to the booking engine every 15 min: room, temperature, disk, Wi-Fi, Sony blocked, installed games, stuck downloads (never PS Vue's), screenshots size, what's being played, controllers. Feeds a PS4 tab in the control centre and the website's games list (plus a hand-kept list of lobby disc games). Changes nothing on the PS4. First step towards the save agent.",
+          "what": "Runs on every PS4 next to nanoDNS and reports to the booking engine every 15 min: room, temperature, disk, Wi-Fi, Sony blocked, installed games, stuck downloads (never PS Vue's), screenshots size, what's being played, controllers. Feeds a PS4 tab in the control centre and the website's games list (plus a hand-kept list of lobby disc games). Changes nothing on the PS4. First step towards the save agent. Updates itself (owner, 13 Nov): automatically in quiet time and by Update now in the control centre (same rules as the TVs: never during a session or a game); checks the download, keeps the old version and goes back to it by itself if the new one doesn't start.",
           "runs": "PS4 (GoldHEN AutoRun) · booking engine",
           "code": "being built · round2-tv-launcher ps4/ (branch ps4-helper)"
         },
