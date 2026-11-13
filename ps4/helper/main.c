@@ -32,7 +32,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.3"
+#define R2_VERSION "1.1.4"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -764,71 +764,239 @@ static void do_prof(const char *key, const char *cid, const char *body) {
    saves decrypted. Apollo's way (apollo-ps4 source/sd.c + orbis_jbc.c): unlock the save's own key (<name>.bin) with the PS4's
    key service, open the save image READ-ONLY in a private folder, list what's inside, close it again. Raises its rights only for
    the job (same as Apollo) and puts them back. Refused while a game is open (the game may have the save open). Changes nothing. */
-/* owner 14 Nov: Max's Gran Turismo Sport save has everything unlocked (the shop's racing-sim USP, only on Max) – never open,
-   back up, restore, overwrite or delete it, on any profile. Every save job checks this list first. */
+/* owner 14 Nov 1:44am: Max's Gran Turismo Sport save has everything unlocked (the shop's racing-sim USP, only on Max).
+   1:50am: it may be READ (backed up, copied to another profile for a test) – but the copy in the MAIN profile is never written
+   to, restored over or deleted. Every write job checks this first. */
 static const char *R2_PROTECTED_TITLES[] = { "CUSA02168" /* Gran Turismo Sport */ };
 static int r2_protected(const char *tid) {
   for (unsigned i = 0; i < sizeof R2_PROTECTED_TITLES / sizeof *R2_PROTECTED_TITLES; i++) if (!strcmp(tid, R2_PROTECTED_TITLES[i])) return 1;
   return 0;
 }
+static uint32_t r2_main_user(void) { int m = 0; sceRegMgrGetInt(0x07010000, &m); return (uint32_t)m; }
+
+/* Saves (1.1.2 read-only probe, 1.1.4 backup + restore) – Apollo's way (apollo-ps4 source/sd.c, orbis_jbc.c): unlock the save's
+   own key (<save>.bin) with the PS4's key service, open sdimg_<save> in a private folder, close it again. Rights are raised only
+   for the job and put back. Every job is refused while a game is open (the game may have the save open). */
 typedef struct { bool readOnly; char *budgetid; } R2MountOpt;
 typedef struct { bool dummy; } R2UmountOpt;
 static int (*fsInitMount)(R2MountOpt *);
 static int (*fsMount)(R2MountOpt *, const char *, const char *, uint8_t *);
 static int (*fsInitUmount)(R2UmountOpt *);
 static int (*fsUmount)(R2UmountOpt *, const char *, int, bool);
-static int look_save(const char *spec, int dp) {
-  char k[48], v[200], u[16] = "", t[16] = "", nm[40] = "";
-  if (sscanf(spec, "/_save.%8[0-9a-f].%9[A-Z0-9].%39[^|]", u, t, nm) != 3) { look_kv("save/error", "bad spec"); return -1; }
-  if (r2_protected(t)) { look_kv("save/refused", "protected game - never touched (owner)"); return -1; }
-  char run[32]; running_title(run, sizeof run);
-  if (run[0] && strcmp(run, VUE_ID)) { look_kv("save/refused", "a game is open"); return -1; }
-  char img[200], keyp[200], mnt[] = "/data/round2/mnt";
+static const char SV_MNT[] = "/data/round2/mnt";
+static uint64_t sv_old_auth;
+static uint8_t sv_old_caps[16];
+static int sv_caps_ok;
+static void sv_rights_up(char *v, size_t vn) {
+  pid_t me = getpid();
+  sv_old_auth = kernel_get_ucred_authid(me);
+  uint8_t caps[16];
+  sv_caps_ok = kernel_get_ucred_caps(me, sv_old_caps) == 0;
+  memcpy(caps, sv_old_caps, 16); caps[7] |= 0x40; /* Apollo: sonyCred |= 0x4000000000000000 */
+  int ra = kernel_set_ucred_authid(me, 0x3801000000000013ULL), rc = sv_caps_ok ? kernel_set_ucred_caps(me, caps) : -1;
+  snprintf(v, vn, "authid %016llx set %d caps %d", (unsigned long long)sv_old_auth, ra, rc);
+}
+static void sv_rights_back(void) {
+  pid_t me = getpid();
+  kernel_set_ucred_authid(me, sv_old_auth);
+  if (sv_caps_ok) kernel_set_ucred_caps(me, sv_old_caps);
+}
+static int sv_lib(void) {
+  if (fsMount && fsUmount && fsInitMount && fsInitUmount) return 0;
+  int m = sceKernelLoadStartModule("/system/priv/lib/libSceFsInternalForVsh.sprx", 0, 0, 0, 0, 0);
+  if (m < 0) return m;
+  sceKernelDlsym(m, "sceFsInitMountSaveDataOpt", (void **)&fsInitMount); sceKernelDlsym(m, "sceFsMountSaveData", (void **)&fsMount);
+  sceKernelDlsym(m, "sceFsInitUmountSaveDataOpt", (void **)&fsInitUmount); sceKernelDlsym(m, "sceFsUmountSaveData", (void **)&fsUmount);
+  return fsMount && fsUmount && fsInitMount && fsInitUmount ? 0 : -1;
+}
+/* open one save at SV_MNT (ro = read-only). why = what went wrong. 0 = open. */
+static int sv_open(const char *u, const char *t, const char *nm, int ro, char *why, size_t wn) {
+  char img[200], keyp[200];
+  struct stat st;
   snprintf(img, sizeof img, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm);
   snprintf(keyp, sizeof keyp, "/user/home/%s/savedata/%s/%s.bin", u, t, nm);
-  struct stat st;
-  if (stat(img, &st) || stat(keyp, &st)) { look_kv("save/error", "no such save"); return -1; }
-  pid_t me = getpid();
-  uint64_t old_auth = kernel_get_ucred_authid(me);
-  uint8_t old_caps[16], caps[16];
-  int rc = kernel_get_ucred_caps(me, old_caps);
-  memcpy(caps, old_caps, 16); caps[7] |= 0x40; /* Apollo: sonyCred |= 0x4000000000000000 */
-  int ra = kernel_set_ucred_authid(me, 0x3801000000000013ULL), rcap = rc ? -1 : kernel_set_ucred_caps(me, caps);
-  snprintf(v, sizeof v, "authid %016llx -> set %d, caps get %d set %d", (unsigned long long)old_auth, ra, rc, rcap); look_kv("save/1-rights", v);
-  int ok = -1;
-  if (!fsMount) {
-    int m = sceKernelLoadStartModule("/system/priv/lib/libSceFsInternalForVsh.sprx", 0, 0, 0, 0, 0);
-    if (m >= 0) {
-      sceKernelDlsym(m, "sceFsInitMountSaveDataOpt", (void **)&fsInitMount); sceKernelDlsym(m, "sceFsMountSaveData", (void **)&fsMount);
-      sceKernelDlsym(m, "sceFsInitUmountSaveDataOpt", (void **)&fsInitUmount); sceKernelDlsym(m, "sceFsUmountSaveData", (void **)&fsUmount);
-    }
-    snprintf(v, sizeof v, "module %d, mount fn %s", m, fsMount && fsUmount && fsInitMount && fsInitUmount ? "found" : "MISSING"); look_kv("save/2-library", v);
-  }
+  if (stat(img, &st) || stat(keyp, &st)) { snprintf(why, wn, "no such save"); return -1; }
+  if (sv_lib()) { snprintf(why, wn, "save library missing"); return -1; }
   uint8_t enc[0x90]; /* the key service writes 0x84 bytes (Apollo pads it the same way) */
   memset(enc, 0, sizeof enc);
   int kf = open(keyp, O_RDONLY), kr = kf >= 0 ? (int)read(kf, enc, 0x60) : -1;
   if (kf >= 0) close(kf);
   int sb = open("/dev/sbl_srv", O_RDWR), io = -1;
   if (sb >= 0 && kr == 0x60) { io = ioctl(sb, 0xc0845302, enc); close(sb); }
-  snprintf(v, sizeof v, "key file %d bytes, key service %s, unlock %d", kr, sb >= 0 ? "open" : "CAN'T OPEN", io); look_kv("save/3-key", v);
-  if (io == 0 && fsMount && fsInitMount && fsUmount && fsInitUmount) {
-    mkdir(mnt, 0777);
-    R2MountOpt mo; memset(&mo, 0, sizeof mo); fsInitMount(&mo); mo.readOnly = true; mo.budgetid = "system";
-    int mr = fsMount(&mo, img, mnt, enc + 0x60);
-    snprintf(v, sizeof v, "%d (0x%08x) read-only", mr, (unsigned)mr); look_kv("save/4-open", v);
-    if (mr >= 0) {
-      ok = 0;
-      look_dir(mnt, 0, dp > 4 ? 4 : dp);
-      R2UmountOpt uo; memset(&uo, 0, sizeof uo); fsInitUmount(&uo);
-      int ur = fsUmount(&uo, mnt, 0, false);
-      if (ur < 0) { sleep(2); ur = fsUmount(&uo, mnt, 0, true); }
-      snprintf(v, sizeof v, "%d (0x%08x)", ur, (unsigned)ur); look_kv("save/5-close", v);
-    }
-    rmdir(mnt);
-  }
+  if (io != 0) { snprintf(why, wn, "key: file %d, service %s, unlock %d", kr, sb >= 0 ? "ok" : "CAN'T OPEN", io); memset(enc, 0, sizeof enc); return -1; }
+  mkdir(SV_MNT, 0777);
+  R2MountOpt mo; memset(&mo, 0, sizeof mo); fsInitMount(&mo); mo.readOnly = ro ? true : false; mo.budgetid = "system";
+  int mr = fsMount(&mo, img, SV_MNT, enc + 0x60);
   memset(enc, 0, sizeof enc);
-  int ba = kernel_set_ucred_authid(me, old_auth), bc = rc ? 0 : kernel_set_ucred_caps(me, old_caps);
-  snprintf(k, sizeof k, "save/6-rights-back"); snprintf(v, sizeof v, "authid %d, caps %d", ba, bc); look_kv(k, v);
+  if (mr < 0) { snprintf(why, wn, "open %d (0x%08x)", mr, (unsigned)mr); rmdir(SV_MNT); return -1; }
+  return 0;
+}
+static int sv_close(void) {
+  R2UmountOpt uo; memset(&uo, 0, sizeof uo); fsInitUmount(&uo);
+  int ur = fsUmount(&uo, SV_MNT, 0, false);
+  if (ur < 0) { sleep(2); ur = fsUmount(&uo, SV_MNT, 0, true); }
+  rmdir(SV_MNT);
+  return ur;
+}
+static int sv_game_open(void) { char run[32]; running_title(run, sizeof run); return run[0] && strcmp(run, VUE_ID); }
+
+static int look_save(const char *spec, int dp) { /* "/_save.<user>.<title>.<save>" – read-only listing */
+  char v[200], u[16] = "", t[16] = "", nm[48] = "";
+  if (sscanf(spec, "/_save.%8[0-9a-f].%9[A-Z0-9].%47[^|]", u, t, nm) != 3) { look_kv("save/error", "bad spec"); return -1; }
+  if (sv_game_open()) { look_kv("save/refused", "a game is open"); return -1; }
+  sv_rights_up(v, sizeof v); look_kv("save/1-rights", v);
+  int ok = sv_open(u, t, nm, 1, v, sizeof v);
+  if (ok == 0) { look_kv("save/2-open", "read-only"); look_dir(SV_MNT, 0, dp > 4 ? 4 : dp); snprintf(v, sizeof v, "%d", sv_close()); look_kv("save/3-close", v); }
+  else look_kv("save/2-open", v);
+  sv_rights_back();
+  return ok;
+}
+
+/* ---- 1.1.4 backup: every file of an opened save goes to the engine (/ps4/sput -> Cloudflare storage "round2-saves"),
+   8 MB pieces, then a manifest ("<file>\t<size>\t<pieces>" per line). Stored under <console>/<user>/<title>/<save>/<stamp>/. */
+#define SV_PIECE (8u << 20)
+static void url_enc(char *o, size_t on, const char *s) {
+  static const char hx[] = "0123456789ABCDEF";
+  size_t n = 0;
+  for (; *s && n + 4 < on; s++) {
+    unsigned char c = (unsigned char)*s;
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-' || c == '/') o[n++] = (char)c;
+    else { o[n++] = '%'; o[n++] = hx[c >> 4]; o[n++] = hx[c & 15]; }
+  }
+  o[n] = 0;
+}
+static int sv_put(const char *key, const char *k, const unsigned char *data, size_t n) {
+  char path[900], hdr[200], out[200], err[120];
+  int m = snprintf(path, sizeof path, "/ps4/sput?k=");
+  url_enc(path + m, sizeof path - m, k);
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/octet-stream\r\n", key);
+  for (int i = 0; i < 3; i++) { if (r2tls_request(ENGINE_HOST, "POST", path, hdr, (const char *)data, n, out, sizeof out, err, sizeof err) == 200) return 0; sleep(3); }
+  return -1;
+}
+static char *sv_man; static size_t sv_man_n, sv_man_cap;
+static unsigned char *sv_buf;
+static int sv_files, sv_fail; static unsigned long long sv_bytes;
+static void sv_man_add(const char *line) {
+  size_t l = strlen(line);
+  if (sv_man_n + l + 1 > sv_man_cap) { size_t c = (sv_man_cap ? sv_man_cap * 2 : 16384) + l; char *x = realloc(sv_man, c); if (!x) return; sv_man = x; sv_man_cap = c; }
+  memcpy(sv_man + sv_man_n, line, l); sv_man_n += l; sv_man[sv_man_n] = 0;
+}
+static void sv_up_dir(const char *key, const char *base, const char *dir, const char *rel, int depth) {
+  DIR *d = opendir(dir);
+  if (!d) { sv_fail++; return; }
+  struct dirent *e;
+  char p[512], r[400], k[700], line[520];
+  while ((e = readdir(d))) {
+    if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+    snprintf(p, sizeof p, "%s/%s", dir, e->d_name);
+    snprintf(r, sizeof r, "%s%s%s", rel, rel[0] ? "/" : "", e->d_name);
+    struct stat st;
+    if (lstat(p, &st)) continue;
+    if (S_ISDIR(st.st_mode)) { if (depth < 8) sv_up_dir(key, base, p, r, depth + 1); continue; }
+    if (!S_ISREG(st.st_mode)) continue;
+    int fd = open(p, O_RDONLY);
+    if (fd < 0) { sv_fail++; continue; }
+    unsigned long long sz = (unsigned long long)st.st_size, done = 0;
+    int pieces = 0, bad = 0;
+    do {
+      size_t want = sz - done > SV_PIECE ? SV_PIECE : (size_t)(sz - done), got = 0;
+      while (got < want) { ssize_t x = read(fd, sv_buf + got, want - got); if (x <= 0) break; got += (size_t)x; }
+      if (got != want) { bad = 1; break; }
+      snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pieces);
+      if (sv_put(key, k, sv_buf, got)) { bad = 1; break; }
+      done += got; pieces++;
+    } while (done < sz);
+    close(fd);
+    if (bad) { sv_fail++; continue; }
+    sv_files++; sv_bytes += sz;
+    snprintf(line, sizeof line, "%s\t%llu\t%d\n", r, sz, pieces);
+    sv_man_add(line);
+  }
+  closedir(d);
+}
+static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<title>.<save>" */
+  char v[200], u[16] = "", t[16] = "", nm[48] = "", base[200];
+  if (sscanf(spec, "/_sback.%8[0-9a-f].%9[A-Z0-9].%47[^|]", u, t, nm) != 3) { look_kv("backup/error", "bad spec"); return -1; }
+  if (sv_game_open()) { look_kv("backup/refused", "a game is open"); return -1; }
+  if (!sv_buf && !(sv_buf = malloc(SV_PIECE))) { look_kv("backup/error", "no memory"); return -1; }
+  sv_rights_up(v, sizeof v);
+  int ok = sv_open(u, t, nm, 1, v, sizeof v);
+  if (ok == 0) {
+    snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
+    sv_files = sv_fail = 0; sv_bytes = 0; sv_man_n = 0; if (sv_man) sv_man[0] = 0;
+    sv_up_dir(key, base, SV_MNT, "", 0);
+    int cr = sv_close();
+    char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", base);
+    int mr = sv_fail ? -1 : sv_put(key, mk, (const unsigned char *)(sv_man ? sv_man : ""), sv_man_n);
+    look_kv("backup/where", base);
+    snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, manifest %s, closed %d", sv_files, sv_bytes, sv_fail, mr ? "NOT saved" : "saved", cr);
+    look_kv("backup/result", v);
+    ok = sv_fail || mr ? -1 : 0;
+  } else look_kv("backup/error", v);
+  sv_rights_back();
+  return ok;
+}
+
+/* ---- 1.1.4 restore: copy a backup's game files INTO an existing save of the same game in another profile (owner 14 Nov:
+   Max's GT Sport -> User4's GT Sport, so he can see it on the TV). The receiving save keeps its own sce_sys (param.sfo with
+   that profile's IDs, keystone) – only the game's files are replaced. Never into the main profile's protected save. The
+   receiving save should be backed up first (look_sback). */
+static int sv_get(const char *key, const char *k, unsigned char **data, size_t *len) {
+  char path[900], hdr[200], err[120];
+  int m = snprintf(path, sizeof path, "/ps4/sget?k=");
+  url_enc(path + m, sizeof path - m, k);
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\n", key);
+  for (int i = 0; i < 3; i++) { *data = 0; *len = 0; if (r2tls_fetch(ENGINE_HOST, "GET", path, hdr, 0, 0, data, len, SV_PIECE + 65536, err, sizeof err) == 200) return 0; free(*data); *data = 0; sleep(3); }
+  return -1;
+}
+static void mkdirs_for(const char *file) {
+  char d[512]; snprintf(d, sizeof d, "%s", file);
+  for (char *q = d + 1; *q; q++) if (*q == '/') { *q = 0; mkdir(d, 0777); *q = '/'; }
+}
+static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<title>.<save>.<backup path>" */
+  char v[220], u[16] = "", t[16] = "", nm[48] = "", src[200];
+  if (sscanf(spec, "/_srest.%8[0-9a-f].%9[A-Z0-9].%47[^.].%199[^|]", u, t, nm, src) != 4) { look_kv("restore/error", "bad spec"); return -1; }
+  if (r2_protected(t) && (uint32_t)strtoul(u, 0, 16) == r2_main_user()) { look_kv("restore/refused", "protected game in the main profile - never written (owner)"); return -1; }
+  if (sv_game_open()) { look_kv("restore/refused", "a game is open"); return -1; }
+  if (strstr(src, "..") || !strstr(src, t)) { look_kv("restore/error", "backup is for another game"); return -1; }
+  char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", src);
+  unsigned char *man = 0; size_t mlen = 0;
+  if (sv_get(key, mk, &man, &mlen) || !mlen) { free(man); look_kv("restore/error", "backup not found"); return -1; }
+  char *mt = malloc(mlen + 1); memcpy(mt, man, mlen); mt[mlen] = 0; free(man);
+  sv_rights_up(v, sizeof v);
+  int ok = sv_open(u, t, nm, 0, v, sizeof v), files = 0, fail = 0, skipped = 0;
+  unsigned long long bytes = 0;
+  if (ok == 0) {
+    for (char *ln = mt, *nx; ln && *ln; ln = nx) {
+      nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
+      char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0;
+      char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
+      unsigned long long sz = strtoull(t1, 0, 10); int pieces = atoi_safe(t2);
+      if (!strncmp(ln, "sce_sys/", 8) || strstr(ln, "..")) { skipped++; continue; } /* the receiving save keeps its own labels */
+      char out[512], tmp[520], k[700];
+      snprintf(out, sizeof out, "%s/%s", SV_MNT, ln); snprintf(tmp, sizeof tmp, "%s.r2new", out);
+      mkdirs_for(out);
+      int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0;
+      unsigned long long got = 0;
+      for (int pi = 0; !bad && pi < pieces; pi++) {
+        unsigned char *d = 0; size_t dl = 0;
+        snprintf(k, sizeof k, "%s/f/%s~%d", src, ln, pi);
+        if (sv_get(key, k, &d, &dl)) { bad = 1; free(d); break; }
+        if (write(fd, d, dl) != (ssize_t)dl) bad = 1;
+        got += dl; free(d);
+      }
+      if (fd >= 0) { fsync(fd); close(fd); }
+      if (bad || got != sz) { unlink(tmp); fail++; continue; }
+      if (rename(tmp, out)) { unlink(tmp); fail++; continue; }
+      files++; bytes += sz;
+    }
+    int cr = sv_close();
+    snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, %d kept (sce_sys), closed %d", files, bytes, fail, skipped, cr);
+    look_kv("restore/result", v);
+    ok = fail ? -1 : 0;
+  } else look_kv("restore/error", v);
+  sv_rights_back();
+  free(mt);
   return ok;
 }
 static void do_look(const char *key, const char *cid, const char *body) {
@@ -847,6 +1015,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     if (bar) { *bar = 0; dp = atoi_safe(bar + 1); }
     if (!strcmp(t, "/_profiles")) look_profiles();
     else if (!strncmp(t, "/_save.", 7)) look_save(t, dp);
+    else if (!strncmp(t, "/_sback.", 8)) look_sback(key, t);
+    else if (!strncmp(t, "/_srest.", 8)) look_srest(key, t);
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
