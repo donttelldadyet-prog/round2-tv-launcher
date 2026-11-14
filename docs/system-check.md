@@ -90,3 +90,9 @@ background work runs in three Cloudflare timers ("lanes" – `now` */5, `side` 1
 may make only 50 outside requests on the free plan. The step fails if a lane hasn't run lately (15 / 15 / 25 min), if the
 main timer is covering for a missing one (`fb` in its record), or if a lane reached 50 in the last 24 h; it warns from 38 and
 when any request was refused. Background: round2sg-home HANDOFF "14 Nov … three timers".
+
+## Vale/Atlas twin blocks are notes (14 Nov 2026)
+No new step: "Moves and Vale/Atlas blocks can run …" (gm `mvselftest` → `mirAdopt`) now also accepts a twin block that is a
+time-blocked note (kv `mir:<booking>` = {note}) and checks the note is still there, in the twin, at the booking's times –
+SimplyBook doesn't call the engine when a note is deleted by hand, so this is where a missing one shows. The result line says
+how many blocks are notes and how many are still bookings (made before 14 Nov).

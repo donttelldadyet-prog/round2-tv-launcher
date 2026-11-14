@@ -3402,7 +3402,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(j.holdWorks === true, 'A move’s 10-minute hold doesn’t block the slot (or doesn’t let go)');
           must(!j.mirMissing.length, 'Missing twin block: ' + j.mirMissing.join('; ') + ' – fix: gm mirror adopt fix=1');
           if (j.pending.length) throw { warn: 'Moves not finished: ' + j.pending.join(', ') + ' (paid ones are retried every 5 min; failed ones alerted)' };
-          return 'Locks work · a move’s 10-min hold blocks the slot and lets go · every Vale/Atlas booking has its twin block · no stuck moves';
+          return 'Locks work · a move’s 10-min hold blocks the slot and lets go · every Vale/Atlas booking has its twin block' + (j.mirNotes != null ? ' (' + j.mirNotes + ' as notes, ' + j.mirBookings + ' still as bookings)' : '') + ' · no stuck moves';
         });
       }); })
       .then(function () { return step('Guest rescheduling: page, rules and fees (made-up booking, nothing changes)', function () {
