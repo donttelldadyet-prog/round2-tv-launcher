@@ -188,6 +188,10 @@ released by the first re-send. Points learnt:
 - The trial costs the delivery read-out for that phone (n/a) and caps the nudges at one (3:30pm needed two). Recommendation
   put to the owner: end the trial (delete KV `push:decl`), keep the re-sends.
 
+**Trial ended 14 Nov 11:00pm (owner: ok).** KV `push:decl` deleted – every phone is back on the ordinary delivery, the
+owner's phone reports again and gets the normal re-sends. The engine code stays (`declOn`, `declBody`, worker `SWV` 2), so
+it can be switched on again per phone without a deploy if a later iOS changes the picture.
+
 **Tidying copies:** when the control centre is opened or brought to the front it keeps the newest alert of each tag and
 closes the rest (`r2TidyAlerts`, index.html).
 

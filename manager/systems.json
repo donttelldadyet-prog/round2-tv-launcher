@@ -372,9 +372,9 @@
           "code": "round2-tv-launcher · docs/staff-alerts.md"
         },
         {
-          "name": "Alerts shown by the iPhone itself (Declarative Web Push) – trial",
-          "status": "test",
-          "what": "Trial on the owner's iPhone since 14 Nov. Today the phone has to start the control centre's background helper before an alert can appear; a locked, idle iPhone sometimes puts that off, which is why alerts come late and the re-sends pile up as 2–3 copies. With the new way the alert itself tells the iPhone what to show, like a normal app's alert (iOS 18.4+). If it shows on time for a few days it goes to every phone and the quick re-sends are dropped. Switched per phone from Cloudflare (no update needed); a phone joins once the app has been opened on it and it has shown one alert.",
+          "name": "Alerts shown by the iPhone itself (Declarative Web Push) – tried, switched off",
+          "status": "planned",
+          "what": "Tried on the owner's iPhone 14 Nov 2026, 4pm–11pm, then switched off. The idea: the alert tells the iPhone what to show, so it doesn't have to start the control centre's background helper first. Result: no gain – his phone still only showed a booking alert when our re-send arrived (about 50 s late, 2 copies), while staff phones had it in 3–4 s; and a phone on it can't report to \"Did the alerts arrive?\". Nothing merges copies on an iPhone, so the trade stays: re-send = within about a minute but 2+ copies, no re-send = one copy, later. The engine still has the switch (KV push:decl) if a later iOS makes it worth another try.",
           "runs": "Booking engine (Web Push) – KV push:decl",
           "code": "round2-tv-launcher · docs/staff-alerts.md 'Declarative Web Push'"
         },
