@@ -36,6 +36,13 @@
           "code": "round2sg-home · worker/round2-book.js"
         },
         {
+          "name": "Background timers (3, each with its own allowance)",
+          "status": "test",
+          "what": "Cloudflare's free plan lets one run of the engine make only 50 requests to the outside (SimplyBook, HitPay, the TVs, Apple). Since 14 Nov the background jobs are split over three timers so they can't starve each other: main, every 5 min (1-hour reminders, alert re-sends, tonight's calendar: Auto wrap-up, noise rule for tonight + tomorrow); side, every 5 min a minute later (TV OKs, paid-but-not-booked, keys); sweep, every 10 min (after-midnight notes, noise rule further ahead). If a timer goes missing the main one does its jobs as before and the System check says so. New background jobs (PS4 game-save prep and clean-up, membership reminders, Madd payout) go in side or sweep, or get their own timer – 5 allowed, 3 used. Alerts themselves are sent from the engine's store, outside all of this.",
+          "runs": "Cloudflare › round2-book › Triggers (3 schedules)",
+          "code": "round2sg-home · worker/round2-book.js (scheduled) · System check step 'Background jobs: 3 timers'"
+        },
+        {
           "name": "SimplyBook booking page",
           "status": "live",
           "what": "The calendar behind everything, and the safe-mode fallback (Systems › Switches shows it on the booking page). Walk-in, WhatsApp and staff bookings still go in here.",

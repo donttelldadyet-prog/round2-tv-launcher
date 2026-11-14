@@ -83,3 +83,10 @@ One reading-only step, "Phone alerts: a sign-up silent for a week is cleared": a
 `pushsubs`), checks that it names the week rule (`dropDays` 7, `shown`, `dropped`) and that no phone is still listed after
 7 days (+2 h) with nothing shown while another phone reported in the last 2 days – i.e. that the hourly clean-up
 (`pushPrune`) really runs. Sends nothing. Background: `docs/staff-alerts.md` "Why alerts sometimes come late" item 6.
+
+## Background jobs: 3 timers (14 Nov 2026)
+One reading-only step, "Background jobs: 3 timers, each well under Cloudflare's 50 requests a run" (gm `cronnet`): the engine's
+background work runs in three Cloudflare timers ("lanes" – `now` */5, `side` 1,6,…,56, `sweep` 3,13,…,53), because one run
+may make only 50 outside requests on the free plan. The step fails if a lane hasn't run lately (15 / 15 / 25 min), if the
+main timer is covering for a missing one (`fb` in its record), or if a lane reached 50 in the last 24 h; it warns from 38 and
+when any request was refused. Background: round2sg-home HANDOFF "14 Nov … three timers".

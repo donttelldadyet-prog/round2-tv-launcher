@@ -3341,6 +3341,27 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           warnIf(op.length, 'Message clean-up reported: ' + op.join('; '));
           return 'Last run ' + ago(a.cronLast) + (gap ? ' · every ' + gap + ' min' : '') + ' · Auto wrap-up ' + (a.on ? 'ON' : 'off');
         }); }); })
+      /* 14 Nov: the background jobs are split over THREE Cloudflare timers ("lanes": now / side / sweep), because one run may
+         make only 50 outside requests on the free plan – at 10am that day the 1-hour reminders lost to the sweeps. Reading
+         only: each lane ran lately, the main one isn't covering for a missing timer, and none came near 50 in 24 hours. */
+      .then(function () { return step('Background jobs: 3 timers, each well under Cloudflare’s 50 requests a run', function () {
+        return gm({ action: 'cronnet' }).then(function (j) {
+          must(j.ok && j.lanes, 'The engine doesn’t report its timers (older engine?).');
+          var NAME = { now: 'main (reminders, tonight’s calendar)', side: 'side (TV OKs, payments, keys)', sweep: 'sweep (look-aheads)' }, CRON = { now: '*/5 * * * *', side: '1,6,11,…,56 * * * *', sweep: '3,13,…,53 * * * *' }, MAXAGE = { now: 15, side: 15, sweep: 25 }, out = [];
+          ['now', 'side', 'sweep'].forEach(function (k) {
+            var L = j.lanes[k];
+            must(L && L.last && j.now - L.last.t < MAXAGE[k] * 60e3, 'The ' + NAME[k] + ' timer ' + (L && L.last ? 'last ran ' + ago(L.last.t) : 'has never run') + ' – Cloudflare › round2-book › Triggers should list ' + CRON[k] + '. Until then the main timer does its jobs too.');
+            var mx = (L.max && L.max.n) || 0;
+            must(mx < 50, 'The ' + NAME[k] + ' timer made ' + mx + ' outside requests in one run – at Cloudflare’s limit of 50; jobs in that run were cut off.');
+            warnIf(mx >= 38, 'The ' + NAME[k] + ' timer made ' + mx + ' outside requests in one run (limit 50) – getting close; move a job to another timer.');
+            out.push(k + ' ' + mx);
+          });
+          var fb = (j.lanes.now.last.fb || []);
+          must(!fb.length, 'The main timer is still doing the ' + fb.join(' + ') + ' jobs itself – that timer isn’t running (Cloudflare › round2-book › Triggers).');
+          var f = (j.fails || []).filter(function (x) { return x.t > j.now - 86400e3; });
+          warnIf(f.length, f.length + ' outside request' + (f.length === 1 ? ' was' : 's were') + ' refused in the last 24 hours (“too many in one run”): ' + f.slice(-3).map(function (x) { return (x.who || '?') + ' → ' + x.host; }).join(', '));
+          return 'Most requests in one run, last 24 h: ' + out.join(' · ') + ' (limit 50 each)';
+        }); }); })
       /* SimplyBook's shared servers allow about 5,000 API requests a day (owner, 2 Nov: "is that too intensive?"). The engine
          counts every request it makes (bookings page, alerts, timer, screens); this run itself adds a few hundred. */
       /* SimplyBook doesn't publish the limit. 12 Nov: still answering at 10,500 in a day; its support forum says ~10,000 standard,
