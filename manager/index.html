@@ -2282,7 +2282,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function clock(t) { if (!isFinite(+t) || !t) return ''; return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(+t)).toLowerCase().replace(' ', ''); }
     function dayName(d) { var t = R2Day.tonight(); return d === t ? 'Today' : d === R2Day.addDays(t, -1) ? 'Yesterday' : new Intl.DateTimeFormat('en-SG', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(d + 'T00:00:00Z')); }
     function dayLong(t) { if (!isFinite(+t) || !t) return ''; t = +t; return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)); }
-    function kindOf(x) { var b = String(x.body || ''); return x.type === 'booking' ? (/CANCELLED/.test(b) ? 'cancel' : /MOVED|CHANGED/.test(b) ? 'change' : 'booking') : x.type || x.kind; }
+    function kindOf(x) { var b = String(x.body || ''), ty = x.type || x.kind; return ty === 'booking' ? (/CANCELLED/.test(b) ? 'cancel' : /MOVED|CHANGED|RESCHEDULED|HOURS ADDED/.test(b) ? 'change' : 'booking') : ty; }
+    /* a reschedule alert carries its facts in its own words (owner, 14 Nov: its page said "NEW BOOKING · NO NAME") */
+    function mvOf(x) { if (!/RESCHEDULED|HOURS ADDED/.test(x.body || '')) return null; var l = String(x.body).split('\n'), tt = String(x.title || '').split(' · '); return { add: /HOURS ADDED/.test(l[0] || ''), room: tt[0].replace(/[^A-Za-z]/g, ''), name: tt.slice(1).join(' · '), how: (l[0] || '').replace(/^.*?(RESCHEDULED|HOURS ADDED)\s*/, ''), was: (l[1] || '').replace(/^was\s*/, ''), now: (l[2] || '').replace(/^now\s*/, ''), paid: l.slice(3).join(' · ') }; }
     function match(x) { var kd = kindOf(x); return filt === 'all' || (filt === 'late' ? x.late : filt === 'booking' ? /booking|change|cancel/.test(kd) : filt === 'soon' ? kd === 'soon' || kd === 'wait' : kd === 'human'); }
     function row(x) {
       var kd = kindOf(x), tags = (x.preview ? '<span class="altag">Preview</span>' : '') + (x.late ? '<span class="altag late">🌙 Late</span>' : '') + (kd === 'cancel' ? '<span class="altag bad">Cancelled</span>' : kd === 'change' ? '<span class="altag warn">Changed</span>' : '') +
@@ -2308,20 +2310,21 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function fact(l, v) { return v === '' || v == null ? '' : '<div><span>' + esc(l) + '</span><b>' + v + '</b></div>'; }
     function wa(p) { var d = String(p || '').replace(/[^\d]/g, ''); return d ? '<a href="https://wa.me/' + d + '" target="_blank" rel="noopener">' + esc(p) + '</a>' : ''; }
     function detail(j) {
-      var x = j.alert, c = x.ctx || {}, h = j.hold, kd = kindOf({ type: c.type, kind: x.kind, body: x.body }), r = rk(c.room), col = r ? ROOMS[r].c : '';
+      var x = j.alert, c = x.ctx || {}, h = j.hold, mvd = c.s ? null : mvOf(x), kd = kindOf({ type: c.type, kind: x.kind, body: x.body }), r = rk(c.room || (mvd && mvd.room)), col = r ? ROOMS[r].c : '';
       var when = c.s ? dayLong(c.s) + ', ' + clock(c.s) + (c.e ? '–' + clock(c.e) : '') : '';
       var len = c.s && c.e ? (Math.round((c.e - c.s) / 360e3) / 10) + 'h' : (c.hours ? c.hours + 'h' : '');
-      var phone = c.phone || (h && h.phone) || '', email = c.email || (h && h.email) || '', name = c.name || (h && h.name) || '';
+      var phone = c.phone || (h && h.phone) || '', email = c.email || (h && h.email) || '', name = c.name || (h && h.name) || (mvd && mvd.name) || '';
       var paid = h && h.total ? 'S$' + (+h.total).toFixed(2).replace(/\.00$/, '') + ' paid online' : c.money || (c.total ? 'S$' + c.total : '');
       var html = '<button type="button" class="adback" data-back="1">‹ Alert history</button>' +
-        '<div class="adhead" style="--rc:' + (col || 'var(--gc)') + '"><div class="k">' + esc(KIND[kd] || 'Alert') + (r ? ' · ' + esc(ROOMS[r].name) : '') + '</div>' +
+        '<div class="adhead" style="--rc:' + (col || 'var(--gc)') + '"><div class="k">' + esc(mvd ? (mvd.add ? 'Hours added' : 'Rescheduled') : KIND[kd] || 'Alert') + (r ? ' · ' + esc(ROOMS[r].name) : '') + '</div>' +
         '<h1>' + esc(c.k === 'n' ? 'Calendar note' : kd === 'soon' || kd === 'booking' || kd === 'change' || kd === 'cancel' ? (name || 'No name') : String(x.title).replace(/^⚠️\s*/, '')) + '</h1>' +
         '<div class="hint">Sent ' + esc(dayLong(x.t) + ', ' + clock(x.t)) + (kd === 'human' ? (x.sorted ? ' · ✓ sorted ' + esc(dayLong(x.sorted) + ' ' + clock(x.sorted)) : ' · still open') : '') + '</div></div>';
       if (x.late) html += '<div class="adlate">🌙 <b>Late session</b> – it runs into the WhatsApp-only hours (after 11:15pm or past midnight). Check the late-session note in SimplyBook and that Auto wrap-up has the right end time.</div>';
       if (kd === 'human') html += '<div class="adprob">' + esc(x.body || '') + '</div>';
       if (kd === 'change' && c.prev) html += '<p class="adnote">🔁 Was ' + esc(dayLong(c.prev.s) + ', ' + clock(c.prev.s) + '–' + clock(c.prev.e)) + ' → now ' + esc(when) + '</p>';
       if (kd === 'cancel') html += '<p class="adnote" style="color:var(--bad)">❌ This booking was cancelled – the time is free again.</p>';
-      html += '<div class="adfacts">' + fact('When', esc(when)) + fact('Length', esc(len)) + fact('Room', r ? esc(ROOMS[r].name) : esc(c.room || '')) + fact('Guests', esc(c.pax ? c.pax + ' pax' : '')) +
+      if (mvd) html += '<div class="adfacts">' + fact('Now', esc(mvd.now)) + fact('Was', esc(mvd.was)) + fact(mvd.add ? 'Added' : 'Moved', esc(mvd.how)) + fact('Paid', esc(mvd.paid)) + fact('Name', esc(name)) + fact('Phone', wa(phone)) + fact('Email', esc(email)) + '</div>';
+      else html += '<div class="adfacts">' + fact('When', esc(when)) + fact('Length', esc(len)) + fact('Room', r ? esc(ROOMS[r].name) : esc(c.room || '')) + fact('Guests', esc(c.pax ? c.pax + ' pax' : '')) +
         fact('Name', esc(c.k === 'n' ? '' : name)) + fact('Visit', esc(c.visit ? (c.visit.n === 1 ? '🆕 First visit' : '🔁 ' + c.visit.n + (c.visit.n % 100 >= 11 && c.visit.n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][c.visit.n % 10] || 'th') + ' visit' + (c.visit.last ? ' · last came ' + dayLong(c.visit.last) : '')) : '')) + fact('Phone', wa(phone)) + fact('Email', esc(email)) + fact('Paid', esc(paid)) + fact('Rate', esc(c.rate || '')) +
         fact('Booked via', esc(h || c.ref ? 'Our booking page' + (h && h.ref ? ' · ' + h.ref : '') : c.k === 'n' ? 'Calendar note (WhatsApp / walk-in)' : c.bid ? 'SimplyBook' : '')) +
         fact('TV message', esc(c.tvmsg ? c.tvmsg.kind + (c.tvmsg.title ? ' · “' + c.tvmsg.title + '”' : '') : h && h.msg ? h.msg.kind + (h.msg.title ? ' · “' + h.msg.title + '”' : '') : '')) + '</div>';
@@ -2332,6 +2335,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         (c.s && R2Day.night(c.s) === R2Day.tonight() ? '<button class="btn" type="button" data-open="insession">Open In session</button><button class="btn" type="button" data-open="tonight">Tonight’s TV messages</button>' : '') +
         (x.late ? '<button class="btn" type="button" data-open="late">Add a session</button>' : '') +
         (kd === 'wait' ? '<button class="btn" type="button" data-open="guestlink">Pair the link</button>' : '') +
+        (mvd ? '<button class="btn" type="button" data-open="resched">Open Rescheduling</button>' : '') +
         (kd === 'human' && !x.sorted && c.hid ? '<button class="btn primary" type="button" data-sort="' + esc(c.hid) + '">Sorted ✓</button>' : '') + '</div>';
       html += '<details class="adraw"><summary class="hint">The alert as it was sent</summary><pre>' + esc(x.title + '\n' + (x.body || '')) + '</pre></details>';
       $('alDetail').innerHTML = html;
