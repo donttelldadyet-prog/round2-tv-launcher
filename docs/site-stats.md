@@ -22,6 +22,9 @@ Counters: `visit`, `h00`…`h23` (hour the visit started, SG), `dev_m` / `dev_d`
 `rooms`, `room_<vale|kaeden|scarlett|bella|kai|atlas|maximillion>`, `gallery`, `loadout`, `how`, `find`, `info_<faq|rules|about|privacy>`,
 `book` (booking popup opened), `sb_<step>` (SimplyBook form steps, from its `stepChanged` messages: `category`, then room type, add-ons,
 room, time, contact details… whatever SimplyBook calls them), `out_<wa|tg|ig|tiktok|maps|email|phone|simplybook>` (links clicked).
+`room_<name>` = a room the visitor CHOSE on the Rooms screen (since 15 Nov 2026, owner: Vale was inflated). The Rooms screen
+opens on Vale, so arriving there no longer counts Vale; a room counts when moved to (Vale too, when they come back to it), when
+Rooms opens on a remembered other room, or when a `?room=` link asked for it. Vale's numbers before 15 Nov are too high.
 
 A "visit" is one browser tab's session (`sessionStorage`), so refreshing doesn't double count. `?notrack` or `?sim=` turns it off for a load.
 No names, contact details, IPs or cookies.
