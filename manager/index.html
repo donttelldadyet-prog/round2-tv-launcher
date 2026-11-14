@@ -3435,15 +3435,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           return 'Rules load from the engine · upgrade Vale → Kai $35 · 2nd move +$10 · free in the first 15 min · closed under 3h · early bird under 3 days = own day · add hours weighed against the slot it costs · unknown link turned away';
         });
       }); })
-      .then(function () { return step('Add a session: daytime with a mobile = real booking, late = note (check only, nothing saved)', function () {
+      .then(function () { return step('Add a session: daytime with a mobile + email = real booking, no email or late = note (check only, nothing saved)', function () {
         var d = addD(R2Day.tonight(), 40);
-        return Promise.all([gm({ action: 'late', dry: '1', unit: 9, day: d, start: '14:00', end: '17:00', name: 'System check', pax: 2, phone: '91625767' }), gm({ action: 'late', dry: '1', unit: 9, day: d, start: '23:30', end: '02:30', name: 'System check', pax: 2, phone: '91625767' }), gm({ action: 'late', dry: '1', unit: 9, day: d, start: '14:00', end: '17:00', name: 'System check', pax: 2 })]).then(function (r) {
+        /* 15 Nov (owner): no email → a note (SimplyBook refuses a contact without one); the shared Round2 contact only if the note fails */
+        return Promise.all([gm({ action: 'late', dry: '1', unit: 9, day: d, start: '14:00', end: '17:00', name: 'System check', pax: 2, phone: '91625767', email: 'online-guest@round2.sg' }), gm({ action: 'late', dry: '1', unit: 9, day: d, start: '23:30', end: '02:30', name: 'System check', pax: 2, phone: '91625767' }), gm({ action: 'late', dry: '1', unit: 9, day: d, start: '14:00', end: '17:00', name: 'System check', pax: 2 }), gm({ action: 'late', dry: '1', unit: 9, day: d, start: '14:00', end: '17:00', name: 'System check', pax: 2, phone: '91625767' })]).then(function (r) {
           must(r[0].ok && r[0].plan, 'Check refused: ' + (r[0].error || '')); 
           if (r[0].plan.clash && r[0].plan.clash.length) throw { warn: 'Kai ' + d + ' 2–5pm isn’t free, so the booking path couldn’t be checked (' + r[0].plan.whyNote + ').' };
           must(r[0].plan.as === 'booking', 'Daytime 3h with a mobile should be a real booking, got: ' + r[0].plan.as + ' (' + r[0].plan.whyNote + ')');
           must(r[1].ok && r[1].plan.as === 'note', 'A late session should stay a note');
           must(r[2].ok && r[2].plan.as === 'note', 'Without a mobile it should stay a note');
-          return 'Kai ' + d + ' 2–5pm with a mobile → real booking ($' + r[0].plan.price + ') · 11:30pm → note · no mobile → note';
+          must(r[3].ok && r[3].plan.as === 'note' && /email/.test(r[3].plan.whyNote || ''), 'Without an email it should be a note (SimplyBook refuses a contact without one), got: ' + (r[3].plan && r[3].plan.as));
+          return 'Kai ' + d + ' 2–5pm with mobile + email → real booking ($' + r[0].plan.price + ') · no email → note · 11:30pm → note · no mobile → note';
         });
       }); })
       /* 3. booking page: slot board vs checkout price */

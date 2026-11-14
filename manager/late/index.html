@@ -88,9 +88,9 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
     <label style="margin-top:12px">Guest name<input id="name" type="text" maxlength="40" autocomplete="off" autocapitalize="words"></label>
     <div class="grid" style="margin-top:12px">
       <label>Mobile<input id="phone" type="tel" inputmode="tel" maxlength="20" autocomplete="off" placeholder="9123 4567"></label>
-      <label>Email (optional)<input id="email" type="email" inputmode="email" maxlength="80" autocomplete="off" placeholder="for the confirmation email"></label>
+      <label>Email<input id="email" type="email" inputmode="email" maxlength="80" autocomplete="off" placeholder="needed for a real booking"></label>
     </div>
-    <p class="hint" style="margin:6px 0 0">With a mobile, a daytime session (11am–11:15pm, 3–6 hours) becomes a <b>real SimplyBook booking</b> with its own booking page link to send – the guest can see it, add a TV message, get a receipt and reschedule. Late sessions, other lengths and clashes stay a note, like before.</p>
+    <p class="hint" style="margin:6px 0 0">With a mobile <b>and an email</b>, a daytime session (11am–11:15pm, 3–6 hours) becomes a <b>real SimplyBook booking</b> with its own booking page link to send – the guest can see it, add a TV message, get a receipt and reschedule. Without an email (SimplyBook won’t make the guest’s contact without one), late sessions, other lengths and clashes stay a note, like before.</p>
     <label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;color:var(--ink)"><input id="msgs" type="checkbox" checked style="width:22px;height:22px;min-height:0;margin:0;flex:none"><span>Also put “About 10 minutes to go” and “That’s a wrap!” on the room’s TV<br><span class="hint">Only for sessions starting within 24 hours. Turn off if someone already set them.</span></span></label>
     <div class="row"><button class="btn primary" id="check" type="button">Check</button><button class="btn" id="clear" type="button">Clear</button></div>
     <div id="plan" class="hint plan" style="margin-top:12px"></div>
