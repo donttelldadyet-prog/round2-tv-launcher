@@ -98,6 +98,10 @@ What we changed (engine c9958b6 + `manager/sw.js`, 11 and 14 Nov):
 4. **One signed pass per push service, reused for 2 hours** (`vapidAuth`, kept in KV `vapid:<service>`). Apple's rule is
    "don't refresh your JWT more than once per hour"; until now every alert to every phone carried a fresh one. Whether this
    was slowing delivery isn't known – it now follows the rule.
+5. **Alerts are sent from inside the engine's store** (the Durable Object: `pushAll` → `pushRun`), 14 Nov 10:25am. That morning
+   two of four 10:00 reminders failed for every phone – the 5-minute timer's run had used up the free plan's 50 outside
+   requests (SimplyBook work + pushes share one allowance). The ~50 s re-send delivered them 1–2 minutes late. Sent from the
+   store, each alert has its own allowance.
 To check afterwards: `diag:push` – late alerts should now show `+50s`-ish instead of `+300s` / `+600s`.
 In the control centre: Tests & systems › Phone alert setup › **Did the alerts arrive?** (gm `pushsubs`, reading only) – each of
 the last alerts and how long each phone took; a phone that hasn't reported for 3+ days is marked as an old sign-up.
