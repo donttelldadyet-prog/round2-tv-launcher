@@ -339,6 +339,13 @@
           "code": "round2-tv-launcher manager/index.html"
         },
         {
+          "name": "Kai: remote presses multiplied when TCL closes the Home-button helper – on hold",
+          "status": "planned",
+          "what": "14 Nov 2026: after a long session Kai's remote registered presses several times; TCL's Safety Guard had closed the Home-button helper (tile: killed · tguard-kill). Fixed at the TV: Settings › Accessibility › Round2 Home button off, then on. Owner: keep logged, hold off. Options written up, none chosen: (1) the helper stops listening to the remote on Kai and reacts to the TV's home screen instead (brief flash of the Google home on Home); (2) switch Safety Guard off from the laptop; (3) self-repair + a Restart helper button on the tile. 'Home screen manager' apps use the same trick as ours and wouldn't help. Next time it happens: run the toolkit's diag on the laptop BEFORE fixing.",
+          "runs": "TV app (HomeGuard) · PC toolkit",
+          "code": "round2-tv-launcher · README 'Kai: remote presses multiplied'"
+        },
+        {
           "name": "Smoother transitions",
           "status": "planned",
           "what": "Owner is thinking it over (2 Nov). Ideas, best first: 1) pause the background while a transition plays (test on one LG first); 2) Rise moves the menu as one piece instead of ~15 parts; 3) each TV checks its own smoothness at start-up and switches itself to Fade if it drops frames ('lite mode' on its TV tile); 4) open the app at the same moment as the animation (with 3). Warp, Flash and Lightning + ship were removed 2 Nov for being heavy/unused.",

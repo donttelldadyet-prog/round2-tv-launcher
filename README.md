@@ -74,6 +74,35 @@ and stay alive. Read this before changing anything "for all TVs".
 The Android TVs' AirPlay is someone else's app (`io.github.jqssun.airplay` or PhairPlay) – the menu only opens it.
 PC toolkit: `round2tv.ps1 diag` saves a report (helper state, who closed it and why, volume changes, audio focus, the log).
 
+### Kai: remote presses multiplied / helper killed – options ON HOLD (owner, 14 Nov 2026: "keep this logged, hold off")
+**What happened (14 Nov, ~5:50–6:05pm, after a long session in Kai):** the remote registered presses several times ("spoilt
+remote"). Kai's tile: `Home-button helper stopped Sat 5:57 PM · killed (signal) · "tguard-kill"` (TCL Safety Guard), TV on
+v1.0.276. Fixed by hand at the TV: Settings › Accessibility › Round2 Home button **off, then on**. No `diag` report was taken
+before the fix, so the cause is likely, not proven: an Accessibility helper that filters keys gets EVERY remote press first
+(Android has no "Home only"), so when Safety Guard slows or kills its process, every button is late or repeated – not just Home.
+(6 Nov measurements: volume moved once with the helper off, twice with it on; 9 Nov: the helper swallows volume on TCL.)
+
+**Next time, before fixing:** `round2tv.ps1 diag` from the shop laptop (a restart or the off/on wipes part of the record).
+
+**Ways forward, none chosen:**
+1. *Helper stops listening to the remote on TCL* – watch for the TV's own home screen appearing and jump back to Round2
+   (like `HomeWatch` on Atlas, but event-driven from the Accessibility helper). Remote goes straight to the menu, volume moves
+   once by itself. Costs: a brief flash of the Google TV home on every Home press (how long on this TV: untested – Android
+   holds back app switches for a few seconds after Home in some cases); hold-Home for the TV's own home goes (Staff tools ›
+   "TV home for 5 minutes" stays). Needs a TV update; change only for TCL.
+2. *Stop what kills it instead* – switch TCL Safety Guard (`com.tcl.guard`) off from the laptop, or find stronger protection
+   than Auto launch + Relevance start. One time, reversible, no TV update, nothing changes for guests. Unknown: whether TCL
+   lets it be switched off and what else it takes with it; only helps if Safety Guard really is the cause.
+3. *Self-repair + a "Restart helper" button on the TV tile* – the menu restarts a helper that is switched on but not running
+   (the Accessibility switch stays the master switch – owner's rule, Oct 2026: never switch it on by itself when it is off),
+   and the control centre can do it from a phone. Doesn't prevent the fault, shortens it to seconds. Needs a TV update.
+4. *"Home screen manager" apps (Launcher Manager, Projectivy's override, Button Mapper)* – on Google TV they use the SAME
+   trick as our helper (an Accessibility service that catches Home), and TCL owners report the same thing with them
+   (service switched off, Home back to the stock launcher). No gain, and one more app for Safety Guard to close.
+5. *Round2 as the TV's only home screen (stock launcher disabled by ADB)* – ruled out in October: on Google TV disabling the
+   stock home starts a recovery loop (`round2tv.ps1 launcherforce` refuses for that reason). Some people report it working on
+   TCL sets; not worth a bricked room TV.
+
 Known leftovers, harmless (not cleaned up to avoid a TV update for nothing): `HomeGuard` still carries the removed
 "let go of the buttons when late" switch (`LAG_MS`, `keysOn`/`setKeys`); `web/index.html` has Samsung/Tizen app ids and two
 unused functions (`nZoom`, `surface`); the TVs still tell **Make** directly when a guest OKs "Loot dropped"
