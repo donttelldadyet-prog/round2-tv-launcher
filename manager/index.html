@@ -3621,7 +3621,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return gm({ action: 'pushsubs' }).then(function (j) {
           must(j.ok, 'Phone list: ' + (j.error || 'no answer')); must(j.dropDays === 7 && j.shown && j.dropped, 'The engine doesn’t report the week rule (older engine?).');
           var now = j.now, sh = j.shown, ph = j.phones || [], live = function (p) { return Math.max(p.since || 0, sh[p.id] || 0); };
-          var stale = ph.filter(function (p) { return live(p) < now - 7 * 86400e3 - 2 * 3600e3 && ph.some(function (o) { return o.id !== p.id && (sh[o.id] || 0) > now - 2 * 86400e3; }); });
+          var DC = j.decl || {}, trial = function (p) { return DC.all || (DC.ids || []).indexOf(p.id) >= 0; };   /* shown by the iPhone itself: never reports, never removed */
+          var stale = ph.filter(function (p) { return !trial(p) && live(p) < now - 7 * 86400e3 - 2 * 3600e3 && ph.some(function (o) { return o.id !== p.id && (sh[o.id] || 0) > now - 2 * 86400e3; }); });
           must(!stale.length, 'Still listed after a silent week: ' + stale.map(function (p) { return p.label || p.id; }).join(', ') + ' – the hourly clean-up isn’t running.');
           return ph.length + ' phone' + (ph.length === 1 ? '' : 's') + ' signed up · ' + ph.filter(function (p) { return (sh[p.id] || 0) > now - 3 * 86400e3; }).length + ' showed an alert in the last 3 days · ' + j.dropped.length + ' removed in the last 60 days';
         });
@@ -3873,6 +3874,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var quiet = !last || now - last > 3 * 86400e3, dd = j.dropDays || 7, left = Math.ceil((Math.max(last, p.since || 0) + dd * 86400e3 - now) / 86400e3);
         var note = !mine.length ? 'no alerts since it signed up' : quiet ? 'hasn’t shown anything for 3+ days – an old sign-up? (re-added the app, or alerts switched off in iPhone Settings). ' + (left > 0 ? 'Removed by itself in ' + left + (left === 1 ? ' day' : ' days') + ' if it stays silent' : 'Will be removed within the hour') + '; on that phone, Test alert keeps it.' : fast + ' of ' + mine.length + ' within 20 s' + (got.length < mine.length ? ' · ' + (mine.length - got.length) + ' not shown' : '');
         var D = j.decl || {}, want = D.all || (D.ids || []).indexOf(p.id) >= 0, on = want && (D.swv || {})[p.id] >= 2;
+        /* on the trial the iPhone shows the alert itself – the background helper isn't started, so there is nothing to time */
+        if (on) note = 'the iPhone shows these alerts itself, so this phone can’t report times here. It is never removed for being silent.';
         return '<div><b>' + NUM[i] + ' ' + esc(p.label || 'Phone') + '</b>' + (p.id === me ? ' <span class="st" style="--sc:var(--ok)">this phone</span>' : '') + (want ? ' <span class="st" style="--sc:var(--accent, #7aa2ff)">' + (on ? 'new delivery (trial)' : 'new delivery: open this app on that phone once, then Test alert') + '</span>' : '') + '<br><span class="hint">' + esc(note) + (p.last && p.last.r && p.last.r !== 'ok' ? ' · last send: ' + esc(String(p.last.r).slice(0, 60)) : '') + '</span></div>';
       }).join('') + '</div>';
       var gone = (j.dropped || []).filter(function (d) { return now - d.t < 14 * 86400e3; });
@@ -3882,12 +3885,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return '<div style="padding:8px 0;border-top:1px solid var(--line, rgba(255,255,255,.12))"><div><span class="hint">' + esc(tms(x.t)) + '</span> · ' + esc(String(x.title || '').slice(0, 60)) + '</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px">' +
           ph.map(function (p, i) {
             if (x.t < p.since) return '';
+            var DD = j.decl || {}; if (!(x.seen && x.seen[p.id]) && (DD.all || (DD.ids || []).indexOf(p.id) >= 0) && (DD.swv || {})[p.id] >= 2) return '<span style="color:var(--mute);white-space:nowrap">' + NUM[i] + ' n/a</span>';
             var s = x.seen && x.seen[p.id], d = s ? s - x.t : 0, waiting = !s && now - x.t < 15 * 60000;
             var col = !s ? 'var(--mute)' : d < 20000 ? 'var(--ok)' : 'var(--warn)';
             return '<span style="color:' + col + ';white-space:nowrap">' + NUM[i] + ' ' + (s ? took(d) : waiting ? '…' : '—') + '</span>';
           }).join('') + '</div></div>';
       }).join('');
-      return h + '<p class="hint" style="margin-top:10px">— = that phone never reported showing it. A phone that is late a lot: Low Power Mode off, allow Round2 in its Focus modes, and open this app once a day.</p>';
+      return h + '<p class="hint" style="margin-top:10px">— = that phone never reported showing it. n/a = a phone on the new delivery, which shows alerts without reporting. A phone that is late a lot: Low Power Mode off, allow Round2 in its Focus modes, and open this app once a day.</p>';
     }
     var delivBusy = false;
     function deliv() {

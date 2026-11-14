@@ -164,6 +164,15 @@ worker has reported version 2+ (`/push/seen` field `v` → KV `push:swv`) – i.
 - still late, 2 copies → the hold is before the phone (Apple / power saving); nothing in the alert's shape changes that –
   go back (delete the key) and decide between fewer re-sends (fewer copies, later) and today's (faster, more copies).
 
+**First reading (14 Nov, 5:35pm):** the owner's phone joined at 4:05pm. Four alerts since (4:15, 4:31 ×2, 5:00pm): the owner
+saw each **on time, one copy**; his phone reported none of them. So on his iPhone the system shows a declarative alert
+without starting the worker at all (`mutable` doesn't bring the worker in) – a phone on the trial therefore **never reports**:
+"Did the alerts arrive?" shows it as "new delivery (trial)" with n/a instead of times, the silent-week clean-up skips it
+(`pushPrune`), and so does the System check's clean-up step. The one re-send still goes to it and did not show as a second
+copy. Not proven yet: the other two phones were also fast on those four alerts, so there has been no case where his phone
+was on time while another needed a re-send. Don't go to `all` on four alerts – and note that with every phone on it the
+delivery read-out would have nothing left to show.
+
 **Tidying copies:** when the control centre is opened or brought to the front it keeps the newest alert of each tag and
 closes the rest (`r2TidyAlerts`, index.html).
 
