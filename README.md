@@ -90,6 +90,8 @@ before the fix, so the cause is likely, not proven: an Accessibility helper that
    once by itself. Costs: a brief flash of the Google TV home on every Home press (how long on this TV: untested – Android
    holds back app switches for a few seconds after Home in some cases); hold-Home for the TV's own home goes (Staff tools ›
    "TV home for 5 minutes" stays). Needs a TV update; change only for TCL.
+   **Already tried once:** 6 Nov 2026 (c21afcf, Kai only) and taken back the same evening (fdbdedc, "catch Home again (no
+   flash)") because of the Google TV home flash on every Home press. Picking it up again means accepting that flash.
 2. *Stop what kills it instead* – switch TCL Safety Guard (`com.tcl.guard`) off from the laptop, or find stronger protection
    than Auto launch + Relevance start. One time, reversible, no TV update, nothing changes for guests. Unknown: whether TCL
    lets it be switched off and what else it takes with it; only helps if Safety Guard really is the cause.
