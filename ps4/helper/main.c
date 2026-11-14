@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.8"
+#define R2_VERSION "1.1.9"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1035,6 +1035,76 @@ static void look_rest(void) {
   if (en <= 0) { look_kv("rest/refused", "rest mode is off in the PS4's settings"); return; }
   rest_after = 1; look_kv("rest/result", "going to rest mode in ~3 s");
 }
+/* 1.1.9 (owner 14 Nov 7:22pm): the PS4's own network discovery/wake messages (UDP 987) – read from dhleong/ps4-waker,
+   dhleong/playactor and BenjaminFaal/ps4-remote-control. Sent from THIS PS4 to another PS4 in the shop:
+   "/_ddp.<ip>"            SRCH – no key needed; the other PS4 answers "200 Ok" (on) or "620 Server Standby" (asleep).
+   "/_wake.<ip>.<64 hex>"  WAKEUP with a user credential (auth-type C), then SRCH again after 20 s.
+   "/_wkey"                on THIS PS4: each profile's account ID and the credential made from it (SHA-256 of the ID as a
+                           decimal number – both byte orders, we don't know yet which one the PS4 expects). Read-only. */
+static int ddp_send(const char *ip, const char *msg, char *ans, size_t an, int wait_s) {
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (fd < 0) return -1;
+  struct sockaddr_in to; memset(&to, 0, sizeof to); to.sin_family = AF_INET; to.sin_port = htons(987);
+  if (inet_pton(AF_INET, ip, &to.sin_addr) != 1) { close(fd); return -2; }
+  int n = -3;
+  if (sendto(fd, msg, strlen(msg), 0, (struct sockaddr *)&to, sizeof to) == (ssize_t)strlen(msg)) {
+    n = 0;
+    if (ans && an) {
+      ans[0] = 0;
+      fd_set rf; FD_ZERO(&rf); FD_SET(fd, &rf);
+      struct timeval tv = { wait_s, 0 };
+      if (select(fd + 1, &rf, 0, 0, &tv) > 0) { ssize_t g = recv(fd, ans, an - 1, 0); if (g > 0) { ans[g] = 0; n = (int)g; } }
+    }
+  }
+  close(fd);
+  return n;
+}
+static void ddp_status(const char *ip, const char *label) {
+  char ans[600], v[200], k[64];
+  int n = ddp_send(ip, "SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00020020\n", ans, sizeof ans, 4);
+  if (n <= 0) snprintf(v, sizeof v, n == 0 ? "no answer in 4 s" : "send failed %d", n);
+  else { for (char *q = ans; *q; q++) if (*q == '\n' || *q == '\r') *q = ' '; snprintf(v, sizeof v, "%.190s", ans); }
+  snprintf(k, sizeof k, "ddp/%s/%s", ip, label); look_kv(k, v);
+}
+static void look_ddp(const char *spec) {
+  char ip[24] = "";
+  if (sscanf(spec, "/_ddp.%15[0-9.]", ip) != 1) { look_kv("ddp/error", "bad spec"); return; }
+  ddp_status(ip, "status");
+}
+static void look_wake(const char *spec) {
+  char ip[24] = "", cred[72] = "", msg[300], k[64];
+  int a, b, c, d;
+  if (sscanf(spec, "/_wake.%d.%d.%d.%d.%64[0-9a-f]", &a, &b, &c, &d, cred) != 5 || strlen(cred) != 64) { look_kv("wake/error", "bad spec"); return; }
+  snprintf(ip, sizeof ip, "%d.%d.%d.%d", a, b, c, d);
+  ddp_status(ip, "1-before");
+  snprintf(msg, sizeof msg, "WAKEUP * HTTP/1.1\nclient-type:a\nauth-type:C\nuser-credential:%s\ndevice-discovery-protocol-version:00020020\n", cred);
+  int r = 0; for (int i = 0; i < 3; i++) { r = ddp_send(ip, msg, 0, 0, 0); sleep(1); }
+  snprintf(k, sizeof k, "ddp/%s/2-wakeup-sent", ip); look_kv(k, r == 0 ? "3 times" : "send failed");
+  sleep(20);
+  ddp_status(ip, "3-after-20s");
+}
+static void wkey_one(const char *k, unsigned long long id) {
+  char dec[32], v[120]; unsigned char h[32];
+  snprintf(dec, sizeof dec, "%llu", id);
+  mbedtls_sha256((const unsigned char *)dec, strlen(dec), h, 0);
+  int n = snprintf(v, sizeof v, "%s -> ", dec);
+  for (int i = 0; i < 32; i++) n += snprintf(v + n, sizeof v - n, "%02x", h[i]);
+  look_kv(k, v);
+}
+static void look_wkey(void) {
+  char k[64], name[64];
+  for (int sl = 1; sl <= 16; sl++) {
+    long base = 0x07800000L + (long)(sl - 1) * 0x10000L;
+    unsigned char b[8]; memset(b, 0, 8); name[0] = 0;
+    sceRegMgrGetStr(base + 0x200, name, 17);
+    if (!name[0] || sceRegMgrGetBin(base + 0x500, b, 8)) continue;
+    unsigned long long le = 0, be = 0;
+    for (int i = 0; i < 8; i++) { le |= (unsigned long long)b[i] << (8 * i); be = (be << 8) | b[i]; }
+    if (!le) { snprintf(k, sizeof k, "wkey/%s", name); look_kv(k, "no account ID (0) - can't be a wake key"); continue; }
+    snprintf(k, sizeof k, "wkey/%s/a", name); wkey_one(k, le);
+    snprintf(k, sizeof k, "wkey/%s/b", name); wkey_one(k, be);
+  }
+}
 static void do_look(const char *key, const char *cid, const char *body) {
   Jn = 0;
   look_n = 0;
@@ -1054,6 +1124,9 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_sback.", 8)) look_sback(key, t);
     else if (!strncmp(t, "/_srest.", 8)) look_srest(key, t);
     else if (!strcmp(t, "/_rest")) look_rest();
+    else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
+    else if (!strncmp(t, "/_wake.", 7)) look_wake(t);
+    else if (!strcmp(t, "/_wkey")) look_wkey();
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
