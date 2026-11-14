@@ -134,6 +134,39 @@ In the control centre: Tests & systems › Phone alert setup › **Did the alert
 the last alerts and how long each phone took; a phone that hasn't reported for 3+ days is marked as an old sign-up.
 Telegram is not a backup for these – see the next section.
 
+## Declarative Web Push – trial on the owner's phone (14 Nov 2026, 3:45pm)
+**Why:** 3:30pm, Scarlett's 1-hour reminder: sent 15:30:16; phones showed it at +3 s, +53 s (first re-send) and the owner's at
++115 s (second re-send) – as **3 copies at once**. So the "one copy" claim above (items 2 and 3) was wrong for copies that
+arrive together:
+- iPhones ignore the alert's `tag` (WebKit bug 258922, open since 2023) – nothing is ever replaced by the system;
+- `close()` on an alert is refused in its first ~30 s, and for a burst of pushes `getNotifications()` is stale – so the
+  worker's "close the older copy" only works when copies come apart;
+- Apple accepted the `Topic` header but the three copies still all arrived – they were probably already on the phone, waiting
+  for the control centre's background worker to be started. That waiting looks like the real cause of the lateness: a locked,
+  idle iPhone puts off starting a web app's worker.
+
+**What it is:** since iOS 18.4 the alert itself can say what to show (`{"web_push": 8030, "notification": {title, body,
+navigate, tag, data}, "mutable": true}`), and the iPhone shows it like a normal app's alert – no worker needed. With
+`mutable` the worker is still asked first (so it shows it itself and reports "shown" to the engine as before); if the worker
+can't run, the phone shows the alert anyway. No "silent push" penalty. Browsers that don't know it hand the same data to the
+worker, which shows it (sw.js `r2Alert`, worker version `SWV = 2`).
+
+**How it is switched (no deploy):** KV `HOLDS` › `push:decl` = `{"ids": ["GGAmdj"]}` (first 6 letters of the phone, as in
+"Did the alerts arrive?") or `{"all": true}`; delete the key = everything as before. A listed phone only gets it once its
+worker has reported version 2+ (`/push/seen` field `v` → KV `push:swv`) – i.e. after the control centre was opened on it once
+(new worker) and it showed one alert (Test alert will do). Such a phone gets **one** re-send at most. `navigate` is
+`https://staff.round2.sg` + the alert's page – before `all`, check no phone is still signed up from the old github.io address.
+
+**Reading the trial** ("Did the alerts arrive?", the owner's phone marked "new delivery (trial)"):
+- shows in 1–3 s every time, also where the other phones needed a re-send → it works: switch to `all`, drop the quick re-sends.
+- not reported ("—") but the owner saw it on time, with one copy a minute later → the phone shows it by itself and the worker
+  still starts late: switch re-sends off for declarative phones (nothing to report), on-time and single.
+- still late, 2 copies → the hold is before the phone (Apple / power saving); nothing in the alert's shape changes that –
+  go back (delete the key) and decide between fewer re-sends (fewer copies, later) and today's (faster, more copies).
+
+**Tidying copies:** when the control centre is opened or brought to the front it keeps the newest alert of each tag and
+closes the rest (`r2TidyAlerts`, index.html).
+
 ## Telegram: only the food workflow with Madd Pizza – never bookings (owner's rule, 14 Nov 2026)
 The Telegram chat (the kitchen bot's group, `KITCHEN_CHAT` in the engine) is for the **Madd Pizza ↔ Round2 food workflow
 only**: the kitchen slip for a paid food order and the "Food is at the pickup point" button. Madd Pizza's people are in it.

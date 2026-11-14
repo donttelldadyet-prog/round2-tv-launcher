@@ -360,9 +360,16 @@
         {
           "name": "Staff phone alerts (push)",
           "status": "test",
-          "what": "Alerts tab: new / changed / cancelled bookings and a 1-hour reminder (bookings and notes) on this phone, with the room's character icon. Needs the app opened from the Home Screen (iOS 16.4+). Since 14 Nov: an alert a phone hasn’t shown is sent again after about a minute (then twice more), never more than one copy on screen; Phone alert setup › “Did the alerts arrive?” shows how fast each phone got each alert. A sign-up that has shown nothing for a week is removed by itself (old sign-ups left behind when the app was re-added); if that phone is still in use it signs up again when the control centre is opened on it.",
+          "what": "Alerts tab: new / changed / cancelled bookings and a 1-hour reminder (bookings and notes) on this phone, with the room's character icon. Needs the app opened from the Home Screen (iOS 16.4+). Since 14 Nov: an alert a phone hasn’t shown is sent again after about a minute (then twice more), the copies can land together on an iPhone (it doesn’t merge them – opening the app clears the extras); Phone alert setup › “Did the alerts arrive?” shows how fast each phone got each alert. A sign-up that has shown nothing for a week is removed by itself (old sign-ups left behind when the app was re-added); if that phone is still in use it signs up again when the control centre is opened on it.",
           "runs": "Booking engine (Web Push) + staff.round2.sg",
           "code": "round2-tv-launcher · docs/staff-alerts.md"
+        },
+        {
+          "name": "Alerts shown by the iPhone itself (Declarative Web Push) – trial",
+          "status": "test",
+          "what": "Trial on the owner's iPhone since 14 Nov. Today the phone has to start the control centre's background helper before an alert can appear; a locked, idle iPhone sometimes puts that off, which is why alerts come late and the re-sends pile up as 2–3 copies. With the new way the alert itself tells the iPhone what to show, like a normal app's alert (iOS 18.4+). If it shows on time for a few days it goes to every phone and the quick re-sends are dropped. Switched per phone from Cloudflare (no update needed); a phone joins once the app has been opened on it and it has shown one alert.",
+          "runs": "Booking engine (Web Push) – KV push:decl",
+          "code": "round2-tv-launcher · docs/staff-alerts.md 'Declarative Web Push'"
         },
         {
           "name": "Telegram = food workflow only (rule)",
