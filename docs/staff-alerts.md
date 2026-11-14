@@ -88,7 +88,8 @@ What the engine's delivery log shows (KV `diag:push`, each phone reports back wh
   the control centre being open, in the background or closed makes no difference.
 
 What we changed (engine c9958b6 + `manager/sw.js`, 11 and 14 Nov):
-1. **First re-send after ~50 s** (then ~4 and ~9 min, 3 at most) instead of waiting for the 5-minute timer. It runs on the
+1. **First re-send after ~50 s**, then about every minute (~2, ~3, ~4½, ~9 min; 5 at most – `PUSH_RETRY_GAPS`) instead of
+   waiting for the 5-minute timer. (First real result, 14 Nov 1:15pm: one phone released at +57 s, one only at +235 s.) It runs on the
    hold timer's alarm (DO kv `pushchk`, `pushChk()`, `pushRetry`); the 5-minute timer is the backstop. Only to phones that
    haven't reported showing it, and only phones that reported anything in the last 3 days.
 2. **`Topic` header** = the alert's tag: while a phone hasn't taken an alert, a newer copy replaces it at Apple instead of
