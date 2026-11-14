@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.9"
+#define R2_VERSION "1.1.10"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1071,6 +1071,37 @@ static void look_ddp(const char *spec) {
   if (sscanf(spec, "/_ddp.%15[0-9.]", ip) != 1) { look_kv("ddp/error", "bad spec"); return; }
   ddp_status(ip, "status");
 }
+/* 1.1.10: "/_ddpall" – SRCH to everyone on the shop network (broadcast) and list who answers, with their address
+   (a sleeping PS4 may hold a different address than when awake – Bella, 14 Nov). */
+static void look_ddpall(void) {
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (fd < 0) { look_kv("ddpall/error", "socket"); return; }
+  int on = 1; setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, sizeof on);
+  static const char msg[] = "SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00020020\n";
+  const char *dst[] = { "255.255.255.255", "192.168.88.255" };
+  int sent = 0;
+  for (int r = 0; r < 2; r++) for (int i = 0; i < 2; i++) {
+    struct sockaddr_in to; memset(&to, 0, sizeof to); to.sin_family = AF_INET; to.sin_port = htons(987);
+    inet_pton(AF_INET, dst[i], &to.sin_addr);
+    if (sendto(fd, msg, sizeof msg - 1, 0, (struct sockaddr *)&to, sizeof to) > 0) sent++;
+  }
+  char v[200], k[64], ans[600]; int n = 0;
+  snprintf(v, sizeof v, "%d", sent); look_kv("ddpall/sent", v);
+  time_t end = time(0) + 6;
+  while (time(0) < end && n < 30) {
+    fd_set rf; FD_ZERO(&rf); FD_SET(fd, &rf);
+    struct timeval tv = { 1, 0 };
+    if (select(fd + 1, &rf, 0, 0, &tv) <= 0) continue;
+    struct sockaddr_in from; socklen_t fl = sizeof from;
+    ssize_t g = recvfrom(fd, ans, sizeof ans - 1, 0, (struct sockaddr *)&from, &fl);
+    if (g <= 0) continue;
+    ans[g] = 0; for (char *q = ans; *q; q++) if (*q == '\n' || *q == '\r') *q = ' ';
+    char ip[24]; inet_ntop(AF_INET, &from.sin_addr, ip, sizeof ip);
+    snprintf(k, sizeof k, "ddpall/%02d-%s", ++n, ip); snprintf(v, sizeof v, "%.190s", ans); look_kv(k, v);
+  }
+  close(fd);
+  if (!n) look_kv("ddpall/answers", "none");
+}
 static void look_wake(const char *spec) {
   char ip[24] = "", cred[72] = "", msg[300], k[64];
   int a, b, c, d;
@@ -1127,6 +1158,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
     else if (!strncmp(t, "/_wake.", 7)) look_wake(t);
     else if (!strcmp(t, "/_wkey")) look_wkey();
+    else if (!strcmp(t, "/_ddpall")) look_ddpall();
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
