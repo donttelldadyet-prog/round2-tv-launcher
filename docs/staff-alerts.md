@@ -25,6 +25,23 @@ Needs the guest messages staff code on the phone (Keys).
 - Same booking again (changed) replaces its earlier alert (tag `bk<id>`). Tapping an alert opens the control centre
   (1-hour and today's bookings → In session).
 
+## How an alert travels (in plain words – owner asked 14 Nov)
+**A booking alert is sent when the booking is in the SimplyBook calendar – not at the moment of payment.**
+1. *Online booking:* guest pays at HitPay → HitPay tells the engine → the engine checks the payment is real and writes the
+   booking into SimplyBook → SimplyBook calls the engine back ("booking created") → the engine reads that booking and sends
+   the alert. A few seconds in all. So an alert always means "this is really in the calendar", and "S$… paid online" in it
+   comes from our own payment record.
+2. *Booking made any other way* (in SimplyBook, by staff, changed or cancelled there): the same last two steps – SimplyBook
+   calls the engine, the engine sends the alert. No payment is involved; the money line says what SimplyBook's invoice says.
+3. *A move done through Round2* (guest's own rescheduling page, or Move a booking): one "🔁 RESCHEDULED" alert from the
+   engine itself; the plain "changed" alert SimplyBook would cause is skipped.
+4. *1 hour before:* not caused by anything happening – the engine's 5-minute timer looks at today's sessions and sends the
+   reminder for each one that starts in an hour (once).
+5. *Noise-rule clash, "needs a human":* sent by the engine when it notices them.
+Then the road to the phone is the same for all of them: engine → Apple's (or Google's) push service → the phone shows it and
+tells the engine "shown". A phone that hasn't said so gets the alert again after ~50 s and then about every minute for a few
+tries (see "Why alerts sometimes come late").
+
 ## Engine (round2sg-home `worker/round2-book.js`)
 - Secret `VAPID_JWK` (private signing key, generated in Cloudflare, never shown). Public half: `GET /push/key`.
 - `POST /push/sub|state|unsub|test|preview` with `{staff, …}` (staff = GM_STAFF). Body is JSON sent as text (no CORS preflight).
@@ -103,6 +120,15 @@ What we changed (engine c9958b6 + `manager/sw.js`, 11 and 14 Nov):
    two of four 10:00 reminders failed for every phone – the 5-minute timer's run had used up the free plan's 50 outside
    requests (SimplyBook work + pushes share one allowance). The ~50 s re-send delivered them 1–2 minutes late. Sent from the
    store, each alert has its own allowance.
+6. **A sign-up that has shown nothing for a week is removed** (engine 774e2cf, 14 Nov 2:08pm; owner: yes). An old sign-up left
+   behind when the app was re-added never goes "gone" at Apple, so it stayed listed for good. Hourly (`pushPrune`, minute 25):
+   a phone counts as alive from the day it signed up / last saved its choices and every time it reports showing any alert,
+   the Test alert included (DO kv `pshown`). Nothing is removed unless **another** phone reported in the last 2 days, so a
+   quiet week or broken reporting can't empty the list. The removed sign-up's choices are kept 60 days (`pushDropped`): if
+   that phone opens the control centre again (and notifications are still allowed on it) it signs itself up again with the
+   same choices and says so (`Alerts.wake` at start-up, `/push/state` → `dropped`). "Did the alerts arrive?" counts down the
+   days for a silent phone and names the ones removed in the last 14 days. System check step: "Phone alerts: a sign-up
+   silent for a week is cleared".
 To check afterwards: `diag:push` – late alerts should now show `+50s`-ish instead of `+300s` / `+600s`.
 In the control centre: Tests & systems › Phone alert setup › **Did the alerts arrive?** (gm `pushsubs`, reading only) – each of
 the last alerts and how long each phone took; a phone that hasn't reported for 3+ days is marked as an old sign-up.

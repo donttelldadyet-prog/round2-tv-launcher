@@ -77,3 +77,9 @@ Two steps: "Guest rescheduling: page, rules and fees" (loads the engine's `/move
 and checks agreed fees on a made-up booking: upgrade $35, 2nd move +$10, free first 15 min, closed under 3 h, unknown link turned
 away) and "Add a session: daytime with a mobile = real booking, late = note" (dry runs only, nothing saved). Whole flow: round2sg-home
 HANDOFF.md (top section).
+
+## Phone alerts: a silent sign-up is cleared (14 Nov 2026)
+One reading-only step, "Phone alerts: a sign-up silent for a week is cleared": asks the engine for its phone list (gm
+`pushsubs`), checks that it names the week rule (`dropDays` 7, `shown`, `dropped`) and that no phone is still listed after
+7 days (+2 h) with nothing shown while another phone reported in the last 2 days – i.e. that the hourly clean-up
+(`pushPrune`) really runs. Sends nothing. Background: `docs/staff-alerts.md` "Why alerts sometimes come late" item 6.

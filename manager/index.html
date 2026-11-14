@@ -1155,12 +1155,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <details class="hcard" id="h-alerts"><summary><span class="hi">🔔</span>Booking alerts on your phone</summary>
       <div class="hphone"><div class="hpn"><b>⛵ ATLAS · Amir</b><span>Sun 8 Nov, 7pm–10pm · 3h · S$49 paid (Peak) · 4 pax · 6d ahead</span></div><div class="hpn"><b>🎀 VALE · karen · in 1 hour</b><span>7pm–10pm · 3h · 2 pax<br>🧹 Last group leaves 6:45pm · 🎂 Message 7:15pm</span></div></div>
       <p>New, changed and cancelled bookings (<b>⚡ in 3h</b> = same day, <b>6d ahead</b> = booked early), plus a reminder <b>exactly 1 hour before</b> each guest, with SimplyBook’s email.</p>
+      <p>A booking alert means the booking <b>is in the SimplyBook calendar</b>: an online guest pays → the system books it into SimplyBook → the alert goes out, a few seconds later. Bookings made in SimplyBook alert the same way.</p>
       <p>Second line of the reminder, only when there’s something to do: <b>🧹 Last group leaves 6:45pm</b> = the room isn’t free yet · <b>🎂 Message 7:15pm</b> = their TV message pops up then · <b>🔗 Message not written yet</b> = link sent, guest hasn’t written it.</p>
       <p class="tip">Turn on: Tests &amp; systems › <b>Phone alert setup</b>. Only works from the Home Screen icon. Press <b>Test</b> to try.</p>
           <p class="hh">🐢 An alert came late, or twice?</p>
       <p>iPhones sometimes hold an alert back while the phone lies locked. If your phone hasn’t shown one after about a minute, the system sends it again, about every minute for a few tries – that usually shakes it loose, and you only ever see one copy. It doesn’t matter whether this app is open or closed.</p>
       <div class="hkeys"><span>🔋 <b>Low Power Mode</b> off while working</span><span>🌙 <b>Focus</b>: allow Round2</span><span>📲 open this app once a day</span></div>
       <p class="tip">See how fast each phone got each alert: <b>Tests &amp; systems › Phone alert setup › Did the alerts arrive?</b> · Missed one? <b>Home › Alert history</b> keeps the last 24 hours.</p>
+      <p class="hh">📵 A phone that stops showing alerts</p>
+      <p>A phone that hasn’t shown a single alert for a week is taken off the list by itself (usually an old sign-up from before the app was re-added). If it’s still in use, just open this app on it – it signs up again and tells you. <b>Test alert</b> on that phone also keeps it on the list.</p>
 </details>
 
     <details class="hcard" id="h-food"><summary><span class="hi">🍕</span>Food orders – what happens</summary>
@@ -3591,6 +3594,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           return '“' + first.replace('\n', ' / ') + '” → “' + b.msg.body.replace('\n', ' / ') + '”';
         });
       }); })
+      /* phone alerts (14 Nov): a sign-up that has shown nothing for a week is removed by the engine every hour, but only
+         while another phone is reporting – reading only: the engine names the rule and no such sign-up is still listed */
+      .then(function () { return step('Phone alerts: a sign-up silent for a week is cleared', function () {
+        return gm({ action: 'pushsubs' }).then(function (j) {
+          must(j.ok, 'Phone list: ' + (j.error || 'no answer')); must(j.dropDays === 7 && j.shown && j.dropped, 'The engine doesn’t report the week rule (older engine?).');
+          var now = j.now, sh = j.shown, ph = j.phones || [], live = function (p) { return Math.max(p.since || 0, sh[p.id] || 0); };
+          var stale = ph.filter(function (p) { return live(p) < now - 7 * 86400e3 - 2 * 3600e3 && ph.some(function (o) { return o.id !== p.id && (sh[o.id] || 0) > now - 2 * 86400e3; }); });
+          must(!stale.length, 'Still listed after a silent week: ' + stale.map(function (p) { return p.label || p.id; }).join(', ') + ' – the hourly clean-up isn’t running.');
+          return ph.length + ' phone' + (ph.length === 1 ? '' : 's') + ' signed up · ' + ph.filter(function (p) { return (sh[p.id] || 0) > now - 3 * 86400e3; }).length + ' showed an alert in the last 3 days · ' + j.dropped.length + ' removed in the last 60 days';
+        });
+      }); })
       .then(function () { return step('Change: Max → Bella moves everything', function () {
         return gm({ action: 'late', unit: '10', day: T.day, start: '03:30', end: '05:30', name: 'ZZTEST max', pax: '2', msgs: 'yes', replace: T.max, oldDay: T.day }).then(function (j) {
           must(j.ok && j.replaced, 'Change: ' + (j.error || 'refused')); return Promise.all([sessOf(T.day, 11), sessOf(T.day, 10)]);
@@ -3761,8 +3775,29 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (!staff() || !supported()) { state = null; draw(); return Promise.resolve(); }
       return current().then(function (sub) {
         if (!sub) { state = { on: false }; draw(); return; }
-        return api('/push/state', { endpoint: sub.endpoint }).then(function (j) { state = j.on ? j : { on: false }; draw(); });
+        return api('/push/state', { endpoint: sub.endpoint }).then(function (j) {
+          if (!j.on && j.dropped && Notification.permission === 'granted') return revive(sub, j).then(function (ok) { if (ok) return refresh(); state = { on: false }; draw(); });
+          state = j.on ? j : { on: false }; draw();
+        });
       }).catch(function (e) { state = { on: false }; draw(); msg('Couldn’t check: ' + e.message, true); });
+    }
+    /* The engine drops a sign-up that has shown nothing for a week (14 Nov – old sign-ups left behind when the app was
+       re-added). If THIS phone was dropped (off for a week, say) and is still set up for alerts, sign it up again with the
+       same choices – checked every time the control centre opens (boot below), not only on this page. */
+    var revived = false;
+    function revive(sub, j) {
+      if (revived) return Promise.resolve(false); revived = true;
+      return api('/push/sub', { sub: sub.toJSON(), kinds: (j.kinds && j.kinds.length ? j.kinds : KINDS.map(function (k) { return k[0]; })), label: label() }).then(function (r) {
+        if (r.error) return false;
+        toast('Alerts were switched off for this phone after a week with nothing shown – they’re back on now.'); return true;
+      }).catch(function () { return false; });
+    }
+    function wake() {
+      if (!staff() || !supported() || Notification.permission !== 'granted') return;
+      current().then(function (sub) {
+        if (!sub) return;
+        return api('/push/state', { endpoint: sub.endpoint }).then(function (j) { if (!j.on && j.dropped) return revive(sub, j); });
+      }).catch(function () {});
     }
     function turnOn() {
       if (busy) return; busy = true; msg('Asking for permission…');
@@ -3813,10 +3848,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var mine = al.filter(function (x) { return x.t >= p.since; }), got = mine.filter(function (x) { return x.seen && x.seen[p.id]; });
         var fast = got.filter(function (x) { return x.seen[p.id] - x.t < 20000; }).length, last = 0;
         (j.alerts || []).forEach(function (x) { if (x.seen && x.seen[p.id] > last) last = x.seen[p.id]; });
-        var quiet = !last || now - last > 3 * 86400e3;
-        var note = !mine.length ? 'no alerts since it signed up' : quiet ? 'hasn’t reported for 3+ days – an old sign-up? (re-added the app, or alerts switched off in iPhone Settings)' : fast + ' of ' + mine.length + ' within 20 s' + (got.length < mine.length ? ' · ' + (mine.length - got.length) + ' not shown' : '');
+        if (j.shown && j.shown[p.id] > last) last = j.shown[p.id];
+        var quiet = !last || now - last > 3 * 86400e3, dd = j.dropDays || 7, left = Math.ceil((Math.max(last, p.since || 0) + dd * 86400e3 - now) / 86400e3);
+        var note = !mine.length ? 'no alerts since it signed up' : quiet ? 'hasn’t shown anything for 3+ days – an old sign-up? (re-added the app, or alerts switched off in iPhone Settings). ' + (left > 0 ? 'Removed by itself in ' + left + (left === 1 ? ' day' : ' days') + ' if it stays silent' : 'Will be removed within the hour') + '; on that phone, Test alert keeps it.' : fast + ' of ' + mine.length + ' within 20 s' + (got.length < mine.length ? ' · ' + (mine.length - got.length) + ' not shown' : '');
         return '<div><b>' + NUM[i] + ' ' + esc(p.label || 'Phone') + '</b>' + (p.id === me ? ' <span class="st" style="--sc:var(--ok)">this phone</span>' : '') + '<br><span class="hint">' + esc(note) + (p.last && p.last.r && p.last.r !== 'ok' ? ' · last send: ' + esc(String(p.last.r).slice(0, 60)) : '') + '</span></div>';
       }).join('') + '</div>';
+      var gone = (j.dropped || []).filter(function (d) { return now - d.t < 14 * 86400e3; });
+      if (gone.length) h += '<p class="hint" style="margin:-6px 0 14px">Removed after ' + (j.dropDays || 7) + ' days with nothing shown: ' + gone.map(function (d) { return '<b>' + esc(d.label || 'Phone') + '</b> (' + esc(tms(d.t)) + ')'; }).join(', ') + '. If that phone is still in use, opening the control centre on it signs it up again.</p>';
       if (!al.length) return h + '<p class="hint">No alerts in the last 3 days.</p>';
       h += al.map(function (x) {
         return '<div style="padding:8px 0;border-top:1px solid var(--line, rgba(255,255,255,.12))"><div><span class="hint">' + esc(tms(x.t)) + '</span> · ' + esc(String(x.title || '').slice(0, 60)) + '</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px">' +
@@ -3855,7 +3893,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           });
         }
         draw(); refresh(); deliv();
-      }
+      },
+      wake: wake
     };
   }());
 
@@ -4786,6 +4825,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   };
   window.r2ghEngine().then(function (ok) { if (!ok) viaToken(); });
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+  setTimeout(function () { try { Alerts.wake(); } catch (e) {} }, 4000);   /* a sign-up dropped after a silent week comes back by itself */
 }());
 </script>
 </body>
