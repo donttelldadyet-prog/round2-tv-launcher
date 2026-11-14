@@ -3419,10 +3419,20 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(L.total(2, 'Kai', 870, 3) === 35, 'Vale $69 → Kai Sat 2:30pm should be $5 upgrade + $30 = $35, got $' + L.total(2, 'Kai', 870, 3));
           must(L.why(1, 'Vale', 600, 3) !== '' && L.why(0, 'Vale', 1140, 3) !== '' && L.why(0, 'Vale', 1215, 3) === '', 'Before 11am / under 3 hours from now must not be allowed (3h+ from now must be)');
           must(L.feeOf(9, 'Vale', 960, 4).name === 'ADD HOURS' && L.fee(9, 'Vale', 960, 4) === 0, 'Adding hours to the same slot should have no change fee'); must(L.feeOf(10, 'Scarlett', 960, 4).name === 'MOVE', 'Longer hours alone must not count as peak time / upgrade');
+          /* 14 Nov rules: an early bird inside 3 days stays on their day (later start / more hours welcome); later on your own day
+             beats the 2:15pm rule; add-hours is measured from the day as it is and offered when it pays for the slot it costs */
+          var gl = function (bk, cl) { return gLogic({ now: 17 * 60, days: days, cal: cl || cal, bk: bk, moves: 0, grace: false }); };
+          var ebL = gl({ room: 'Vale', day: 2, t: 660, h: 3, paid: 35 });
+          must(ebL.stage() === 'late' && ebL.why(4, 'Vale', 900, 3) === 'sameday' && ebL.why(2, 'Vale', 720, 3) === '' && ebL.why(2, 'Vale', 660, 4) === '', 'Early bird under 3 days should be own day only, with a later start and extra hours allowed');
+          var mnL = gl({ room: 'Vale', day: 2, t: 780, h: 3, paid: 69 });
+          must(mnL.why(2, 'Vale', 720, 3) === 'lock' && mnL.why(3, 'Vale', 780, 3) === 'lock' && mnL.why(2, 'Vale', 810, 3) === '' && mnL.why(3, 'Vale', 900, 3) === '', 'Under 3 days: mornings stay locked, except later on your own day');
+          var cl2 = JSON.parse(JSON.stringify(cal)); cl2[2].Vale = [[1305, 1410, 'Vale']]; cl2[2].Bella = [[1305, 1410, 'Bella']];
+          must(gl({ room: 'Vale', day: 2, t: 900, h: 3, paid: 69 }, cl2).why(2, 'Vale', 900, 4) === 'gapadd', 'Vale Sat 3pm with a 9:45pm booking after: +1 hour should be “WhatsApp us” (it costs a prized evening slot)');
+          must(gl({ room: 'Bella', day: 2, t: 900, h: 3, paid: 99 }, cl2).why(2, 'Bella', 900, 4) === '' && gl({ room: 'Vale', day: 9, t: 840, h: 3, paid: 69 }).why(9, 'Vale', 840, 4) === '', 'Add hours should be offered when it pays for the slot it costs (Bella) or costs none (Vale 2pm, open day)');
           C.moves = 1; var f2 = L.fee(1, 'Vale', 900, 3); C.moves = 0; must(f2 === L.fee(1, 'Vale', 900, 3) + 10, '2nd move should add $10');
           C.grace = true; must(L.fee(1, 'Vale', 900, 3) === 0, 'First 15 minutes should be free'); C.grace = false;
           C.now = 9 * 1440 + 960 - 60; must(gLogic(C).stage() === 'closed', 'Under 3 hours: no rescheduling'); C.now = 17 * 60;   /* 1 hour before its 4pm start; the rules read the clock once, so build them again */
-          return 'Rules load from the engine · upgrade Vale → Kai $35 · 2nd move +$10 · free in the first 15 min · closed under 3h · unknown link turned away';
+          return 'Rules load from the engine · upgrade Vale → Kai $35 · 2nd move +$10 · free in the first 15 min · closed under 3h · early bird under 3 days = own day · add hours weighed against the slot it costs · unknown link turned away';
         });
       }); })
       .then(function () { return step('Add a session: daytime with a mobile = real booking, late = note (check only, nothing saved)', function () {
