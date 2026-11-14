@@ -173,6 +173,21 @@ copy. Not proven yet: the other two phones were also fast on those four alerts, 
 was on time while another needed a re-send. Don't go to `all` on four alerts – and note that with every phone on it the
 delivery read-out would have nothing left to show.
 
+**Second reading (14 Nov, 9:20pm) – the trial did NOT fix the lateness.** Max booking (Benjamin Ng): guest pressed Pay
+21:09:09, booked and alert sent **21:10:44**; the two staff phones showed it at +3 s / +4 s. The owner's phone (on the trial)
+showed **2 copies**, both stamped "now" in a 9:12pm screenshot with HitPay's own app alert at "1m ago" – i.e. his phone showed
+nothing until our one re-send (~21:11:34) and then showed the original and the re-send together. Same pattern as before the
+trial, just capped at 2. The owner also says his alerts usually trail HitPay's by about a minute = his phone is routinely
+released by the first re-send. Points learnt:
+- The hold is not the background worker (declarative needs none) and not the phone's link to Apple (HitPay's native alert
+  arrived on time on the same phone at the same moment). It is specific to web alerts on that phone; cause unknown.
+- Nothing merges the copies: same `tag`, same `Topic`, declarative or not – both reach the phone and both show.
+- So for a phone that holds alerts it is a plain trade: **re-send = on time-ish (≤ ~1 min) but 2+ copies; no re-send = one
+  copy, late by however long the phone sits on it.** A "no re-sends on the trial" engine change was written and reverted
+  unpublished for that reason (round2sg-home 9ea5b1c / 6282673).
+- The trial costs the delivery read-out for that phone (n/a) and caps the nudges at one (3:30pm needed two). Recommendation
+  put to the owner: end the trial (delete KV `push:decl`), keep the re-sends.
+
 **Tidying copies:** when the control centre is opened or brought to the front it keeps the newest alert of each tag and
 closes the rest (`r2TidyAlerts`, index.html).
 
