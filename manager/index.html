@@ -1158,7 +1158,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <p>Second line of the reminder, only when there’s something to do: <b>🧹 Last group leaves 6:45pm</b> = the room isn’t free yet · <b>🎂 Message 7:15pm</b> = their TV message pops up then · <b>🔗 Message not written yet</b> = link sent, guest hasn’t written it.</p>
       <p class="tip">Turn on: Tests &amp; systems › <b>Phone alert setup</b>. Only works from the Home Screen icon. Press <b>Test</b> to try.</p>
           <p class="hh">🐢 An alert came late, or twice?</p>
-      <p>iPhones sometimes hold an alert back while the phone lies locked. If your phone hasn’t shown one after about a minute, the system sends it again (up to 3 times) – that usually shakes it loose, and you only ever see one copy. It doesn’t matter whether this app is open or closed.</p>
+      <p>iPhones sometimes hold an alert back while the phone lies locked. If your phone hasn’t shown one after about a minute, the system sends it again, about every minute for a few tries – that usually shakes it loose, and you only ever see one copy. It doesn’t matter whether this app is open or closed.</p>
       <div class="hkeys"><span>🔋 <b>Low Power Mode</b> off while working</span><span>🌙 <b>Focus</b>: allow Round2</span><span>📲 open this app once a day</span></div>
       <p class="tip">See how fast each phone got each alert: <b>Tests &amp; systems › Phone alert setup › Did the alerts arrive?</b> · Missed one? <b>Home › Alert history</b> keeps the last 24 hours.</p>
 </details>
@@ -3807,7 +3807,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var al = (j.alerts || []).filter(function (x) { return !/^TEST/.test(x.title || ''); }).slice(0, 12);
       var ph = (j.phones || []).slice().sort(function (a, b) { return (b.id === me) - (a.id === me) || a.since - b.since; }).slice(0, 9);
       var h = '<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Did the alerts arrive?</h2><button class="btn ghost" type="button" id="alDelivGo">Refresh</button></div>' +
-        '<p class="hint" style="margin-top:6px">Each phone reports the moment it shows an alert. Seconds = fine. Minutes = Apple held it back on that phone (usually a locked, idle iPhone); it is sent again after about a minute, then twice more.</p>';
+        '<p class="hint" style="margin-top:6px">Each phone reports the moment it shows an alert. Seconds = fine. Minutes = Apple held it back on that phone (usually a locked, idle iPhone); it is sent again after about a minute, then about every minute for a few tries.</p>';
       if (!ph.length) return h + '<p class="hint">No phone is signed up for alerts yet.</p>';
       h += '<div style="display:grid;gap:6px;margin:10px 0 14px">' + ph.map(function (p, i) {
         var mine = al.filter(function (x) { return x.t >= p.since; }), got = mine.filter(function (x) { return x.seen && x.seen[p.id]; });
