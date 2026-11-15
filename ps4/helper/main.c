@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.12"
+#define R2_VERSION "1.1.13"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1263,7 +1263,13 @@ int main(void) {
   g_lock = lk;
   put_file(APP "/hello", R2_VERSION); /* the starter keeps a new version once it says hello */
   signal(SIGPIPE, SIG_IGN); /* a dropped connection must never stop the helper */
-  for (int sg = 1; sg < 32; sg++) if (sg != SIGKILL && sg != SIGSTOP && sg != SIGPIPE && sg != SIGALRM && sg != SIGCHLD) signal(sg, on_sig);
+  /* 1.1.13 (16 Nov, Kai): only real "stop" signals step aside. The PS4 sends SIGCONT (19) every time it WAKES from rest –
+     catching it made the helper step aside on each wake, and the starter's relaunch often came before BinLoader was up, so
+     rooms were left with no helper until a payload was sent by hand. Wake-up, job-control and info signals are left alone. */
+  static const int stop_sigs[] = { SIGHUP, SIGINT, SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGFPE, SIGBUS, SIGSEGV, SIGSYS, SIGTERM };
+  for (unsigned i = 0; i < sizeof stop_sigs / sizeof *stop_sigs; i++) signal(stop_sigs[i], on_sig);
+  signal(SIGCONT, SIG_DFL); signal(SIGTSTP, SIG_IGN); signal(SIGTTIN, SIG_IGN); signal(SIGTTOU, SIG_IGN); signal(SIGURG, SIG_IGN);
+  signal(SIGIO, SIG_IGN); signal(SIGWINCH, SIG_IGN); signal(SIGINFO, SIG_IGN); signal(SIGUSR1, SIG_IGN); signal(SIGUSR2, SIG_IGN);
   sceUserServiceInitialize(0);
   sceNetCtlInit();
   get_console_id();
