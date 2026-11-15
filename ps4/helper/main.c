@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.11"
+#define R2_VERSION "1.1.12"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -250,9 +250,14 @@ static uint64_t games_json(char **out) {
         sfo_get(buf, len, "CATEGORY", cat, sizeof cat);
         sfo_get(buf, len, "APP_VER", ver, sizeof ver);
       }
+      char pver[16] = "";   /* 1.1.12: a game on the extended drive keeps its patch there too (Max showed 01.00 for all of them) */
+      snprintf(p, sizeof p, "/mnt/ext0/user/patch/%s/patch.pkg", e->d_name);
+      len = sfo_from_pkg(p, buf, sizeof buf);
+      if (len <= 0) { snprintf(p, sizeof p, "/user/patch/%s/patch.pkg", e->d_name); len = sfo_from_pkg(p, buf, sizeof buf); }
+      if (len > 0) sfo_get(buf, len, "APP_VER", pver, sizeof pver);
       jadd("%s{\"id\":\"%s\",\"t\":", first ? "" : ",", e->d_name);
       jstr(title);
-      jadd(",\"cat\":\"%s\",\"v\":\"%s\",\"ext\":1}", cat, ver);
+      jadd(",\"cat\":\"%s\",\"v\":\"%s\",\"pv\":\"%s\",\"ext\":1}", cat, ver, pver);
       first = 0;
     }
     closedir(d);
