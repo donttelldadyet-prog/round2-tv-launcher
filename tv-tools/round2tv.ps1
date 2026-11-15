@@ -291,6 +291,22 @@ function Cmd-Connect([string]$ip) {
     Say "TV on the USB cable: $sn"
     Set-Tv $sn
     $out = 'connected to usb'
+    # TRIAL (owner, 16 Nov): while on the cable, ask the TV to open network debugging too, so next time "connect <room>" may work
+    # without the cable. Nobody knows yet whether the Prism+ (Atlas) accepts it or keeps it after a power-off - the result is
+    # written to the log either way. Nothing else changes: this session stays on the cable.
+    try {
+      $tp = ((& $script:Adb -s $sn tcpip 5555 2>&1) -join ' ').Trim()
+      Log "usb: adb tcpip 5555 -> $tp"
+      Start-Sleep -Seconds 3
+      & $script:Adb -s $sn wait-for-usb-device 2>$null | Out-Null
+      $prop = ((& $script:Adb -s $sn shell getprop service.adb.tcp.port 2>&1) -join ' ').Trim()
+      Log "usb: service.adb.tcp.port = '$prop'"
+      if ($tp -match 'restarting in TCP mode' -and $prop -eq '5555') {
+        Say 'Network debugging: the TV accepted it (port 5555). TO TEST: unplug the cable and run "connect <room name>". Then switch the TV off and on and try once more - tell Claude both results.'
+      } else {
+        Say "Network debugging: the TV did not open it ($tp / port '$prop'). Keep using the cable for this TV - tell Claude this line."
+      }
+    } catch { Say "Network debugging: couldn't ask the TV ($($_.Exception.Message))"; Log "usb: tcpip failed $($_.Exception.Message)" }
   } else {
   if ($ip) { Set-Tv $(if ($ip -match ':') { $ip } else { "$($ip):5555" }) }
   & $script:Adb start-server 2>$null | Out-Null

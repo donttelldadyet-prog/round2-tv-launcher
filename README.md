@@ -76,6 +76,12 @@ PC toolkit: `round2tv.ps1 diag` saves a report (helper state, who closed it and 
 `round2tv.ps1 connect kai` (any room name) uses the address the TV itself reported in its last check-in (Android app 1.0.286+,
 shown on the TVs page as `ADB …:5555`), then the one typed in Theme manager › Rooms › Advanced. The first time, the PC asks for
 the TV messages key (control centre › Tests & systems › Keys) and keeps it in its `round2-tv` folder as `tv-key` (15 Nov).
+**Atlas network debugging – TRIAL, not yet tried at the shop (owner, 16 Nov):** updating the app can't open debugging (no app
+may), so Atlas is still cable-only. `connect usb` now also runs `adb tcpip 5555` and reads back `service.adb.tcp.port`; it
+says on screen and in the log whether the Prism+ accepted it. Unknown: does it accept, and does it survive a power-off
+(on stock Android 9 it normally resets at restart; making it stick needs `persist.adb.tcp.port`, i.e. root). Test: cable →
+`connect usb` → unplug → `connect atlas` → TV off/on → `connect atlas` again. Write the result here.
+Checked 16 Nov 12:56am: Kai on 1.0.286 and reporting; Atlas last checked in ~11 h earlier (off), still 1.0.280.
 
 ### Kai: remote presses multiplied / helper killed – options ON HOLD (owner, 14 Nov 2026: "keep this logged, hold off")
 **What happened (14 Nov, ~5:50–6:05pm, after a long session in Kai):** the remote registered presses several times ("spoilt
