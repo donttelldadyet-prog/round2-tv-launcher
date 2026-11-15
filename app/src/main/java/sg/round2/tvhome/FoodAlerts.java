@@ -226,6 +226,17 @@ public class FoodAlerts extends Service {
 
     @Override public int onStartCommand(Intent i, int flags, int id) { return START_STICKY; }
 
+    static String lanIp() {
+        try {
+            for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                for (java.net.InetAddress a : java.util.Collections.list(ni.getInetAddresses()))
+                    if (a instanceof java.net.Inet4Address && a.isSiteLocalAddress()) return a.getHostAddress();
+            }
+        } catch (Exception ignored) { }
+        return "";
+    }
+
     /* Check-in: every 5 minutes /r2/<key>/<room>/helper = {t, tv, v}. The control centre shows a TV as offline when it
        hasn't checked in for 12 minutes (the app was stopped, no network, or the TV is off). */
     private final Runnable heartbeat = new Runnable() {
@@ -243,6 +254,7 @@ public class FoodAlerts extends Service {
                     if (!HomeWatch.nowFront.isEmpty()) o.put("front", HomeWatch.nowFront).put("frontAt", HomeWatch.nowFrontAt);   /* what's on screen (2 Nov) */
                     o.put("ru", remoteAllowed(FoodAlerts.this));
                     o.put("pw", power());   /* screen on / asleep (3 Nov) */
+                    String ip = lanIp(); if (!ip.isEmpty()) o.put("ip", ip);   /* its address on the shop network – the PC toolkit's "connect kai" reads it (15 Nov) */
                     try { org.json.JSONArray ex = exits(); if (ex.length() > 0) o.put("exits", ex); } catch (Exception ignored) { }   /* why a part of the app last stopped (6 Nov) */
                     h.getOutputStream().write(o.toString().getBytes("UTF-8"));
                     h.getResponseCode();
