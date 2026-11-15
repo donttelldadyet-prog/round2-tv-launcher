@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.10"
+#define R2_VERSION "1.1.11"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1102,6 +1102,27 @@ static void look_ddpall(void) {
   close(fd);
   if (!n) look_kv("ddpall/answers", "none");
 }
+/* 1.1.11 (owner 16 Nov: Kai's TV wakes its PS4 by HDMI-CEC): "/_wol.<12 hex MAC>" sends a Wake-on-LAN magic packet for a
+   TV (or any device) – broadcast on UDP 9 and 7, twice. The TV must allow it (TCL/LG/Sony "turn on via network/Wi-Fi"). */
+static void look_wol(const char *spec) {
+  char hx[16] = "", v[80];
+  if (sscanf(spec, "/_wol.%12[0-9a-fA-F]", hx) != 1 || strlen(hx) != 12) { look_kv("wol/error", "bad spec"); return; }
+  unsigned char mac[6], pkt[102];
+  for (int i = 0; i < 6; i++) { unsigned x; sscanf(hx + 2 * i, "%2x", &x); mac[i] = (unsigned char)x; }
+  memset(pkt, 0xff, 6); for (int i = 0; i < 16; i++) memcpy(pkt + 6 + 6 * i, mac, 6);
+  int fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (fd < 0) { look_kv("wol/error", "socket"); return; }
+  int on = 1; setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &on, sizeof on);
+  const char *dst[] = { "255.255.255.255", "192.168.88.255" }; const int ports[] = { 9, 7 };
+  int sent = 0;
+  for (int r = 0; r < 2; r++) for (int i = 0; i < 2; i++) for (int p2 = 0; p2 < 2; p2++) {
+    struct sockaddr_in to; memset(&to, 0, sizeof to); to.sin_family = AF_INET; to.sin_port = htons(ports[p2]);
+    inet_pton(AF_INET, dst[i], &to.sin_addr);
+    if (sendto(fd, pkt, sizeof pkt, 0, (struct sockaddr *)&to, sizeof to) == (ssize_t)sizeof pkt) sent++;
+  }
+  close(fd);
+  snprintf(v, sizeof v, "%d of 8 packets sent for %s", sent, hx); look_kv("wol/result", v);
+}
 static void look_wake(const char *spec) {
   char ip[24] = "", cred[72] = "", msg[300], k[64];
   int a, b, c, d;
@@ -1159,6 +1180,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_wake.", 7)) look_wake(t);
     else if (!strcmp(t, "/_wkey")) look_wkey();
     else if (!strcmp(t, "/_ddpall")) look_ddpall();
+    else if (!strncmp(t, "/_wol.", 6)) look_wol(t);
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
