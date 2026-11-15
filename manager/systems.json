@@ -325,6 +325,13 @@
           "code": "round2-tv-launcher · webos/service/round2d.sh, app/…/HomeWatch.java, manager/index.html"
         },
         {
+          "name": "PC toolkit finds each TV by itself (connect kai)",
+          "status": "test",
+          "what": "Built 15 Nov (owner: 'connect kai should read the IP the homescreen app reports'). Android TVs on app 1.0.286+ send their shop-network address with every 5-minute check-in; the TVs page shows it ('ADB 192.168.88.x:5555') and round2tv.ps1 connect <room> uses it first, falling back to the address typed in Theme manager › Rooms › Advanced. The PC asks once for the TV messages key and keeps it in its round2-tv folder. LG TVs don't use ADB.",
+          "runs": "Android app check-in → Firebase → PC toolkit / control centre",
+          "code": "round2-tv-launcher · app/…/FoodAlerts.java (lanIp), tv-tools/round2tv.ps1 (Resolve-Room), manager/index.html (TV tile)"
+        },
+        {
           "name": "Remote TV updates (Update now from the control centre)",
           "status": "live",
           "what": "Built 2 Nov (TV app 1.0.226; works on a TV once it has 1.0.226). Update now on each TV tile (Round2 messages › On the TVs now), refused while the TV is off, locked in its Staff tools, or its room has a session now or within 10 min. LG installs by itself (download + SHA-256 check first, 'don't switch off' notice, progress on the tile, reinstalls itself on start-up if cut off). Android only gets it ready – staff press Install in Staff tools › Update app. (Out of testing 11 Nov 2026.)",

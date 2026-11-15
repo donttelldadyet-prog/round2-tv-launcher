@@ -232,9 +232,36 @@ function Cmd-Setup {
   Say ("Installed: " + ((& $script:Adb version) | Select-Object -First 1))
 }
 
-# Room name -> TV address, as saved in the Theme manager (Rooms > Advanced > TV address)
-$RoomNames = @('vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'maximillion')
+# Room name -> TV address. First what the TV itself reported in its last check-in (TV app 1.0.286+, owner 15 Nov: "connect kai
+# should read the IP the homescreen app reports"), then the address typed in the control centre (Theme manager > Rooms > Advanced > TV address).
+# Reading the check-ins needs the TV messages key (control centre > Keys) - asked once and kept in this PC's round2-tv folder.
+$RoomNames = @('vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'maximillion', 'max')
+$KeyFile = Join-Path $Dir 'tv-key'
+function Get-TvKey {
+  if (Test-Path $KeyFile) { $k = (Get-Content $KeyFile -Raw).Trim(); if ($k) { return $k } }
+  Say 'To find the TVs by room name, this PC needs the TV messages key once (control centre > Tests & systems > Keys > TV messages key).'
+  $k = (Read-Host '  Paste the TV messages key (Enter to skip)').Trim() -replace '[^A-Za-z0-9]', ''
+  if ($k) { Set-Content -Path $KeyFile -Value $k -Encoding ASCII; Say "Saved in $KeyFile" }
+  return $k
+}
 function Resolve-Room([string]$name) {
+  if ($name -eq 'max') { $name = 'maximillion' }
+  $fbRoom = if ($name -eq 'maximillion') { 'max' } else { $name }
+  # 1. the TV's own report
+  $k = Get-TvKey
+  if ($k) {
+    try {
+      $h = Invoke-RestMethod -UseBasicParsing -TimeoutSec 10 -Uri ("https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/r2/$k/$fbRoom/helper.json")
+      if ($h -and $h.ip) {
+        $age = [math]::Round(([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - [double]$h.t) / 60000)
+        Say "The $name TV reported $($h.ip) $age min ago"
+        if ($h.tv -ne 'android') { Say "Note: the $name TV is $($h.tv), not Android - ADB is for the Android TVs" }
+        return "$($h.ip)"
+      }
+      if ($h) { Say "The $name TV doesn't report its address yet (TV app older than 1.0.286) - using the saved one" }
+    } catch { Say "Couldn't read the TVs' check-ins ($($_.Exception.Message)) - using the saved address" }
+  }
+  # 2. the address typed in the control centre
   $cache = Join-Path $Dir 'tv-addresses.json'
   try {
     $j = Invoke-RestMethod -UseBasicParsing -Uri 'https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/main/themes/themes.json'
@@ -250,7 +277,7 @@ function Cmd-Connect([string]$ip) {
   if ($ip -and $RoomNames -contains $ip.ToLower()) {
     $room = $ip.ToLower()
     $ip = Resolve-Room $room
-    if (-not $ip) { Die "No TV address saved for $room. Add it in the Theme manager: Rooms > $room > Advanced > TV address (the TV shows it under Options > Staff mode > About this TV)." }
+    if (-not $ip) { Die "No address for ${room}: its TV hasn't reported one (needs TV app 1.0.286+ and the TV on) and none is saved in the control centre (Theme manager > Rooms > $room > Advanced > TV address). The TV shows it under Staff tools > About this TV." }
     Say "$room's TV is at $ip"
   }
   $usb = $ip -eq 'usb'
@@ -736,7 +763,7 @@ Usage: powershell -ExecutionPolicy Bypass -File .\round2tv.ps1 <command>
 
   start [IP|room]        setup + connect + backup + draft cleanup list (changes nothing); IP picks the TV
   setup                  install adb from Google's official platform-tools if missing
-  connect [IP|room]      connect to a TV by address, or by room name (kai, kaeden...) using the addresses saved in the Theme manager
+  connect [IP|room]      connect to a TV by address, or by room name (kai, kaeden...) using the address the TV itself reports (falls back to the one saved in the Theme manager)
   connect usb            use the TV on the USB cable (for TVs whose network debugging closes, like Atlas)
   backup                 save package lists, all settings, home app, and create undo.ps1
   propose                draft cleanup list for review (changes nothing)

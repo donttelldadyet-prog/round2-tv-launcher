@@ -73,6 +73,9 @@ and stay alive. Read this before changing anything "for all TVs".
 
 The Android TVs' AirPlay is someone else's app (`io.github.jqssun.airplay` or PhairPlay) – the menu only opens it.
 PC toolkit: `round2tv.ps1 diag` saves a report (helper state, who closed it and why, volume changes, audio focus, the log).
+`round2tv.ps1 connect kai` (any room name) uses the address the TV itself reported in its last check-in (Android app 1.0.286+,
+shown on the TVs page as `ADB …:5555`), then the one typed in Theme manager › Rooms › Advanced. The first time, the PC asks for
+the TV messages key (control centre › Tests & systems › Keys) and keeps it in its `round2-tv` folder as `tv-key` (15 Nov).
 
 ### Kai: remote presses multiplied / helper killed – options ON HOLD (owner, 14 Nov 2026: "keep this logged, hold off")
 **What happened (14 Nov, ~5:50–6:05pm, after a long session in Kai):** the remote registered presses several times ("spoilt
