@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.28"
+#define R2_VERSION "1.1.29"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -55,6 +55,8 @@ int sceKernelSendNotificationRequest(int, notify_request_t *, size_t, int);
 int sceKernelGetCpuTemperature(int *);
 int sceKernelGetSocSensorTemperature(int, int *);
 int sceKernelGetOpenPsId(uint8_t *);
+/* 1.1.29: sceKernelGetHwModelName / GetIdPs / IsNeoMode live in libkernel_sys – looked up at run time (never linked), so a
+   PS4 without them just reports nothing. */
 int sceKernelLoadStartModule(const char *, size_t, const void *, uint32_t, void *, int *);
 int sceKernelDlsym(int, const char *, void **);
 int sceSystemStateMgrEnterStandby(int);
@@ -467,6 +469,25 @@ static int report(const char *key, char *status, size_t slen) {
   size_t l = sizeof fw;
   sysctlbyname("kern.sdk_version", &fw, &l, 0, 0);
   jadd(",\"fw\":\"%x.%02x\"", (fw >> 24) & 0xff, (fw >> 16) & 0xff);
+  { /* 1.1.29 (owner 17 Nov 12:07am "a helper can't read the hardware?"): model name, Pro or not, and the product bytes of
+       the console ID (they say which model family/region). Read once, buffers far bigger than needed. */
+    static char model[64]; static char idps[40]; static int pro = -1, done = 0;
+    if (!done) {
+      done = 1;
+      int (*getModel)(char *) = 0, (*getIdps)(uint8_t *) = 0, (*isNeo)(void) = 0;
+      int lk = 0x2001; /* libkernel(_sys), already loaded in every process */
+      sceKernelDlsym(lk, "sceKernelGetHwModelName", (void **)&getModel);
+      if (!getModel) { int h = sceKernelLoadStartModule("/system/common/lib/libkernel_sys.sprx", 0, 0, 0, 0, 0); if (h > 0) { lk = h; sceKernelDlsym(lk, "sceKernelGetHwModelName", (void **)&getModel); } }
+      sceKernelDlsym(lk, "sceKernelGetIdPs", (void **)&getIdps);
+      sceKernelDlsym(lk, "sceKernelIsNeoMode", (void **)&isNeo);
+      static char mb[256]; memset(mb, 0, sizeof mb);
+      if (getModel && getModel(mb) == 0) { for (int i = 0; i < 48 && mb[i]; i++) model[i] = (mb[i] >= 32 && mb[i] < 127) ? mb[i] : '?'; }
+      static uint8_t ib[64]; memset(ib, 0, sizeof ib);
+      if (getIdps && getIdps(ib) == 0) for (int i = 0; i < 8; i++) snprintf(idps + i * 2, 3, "%02x", ib[i]);
+      pro = isNeo ? isNeo() : -1;
+    }
+    jadd(",\"hw\":{\"model\":"); jstr(model); jadd(",\"idps8\":\"%s\",\"pro\":%d}", idps, pro);
+  }
   int c = -1, s = -1;
   sceKernelGetCpuTemperature(&c);
   sceKernelGetSocSensorTemperature(0, &s);
