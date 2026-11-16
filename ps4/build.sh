@@ -27,8 +27,15 @@ mkdir -p "$D/inc"; cp "$D/sqlite/sqlite3.h" "$D/inc/"
 $CC -Wall -O2 -I"$D/mbedtls/include" -Itls -I"$D/inc" -DMBEDTLS_USER_CONFIG_FILE='"r2_mbedtls_config.h"' \
   -o out/round2-probe.elf probe/main.c tls/r2tls.c "$D/ca_bundle.c" "$D/libmbedtls-ps4.a" "$D/sqlite3.o" \
   -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl -lScePad
+# own-program test (helper 1.1.18): the test payload is built first and carried inside the helper; spawn/ = elfldr's method
+$CC -Wall -O2 -o out/round2-own.elf own/main.c
+python3 - <<'PY'
+d=open('out/round2-own.elf','rb').read()
+open('.deps/own_elf.c','w').write('const unsigned char r2_own_elf[] = {'+','.join(str(x) for x in d)+'};\nconst unsigned int r2_own_elf_len = %d;\n'%len(d))
+PY
+for f in elfldr pt r2spawn; do $CC -fPIC -Wall -O2 -mstackrealign -c spawn/$f.c -o "$D/sp-$f.o"; done
 $CC -Wall -O2 -I"$D/mbedtls/include" -Itls -DMBEDTLS_USER_CONFIG_FILE='"r2_mbedtls_config.h"' \
-  -o out/round2d.elf helper/main.c tls/r2tls.c "$D/ca_bundle.c" "$D/libmbedtls-ps4.a" \
+  -o out/round2d.elf helper/main.c tls/r2tls.c "$D/ca_bundle.c" "$D/own_elf.c" "$D/sp-elfldr.o" "$D/sp-pt.o" "$D/sp-r2spawn.o" "$D/libmbedtls-ps4.a" \
   -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl
 $CC -Wall -O2 -o out/round2-boot.elf boot/main.c   # the starter (AutoRun) – no network, no TLS
 # Round2 build of the blocker (nanoDNS + settings reload without a restart) – see nanodns/main.c

@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.17"
+#define R2_VERSION "1.1.18"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1554,6 +1554,34 @@ static void do_dns(const char *key, const char *cid, const char *body) {
 #undef STEP
 }
 
+/* 1.1.18 (owner 16 Nov "1" = try the own-program route): "/_own" starts the small test payload built into this helper
+   (own/main.c: writes /data/round2/own-test.txt for 3 minutes, then ends) as its OWN PS4 program – see spawn/r2spawn.c.
+   "/_kill.<pid>" stops it again – only the program number that "/_own" started. Steps are in /data/round2/own-spawn.log. */
+extern const unsigned char r2_own_elf[]; extern const unsigned int r2_own_elf_len;
+pid_t r2_spawn_own(const char *name, const uint8_t *elf, size_t n, char *why, size_t wn);
+#define OWNPID "/data/round2/own-pid.txt"
+static void look_own(void) {
+  char run[32], why[160] = "", v[64];
+  running_title(run, sizeof run);
+  if (run[0] && strcmp(run, VUE_ID)) { look_kv("own/result", "refused: a game is open"); return; }
+  unlink("/data/round2/own-test.txt");
+  pid_t pid = r2_spawn_own("round2-own", r2_own_elf, r2_own_elf_len, why, sizeof why);
+  snprintf(v, sizeof v, "%d", (int)getpid()); look_kv("own/helper-program", v);
+  look_kv("own/result", why);
+  if (pid > 0) { snprintf(v, sizeof v, "%d", (int)pid); look_kv("own/program", v); put_file(OWNPID, v); }
+}
+static void look_kill(const char *spec) {
+  int pid = atoi_safe(spec + 7), mine = 0;
+  FILE *f = fopen(OWNPID, "r"); char b[24] = "";
+  if (f) { if (fgets(b, sizeof b, f)) mine = atoi_safe(b); fclose(f); }
+  if (pid < 100 || pid != mine) { look_kv("kill/result", "refused: not the program /_own started"); return; }
+  int r = kill(pid, SIGKILL);
+  usleep(300000);
+  char v[64]; snprintf(v, sizeof v, "kill %d -> %d (errno %d), still there: %s", pid, r, r ? errno : 0, kill(pid, 0) ? "no" : "yes");
+  look_kv("kill/result", v);
+  unlink(OWNPID);
+}
+
 static void do_look(const char *key, const char *cid, const char *body) {
   Jn = 0;
   look_n = 0;
@@ -1582,6 +1610,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_ps")) look_ps();
     else if (!strncmp(t, "/_thr", 5)) look_thr(t);
     else if (!strcmp(t, "/_sock")) look_sock();
+    else if (!strcmp(t, "/_own")) look_own();
+    else if (!strncmp(t, "/_kill.", 7)) look_kill(t);
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
