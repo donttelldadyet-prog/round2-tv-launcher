@@ -160,6 +160,7 @@ details.past { border-top: 1px solid var(--line); padding-top: 12px; }
 details.past summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; }
 details.past .list { margin-top: 10px; }
 .empty { color: var(--mute); border: 1px dashed var(--line2); padding: 14px; font-size: 14px; }
+.item .shows{margin:8px 0 2px;font-size:15px;color:#d6d0e3}.item .shows b{color:#F2C21B;font-size:17px}
 </style>
 
 <header class="top"><div class="wrap">
@@ -425,6 +426,8 @@ details.past .list { margin-top: 10px; }
     var d = x.data, st = state(x), R = ROOMS[d.room] || [d.room, '#F2C21B'], c = esc(x.key), r2 = /^R2/.test(x.key);   /* R2… = queued from the control centre */
     var h = '<article class="item" style="--rc:' + R[1] + '"><div class="top"><span class="chip room">' + esc(R[0]) + '</span><span class="chip st-' + st + '">' + CHIP[st] + '</span>' + (r2 ? '<span class="chip">Round2 message</span>' : '') + tieChip(x, st) +
       '<span class="when">' + esc(day(d.start)) + ' · starts ' + esc(clock(d.start)) + '</span><span class="code">' + c + '</span></div>';
+    /* owner, 16 Nov: "starts 11:00 am" is the booking – say right under it when the message shows (it was only in small print below) */
+    if (st !== 'cancelled' && st !== 'ended') h += '<div class="shows">' + (d.title && d.at ? '📺 Message ' + (st === 'ontv' ? 'showed ' : 'shows ') + '<b>' + esc(clock(d.at)) + '</b>' + (day(d.at) !== day(d.start) ? ' on ' + esc(day(d.at)) : '') + (d.at > d.start ? ' · ' + Math.round((d.at - d.start) / 60000) + ' min after the start' : d.at === d.start ? ' · right at the start' : '') : '📺 No message yet – the guest hasn’t written it') + '</div>';
     if (d.label && !r2) h += '<div class="label">' + esc(d.label) + '</div>';
     if (d.title) h += '<div class="mini"><div class="tg">' + esc((TAGS[d.kind] || '') + (d.to ? ' · for ' + d.to : '')) + '</div><div class="t">' + esc(d.title) + '</div><p>' + esc(d.text) + '</p>' +
       (d.from ? '<div class="fr">— ' + esc(d.from) + '</div>' : '') + '<div class="at">Pops up ' + esc(day(d.at)) + ' at ' + esc(clock(d.at)) + '</div></div>';
