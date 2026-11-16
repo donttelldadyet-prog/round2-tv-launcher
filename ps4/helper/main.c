@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.16"
+#define R2_VERSION "1.1.17"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1287,7 +1287,67 @@ static int ps_look_one(int pid, const char *comm, const char *td, void *u) {
   snprintf(k, sizeof k, "ps/%d", pid); snprintf(v, sizeof v, "%s|%s", comm, td);
   look_kv(k, v); return 0;
 }
-static void look_ps(void) { if (ps_list(ps_look_one, 0) < 0) look_kv("ps/error", "can't list"); }
+static void look_ps(void) {
+  char v[64]; snprintf(v, sizeof v, "%d (parent %d)", (int)getpid(), (int)getppid()); look_kv("ps/me", v); /* 1.1.17 */
+  if (ps_list(ps_look_one, 0) < 0) look_kv("ps/error", "can't list");
+}
+/* 1.1.17 (owner 16 Nov, option B: find the blocker so it can be restarted live) – read-only:
+   "/_thr.<pid>"  the threads inside one program (thread number -> name); "/_thr" = the helper's own program
+   "/_sock"       every program's network sockets bound to a port: which program holds DNS (53), BinLoader (9090), FTP (2121)
+   kinfo_file: only the leading fields (same in every FreeBSD version) are used; records are stepped by kf_structsize. */
+static void look_thr(const char *spec) {
+  int pid = spec[5] == '.' ? atoi_safe(spec + 6) : (int)getpid();
+  int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID | KERN_PROC_INC_THREAD, pid };
+  size_t sz = 0;
+  char v[64];
+  snprintf(v, sizeof v, "%d", pid); look_kv("thr/pid", v);
+  if (sysctl(mib, 4, 0, &sz, 0, 0) || !sz) { snprintf(v, sizeof v, "can't list (errno %d)", errno); look_kv("thr/error", v); return; }
+  sz += 64 * sizeof(struct kinfo_proc);
+  char *b = malloc(sz); if (!b) return;
+  if (sysctl(mib, 4, b, &sz, 0, 0)) { free(b); snprintf(v, sizeof v, "can't list (errno %d)", errno); look_kv("thr/error", v); return; }
+  int n = 0;
+  for (char *p = b; p + sizeof(int) <= b + sz && n < 300;) {
+    struct kinfo_proc *k = (struct kinfo_proc *)p; int ss = k->ki_structsize;
+    if (ss <= 0 || p + ss > b + sz) break;
+    char key[24], nm[TDNAMLEN + 2]; snprintf(key, sizeof key, "thr/%d", (int)k->ki_tid); snprintf(nm, sizeof nm, "%s", k->ki_tdname);
+    look_kv(key, nm); n++; p += ss;
+  }
+  snprintf(v, sizeof v, "%d", n); look_kv("thr/count", v);
+  free(b);
+}
+static int sock_one_proc(int pid, const char *comm, const char *td, void *u) {
+  (void)td; int *total = u;
+  int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_FILEDESC, pid };
+  size_t sz = 0;
+  if (sysctl(mib, 4, 0, &sz, 0, 0) || !sz) return 0;
+  sz += 4096;
+  char *b = malloc(sz); if (!b) return 0;
+  if (sysctl(mib, 4, b, &sz, 0, 0)) { free(b); return 0; }
+  for (char *p = b; p + 64 <= b + sz && *total < 300;) {
+    int ss = *(int *)p, type = *(int *)(p + 4), fd = *(int *)(p + 8);
+    if (ss <= 0 || p + ss > b + sz) break;
+    if (type == 2) { /* KF_TYPE_SOCKET */
+      int dom = *(int *)(p + 36), st = *(int *)(p + 40);
+      struct sockaddr_in *la = (struct sockaddr_in *)(p + 48);
+      if (dom == AF_INET && la->sin_port) {
+        unsigned char *q = (unsigned char *)&la->sin_addr.s_addr;
+        char key[32], v[80]; snprintf(key, sizeof key, "sock/%d.%d", pid, fd);
+        snprintf(v, sizeof v, "%s %u.%u.%u.%u:%u %s", st == SOCK_DGRAM ? "udp" : st == SOCK_STREAM ? "tcp" : "?", q[0], q[1], q[2], q[3], ntohs(la->sin_port), comm);
+        look_kv(key, v); (*total)++;
+      }
+    }
+    p += ss;
+  }
+  free(b);
+  return *total >= 300;
+}
+static void look_sock(void) {
+  int total = 0;
+  if (ps_list(sock_one_proc, &total) < 0) look_kv("sock/error", "can't list programs");
+  char v[24]; snprintf(v, sizeof v, "%d", total); look_kv("sock/count", v);
+  /* our own program too (it may not be in the list) */
+  int me = (int)getpid(), t2 = 0; sock_one_proc(me, "(helper's own)", "", &t2);
+}
 static int has_ci(const char *h, const char *n) { for (; *h; h++) if (!strncasecmp(h, n, strlen(n))) return 1; return 0; }
 typedef struct { int pids[8], n, me; } dns_find_t;
 static int dns_find_one(int pid, const char *comm, const char *td, void *u) {
@@ -1520,6 +1580,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_wol.", 6)) look_wol(t);
     else if (!strncmp(t, "/_tail.", 7)) look_tail(t + 7, dp);
     else if (!strcmp(t, "/_ps")) look_ps();
+    else if (!strncmp(t, "/_thr", 5)) look_thr(t);
+    else if (!strcmp(t, "/_sock")) look_sock();
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
