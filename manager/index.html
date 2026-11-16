@@ -3024,26 +3024,33 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function tile(p) {
       var R = ROOMS[RK(p.room)] || { name: 'New PS4', c: '#888' }, now = R2Day.now(), on = p.poll && now - p.poll < 3 * 60000;
-      var lines = [], warn = [];
-      /* owner, 16 Nov: "Offline" couldn't tell rest mode from a stopped helper. Rest mode we sent is known from the job itself;
-         helper 1.1.14+ says when the PS4 last woke and for how long it slept, and sends the starter's last log lines. */
+      /* owner, 16 Nov: the tile had grown to 12 lines. Now: what state it's in, one line of the numbers that matter, anything
+         wrong, the buttons – and everything else (address, Wi-Fi, firmware, games, wake times, log) under "More".
+         Rest mode we sent is known from the job itself; helper 1.1.14+ says when the PS4 last woke and sends the starter's log. */
+      var lines = [], warn = [], more = [];
       var byUs = !on && p.cmd && p.cmd.do === 'look' && /\/_rest/.test(p.cmd.p || '') && p.cmd.state === 'done' && p.cmd.doneAt && Math.abs((p.poll || 0) - p.cmd.doneAt) < 3 * 60000 && !(p.cmd.res && /refused/.test(JSON.stringify(p.cmd.res)));
       if (byUs) lines.push('<span style="color:var(--warn,#F2C21B);font-weight:700">😴 Rest mode · sent by us ' + esc(ago(p.cmd.doneAt)) + '</span>');
-      else if (!on) lines.push('<span style="color:var(--bad);font-weight:700">Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '') + '</span><span class="tvv" style="white-space:normal">Rest mode, switched off, or the helper stopped. If the PS4 is on: restart it and run the jailbreak.</span>');
+      else if (!on) lines.push('<span style="color:var(--bad);font-weight:700">Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '') + '</span><span class="tvv" style="white-space:normal">Asleep, off, or helper stopped</span>');
       else lines.push('<span style="color:var(--ok)">✓ Online' + (p.running ? ' · playing ' + esc(p.runName || p.running) : '') + '</span>');
       if (p.sony !== 'blocked') warn.push('⚠️ Sony NOT blocked – check its DNS (127.0.0.1)');
       if (p.rolled) warn.push('↩️ Helper ' + p.rolled + ' – it stays on ' + (p.v || 'the old version') + ' until a newer one is out');
       if (p.updGuard && p.updGuard.blocked) warn.push('🛡️ Stopped ' + p.updGuard.blocked + ' system update' + (p.updGuard.blocked > 1 ? 's' : '') + (p.updGuard.agoS >= 0 ? ' (last ' + esc(ago(now - p.updGuard.agoS * 1000)) + ')' : ''));
       var cpu = p.temp && p.temp.cpu > 0 ? p.temp.cpu : 0;
-      lines.push('<span>' + (p.sony === 'blocked' ? 'Sony blocked · ' : '') + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' of ' + p.disk.total.toFixed(0) + ' GB free' : '') + '</span>');
       var junk = (+p.downloadsMB || 0) + (p.captures ? +p.captures.mb || 0 : 0);
       var old = p.v && p4newer(selfUp, p.v);   /* helpers before 1.0.7 can't hand over safely – FTP once */
-      var vtxt = 'v' + esc(p.v || '?') + (latest && p.v && p4newer(latest, p.v) ? ' <i class="uw">(' + esc(latest) + ' out' + (old || !p.boot ? ' – needs ' + esc(selfUp) + '+ and the new starter by FTP once' : ' – updates by itself in quiet time') + ')</i>' : p.boot ? ' <i class="uo">up to date</i>' : '');
-      if (p.wifi && p.wifi.ip) lines.push('<span class="tvv">FTP <b>' + esc(p.wifi.ip) + ':2121</b>' + (p.wifi.pct ? ' · Wi-Fi ' + (+p.wifi.pct) + '%' : '') + '</span>');   /* from its latest report – always current */
-      lines.push('<span class="tvv">' + vtxt + ' · FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games · reported ' + esc(ago(p.t)) + cmdLine(p.cmd) + '</span>');
-      if (p.woke && p.woke.at && p.psClock) { var wk = p.t - (p.psClock - p.woke.at) * 1000, sl = +p.woke.sleptS || 0; lines.push('<span class="tvv">😴 Last woke from rest ' + esc(ago(wk)) + ' · slept ' + (sl >= 3600 ? Math.floor(sl / 3600) + ' h ' : '') + Math.round(sl % 3600 / 60) + ' min</span>'); }
-      if (p.up && p.psClock) lines.push('<span class="tvv">Helper running since ' + esc(ago(p.t - (p.psClock - p.up) * 1000)) + '</span>');
-      var lg = p.log && ((p.log.stopped || []).concat(p.log.boot || [])).length ? '<details class="tvv" style="white-space:normal"><summary>Helper log (PS4 clock)</summary>' + ((p.log.stopped || []).map(function (l) { return '<div style="color:var(--bad)">' + esc(l) + '</div>'; }).join('')) + ((p.log.boot || []).map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('')) + '</details>' : '';
+      var behind = latest && p.v && p4newer(latest, p.v);
+      lines.push('<span>' + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' GB free · ' : '') + 'v' + esc(p.v || '?') + (behind ? ' <i class="uw">→ ' + esc(latest) + '</i>' : p.boot ? ' <i class="uo">✓</i>' : '') + '</span>');
+      var cl = cmdLine(p.cmd).replace(/^<br>/, '');   /* the last job's result: on the tile for an hour, then under More */
+      if (cl && now - (p.cmd.doneAt || p.cmd.takenAt || p.cmd.at || 0) < 60 * 60000) lines.push('<span class="tvv" style="white-space:normal">' + cl + '</span>');
+      else if (cl) more.push('Last job: ' + cl);
+      if (behind) more.push(esc(latest) + ' is out – ' + (old || !p.boot ? 'needs ' + esc(selfUp) + '+ and the new starter by FTP once' : 'it updates by itself in quiet time'));
+      if (p.wifi && p.wifi.ip) more.push('FTP <b>' + esc(p.wifi.ip) + ':2121</b>' + (p.wifi.pct ? ' · Wi-Fi ' + (+p.wifi.pct) + '%' : ''));   /* from its latest report – always current */
+      more.push((p.sony === 'blocked' ? 'Sony blocked · ' : '') + 'FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games' + (p.disk ? ' · disk ' + p.disk.total.toFixed(0) + ' GB' : ''));
+      more.push('Reported ' + esc(ago(p.t)) + (p.up && p.psClock ? ' · helper running since ' + esc(ago(p.t - (p.psClock - p.up) * 1000)) : ''));
+      if (p.woke && p.woke.at && p.psClock) { var wk = p.t - (p.psClock - p.woke.at) * 1000, sl = +p.woke.sleptS || 0; more.push('😴 Last woke from rest ' + esc(ago(wk)) + ' · slept ' + (sl >= 3600 ? Math.floor(sl / 3600) + ' h ' : '') + Math.round(sl % 3600 / 60) + ' min'); }
+      if (!on && !byUs) more.push('If the PS4 is on: restart it and run the jailbreak.');
+      var lgl = p.log ? (p.log.stopped || []).map(function (l) { return '<div style="color:var(--bad)">' + esc(l) + '</div>'; }).concat((p.log.boot || []).map(function (l) { return '<div>' + esc(l) + '</div>'; })) : [];
+      var lg = '<details class="tvv" style="white-space:normal"><summary>More</summary>' + more.map(function (m) { return '<div style="margin:3px 0">' + m + '</div>'; }).join('') + (lgl.length ? '<div style="margin-top:6px;opacity:.8">Helper log (PS4 clock)</div><div style="font-size:11px;line-height:1.35">' + lgl.join('') + '</div>' : '') + '</details>';
       var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
       var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
           Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
