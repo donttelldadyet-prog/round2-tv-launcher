@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.13"
+#define R2_VERSION "1.1.14"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -387,6 +387,41 @@ static int update_guard(void) { /* 1 = it stopped something just now */
 }
 
 /* ---------- report ---------- */
+/* 1.1.14 (owner 16 Nov: Bella and Atlas were on but "Offline" – nobody could tell rest mode from a stopped helper):
+   - "up": when this helper started (PS4 clock), "woke": the last time the PS4 came back from rest mode and how long it was
+     frozen. Rest mode freezes the helper, so it can't say goodbye – but its 2-second sleep comes back minutes or hours late,
+     and that gap IS the rest (seen in main()). No signal handler is involved (see 1.1.13).
+   - "log": the last lines of the starter's log and of helper-stopped.txt, so a helper that stopped can be understood from
+     the control centre next time instead of by FTP in the room. */
+static long long g_up, wake_at, wake_slept;
+static int wake_n;
+static int tail_n;
+static void add_tail(const char *name, const char *path, int lines) {
+  FILE *f = fopen(path, "r");
+  if (!f) return;
+  char buf[1600];
+  fseek(f, 0, SEEK_END);
+  long n = ftell(f), from = n > (long)sizeof buf - 1 ? n - ((long)sizeof buf - 1) : 0;
+  fseek(f, from, SEEK_SET);
+  size_t k = fread(buf, 1, sizeof buf - 1, f);
+  fclose(f);
+  buf[k] = 0;
+  while (k && (buf[k - 1] == '\n' || buf[k - 1] == '\r')) buf[--k] = 0;
+  char *st = buf + k;
+  for (int c = 0; st > buf; st--) if (st[-1] == '\n' && ++c >= lines) break;
+  jadd("%s\"%s\":[", tail_n++ ? "," : "", name);
+  for (int first = 1; *st;) {
+    char *e = strchr(st, '\n');
+    if (e) *e = 0;
+    if (strlen(st) > 150) st[150] = 0;
+    if (!first) jadd(",");
+    jstr(st);
+    first = 0;
+    if (!e) break;
+    st = e + 1;
+  }
+  jadd("]");
+}
 static uint64_t games_sent_hash;
 static int report(const char *key, char *status, size_t slen) {
   char run[32];
@@ -413,6 +448,9 @@ static int report(const char *key, char *status, size_t slen) {
     f = fopen(APP "/rolled-back.txt", "r"); if (f) { if (!fgets(rb, sizeof rb, f)) rb[0] = 0; fclose(f); rb[strcspn(rb, "\r\n")] = 0; }
     if (bv[0]) { jadd(",\"boot\":"); jstr(bv); }
     if (rb[0]) { jadd(",\"rolled\":"); jstr(rb); } }
+  jadd(",\"up\":%lld", g_up);
+  if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld}", wake_n, wake_at, wake_slept);
+  tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); jadd("}");
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
   jadd("}");
@@ -1275,6 +1313,7 @@ int main(void) {
   get_console_id();
   char key[128] = "", status[400] = "starting";
   int warned = 0;
+  g_up = (long long)time(0);
   write_status("started, first report in about 10 seconds");
   update_guard();
   for (unsigned long m = 0;; m++) {
@@ -1306,7 +1345,18 @@ int main(void) {
         notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
         if (read_key(key, sizeof key)) { report(key, status, sizeof status); write_status(status); } /* tell the engine now */
       }
+      time_t t0 = time(0);
       sleep(2);
+      long long gap = (long long)(time(0) - t0);
+      if (gap > 90) { /* 1.1.14: a 2 s sleep that took minutes = the PS4 was in rest mode (frozen) and has just woken */
+        wake_n++; wake_slept = gap; wake_at = (long long)time(0);
+        sleep(12); /* the network comes back a few seconds after the screen */
+        if (read_key(key, sizeof key)) {
+          int st = report(key, status, sizeof status);
+          for (int i = 0; st != 200 && i < 6; i++) { sleep(8); st = report(key, status, sizeof status); }
+          write_status(status);
+        }
+      }
     }
   }
   return 0;
