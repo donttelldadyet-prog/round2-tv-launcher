@@ -178,6 +178,9 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
       upList = j.sessions || []; renderUp();
     }).catch(function () { $('up').innerHTML = '<li style="--rc:var(--warn)" class="warn">Couldn’t reach the engine.</li>'; report(); });
   }
+  function waNum(n) { n = String(n || '').replace(/\D/g, ''); return n.length === 8 ? '65' + n : n; }
+  /* a note's confirmation link (owner, 16 Nov): book.round2.sg/c/<code> – the same "You're booked" page as online bookings */
+  function noteMsg(name, room, when, link) { return 'Hi ' + name + '! Your Round2 booking is confirmed: ' + room + ', ' + when + '. Your booking page (details, address, add a TV message): ' + link; }
   function renderUp() {
       $('up').innerHTML = upList.length ? upList.map(function (x, i) {
         var r = roomOf(x.unit), A = sgMin(x.s, x.night), E = sgMin(x.guestEnd, x.night), late = A >= 23 * 60 || E > 23 * 60 + 15;   /* late by its times only (owner, 5 Nov) – same rule as the engine */
@@ -188,7 +191,8 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
           '<div class="hint" style="margin-top:4px">To change or cancel: Bookings › Move a booking, or SimplyBook.</div></li>';
         return '<li style="--rc:' + r[2] + '"><div class="t">' + (late ? '<span class="moon">🌙 Late</span> ' : '') + esc(r[1] + ' · ' + (x.name || x.text)) + (x.pax ? ' · ' + x.pax + ' pax' : '') + (editing && editing.id === x.id ? ' <span class="hint">(changing)</span>' : '') + '</div>' +
           '<div class="w">Night of ' + dayName(x.night) + ' · ' + hm(A) + (A >= 1440 ? ' (' + dayName(addDays(x.night, 1)) + ')' : '') + ' → ' + hm(E) + (E >= 1440 && A < 1440 ? ' (' + dayName(addDays(x.night, 1)) + ')' : '') + ' · ' + ((E - A) / 60) + 'h' + (x.ext ? ' · extended' : '') + (x.live ? ' · <b class="okmsg">playing now</b>' : '') + '</div>' +
-          '<div class="row"><button class="btn" type="button" data-ch="' + i + '">Change</button><button class="btn danger" type="button" data-cx="' + i + '">Cancel</button></div></li>';
+          '<div class="row">' + (x.link ? '<button class="btn" type="button" data-cp="' + i + '">Copy link</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(noteMsg(x.name || 'there', r[1], dayName(x.night) + ', ' + hm(A) + '–' + hm(E), x.link)) + '">WhatsApp it</a>' : '<button class="btn" type="button" data-mk="' + i + '">Get booking link</button>') +
+          '<button class="btn" type="button" data-ch="' + i + '">Change</button><button class="btn danger" type="button" data-cx="' + i + '">Cancel</button></div></li>';
       }).join('') : '<li style="--rc:var(--line)" class="w">Nothing keyed in coming up.</li>';
       report();
   }
@@ -206,7 +210,13 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   function stopEdit() { $('clear').onclick(); renderUp(); }
   $('up').addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('button') : null; if (!b) return;
-    var ch = b.getAttribute('data-ch'), cx = b.getAttribute('data-cx'), cp = b.getAttribute('data-cp');
+    var ch = b.getAttribute('data-ch'), cx = b.getAttribute('data-cx'), cp = b.getAttribute('data-cp'), mk = b.getAttribute('data-mk');
+    if (mk !== null) {   /* a note keyed in before 16 Nov: make its confirmation link now */
+      var y = upList[+mk]; b.disabled = true; b.textContent = 'Making…';
+      call({ id: y.id, day: y.day }, 'latelink').then(function (j) { if (!j || !j.ok) { b.disabled = false; b.textContent = 'Get booking link'; alertUp((j && j.error) || 'No answer'); return; } y.link = j.link; renderUp(); })
+        .catch(function () { b.disabled = false; b.textContent = 'Get booking link'; alertUp('Couldn’t reach the engine.'); });
+      return;
+    }
     if (cp !== null) { var L = upList[+cp].link; try { navigator.clipboard.writeText(L).then(function () { b.textContent = 'Copied ✓'; }, function () { prompt('Copy this link', L); }); } catch (e3) { prompt('Copy this link', L); } return; }
     if (ch !== null) { startEdit(upList[+ch]); return; }
     if (cx !== null) {
@@ -230,8 +240,8 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
       var p = j.plan, clash = p.clash && p.clash.length; ready = form();
       var h = '<div class="card" style="margin:0;border-top-color:' + (clash ? 'var(--warn)' : 'var(--ok)') + '"><b>' + esc(p.room) + ' · ' + esc(p.name) + ' · ' + p.pax + ' pax</b><br>' +
         'Arrives <b>' + esc(p.arrivesDay) + ', ' + esc(p.arrives) + '</b> · leaves <b>' + esc(p.leavesDay) + ', ' + esc(p.guestEnd) + '</b> · ' + p.hours + 'h<br>' +
-        (p.as === 'booking' ? '<b style="color:var(--ok)">Real SimplyBook booking</b> ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.price ? ' · $' + Number(p.price).toFixed(2) : '') + ' · you get a booking link to send' + ($('email').value.trim() ? ' · the guest also gets the confirmation email' : '') :
-         'SimplyBook note: ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.nextDay ? '. After midnight it shows at the top of the next day in SimplyBook.' : '') + (p.whyNote && !editing ? ' <span class="hint">(a note because: ' + esc(p.whyNote) + ')</span>' : '')) +
+        (p.as === 'booking' ? '<b style="color:var(--ok)">Real SimplyBook booking</b> ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.price ? ' · $' + Number(p.price).toFixed(2) : '') + ' · you get a booking link to send' + ($('email').value.trim() ? ' · the guest also gets the confirmation email' : '') + '' :
+         'SimplyBook note: ' + esc(p.arrives) + '–' + esc(p.blockEnd) + ' (with 15 min cleaning)' + (p.nextDay ? '. After midnight it shows at the top of the next day in SimplyBook.' : '') + (p.whyNote && !editing ? ' <span class="hint">(a note because: ' + esc(p.whyNote) + ')</span>' : '') + ' · you still get a booking link to send') +
         (p.twin ? '<br>' + esc(p.twin) + ' gets a SYSTEM BLOCK for the same time.' : '') +
         '<br>TV: ' + (p.msgs === 'auto' ? 'Auto wrap-up is on, so it adds “About 10 minutes to go” and “That’s a wrap!” by itself.' : p.msgs === 'off' ? 'no messages added.' : p.msgs === 'later' ? 'messages not added – the session starts more than 24 hours from now. Use +1h or Round2 messages nearer the time.' : '“About 10 minutes to go” at ' + esc(p.msgs.wrapup) + ', “That’s a wrap!” at ' + esc(p.msgs.timeup) + '.');
       if (clash) h += '<p class="warn" style="margin:10px 0 0"><b>Already in the calendar then:</b><br>' + p.clash.map(function (c) { return esc(c.room + ' · ' + c.what + ' · ' + c.name + ' · ' + c.from + '–' + c.to); }).join('<br>') + '</p>';
@@ -247,13 +257,14 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
       var p = j.plan;
       var mp = (j.msgs || []).filter(function (m) { return m.problem; });
       var was = !!editing; editing = null; $('editing').hidden = true; loadUp();
-      var bk = j.booking, bh = bk ? '<div class="card" style="margin:10px 0 0;border-top-color:var(--ok)"><b>Booking made ✓</b> · code ' + esc(bk.code) + '<br><span class="hint">Send this link on WhatsApp – their booking page (TV message, receipt, reschedule):</span><br><input id="blink" readonly value="' + esc(bk.link) + '" style="width:100%;margin-top:6px"><div class="row"><button class="btn primary" type="button" id="bcopy">Copy link</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/' + esc((function (n) { n = String(n || '').replace(/\D/g, ''); return n.length === 8 ? '65' + n : n; })(f.phone)) + '?text=' + encodeURIComponent('Hi ' + p.name + '! Your Round2 booking is confirmed: ' + p.room + ', ' + p.arrivesDay + ', ' + p.arrives + '–' + p.guestEnd + '. Your booking page (add a TV message, get your receipt, or reschedule): ' + bk.link) + '">WhatsApp it</a></div>' + (bk.emailed ? '<span class="hint">The confirmation email is on its way too.</span>' : '') + '</div>' : (p.whyNote && !was ? '<br><span class="hint">Saved as a note (' + esc(p.whyNote) + ') – no booking link for notes.</span>' : '');
+      var bk = j.booking, bh = bk ? '<div class="card" style="margin:10px 0 0;border-top-color:var(--ok)"><b>Booking made ✓</b> · code ' + esc(bk.code) + '<br><span class="hint">Send this link on WhatsApp – their booking page (TV message, receipt, reschedule):</span><br><input id="blink" readonly value="' + esc(bk.link) + '" style="width:100%;margin-top:6px"><div class="row"><button class="btn primary" type="button" id="bcopy">Copy link</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/' + esc((function (n) { n = String(n || '').replace(/\D/g, ''); return n.length === 8 ? '65' + n : n; })(f.phone)) + '?text=' + encodeURIComponent('Hi ' + p.name + '! Your Round2 booking is confirmed: ' + p.room + ', ' + p.arrivesDay + ', ' + p.arrives + '–' + p.guestEnd + '. Your booking page (add a TV message, get your receipt, or reschedule): ' + bk.link) + '">WhatsApp it</a></div>' + (bk.emailed ? '<span class="hint">The confirmation email is on its way too.</span>' : '') + '</div>' : j.link ? '<div class="card" style="margin:10px 0 0;border-top-color:var(--ok)"><b>Booking link ✓</b>' + (p.whyNote && !was ? ' <span class="hint">· saved as a note (' + esc(p.whyNote) + ')</span>' : '') + '<br><span class="hint">Send this on WhatsApp – their booking page (details, address, add a TV message). ' + (was ? 'Same link as before – it shows the new time.' : '') + '</span><br><input id="blink" readonly value="' + esc(j.link) + '" style="width:100%;margin-top:6px"><div class="row"><button class="btn primary" type="button" id="bcopy">Copy link</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/' + esc(waNum(f.phone)) + '?text=' + encodeURIComponent(noteMsg(p.name, p.room, p.arrivesDay + ', ' + p.arrives + '–' + p.guestEnd, j.link)) + '">WhatsApp it</a></div></div>'
+          : (p.whyNote && !was ? '<br><span class="hint">Saved as a note (' + esc(p.whyNote) + ').</span>' : '');
       show('<span class="okmsg"><b>' + (was ? 'Changed in SimplyBook ✓' : bk ? 'Booked in SimplyBook ✓' : 'Added to SimplyBook ✓') + '</b></span><br>' + esc(p.room + ' · ' + p.name + ' · ' + p.pax + ' pax · ' + p.arrivesDay + ', ' + p.arrives + ' – ' + p.leavesDay + ', ' + p.guestEnd) +
         ((j.msgs || []).length ? '<br>' + (mp.length ? '<span class="warn">TV messages: ' + esc(mp.map(function (m) { return m.problem; }).join('; ')) + ' – set them in Round2 messages.</span>' : 'TV messages set ✓') : '') +
         (j.tied ? '<br>🔗 The guest link for this time is now tied to this session' : '') +
         /* 15 Nov (kikay, +63 number → shared contact, nobody noticed): say when SimplyBook didn't take the contact as typed */
         (bk && (bk.how || []).length ? '<br><span class="warn">⚠️ Contact: ' + esc(bk.how.filter(function (h) { return !/^SimplyBook said/.test(h); }).join('; ')) + '. The name and number are in the booking’s comment.</span>' : '') + bh);
-      if (bk) { $('bcopy').onclick = function () { var i = $('blink'); i.select(); try { navigator.clipboard.writeText(i.value).then(function () { $('bcopy').textContent = 'Copied ✓'; }); } catch (e) { document.execCommand('copy'); $('bcopy').textContent = 'Copied ✓'; } }; }
+      if (bk || j.link) { $('bcopy').onclick = function () { var i = $('blink'); i.select(); try { navigator.clipboard.writeText(i.value).then(function () { $('bcopy').textContent = 'Copied ✓'; }); } catch (e) { document.execCommand('copy'); $('bcopy').textContent = 'Copied ✓'; } }; }
       ready = null; $('name').value = ''; $('pax').value = ''; $('phone').value = ''; $('email').value = ''; $('start').value = ''; fillEnd();
       try { if (embed) parent.postMessage({ r2late: true }, location.origin); } catch (e) {}
     }).catch(function () { show('<span class="warn">Couldn’t reach the engine. Check SimplyBook before trying again.</span>'); });

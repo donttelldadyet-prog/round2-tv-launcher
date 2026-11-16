@@ -1111,7 +1111,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <p class="hh">📅 Booking or note?</p>
       <div class="hgrid">
         <div class="hmini"><div class="hbig">📅 🔗</div><b>Daytime + a mobile number</b><span>11am–11:15pm, 3–6 whole hours, nothing in the way → a <b>real SimplyBook booking</b>. You get <b>Copy link / WhatsApp it</b>: the guest’s own booking page (TV message, receipt, reschedule).</span></div>
-        <div class="hmini"><div class="hbig">📝 🌙</div><b>Anything else</b><span>late, odd length, a clash, or no mobile → a <b>calendar note</b>, like before. No link.</span></div>
+        <div class="hmini"><div class="hbig">📝 🌙</div><b>Anything else</b><span>late, odd length, a clash, no mobile or no email → a <b>calendar note</b>. It still gets a booking link to WhatsApp (book.round2.sg/c/…: details, address, TV message).</span></div>
       </div>
     </details>
 
@@ -3607,12 +3607,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }); })
       /* 7. the test night */
       .then(function () { return step('Test night free (3–7am, ~6 weeks ahead)', function () { return findNight().then(function (d) { T.night = addD(d, -1); T.day = d; return 'Using the night of ' + T.night + ' (sessions at 3am on ' + d + ')'; }); }); })
-      .then(function () { return step('Add a session (late, 3–5am): write the note, In session and the list see it', function () {
+      .then(function () { return step('Add a session (late, 3–5am): write the note, it gets a booking link, In session and the list see it', function () {
         return gm({ action: 'late', unit: '11', day: T.day, start: '03:00', end: '05:00', name: 'ZZTEST max', pax: '2', msgs: 'yes' }).then(function (j) {
-          must(j.ok, 'Add a session: ' + (j.error || 'refused')); T.max = j.notes[0].id; return Promise.all([sessOf(T.day, 11), gm({ action: 'latelist' })]);
+          must(j.ok, 'Add a session: ' + (j.error || 'refused')); T.max = j.notes[0].id;
+          /* a note gets its own confirmation link too (owner, 16 Nov) */
+          must(/^https:\/\/book\.round2\.sg\/c\/N[A-Z0-9]{7}$/.test(j.link || ''), 'The note got no booking link (' + (j.link || 'none') + ').'); T.maxLink = j.link;
+          return Promise.all([sessOf(T.day, 11), gm({ action: 'latelist' })]);
         }).then(function (r) {
           must(r[0].length === 1, 'In session sees ' + r[0].length + ' test sessions in Max (expected 1).');
-          var x = (r[1].sessions || []).filter(function (s) { return /^ZZTEST max/.test(s.text); }); must(x.length === 1, 'Upcoming sessions sees ' + x.length + '.'); T.maxS = r[0][0]; return 'Max 3–5am · note “' + x[0].text + '”';
+          var x = (r[1].sessions || []).filter(function (s) { return /^ZZTEST max/.test(s.text); }); must(x.length === 1, 'Upcoming sessions sees ' + x.length + '.'); must(x[0].link === T.maxLink, 'The list doesn’t show the note’s booking link.'); T.maxS = r[0][0]; return 'Max 3–5am · note “' + x[0].text + '” · link ' + T.maxLink.split('/c/')[1];
         }); }); })
       .then(function () { return step('Closing time follows the shop night (a 3am session is already past 11:15pm)', function () {
         return gm({ action: 'extend', day: T.day, key: T.maxS.key, hours: '1', end: String(T.maxS.sbEnd), msgs: 'no', dry: '1' }).then(function (j) {
