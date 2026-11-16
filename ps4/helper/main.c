@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.18"
+#define R2_VERSION "1.1.19"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -43,6 +43,11 @@
 #define APP "/data/round2/app"
 static void dns_file_sha(const char *path, char out[16]);
 static int file_exists(const char *p);
+static void put_file(const char *p, const char *txt);
+static int g_own;
+#define OWNHELPER "/data/round2/own-helper.pid"
+#define OWNOK "/data/round2/own-ok"
+
 #define LOCKF "/data/round2/helper.lock"
 
 typedef struct notify_request { char useless1[45]; char message[3075]; } notify_request_t;
@@ -453,6 +458,7 @@ static int report(const char *key, char *status, size_t slen) {
     if (rb[0]) { jadd(",\"rolled\":"); jstr(rb); } }
   { char dh[16]; dns_file_sha("/data/nanodns/nanodns.ini", dh); /* 1.1.16: which blocker settings this PS4 has (first 12 of SHA-256) */
     jadd(",\"dns\":{\"sha\":\"%s\",\"prev\":%d}", dh, file_exists("/data/nanodns/nanodns.ini.prev")); }
+  jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
   if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld}", wake_n, wake_at, wake_slept);
   tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); jadd("}");
@@ -471,6 +477,7 @@ static int report(const char *key, char *status, size_t slen) {
   if (st == 200) {
     games_sent_hash = gh;
     nplayed = 0; /* counted by the engine */
+    if (g_own && !file_exists(OWNOK)) put_file(OWNOK, R2_VERSION); /* tells the helper that started us: all good */
   }
   snprintf(status, slen, "%d %s %.200s", st, err, body);
   return st;
@@ -594,8 +601,11 @@ static void jget(const char *b, const char *k, char *out, size_t n) { /* "k":"va
    apparently left it half-closed still holding the lock, so the starter never swapped. Now: let go of the lock and sleep for
    good (a few MB until the next real restart); the starter takes over. Used for updates, the starter's stop, and stop signals. */
 static int g_lock = -1;
+/* 1.1.19: g_own = this helper runs as its OWN PS4 program (started by "/_selfown"), not inside GoldHEN's payload host.
+   There, leaving means really exiting (the "never exit" rule is only for the shared program). */
 static void step_aside(void) {
   if (g_lock >= 0) { flock(g_lock, LOCK_UN); close(g_lock); g_lock = -1; }
+  if (g_own) _exit(0);
   for (;;) sleep(3600);
 }
 static void put_file(const char *p, const char *txt) { FILE *f = fopen(p, "w"); if (f) { fputs(txt, f); fclose(f); } }
@@ -1570,6 +1580,43 @@ static void look_own(void) {
   look_kv("own/result", why);
   if (pid > 0) { snprintf(v, sizeof v, "%d", (int)pid); look_kv("own/program", v); put_file(OWNPID, v); }
 }
+/* 1.1.19 "/_selfown": this helper starts a copy of itself (app/current.elf) as its OWN program and hands over to it.
+   Safety: the copy must send a report to the engine within 3 minutes (it then writes own-ok) – otherwise this (old) helper
+   stops it, and the starter brings back a normal helper within seconds. A crash of the copy frees the lock -> same thing. */
+void r2_slog(const char *fmt, ...);
+static int selfown_after;
+static void look_selfown(void) {
+  char run[32];
+  running_title(run, sizeof run);
+  if (g_own) { look_kv("selfown/result", "already running as its own program"); return; }
+  if (run[0] && strcmp(run, VUE_ID)) { look_kv("selfown/result", "refused: a game is open"); return; }
+  selfown_after = 1;
+  look_kv("selfown/result", "starting a copy as its own program in ~2 s");
+}
+static void do_selfown(void) {
+  char why[160] = "";
+  FILE *f = fopen(APP "/current.elf", "rb");
+  if (!f) { r2_slog("selfown: can't open current.elf"); return; }
+  fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+  unsigned char *b = n > 64 && n < 8 * 1024 * 1024 ? malloc(n) : 0;
+  if (!b || fread(b, 1, n, f) != (size_t)n) { fclose(f); free(b); r2_slog("selfown: can't read current.elf (%ld bytes)", n); return; }
+  fclose(f);
+  unlink(OWNOK); unlink(OWNHELPER);
+  pid_t pid = r2_spawn_own("round2d", b, n, why, sizeof why);
+  free(b);
+  if (pid <= 0) { r2_slog("selfown: not started (%s) - carrying on as before", why); return; }
+  char v[24]; snprintf(v, sizeof v, "%d", (int)pid); put_file(OWNHELPER, v);
+  r2_slog("selfown: copy is program %d - letting go of the lock, watching it for 3 minutes", (int)pid);
+  if (g_lock >= 0) { flock(g_lock, LOCK_UN); close(g_lock); g_lock = -1; }
+  for (int i = 0; i < 36; i++) {
+    sleep(5);
+    if (file_exists(OWNOK)) { r2_slog("selfown: the copy reported to the engine - hand-over done"); for (;;) sleep(3600); }
+    if (kill(pid, 0)) { r2_slog("selfown: the copy is gone - the starter brings back a normal helper"); unlink(OWNHELPER); for (;;) sleep(3600); }
+  }
+  r2_slog("selfown: no report from the copy in 3 minutes - stopping it; the starter brings back a normal helper");
+  kill(pid, SIGKILL); unlink(OWNHELPER);
+  for (;;) sleep(3600);
+}
 static void look_kill(const char *spec) {
   int pid = atoi_safe(spec + 7), mine = 0;
   FILE *f = fopen(OWNPID, "r"); char b[24] = "";
@@ -1611,6 +1658,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_thr", 5)) look_thr(t);
     else if (!strcmp(t, "/_sock")) look_sock();
     else if (!strcmp(t, "/_own")) look_own();
+    else if (!strcmp(t, "/_selfown")) look_selfown();
     else if (!strncmp(t, "/_kill.", 7)) look_kill(t);
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
@@ -1618,6 +1666,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
   char hdr[200], rbody[200], err[120];
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
   for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, rbody, sizeof rbody, err, sizeof err) != 200; i++) sleep(5);
+  if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); }
   if (rest_after) {
     rest_after = 0; sleep(3);
     int r = sceSystemStateMgrEnterStandby(0);
@@ -1685,8 +1734,10 @@ int main(void) {
   mkdir(APP, 0777);
   /* only one helper at a time: hold the lock while running (the starter watches it). Another one has it -> leave quietly. */
   int lk = open(LOCKF, O_RDWR | O_CREAT, 0666), got = 0;
-  for (int i = 0; i < 10 && lk >= 0 && !(got = flock(lk, LOCK_EX | LOCK_NB) == 0); i++) sleep(1);
-  if (lk >= 0 && !got) for (;;) sleep(3600); /* another helper runs: stay out of the way (returning = exiting, see step_aside) */
+  for (int i = 0; i < 100 && lk >= 0 && !(got = flock(lk, LOCK_EX | LOCK_NB) == 0); i++) usleep(100000); /* 10 s, in 0.1 s steps (1.1.19) */
+  { FILE *of = fopen(OWNHELPER, "r"); char ob[24] = ""; /* 1.1.19: am I the copy "/_selfown" started as its own program? */
+    if (of) { if (fgets(ob, sizeof ob, of) && atoi_safe(ob) == (int)getpid()) g_own = 1; fclose(of); } }
+  if (lk >= 0 && !got) { if (g_own) _exit(0); for (;;) sleep(3600); } /* another helper runs: stay out of the way (returning = exiting, see step_aside) */
   g_lock = lk;
   put_file(APP "/hello", R2_VERSION); /* the starter keeps a new version once it says hello */
   signal(SIGPIPE, SIG_IGN); /* a dropped connection must never stop the helper */
