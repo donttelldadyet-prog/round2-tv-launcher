@@ -364,6 +364,12 @@
           "status": "test",
           "what": "Control centre › PS4s: 'Read a file on a PS4' shows the last lines of a log or settings file (blocker log, starter log, GoldHEN AutoRun list…) or the running programs – read-only, Round2/nanoDNS/GoldHEN folders only. 'Blocker settings' sends new nanoDNS settings: checked by the engine and again by the PS4 (block-everything line stays, nothing Sony-looking, no catch-alls, engine allowed), typed SEND, never to a room with guests within 10 minutes; the PS4 keeps the old file, restarts the blocker, tests Sony is blocked and the engine answers, and puts the old settings back by itself if not. Not tried on a real PS4 yet (rooms get 1.1.16 in quiet time).",
           "runs": "Helper 1.1.16 (/_tail, /_ps, dns job) · engine ps4dns / ps4dnsget / /ps4/dnsini · System check step 'PS4 blocker settings: bad files refused, nothing sent (dry run)'"
+        },
+        {
+          "name": "PS4 remote wake + sleep (helper 1.1.21+, Remote Play key)",
+          "status": "test",
+          "what": "Wakes a resting PS4 from another awake PS4 on the shop network – no Sony, no app. Each PS4 is registered once (Settings › Remote Play Connection Settings › Add Device, the 8-digit number; NOT Mobile App Connection Settings) through its main profile; the engine keeps the key. Needs the PS4's Power Save › rest-mode settings to match Kai's (Stay Connected, Turn On from Network, USB power Always). 16 Nov: Wake all woke Kai, Vale, Max, Scarlett with two different senders; Atlas and Bella drop off the network in rest (Wi-Fi – to sort). Control centre › PS4s: Wake early-bird / Wake all / Sleep all / Wake per room; morning trigger (staff switch one PS4 on 7–11:15am → rooms with an 11:00 booking wake) not yet tried. A PS4 woken with nobody using it goes back to rest after ~30 min.",
+          "runs": "Helper /_rpreg, /_wakerp, /_rest · engine ps4wake / ps4wakekey, kv ps4wake, ps4MorningWake"
         }
       ]
     },
