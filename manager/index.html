@@ -3383,6 +3383,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
        (before/after each PS4 helper change) helped push the day past 10,000. LIGHT runs only the steps listed here – none of
        them asks SimplyBook anything. A new step is NOT in the light check until its name is added here (safe by default). */
     var LIGHT = false, sb0 = null;
+    function autoQ() { return LIGHT ? { action: 'auto', lite: '1' } : { action: 'auto' }; }   /* lite: counters only, no SimplyBook */
     var LIGHT_OK = ['Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
       'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
     function step(name, fn) {
@@ -3422,7 +3423,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       LIGHT = light === true; sb0 = null;
       running = true; rows = []; T = {}; $('scGo').disabled = true; $('scLight').disabled = true; draw();
       var today = sgToday();
-      var chain = Promise.resolve().then(function () { return LIGHT ? gm({ action: 'auto' }).then(function (a) { sb0 = a; }, function () {}) : null; })
+      var chain = Promise.resolve().then(function () { return LIGHT ? gm(autoQ()).then(function (a) { sb0 = a; }, function () {}) : null; })
       /* 1. engine + keys */
       .then(function () { return step('Booking engine is up, keys are in', function () {
         return J('/status').then(function (s) {
@@ -3505,7 +3506,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       /* the "in 1 hour" phone reminder lands exactly 1 hour before (with SimplyBook's own reminder email) only while the timer
          runs every 5 minutes – bookings start on the quarter hour (owner, 2 Nov) */
       .then(function () { return step('Background jobs running (every 5 min, so “in 1 hour” lands exactly 1 h before)', function () {
-        return gm({ action: 'auto' }).then(function (a) {
+        return gm(autoQ()).then(function (a) {
           warnIf(!a.cronLast, 'No heartbeat yet (it appears within 5 minutes of an update).');
           must(Date.now() - a.cronLast < 15 * 60e3, 'Last run ' + ago(a.cronLast) + ' – the timer looks stuck.');
           var gap = a.cronPrev ? Math.round((a.cronLast - a.cronPrev) / 60e3) : 0;
@@ -3542,7 +3543,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
          raised on request; past it, SimplyBook answers "API calls limit exhausted" (429). Normal use is ~1,500–3,000 a day
          after the 12 Nov savings (shared login, 10-min free-time memory). */
       .then(function () { return step('SimplyBook requests today (guideline ~5,000; hard stop ~10,000)', function () {
-        return gm({ action: 'auto' }).then(function (a) {
+        return gm(autoQ()).then(function (a) {
           var n = a.sbToday || 0, y = a.sbYesterday, top = Object.keys(a.sbBy || {}).sort(function (p, q) { return a.sbBy[q] - a.sbBy[p]; })[0];
           must(n < 9000, n + ' requests to SimplyBook today – close to its limit (~10,000). Bookings and alerts may start failing. Biggest user: ' + top + ' (' + (a.sbBy || {})[top] + ').');
           warnIf(n > 5000, n + ' requests to SimplyBook today – over SimplyBook’s ~5,000 guideline (normal 1,500–3,000). Biggest user: ' + top + ' (' + (a.sbBy || {})[top] + ').');
@@ -3900,7 +3901,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }); });
       chain = chain.then(function () { return !LIGHT ? null : step('Light check: no SimplyBook requests made by this run', function () {
         /* the engine counts every SimplyBook request by who made it; the check's own would show as "gm …" or "/day", "/quote"… */
-        return gm({ action: 'auto' }).then(function (a) {
+        return gm(autoQ()).then(function (a) {
           var b0 = (sb0 && sb0.sbBy) || {}, b1 = a.sbBy || {}, mine = [], other = 0;
           Object.keys(b1).forEach(function (k) { var d = b1[k] - (b0[k] || 0); if (d <= 0) return; if (/^cron/.test(k)) other += d; else mine.push(k + ' +' + d); });
           must(sb0, 'Couldn’t read the SimplyBook count at the start.');
@@ -3917,7 +3918,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (!rows.length) { try { var l = JSON.parse(ls('r2.sysCheckLast') || 'null'); if (l) { rows = l.rows; $('scWhen').textContent = 'Last run ' + ago(l.t) + ' on this phone' + (l.light ? ' (light check).' : '.'); } } catch (e) {} draw(); }
     }
     $('scGo').onclick = function () {   /* a full run costs ~650 SimplyBook requests: say so when the day is already busy */
-      gm({ action: 'auto' }).then(function (a) { return a.sbToday || 0; }, function () { return 0; }).then(function (n) {
+      gm({ action: 'auto', lite: '1' }).then(function (a) { return a.sbToday || 0; }, function () { return 0; }).then(function (n) {
         if (n > 4000 && !confirm('SimplyBook has had ' + n + ' requests today (guideline ~5,000, hard stop ~10,000).\n\nA full check adds about 650. For changes that can’t touch bookings, use the Light check instead.\n\nRun the full check anyway?')) return;
         run(false);
       });
