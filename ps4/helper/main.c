@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.24"
+#define R2_VERSION "1.1.25"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -58,6 +58,7 @@ int sceKernelGetOpenPsId(uint8_t *);
 int sceKernelLoadStartModule(const char *, size_t, const void *, uint32_t, void *, int *);
 int sceKernelDlsym(int, const char *, void **);
 int sceSystemStateMgrEnterStandby(int);
+int sceSystemStateMgrReboot(void);
 int sceSystemStateMgrIsStandbyModeEnabled(void);
 int sceUserServiceInitialize(void *);
 typedef struct { int32_t userId[4]; } UserIdList;
@@ -1093,6 +1094,13 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
    the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
 static int rest_after;
+/* 1.1.25 (owner 16 Nov 7:09pm "remotely restart kai"): "/_reboot" restarts the PS4. A restart ENDS the jailbreak – nothing of
+   Round2 runs again until someone runs the jailbreak on that PS4 by hand. Refused while a game is open. */
+static int reboot_after;
+static void look_reboot(void) {
+  if (sv_game_open()) { look_kv("reboot/refused", "a game is open"); return; }
+  reboot_after = 1; look_kv("reboot/result", "restarting in ~3 s - jailbreak needed after");
+}
 static void look_rest(void) {
   char v[80];
   int en = sceSystemStateMgrIsStandbyModeEnabled();
@@ -1690,6 +1698,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_sback.", 8)) look_sback(key, t);
     else if (!strncmp(t, "/_srest.", 8)) look_srest(key, t);
     else if (!strcmp(t, "/_rest")) look_rest();
+    else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
     else if (!strncmp(t, "/_wake.", 7)) look_wake(t);
     else if (!strcmp(t, "/_wkey")) look_wkey();
@@ -1711,6 +1720,12 @@ static void do_look(const char *key, const char *cid, const char *body) {
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
   for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, rbody, sizeof rbody, err, sizeof err) != 200; i++) sleep(5);
   if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); }
+  if (reboot_after) {
+    reboot_after = 0; sleep(3);
+    int rr = sceSystemStateMgrReboot();
+    FILE *rf = fopen("/data/round2/rest.log", "a");
+    if (rf) { fprintf(rf, "%lld reboot: %d (0x%08x)\n", (long long)time(0), rr, (unsigned)rr); fclose(rf); }
+  }
   if (rest_after) {
     rest_after = 0; sleep(3);
     int r = sceSystemStateMgrEnterStandby(0);
