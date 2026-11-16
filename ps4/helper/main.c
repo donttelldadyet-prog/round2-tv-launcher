@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.23"
+#define R2_VERSION "1.1.24"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1860,8 +1860,10 @@ int main(void) {
           for (int i = 0; st != 200 && i < 6; i++) { sleep(8); st = report(key, status, sizeof status); }
           write_status(status);
         }
-        wake_login = wake_login_main();
-        if (wake_login != 1 && read_key(key, sizeof key)) { sleep(4); report(key, status, sizeof status); write_status(status); } /* tell the engine who is in now */
+        /* 1.1.24: NO automatic sign-in after a wake. 1.1.23 signed the main profile in while the PS4 was still showing its own
+           "press the PS button" screen – the profile was in, but that screen then couldn't be left with a controller (Kai,
+           16 Nov 6:42pm, owner). wake_login_main() stays for a later, proper way; -2 = switched off. */
+        wake_login = -2; (void)wake_login_main;
         { char msg[200]; /* owner 16 Nov: a pop-up after every wake, like GoldHEN's FTP / BinLoader ones */
           snprintf(msg, sizeof msg, "Round2 helper %s: awake after rest mode - %s", R2_VERSION, st == 200 ? "running and connected" : "running (can't reach Round2 yet, will retry)");
           notify(msg); }
