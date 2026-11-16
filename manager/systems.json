@@ -1,6 +1,6 @@
 {
   "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-11-12",
+  "updated": "2026-11-16",
   "areas": [
     {
       "name": "Website & booking",
@@ -126,15 +126,15 @@
           "code": "round2-tv-launcher branch ps4-helper folder ps4/ · round2sg-home worker/round2-book.js (ps4*) · full log: project doc ps4-game-saves.md"
         },
         {
-          "name": "Game saves – proven so far (13–14 Nov 2026)",
+          "name": "Game saves – proven so far (13–16 Nov 2026)",
           "status": "test",
-          "what": "All done remotely by the helper on Max: rename a spare profile; sign a profile in and out; open a save decrypted (read-only); back a save up to the cloud; restore it into another profile (Gran Turismo Sport, Max → User4, checked on the TV by the owner); put the PS4 into rest mode. Saves load in profiles that are not activated. The real game data is small (KBs to ~32 MB).",
+          "what": "All done remotely by the helper on Max: rename a spare profile; sign a profile in and out; open a save decrypted (read-only); back a save up to the cloud; restore it into another profile (Gran Turismo Sport, Max → User4, checked on the TV by the owner); put the PS4 into rest mode. Saves load in profiles that are not activated. The real game data is small (KBs to ~32 MB). 16 Nov: a save from an 11.00 PS4 loads on a 9.00 PS4 (Moving Out 2, Vale → Kai, checked by the owner); the helper keeps running after the PS4 wakes from rest (1.1.13, Kai).",
           "runs": "Staff actions ps4prof, ps4look (/_save, /_sback, /_srest, /_rest), ps4saves · System check step 'PS4 helpers + game-save storage'"
         },
         {
           "name": "Game saves – still to build, in order",
           "status": "planned",
-          "what": "1) Restore between a 9.00 and an 11.00 PS4. 2) Restore into a profile that has no save for that game yet. 3) Check each game is the same version in every room. 4) Member profile from start to end (name → sign in → restore → play → back up → sign out → remove). 5) Parking non-members' saves; clean slate through the PS4's own delete. 6) Back up during the session + a to-do list on the PS4 that survives rest mode (test: rest mode in the middle of a job). 7) Prepare the day's saves from the bookings. 8) Guest login on the PS4 (QR). 9) Morning wake-up of booked rooms (TV on → PS4 wakes; to check at the shop). Saves filed by member, not by PS4, so a second outlet works.",
+          "what": "Done: restore 11.00 → 9.00 (16 Nov); game versions per room checked (16 Nov). Next: 2) Restore into a profile that has no save for that game yet. 4) Member profile from start to end (name → sign in → restore → play → back up → sign out → remove). 5) Parking non-members' saves; clean slate through the PS4's own delete. 6) Back up during the session + a to-do list on the PS4 that survives rest mode (test: rest mode in the middle of a job). 7) Prepare the day's saves from the bookings. 8) Guest login on the PS4 (QR). 9) Morning wake-up of booked rooms (TV on → PS4 wakes; to check at the shop). Saves filed by member, not by PS4, so a second outlet works.",
           "runs": "PS4 helper + engine; owner at a PS4 for the checks on the TV"
         },
         {
@@ -358,6 +358,12 @@
           "what": "Owner is thinking it over (2 Nov). Ideas, best first: 1) pause the background while a transition plays (test on one LG first); 2) Rise moves the menu as one piece instead of ~15 parts; 3) each TV checks its own smoothness at start-up and switches itself to Fade if it drops frames ('lite mode' on its TV tile); 4) open the app at the same moment as the animation (with 3). Warp, Flash and Lightning + ship were removed 2 Nov for being heavy/unused.",
           "runs": "TV app (web/index.html: dive/arrive, Home animations)",
           "code": "round2-tv-launcher web/index.html"
+        },
+        {
+          "name": "PS4 remote tools: read a file, blocker settings (helper 1.1.16)",
+          "status": "test",
+          "what": "Control centre › PS4s: 'Read a file on a PS4' shows the last lines of a log or settings file (blocker log, starter log, GoldHEN AutoRun list…) or the running programs – read-only, Round2/nanoDNS/GoldHEN folders only. 'Blocker settings' sends new nanoDNS settings: checked by the engine and again by the PS4 (block-everything line stays, nothing Sony-looking, no catch-alls, engine allowed), typed SEND, never to a room with guests within 10 minutes; the PS4 keeps the old file, restarts the blocker, tests Sony is blocked and the engine answers, and puts the old settings back by itself if not. Not tried on a real PS4 yet (rooms get 1.1.16 in quiet time).",
+          "runs": "Helper 1.1.16 (/_tail, /_ps, dns job) · engine ps4dns / ps4dnsget / /ps4/dnsini · System check step 'PS4 blocker settings: bad files refused, nothing sent (dry run)'"
         }
       ]
     },

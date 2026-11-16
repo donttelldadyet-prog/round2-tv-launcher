@@ -917,6 +917,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <p class="sub">Each room’s PS4 (once its Round2 helper is installed): online, Sony blocked, temperature, free space, what’s being played. The PS4 reports every 15 minutes and checks for jobs from here every minute.</p>
     <div class="banner warn" id="p4KeyBox" hidden><div class="grow">Add the <b>staff code</b> (Keys) to see the PS4s.</div></div>
     <div id="p4Tiles"></div>
+    <details class="card" id="p4FileBox" style="margin-top:12px;padding:10px 12px"><summary><b>📄 Read a file on a PS4</b> – logs and settings, read-only (helper 1.1.16+)</summary>
+      <div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap"><select id="p4FileRoom"></select>
+        <select id="p4FileWhich"><option value="/data/nanodns/nanodns.log">Blocker log (what it blocked/allowed)</option><option value="/data/nanodns/nanodns.ini">Blocker settings in use</option><option value="/data/nanodns/nanodns.ini.prev">Blocker settings – previous</option><option value="/data/round2/app/boot.log">Starter log</option><option value="/data/round2/helper-stopped.txt">Helper stops</option><option value="/data/round2/rest.log">Rest mode log</option><option value="/data/GoldHEN/payloads.ini">GoldHEN AutoRun list</option><option value="/data/GoldHEN/config.ini">GoldHEN settings</option><option value="_ps">Running programs</option></select>
+        <select id="p4FileLines"><option>50</option><option selected>100</option><option>200</option></select> lines <button class="btn" type="button" id="p4FileGo">Read</button></div>
+      <p class="hint" id="p4FileMsg" style="margin:6px 0 0"></p><pre id="p4FileOut" style="max-height:360px;overflow:auto;white-space:pre-wrap;font-size:11px;margin:6px 0 0" hidden></pre></details>
+    <details class="card" id="p4DnsBox" style="margin-top:12px;padding:10px 12px"><summary><b>🛡️ Blocker settings (nanoDNS)</b> – what the PS4s may reach (helper 1.1.16+)</summary>
+      <p class="hint" style="margin:8px 0 6px">Every PS4 blocks everything except what's listed under [exceptions]. Changes are checked twice (here and on the PS4): the block-everything line <b>*=0.0.0.0</b> must stay, nothing Sony-looking may be allowed, no catch-alls, and the engine must stay allowed. The PS4 keeps its old settings, restarts the blocker, and tests that Sony is still blocked and the engine answers – if not, it puts the old settings back by itself. Not sent to a room with guests now or within 10 minutes.</p>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn" type="button" id="p4DnsLoad">Load last sent</button><button class="btn" type="button" id="p4DnsDef">Load Round2 standard</button><button class="btn" type="button" id="p4DnsCheck">Check</button></div>
+      <textarea id="p4DnsIni" rows="14" spellcheck="false" style="width:100%;margin-top:6px;font-family:ui-monospace,monospace;font-size:11px"></textarea>
+      <div id="p4DnsRooms" class="row" style="gap:10px;flex-wrap:wrap;margin-top:6px"></div>
+      <div class="row" style="gap:6px;margin-top:6px"><input id="p4DnsConfirm" placeholder="Type SEND" style="width:110px" autocomplete="off"><button class="btn primary" type="button" id="p4DnsSend">Send to the ticked PS4s</button></div>
+      <p class="hint" id="p4DnsMsg" style="margin:6px 0 0"></p><div id="p4DnsLog" class="hint" style="margin-top:6px"></div></details>
     <p class="hint">🧹 <b>Clean up</b> deletes the stuck game/system update downloads (never PS Vue’s – it keeps the Vue jailbreak working) and guests’ screenshots and clips. Games, patches and saves are never touched. It won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open on the PS4 – checked here, again when the PS4 picks it up, and on the PS4 itself. The TV shows a pop-up when it starts and when it’s done.</p>
     <p class="hint">⬆️ <b>Updates:</b> with the Round2 starter installed, a PS4 updates its helper by itself in quiet time (no game open, no guests in the room within the next hour). <b>Update now</b> does it straight away (not within 10 minutes of a session). A new version that doesn’t work is swapped back to the old one by itself, and the tile says so.</p>
     <p class="hint">Offline = the PS4 hasn’t checked for jobs for 3 minutes (off, rest mode, or not jailbroken since it was switched on – the helper starts with the jailbreak).</p>
@@ -3053,7 +3065,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function gb(mb) { mb = +mb || 0; return mb >= 1000 ? (mb / 1000).toFixed(1) + ' GB' : Math.round(mb) + ' MB'; }
     var ST = { sent: ['uw', 'Clean-up sent – the PS4 picks it up within a minute'], taken: ['uw', 'Cleaning up…'], done: ['uo', 'Cleaned'], failed: ['ub', 'Clean-up failed'], refused: ['ub', 'Clean-up not done'], expired: ['ub', 'Clean-up not picked up (PS4 off?)'] };
     var SU = { sent: ['uw', 'Update sent – the PS4 picks it up within a minute'], taken: ['uw', 'Downloading the update…'], done: ['uw', 'Downloaded – switching to the new version'], updated: ['uo', 'Updated'], rolledback: ['ub', 'Update didn’t work – went back to the previous version'], failed: ['ub', 'Update failed'], refused: ['ub', 'Update not done'], expired: ['ub', 'Update not picked up (PS4 off?)'] };
-    var latest = null, selfUp = '1.0.7';
+    var latest = null, selfUp = '1.0.7', lastList = [], dnsCur = null;
     function cmdLine(c) {
       if (c && c.do === 'update') {
         if (!SU[c.state]) return '';
@@ -3093,6 +3105,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (behind) more.push(esc(latest) + ' is out – ' + (old || !p.boot ? 'needs ' + esc(selfUp) + '+ and the new starter by FTP once' : 'it updates by itself in quiet time'));
       if (p.wifi && p.wifi.ip) more.push('FTP <b>' + esc(p.wifi.ip) + ':2121</b>' + (p.wifi.pct ? ' · Wi-Fi ' + (+p.wifi.pct) + '%' : ''));   /* from its latest report – always current */
       more.push((p.sony === 'blocked' ? 'Sony blocked · ' : '') + 'FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games' + (p.disk ? ' · disk ' + p.disk.total.toFixed(0) + ' GB' : ''));
+      if (p.dns && p.dns.sha) more.push('🛡️ Blocker settings ' + esc(p.dns.sha) + (dnsCur && dnsCur.sha && dnsCur.sha.slice(0, 12) === p.dns.sha ? ' (the last ones sent)' : '') + (p.dns.prev ? ' · previous kept' : ''));
       more.push('Reported ' + esc(ago(p.t)) + (p.up && p.psClock ? ' · helper running since ' + esc(ago(p.t - (p.psClock - p.up) * 1000)) : ''));
       if (p.woke && p.woke.at && p.psClock) { var wk = p.t - (p.psClock - p.woke.at) * 1000, sl = +p.woke.sleptS || 0; more.push('😴 Last woke from rest ' + esc(ago(wk)) + ' · slept ' + (sl >= 3600 ? Math.floor(sl / 3600) + ' h ' : '') + Math.round(sl % 3600 / 60) + ' min'); }
       if (!on && !byUs) more.push('If the PS4 is on: restart it and run the jailbreak.');
@@ -3111,7 +3124,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('p4KeyBox').hidden = true;
       gm({ action: 'ps4list' }).then(function (j) {
         if (!j.ok) { $('p4Tiles').innerHTML = '<p class="hint">' + esc(j.error || 'Couldn’t load the PS4s.') + '</p>'; return; }
-        latest = j.latest || null; selfUp = j.selfUp || selfUp;
+        latest = j.latest || null; selfUp = j.selfUp || selfUp; lastList = j.list || []; picks();
         var order = Object.keys(ROOMS).map(ER), L = (j.list || []).slice().sort(function (a, b) { return (a.room ? order.indexOf(a.room) : 99) - (b.room ? order.indexOf(b.room) : 99); });
         var have = L.map(function (p) { return p.room; }), missing = order.filter(function (r) { return have.indexOf(r) < 0; });
         $('p4Tiles').innerHTML = '<div class="tvgrid p4grid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><div class="p4i"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div></div>'; }).join('') + '</div>' +
@@ -3120,9 +3133,93 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (live && !fast) fast = setTimeout(function () { fast = 0; if (!$('tab-ps4s').hidden) draw(); }, 10000);   /* follow a clean-up closely */
       }, function () { $('p4Tiles').innerHTML = '<p class="hint">Couldn’t reach the engine.</p>'; });
     }
+    /* 16 Nov (owner "do both in 1.1.16"): read a text file on a PS4, and send new blocker settings. Both go through the engine
+       (ps4look '/_tail.' / '/_ps', ps4dns) – the PS4 picks the job up within a minute. */
+    function rname(p) { var R = ROOMS[RK(p.room)]; return R ? R.name : 'PS4 ' + String(p.id).slice(0, 6); }
+    function picks() {
+      var L = lastList.filter(function (p) { return p.room; }), now = R2Day.now();
+      var sel = $('p4FileRoom'), keep = sel.value;
+      sel.innerHTML = L.map(function (p) { var on = p.poll && now - p.poll < 3 * 60000; return '<option value="' + esc(p.id) + '">' + esc(rname(p)) + (on ? '' : ' (offline)') + '</option>'; }).join('');
+      if (keep) sel.value = keep;
+      var box = $('p4DnsRooms'), ticked = {};
+      box.querySelectorAll('input:checked').forEach(function (c) { ticked[c.value] = 1; });
+      box.innerHTML = L.map(function (p) {
+        var on = p.poll && now - p.poll < 3 * 60000, okv = p.v && !p4newer('1.1.16', p.v);
+        return '<label style="white-space:nowrap' + (on && okv ? '' : ';opacity:.5') + '"><input type="checkbox" value="' + esc(p.id) + '"' + (ticked[p.id] ? ' checked' : '') + (on && okv ? '' : ' disabled') + '> ' + esc(rname(p)) + (!on ? ' (offline)' : !okv ? ' (needs 1.1.16)' : '') + '</label>';
+      }).join('');
+    }
+    function waitJob(id, cid, cb, n) {
+      n = n || 0;
+      gm({ action: 'ps4list' }).then(function (j) {
+        var p = (j.list || []).filter(function (x) { return x.id === id; })[0], c = p && p.cmd;
+        if (c && c.cid === cid && c.state !== 'sent' && c.state !== 'taken') return cb(c);
+        if (n > 24) return cb(c || { state: 'waiting' });
+        setTimeout(function () { waitJob(id, cid, cb, n + 1); }, 4000);
+      }, function () { cb({ state: 'error' }); });
+    }
+    function readFile() {
+      var id = $('p4FileRoom').value, w = $('p4FileWhich').value, n = $('p4FileLines').value;
+      if (!id) return;
+      $('p4FileGo').disabled = true; $('p4FileMsg').textContent = 'Sent – the PS4 answers within a minute…'; $('p4FileOut').hidden = true;
+      gm({ action: 'ps4look', id: id, paths: w === '_ps' ? '/_ps' : '/_tail.' + w + '|' + n, by: 'control centre (read file)' }).then(function (j) {
+        if (!j.ok) { $('p4FileGo').disabled = false; $('p4FileMsg').textContent = j.error || 'Not sent'; return; }
+        waitJob(id, j.cmd.cid, function (c) {
+          $('p4FileGo').disabled = false;
+          if (c.state !== 'done') { $('p4FileMsg').textContent = c.state === 'refused' ? 'Not done: ' + ((c.res && c.res.why) || 'refused') : 'No answer yet (' + c.state + ') – try again in a minute.'; return; }
+          gm({ action: 'ps4lookres', id: id }).then(function (r) {
+            var L = (r.look && r.look.list) || {}, keys = Object.keys(L), out = [];
+            if (w === '_ps') { keys.forEach(function (k) { if (k.indexOf('ps/') === 0) out.push(k.slice(3) + '  ' + L[k]); }); $('p4FileMsg').textContent = out.length + ' programs running'; }
+            else if (L['tail/error']) { $('p4FileMsg').textContent = L['tail/error'] + (keys.length && !L['tail/file'] ? ' (this PS4’s helper may be older than 1.1.16)' : ''); return; }
+            else if (!L['tail/file']) { $('p4FileMsg').textContent = 'No file lines came back – this PS4’s helper may be older than 1.1.16.'; return; }
+            else {
+              keys.forEach(function (k) { if (/^tail\/\d+$/.test(k)) out.push(L[k]); });
+              var kb = Math.round((+L['tail/size'] || 0) / 1024), mt = +L['tail/mtime'] || 0;
+              $('p4FileMsg').textContent = L['tail/file'] + ' · ' + kb + ' KB · last ' + out.length + ' lines' + (mt > 1e9 ? ' · changed ' + ago(mt * 1000) + ' (PS4 clock)' : '');
+            }
+            $('p4FileOut').textContent = out.join('\n'); $('p4FileOut').hidden = !out.length;
+          });
+        });
+      }, function () { $('p4FileGo').disabled = false; $('p4FileMsg').textContent = 'Couldn’t reach the engine.'; });
+    }
+    function dnsLog() {
+      return gm({ action: 'ps4dnsget' }).then(function (j) {
+        if (!j.ok) return j;
+        dnsCur = j.cur || null;
+        var L = j.log || [];
+        $('p4DnsLog').innerHTML = L.length ? '<b>Changes</b>' + L.slice(0, 12).map(function (e) {
+          var R = ROOMS[RK(e.room)];
+          return '<div style="margin:2px 0">' + esc(ago(e.t)) + ' · ' + esc(R ? R.name : e.room) + ' · ' + esc(e.sha) + ' · ' + esc(e.by) + ' · <b class="' + (e.state === 'done' ? 'cok' : e.state === 'sent' || e.state === 'taken' ? 'cwarn' : 'cbad') + '">' + esc(e.state) + '</b>' + (e.why ? ' – ' + esc(e.why) : '') + '</div>';
+        }).join('') : 'No changes sent yet.';
+        return j;
+      });
+    }
+    var DNS_STD = 'https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/ps4-helper/ps4/nanodns/nanodns.ini';
+    function dnsMsg(t) { $('p4DnsMsg').textContent = t; }
+    function initFiles() {
+      $('p4FileGo').onclick = readFile;
+      $('p4DnsBox').addEventListener('toggle', function () { if ($('p4DnsBox').open) dnsLog(); });
+      $('p4DnsLoad').onclick = function () { dnsLog().then(function (j) { if (j && j.cur && j.cur.ini) { $('p4DnsIni').value = j.cur.ini; dnsMsg('Loaded the settings last sent (' + j.cur.sha.slice(0, 12) + ', ' + ago(j.cur.at) + ' by ' + j.cur.by + ').'); } else dnsMsg('Nothing sent yet – load the Round2 standard instead.'); }); };
+      $('p4DnsDef').onclick = function () { fetch(DNS_STD, { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { $('p4DnsIni').value = t; dnsMsg('Loaded the Round2 standard settings (the file every PS4 got by FTP).'); }, function () { dnsMsg('Couldn’t load it.'); }); };
+      $('p4DnsCheck').onclick = function () {
+        gm({ action: 'ps4dns', ini: $('p4DnsIni').value, dry: '1' }).then(function (j) { dnsMsg(j.ok ? '✓ Passes the checks (' + j.sha.slice(0, 12) + '). Nothing sent.' : (j.error || 'Not OK')); });
+      };
+      $('p4DnsSend').onclick = function () {
+        var ids = []; $('p4DnsRooms').querySelectorAll('input:checked').forEach(function (c) { ids.push(c.value); });
+        if (!ids.length) { dnsMsg('Tick at least one PS4.'); return; }
+        if ($('p4DnsConfirm').value.trim() !== 'SEND') { dnsMsg('Type SEND in the box to confirm.'); return; }
+        $('p4DnsSend').disabled = true; dnsMsg('Sending…');
+        gm({ action: 'ps4dns', ini: $('p4DnsIni').value, ids: ids.join(','), confirm: 'SEND', by: 'control centre' }).then(function (j) {
+          $('p4DnsSend').disabled = false; $('p4DnsConfirm').value = '';
+          if (!j.ok) { dnsMsg(j.error || 'Not sent'); return; }
+          dnsMsg((j.sent || []).map(function (x) { var p = lastList.filter(function (q) { return q.id === x.id; })[0]; return (p ? rname(p) : x.room) + ': ' + (x.ok ? 'sent – picks it up within a minute' : x.error); }).join(' · '));
+          dnsLog(); setTimeout(dnsLog, 60000); setTimeout(dnsLog, 120000);
+        }, function () { $('p4DnsSend').disabled = false; dnsMsg('Couldn’t reach the engine.'); });
+      };
+    }
     function init() {
       if (ready) return; ready = true;
       $('p4Refresh').onclick = draw;
+      initFiles();
       $('p4Tiles').addEventListener('change', function (e) {
         var id = e.target.getAttribute && e.target.getAttribute('data-p4map'); if (!id || !e.target.value) return;
         var nm = e.target.options[e.target.selectedIndex].text;
@@ -3603,6 +3700,24 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(r[2] === 403 && r[3] === 403, 'Save storage must refuse anyone without the PS4 key (got ' + r[2] + ' / ' + r[3] + ')');
           var now = r[0].now || Date.now(), on = r[0].list.filter(function (p) { return p.poll && now - p.poll < 3 * 60e3; });
           return r[0].list.length + ' PS4s known, ' + on.length + ' answering now · save storage connected and locked';
+        });
+      }); })
+      .then(function () { return step('PS4 blocker settings: bad files refused, nothing sent (dry run)', function () {
+        /* 16 Nov (helper 1.1.16): new nanoDNS settings can be sent from PS4s › Blocker settings. The engine must refuse a file without
+           the block-everything line, one that lets Sony through, a catch-all and one that leaves the engine out – and pass the
+           Round2 standard. dry=1: only checked, never sent. The helper must refuse the dns job without its key. */
+        var STD = 'https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/ps4-helper/ps4/nanodns/nanodns.ini';
+        return fetch(STD, { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (std) {
+          must(/\*=0\.0\.0\.0/.test(std), 'Couldn’t load the Round2 standard blocker settings');
+          var bad = [std.replace('*=0.0.0.0', '#'), std + '\n*.playstation.net\n', std + '\n*.com\n', std.replace(/^round2-book\.donttelldadyet\.workers\.dev$/m, '#')];
+          return Promise.all([gm({ action: 'ps4dns', ini: std, dry: '1' })].concat(bad.map(function (b) { return gm({ action: 'ps4dns', ini: b, dry: '1' }); }))
+            .concat([gm({ action: 'ps4dns', ini: std, ids: 'zz', by: 'system check' }), fetch(ENG + '/ps4/dnsini', { method: 'POST', body: '{}' }).then(function (r) { return r.status; })])).then(function (r) {
+            must(r[0].ok && r[0].dry, 'The Round2 standard settings should pass: ' + (r[0].error || ''));
+            ['no block-everything line', 'Sony allowed', 'a catch-all', 'engine left out'].forEach(function (w, i) { must(r[i + 1].refused, 'A file with ' + w + ' was NOT refused'); });
+            must(!r[5].ok, 'Sending without typing SEND must be refused');
+            must(r[6] === 403, 'The PS4 settings download must refuse anyone without the PS4 key (got ' + r[6] + ')');
+            return 'standard passes · 4 bad files refused · nothing sent without SEND · download locked';
+          });
         });
       }); })
       /* 7. the test night */
