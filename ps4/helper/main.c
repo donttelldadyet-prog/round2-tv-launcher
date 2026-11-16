@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.20"
+#define R2_VERSION "1.1.21"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1200,6 +1200,44 @@ static void look_wake(const char *spec) {
   sleep(20);
   ddp_status(ip, "3-after-20s");
 }
+/* 1.1.21 (owner 16 Nov: "willing to commit" to remote wake) – Remote Play registration + wake, chiaki's way (rp/r2rp.c):
+   "/_rpreg.<ip>.<account id, 16 hex as in the registry>.<8-digit number from Add Device>"  register with that PS4 -> regist key
+   "/_wakerp.<ip>.<regist key>"  wake it from rest mode with that key (status before, WAKEUP x3, status after 25 s)
+   Results also go to /data/round2/rp.log in full (look values are cut at 40 characters). */
+int r2_rp_regist(const char *ip, const uint8_t acct[8], uint32_t pin, char *regkey, size_t rn, char *info, size_t in, char *why, size_t wn);
+int r2_rp_wake(const char *ip, const char *regkey);
+static void rp_log(const char *fmt, ...) {
+  FILE *f = fopen("/data/round2/rp.log", "a"); if (!f) return;
+  time_t t = time(0) + 8 * 3600; struct tm tm; gmtime_r(&t, &tm);
+  fprintf(f, "%02d/%02d %02d:%02d:%02d ", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
+  fputc('\n', f); fclose(f);
+}
+static void look_rpreg(const char *spec) {
+  int a, b, c, d; char idh[20] = "", pins[12] = "", ip[24], key[20], info[200], why[200];
+  if (sscanf(spec, "/_rpreg.%d.%d.%d.%d.%16[0-9a-f].%8[0-9]", &a, &b, &c, &d, idh, pins) != 6 || strlen(idh) != 16 || strlen(pins) != 8) { look_kv("rpreg/error", "bad spec"); return; }
+  snprintf(ip, sizeof ip, "%d.%d.%d.%d", a, b, c, d);
+  uint8_t acct[8];
+  for (int i = 0; i < 8; i++) { char h[3] = { idh[i * 2], idh[i * 2 + 1], 0 }; acct[i] = (uint8_t)strtoul(h, 0, 16); }
+  int r = r2_rp_regist(ip, acct, (uint32_t)strtoul(pins, 0, 10), key, sizeof key, info, sizeof info, why, sizeof why);
+  rp_log("regist with %s, account %s: %d %s%s%s%s%s", ip, idh, r, why, r ? "" : " - key ", r ? "" : key, r ? "" : " - ", r ? "" : info);
+  char v[48]; snprintf(v, sizeof v, "%d %.36s", r, why); look_kv("rpreg/result", v);
+  if (!r) {
+    look_kv("rpreg/key", key);
+    char *bar = strchr(info, '|'); if (bar) { *bar = 0; look_kv("rpreg/name", info); char *b2 = strchr(bar + 1, '|'); if (b2) { *b2 = 0; look_kv("rpreg/mac", bar + 1); look_kv("rpreg/rpkey", b2 + 1); } }
+  }
+}
+static void look_wakerp(const char *spec) {
+  int a, b, c, d; char key[20] = "", ip[24], k[64], v[48];
+  if (sscanf(spec, "/_wakerp.%d.%d.%d.%d.%16[0-9a-fA-F]", &a, &b, &c, &d, key) != 5 || !key[0]) { look_kv("wakerp/error", "bad spec"); return; }
+  snprintf(ip, sizeof ip, "%d.%d.%d.%d", a, b, c, d);
+  ddp_status(ip, "1-before");
+  int r = r2_rp_wake(ip, key);
+  snprintf(k, sizeof k, "ddp/%s/2-wakeup-sent", ip); snprintf(v, sizeof v, r > 0 ? "3 times (type R)" : "send failed"); look_kv(k, v);
+  sleep(25);
+  ddp_status(ip, "3-after-25s");
+  rp_log("wake %s with key %s: sent %d", ip, key, r);
+}
 static void wkey_one(const char *k, unsigned long long id) {
   char dec[32], v[120]; unsigned char h[32];
   snprintf(dec, sizeof dec, "%llu", id);
@@ -1660,6 +1698,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_ps")) look_ps();
     else if (!strncmp(t, "/_thr", 5)) look_thr(t);
     else if (!strcmp(t, "/_sock")) look_sock();
+    else if (!strncmp(t, "/_rpreg.", 8)) look_rpreg(t);
+    else if (!strncmp(t, "/_wakerp.", 9)) look_wakerp(t);
     else if (!strcmp(t, "/_own")) look_own();
     else if (!strcmp(t, "/_selfown")) look_selfown();
     else if (!strncmp(t, "/_kill.", 7)) look_kill(t);
