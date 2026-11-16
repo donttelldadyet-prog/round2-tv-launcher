@@ -21,6 +21,7 @@
 #include <chiaki/rpcrypt.h>
 
 int sceRandomGetRandomNumber(uint8_t *buf, size_t size);
+void r2_slog(const char *fmt, ...); /* step log, synced line by line: /data/round2/own-spawn.log (1.1.22: 1.1.21 died somewhere in here) */
 #define RP_PORT 9295
 static const char *client_type = "dabfa2ec873de5839bee8d3f4c0239c4282c07c25c6077a2931afcf0adc0d34f";
 
@@ -58,6 +59,7 @@ int r2_rp_regist(const char *ip, const uint8_t acct[8], uint32_t pin, char *regk
   a.sin_family = AF_INET; a.sin_port = htons(RP_PORT);
   regkey[0] = 0; info[0] = 0;
   if (inet_pton(AF_INET, ip, &a.sin_addr) != 1) { snprintf(why, wn, "bad address"); return -1; }
+  r2_slog("rp regist: start, %s", ip);
   /* 1) search: "SRC2" -> "RES2" (the PS4 only takes a registration right after this) */
   int u = socket(AF_INET, SOCK_DGRAM, 0);
   if (u < 0) { snprintf(why, wn, "no socket"); return -1; }
@@ -68,20 +70,24 @@ int r2_rp_regist(const char *ip, const uint8_t acct[8], uint32_t pin, char *regk
   }
   close(u);
   if (!got) { snprintf(why, wn, "no answer to the Remote Play search (Remote Play enabled? Add Device screen open?)"); return -2; }
+  r2_slog("rp regist: search answered");
   usleep(100000);
   /* 2) the request: 0x1e0 filler bytes carrying the scrambled session key, then the encrypted inner header */
   uint8_t buf[0x400], amb[CHIAKI_RPCRYPT_KEY_SIZE], aero[0x10];
   ChiakiRPCrypt crypt;
   if (sceRandomGetRandomNumber(amb, sizeof amb)) { snprintf(why, wn, "no random numbers"); return -1; }
+  r2_slog("rp regist: random ok");
   memset(buf, 'A', 0x1e0);
   size_t key_0_off = buf[0x18D] & 0x1F, key_1_off = buf[0] >> 3;
   if (chiaki_rpcrypt_init_regist(&crypt, CHIAKI_TARGET_PS4_10, amb, key_0_off, pin) != CHIAKI_ERR_SUCCESS ||
       chiaki_rpcrypt_aeropause(CHIAKI_TARGET_PS4_10, key_1_off, aero, crypt.ambassador) != CHIAKI_ERR_SUCCESS) { snprintf(why, wn, "key set-up failed"); return -1; }
+  r2_slog("rp regist: keys ok");
   memcpy(buf + 0xc7, aero + 8, 8);
   memcpy(buf + 0x191, aero, 8);
   char id64[24]; b64(acct, 8, id64);
   int inner = snprintf((char *)buf + 0x1e0, sizeof buf - 0x1e0, "Client-Type: %s\r\nNp-AccountId: %s\r\n", client_type, id64);
   if (chiaki_rpcrypt_encrypt(&crypt, 0, buf + 0x1e0, buf + 0x1e0, inner) != CHIAKI_ERR_SUCCESS) { snprintf(why, wn, "encrypt failed"); return -1; }
+  r2_slog("rp regist: encrypted");
   size_t psz = 0x1e0 + inner;
   char head[300];
   int hl = snprintf(head, sizeof head, "POST /sie/ps4/rp/sess/rgst HTTP/1.1\r\n HTTP/1.1\r\nHOST: 10.0.2.15\r\nUser-Agent: remoteplay Windows\r\n"
@@ -93,9 +99,11 @@ int r2_rp_regist(const char *ip, const uint8_t acct[8], uint32_t pin, char *regk
   int ok = connect(s, (struct sockaddr *)&a, sizeof a) == 0;
   if (!ok && errno == EINPROGRESS && wait_fd(s, 1, 5000)) { int e = 0; socklen_t el = sizeof e; ok = !getsockopt(s, SOL_SOCKET, SO_ERROR, &e, &el) && !e; }
   if (!ok) { close(s); snprintf(why, wn, "can't connect to the PS4's Remote Play port"); return -2; }
+  r2_slog("rp regist: connected");
   fcntl(s, F_SETFL, fl & ~O_NONBLOCK);
   struct timeval tv = { 5, 0 }; setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv); setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
   if (send(s, head, hl, 0) != hl || send(s, buf, psz, 0) != (ssize_t)psz) { close(s); snprintf(why, wn, "sending failed"); return -2; }
+  r2_slog("rp regist: sent %d + %u bytes", hl, (unsigned)psz);
   /* 4) the answer */
   static char resp[0x900]; size_t rl = 0; char *body = 0; size_t clen = 0;
   for (;;) {
@@ -107,6 +115,7 @@ int r2_rp_regist(const char *ip, const uint8_t acct[8], uint32_t pin, char *regk
     if (rl >= sizeof resp - 1) break;
   }
   close(s);
+  r2_slog("rp regist: received %u bytes: %.40s", (unsigned)rl, rl ? resp : "");
   if (rl < 12 || strncmp(resp, "HTTP/1.", 7)) { snprintf(why, wn, "no answer to the registration (%u bytes)", (unsigned)rl); return -3; }
   int code = atoi(resp + 9);
   if (code != 200) {
@@ -119,6 +128,7 @@ int r2_rp_regist(const char *ip, const uint8_t acct[8], uint32_t pin, char *regk
   if (!body || !clen || rl < (size_t)(body - resp) + clen) { snprintf(why, wn, "answer cut short"); return -3; }
   chiaki_rpcrypt_decrypt(&crypt, 0, (uint8_t *)body, (uint8_t *)body, clen);
   body[clen] = 0;
+  r2_slog("rp regist: decrypted %u bytes", (unsigned)clen);
   char hex[80], nick[64] = "", mac[32] = "", rpkey[80] = "";
   if (!hdr_val(body, "PS4-RegistKey", hex, sizeof hex)) { snprintf(why, wn, "answer had no regist key (decrypt wrong?)"); return -5; }
   size_t o = 0;
