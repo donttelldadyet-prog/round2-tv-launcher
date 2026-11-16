@@ -931,6 +931,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <p class="hint" id="p4DnsMsg" style="margin:6px 0 0"></p><div id="p4DnsLog" class="hint" style="margin-top:6px"></div></details>
     <p class="hint">🧹 <b>Clean up</b> deletes the stuck game/system update downloads (never PS Vue’s – it keeps the Vue jailbreak working) and guests’ screenshots and clips. Games, patches and saves are never touched. It won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open on the PS4 – checked here, again when the PS4 picks it up, and on the PS4 itself. The TV shows a pop-up when it starts and when it’s done.</p>
     <p class="hint">⬆️ <b>Updates:</b> with the Round2 starter installed, a PS4 updates its helper by itself in quiet time (no game open, no guests in the room within the next hour). <b>Update now</b> does it straight away (not within 10 minutes of a session). A new version that doesn’t work is swapped back to the old one by itself, and the tile says so.</p>
+    <p class="hint">⏰ <b>Remote wake</b> (trial, 16 Nov): a PS4 in <b>rest mode</b> (orange light – not switched off) that has been registered once can be woken from here – another PS4 that is on sends the wake. In the morning, the first PS4 switched on between 7am and 11:15am wakes the rooms with an <b>early-bird (11am) booking</b> by itself. A woken PS4 waits at “press the PS button”. <span id="p4WakeRun"></span></p>
     <p class="hint">Offline = the PS4 hasn’t checked for jobs for 3 minutes (off, rest mode, or not jailbroken since it was switched on – the helper starts with the jailbreak).</p>
   </section>
 
@@ -3106,6 +3107,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       if (behind) more.push(esc(latest) + ' is out – ' + (old || !p.boot ? 'needs ' + esc(selfUp) + '+ and the new starter by FTP once' : 'it updates by itself in quiet time'));
       if (p.wifi && p.wifi.ip) more.push('FTP <b>' + esc(p.wifi.ip) + ':2121</b>' + (p.wifi.pct ? ' · Wi-Fi ' + (+p.wifi.pct) + '%' : ''));   /* from its latest report – always current */
       more.push((p.sony === 'blocked' ? 'Sony blocked · ' : '') + 'FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games' + (p.disk ? ' · disk ' + p.disk.total.toFixed(0) + ' GB' : ''));
+      more.push(p.wake ? '⏰ Remote wake: registered (works from rest mode, not when switched off)' : '⏰ Remote wake: not registered yet');
       if (p.dns && p.dns.sha) more.push('🛡️ Blocker settings ' + esc(p.dns.sha) + (dnsCur && dnsCur.sha && dnsCur.sha.slice(0, 12) === p.dns.sha ? ' (the last ones sent)' : '') + (p.dns.prev ? ' · previous kept' : ''));
       more.push('Reported ' + esc(ago(p.t)) + (p.up && p.psClock ? ' · helper running since ' + esc(ago(p.t - (p.psClock - p.up) * 1000)) : ''));
       if (p.woke && p.woke.at && p.psClock) { var wk = p.t - (p.psClock - p.woke.at) * 1000, sl = +p.woke.sleptS || 0; more.push('😴 Last woke from rest ' + esc(ago(wk)) + ' · slept ' + (sl >= 3600 ? Math.floor(sl / 3600) + ' h ' : '') + Math.round(sl % 3600 / 60) + ' min'); }
@@ -3115,6 +3117,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
       var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
           Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
+        : !on && p.wake ? '<button type="button" class="tvu" data-p4wake="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '">⏰ Wake</button>'
         : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ' + gb(junk) : '') + '</button>' +
           (p.boot && !old && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update to ' + esc(latest) + '</button>' : '');
       return '<div class="tvt" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><div class="p4i"><b>' + esc(R.name) + '</b>' + lines.join('') +
@@ -3126,6 +3129,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       gm({ action: 'ps4list' }).then(function (j) {
         if (!j.ok) { $('p4Tiles').innerHTML = '<p class="hint">' + esc(j.error || 'Couldn’t load the PS4s.') + '</p>'; return; }
         latest = j.latest || null; selfUp = j.selfUp || selfUp; lastList = j.list || []; picks();
+        var wr = j.wakeRun; $('p4WakeRun').textContent = wr ? 'Last morning wake: ' + wr.day + ', started by ' + ((ROOMS[RK(wr.by)] || {}).name || wr.by) + ' – ' + ((wr.rooms || []).length ? 'woke ' + wr.rooms.map(function (r) { return (ROOMS[RK(r)] || {}).name || r; }).join(', ') : (wr.note || 'nothing to wake')) + '.' : '';
         var order = Object.keys(ROOMS).map(ER), L = (j.list || []).slice().sort(function (a, b) { return (a.room ? order.indexOf(a.room) : 99) - (b.room ? order.indexOf(b.room) : 99); });
         var have = L.map(function (p) { return p.room; }), missing = order.filter(function (r) { return have.indexOf(r) < 0; });
         $('p4Tiles').innerHTML = '<div class="tvgrid p4grid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><div class="p4i"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div></div>'; }).join('') + '</div>' +
@@ -3235,6 +3239,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           u.disabled = true; u.textContent = 'Sending…';
           gm({ action: 'ps4update', id: u.getAttribute('data-p4upd'), by: 'control centre' }).then(function (j) {
             toast(j.ok ? un + ': update sent – the PS4 picks it up within a minute' : un + ': ' + (j.error || 'not sent')); draw();
+          }, function () { toast('Couldn’t reach the engine.'); draw(); });
+          return;
+        }
+        var wk = e.target.closest && e.target.closest('[data-p4wake]');
+        if (wk) {   /* 16 Nov: remote wake – another awake PS4 sends this one's key; only from rest mode */
+          var wn = wk.getAttribute('data-p4room'); wk.disabled = true; wk.textContent = 'Sending…';
+          gm({ action: 'ps4wake', id: wk.getAttribute('data-p4wake'), by: 'control centre' }).then(function (j) {
+            toast(j.ok ? wn + ': wake sent by ' + ((ROOMS[RK(j.sender)] || {}).name || j.sender) + '’s PS4 – it should be Online within 2 minutes. If not, it was switched off (not in rest mode): start it and run the jailbreak.' : wn + ': ' + (j.error || 'not sent'));
+            setTimeout(draw, 3000); setTimeout(draw, 90000);
           }, function () { toast('Couldn’t reach the engine.'); draw(); });
           return;
         }
@@ -3385,7 +3398,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var LIGHT = false, sb0 = null;
     function autoQ() { return LIGHT ? { action: 'auto', lite: '1' } : { action: 'auto' }; }   /* lite: counters only, no SimplyBook */
     var LIGHT_OK = ['Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
-      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
+      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
     function step(name, fn) {
       if (LIGHT && !LIGHT_OK.some(function (p) { return name.indexOf(p) === 0; })) return Promise.resolve();
       var r = { name: name, st: 'run', note: '' }; rows.push(r); draw();
@@ -3730,6 +3743,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             must(r[6] === 403, 'The PS4 settings download must refuse anyone without the PS4 key (got ' + r[6] + ')');
             return 'standard passes · 4 bad files refused · nothing sent without SEND · download locked';
           });
+        });
+      }); })
+      .then(function () { return step('PS4 remote wake: refuses without a key, nothing sent', function () {
+        /* 16 Nov: a registered PS4 in rest mode can be woken by another PS4 (engine ps4wake; morning trial for early-bird rooms) */
+        return Promise.all([gm({ action: 'ps4wake', id: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' }), gm({ action: 'ps4list' })]).then(function (r) {
+          must(!r[0].ok && /No wake key/.test(r[0].error || ''), 'A PS4 without a wake key must be refused (got: ' + JSON.stringify(r[0]).slice(0, 80) + ')');
+          var n = (r[1].list || []).filter(function (p) { return p.wake; }).length, wr = r[1].wakeRun;
+          return n + ' PS4(s) registered for remote wake' + (wr ? ' · last morning wake ' + wr.day + ': ' + ((wr.rooms || []).join(', ') || wr.note || 'nothing') : ' · no morning wake yet');
         });
       }); })
       /* 7. the test night */
