@@ -172,6 +172,7 @@ header .logo { height: 30px; width: auto; border-radius: 0; display: block; }
   function sgMin(ms, night) { return Math.round((ms - Date.parse(night + 'T00:00:00+08:00')) / 60000); }
   function roomOf(u) { for (var i = 0; i < ROOMS.length; i++) if (ROOMS[i][0] === String(u)) return ROOMS[i]; return [String(u), 'Room', '#888']; }
   function loadUp() {
+    if (/[?&]check=1/.test(location.search)) return;   /* opened hidden by the System check (7am-rule test): only the day maths is read – don't ask SimplyBook for the list (16 Nov) */
     $('up').innerHTML = '<li style="--rc:var(--line)" class="w">Loading…</li>'; report();
     call({}, 'latelist').then(function (j) {
       if (!j || !j.ok) { $('up').innerHTML = '<li style="--rc:var(--warn)" class="warn">' + esc((j && j.error) || 'No answer') + '</li>'; report(); return; }
