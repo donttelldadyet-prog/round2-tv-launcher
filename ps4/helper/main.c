@@ -33,13 +33,16 @@
 #include "r2tls.h"
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
+#include <sys/user.h>
 
-#define R2_VERSION "1.1.15"
+#define R2_VERSION "1.1.16"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
 /* 1.0.4: run by the starter (round2-boot.elf) – see boot/main.c */
 #define APP "/data/round2/app"
+static void dns_file_sha(const char *path, char out[16]);
+static int file_exists(const char *p);
 #define LOCKF "/data/round2/helper.lock"
 
 typedef struct notify_request { char useless1[45]; char message[3075]; } notify_request_t;
@@ -448,6 +451,8 @@ static int report(const char *key, char *status, size_t slen) {
     f = fopen(APP "/rolled-back.txt", "r"); if (f) { if (!fgets(rb, sizeof rb, f)) rb[0] = 0; fclose(f); rb[strcspn(rb, "\r\n")] = 0; }
     if (bv[0]) { jadd(",\"boot\":"); jstr(bv); }
     if (rb[0]) { jadd(",\"rolled\":"); jstr(rb); } }
+  { char dh[16]; dns_file_sha("/data/nanodns/nanodns.ini", dh); /* 1.1.16: which blocker settings this PS4 has (first 12 of SHA-256) */
+    jadd(",\"dns\":{\"sha\":\"%s\",\"prev\":%d}", dh, file_exists("/data/nanodns/nanodns.ini.prev")); }
   jadd(",\"up\":%lld", g_up);
   if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld}", wake_n, wake_at, wake_slept);
   tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); jadd("}");
@@ -1204,6 +1209,291 @@ static void look_wkey(void) {
     snprintf(k, sizeof k, "wkey/%s/b", name); wkey_one(k, be);
   }
 }
+/* ---- 1.1.16 (owner 16 Nov: "do both") ----------------------------------------------------------------------------------
+   A) "/_tail.<file>|<lines>" in a look job: the last lines of a TEXT file, read-only, only from Round2's own folder, the blocker's
+      folder and GoldHEN's settings (never games, saves or the system). Max 200 lines / 24 KB, each line cut at 280 characters.
+   B) "/_ps": the PS4's running programs (number + name) – read-only; tells us what the blocker's program is called.
+   C) job "dns": new blocker (nanoDNS) settings from the engine. Checked again here (same rules as the engine), old file kept as
+      nanodns.ini.prev, nanoDNS restarted through BinLoader, then tested: a Sony update name must come back 0.0.0.0 AND the engine
+      must answer. Either fails -> the old file goes back, nanoDNS restarted again, reported "rolled back". If nanoDNS can't be
+      restarted here (its program not found by name, or BinLoader off) NOTHING is changed. */
+static const char *tail_ok_dirs[] = { "/data/round2/", "/data/nanodns/", "/data/GoldHEN/", "/user/data/round2/", "/user/data/nanodns/", "/user/data/GoldHEN/" };
+static void look_tail(const char *path, int lines) {
+  int ok = !strstr(path, "..");
+  if (ok) { ok = 0; for (unsigned i = 0; i < sizeof tail_ok_dirs / sizeof *tail_ok_dirs; i++) if (!strncmp(path, tail_ok_dirs[i], strlen(tail_ok_dirs[i]))) ok = 1; }
+  const char *dot = strrchr(path, '.');
+  if (ok && !(dot && (!strcmp(dot, ".log") || !strcmp(dot, ".txt") || !strcmp(dot, ".ini") || !strcmp(dot, ".prev") || !strcmp(dot, ".ver")))) ok = 0;
+  if (!ok) { look_kv("tail/error", "not allowed (text files in Round2, nanoDNS or GoldHEN folders only)"); return; }
+  struct stat st;
+  if (stat(path, &st) || !S_ISREG(st.st_mode)) { look_kv("tail/error", "no such file"); return; }
+  if (lines < 1) lines = 50;
+  if (lines > 200) lines = 200;
+  char v[64];
+  look_kv("tail/file", path);
+  snprintf(v, sizeof v, "%lld", (long long)st.st_size); look_kv("tail/size", v);
+  snprintf(v, sizeof v, "%lld", (long long)st.st_mtime); look_kv("tail/mtime", v);
+  FILE *f = fopen(path, "rb");
+  if (!f) { look_kv("tail/error", "can't open"); return; }
+  enum { MAXB = 24 * 1024 };
+  char *buf = malloc(MAXB + 1);
+  if (!buf) { fclose(f); look_kv("tail/error", "no memory"); return; }
+  long from = st.st_size > MAXB ? (long)st.st_size - MAXB : 0;
+  fseek(f, from, SEEK_SET);
+  size_t k = fread(buf, 1, MAXB, f);
+  fclose(f);
+  buf[k] = 0;
+  for (size_t i = 0; i < k; i++) if ((unsigned char)buf[i] < 32 && buf[i] != '\n' && buf[i] != '\t') buf[i] = ' ';
+  while (k && buf[k - 1] == '\n') buf[--k] = 0;
+  char *s0 = buf + k;
+  for (int c = 0; s0 > buf; s0--) if (s0[-1] == '\n' && ++c >= lines) break;
+  if (from && s0 == buf) { char *nl = strchr(buf, '\n'); s0 = nl ? nl + 1 : buf; } /* drop a half line at the cut */
+  int n = 0;
+  for (char *ln = s0; ln && *ln && n < lines; n++) {
+    char *e = strchr(ln, '\n');
+    if (e) *e = 0;
+    if (strlen(ln) > 280) ln[280] = 0;
+    char key[24]; snprintf(key, sizeof key, "tail/%03d", n + 1);
+    look_kv(key, ln);
+    ln = e ? e + 1 : 0;
+  }
+  snprintf(v, sizeof v, "%d", n); look_kv("tail/lines", v);
+  free(buf);
+}
+/* running programs: kern.proc.proc (sys/user.h kinfo_proc) */
+static int ps_list(int (*each)(int pid, const char *comm, const char *td, void *u), void *u) {
+  int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PROC, 0 };
+  size_t sz = 0;
+  if (sysctl(mib, 4, 0, &sz, 0, 0) || !sz) return -1;
+  sz += 16 * sizeof(struct kinfo_proc);
+  char *b = malloc(sz);
+  if (!b) return -1;
+  if (sysctl(mib, 4, b, &sz, 0, 0)) { free(b); return -1; }
+  int n = 0;
+  for (char *p = b; p + sizeof(int) <= b + sz;) {
+    struct kinfo_proc *k = (struct kinfo_proc *)p;
+    int ss = k->ki_structsize;
+    if (ss <= 0 || p + ss > b + sz) break;
+    char comm[COMMLEN + 2], td[TDNAMLEN + 2];
+    snprintf(comm, sizeof comm, "%s", k->ki_comm); snprintf(td, sizeof td, "%s", k->ki_tdname);
+    n++;
+    if (each(k->ki_pid, comm, td, u)) break;
+    p += ss;
+  }
+  free(b);
+  return n;
+}
+static int ps_look_one(int pid, const char *comm, const char *td, void *u) {
+  (void)u; char k[24], v[64];
+  snprintf(k, sizeof k, "ps/%d", pid); snprintf(v, sizeof v, "%s|%s", comm, td);
+  look_kv(k, v); return 0;
+}
+static void look_ps(void) { if (ps_list(ps_look_one, 0) < 0) look_kv("ps/error", "can't list"); }
+static int has_ci(const char *h, const char *n) { for (; *h; h++) if (!strncasecmp(h, n, strlen(n))) return 1; return 0; }
+typedef struct { int pids[8], n, me; } dns_find_t;
+static int dns_find_one(int pid, const char *comm, const char *td, void *u) {
+  dns_find_t *f = u;
+  if (pid != f->me && (has_ci(comm, "nanodns") || has_ci(td, "nanodns")) && f->n < 8) f->pids[f->n++] = pid;
+  return 0;
+}
+static void dns_file_sha(const char *path, char out[16]) {
+  strcpy(out, "");
+  FILE *f = fopen(path, "rb");
+  if (!f) return;
+  static unsigned char b[16384];
+  size_t n = fread(b, 1, sizeof b, f);
+  fclose(f);
+  unsigned char h[32];
+  mbedtls_sha256(b, n, h, 0);
+  for (int i = 0; i < 6; i++) sprintf(out + i * 2, "%02x", h[i]);
+}
+/* the rules (the engine checks the same): block-all line, only 0.0.0.0 overrides, no Sony-looking or catch-all exceptions,
+   the engine itself allowed, listening on this PS4 only, plain text, small */
+static int dns_check(const char *t, size_t n, char *why, size_t wn) {
+  if (n < 40 || n > 8192) { snprintf(why, wn, "size %u", (unsigned)n); return 0; }
+  for (size_t i = 0; i < n; i++) { unsigned char c = t[i]; if (c != '\n' && c != '\r' && c != '\t' && (c < 32 || c == 127)) { snprintf(why, wn, "not plain text"); return 0; } }
+  static const char *bad[] = { "playstation", "sony", "psn", "akamai", "akadns", "edgesuite", "edgekey", "llnw", "scea", "scee", "sie-" };
+  char sec[32] = "", line[300];
+  int blockall = 0, engine = 0;
+  for (size_t i = 0; i < n;) {
+    size_t j = i; while (j < n && t[j] != '\n') j++;
+    size_t L = j - i; if (L > sizeof line - 1) L = sizeof line - 1;
+    memcpy(line, t + i, L); line[L] = 0; i = j + 1;
+    char *a = line; while (*a == ' ' || *a == '\t') a++;
+    char *e = a + strlen(a); while (e > a && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r')) *--e = 0;
+    if (!*a || *a == '#' || *a == ';') continue;
+    if (*a == '[') { snprintf(sec, sizeof sec, "%s", a); continue; }
+    if (!strcmp(sec, "[general]")) {
+      if (!strncmp(a, "bind=", 5) && strcmp(a + 5, "127.0.0.1")) { snprintf(why, wn, "bind must be 127.0.0.1"); return 0; }
+      if (!strncmp(a, "bind6=", 6) && strcmp(a + 6, "::1") && strcmp(a + 6, "off")) { snprintf(why, wn, "bind6 must be ::1 or off"); return 0; }
+      if (!strncmp(a, "log=", 4) && strcmp(a + 4, "/data/nanodns/nanodns.log")) { snprintf(why, wn, "log must stay /data/nanodns/nanodns.log"); return 0; }
+    } else if (!strcmp(sec, "[overrides]")) {
+      char *eq = strchr(a, '='); if (!eq) { snprintf(why, wn, "override without ="); return 0; }
+      char *v = eq + 1; while (*v == ' ') v++;
+      if (strcmp(v, "0.0.0.0")) { snprintf(why, wn, "overrides may only block (=0.0.0.0)"); return 0; }
+      *eq = 0; char *k = a; e = k + strlen(k); while (e > k && e[-1] == ' ') *--e = 0;
+      if (!strcmp(k, "*")) blockall = 1;
+    } else if (!strcmp(sec, "[exceptions]")) {
+      for (unsigned b = 0; b < sizeof bad / sizeof *bad; b++) if (has_ci(a, bad[b])) { snprintf(why, wn, "Sony-looking exception: %.60s", a); return 0; }
+      char core[300]; size_t m = 0; for (char *c = a; *c && m < sizeof core - 1; c++) if (*c != '*') core[m++] = *c; core[m] = 0;
+      char *cc = core; while (*cc == '.') cc++;
+      if (!strchr(cc, '.')) { snprintf(why, wn, "catch-all exception: %.60s", a); return 0; }
+      if (!strcasecmp(a, ENGINE_HOST)) engine = 1;
+    } else if (!strcmp(sec, "[upstream]")) {
+      if (!strncmp(a, "server=", 7)) for (char *c = a + 7; *c; c++) if (!((*c >= '0' && *c <= '9') || *c == '.')) { snprintf(why, wn, "upstream server must be a number address"); return 0; }
+    }
+  }
+  if (!blockall) { snprintf(why, wn, "missing the block-everything line *=0.0.0.0"); return 0; }
+  if (!engine) { snprintf(why, wn, "the engine (%s) must be in [exceptions]", ENGINE_HOST); return 0; }
+  return 1;
+}
+static int bl_send(const char *path, char *why, size_t wn) { /* hand an ELF to GoldHEN's BinLoader (as the starter does) */
+  FILE *f = fopen(path, "rb");
+  if (!f) { snprintf(why, wn, "can't open %s", path); return -1; }
+  fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+  if (n < 64 || n > 16 * 1024 * 1024) { fclose(f); snprintf(why, wn, "bad size %ld", n); return -1; }
+  unsigned char *b = malloc(n);
+  if (!b || fread(b, 1, n, f) != (size_t)n) { fclose(f); free(b); snprintf(why, wn, "read failed"); return -1; }
+  fclose(f);
+  if (memcmp(b, "\x7f" "ELF", 4)) { free(b); snprintf(why, wn, "not an ELF"); return -1; }
+  int s = socket(AF_INET, SOCK_STREAM, 0);
+  struct sockaddr_in a; memset(&a, 0, sizeof a);
+  a.sin_family = AF_INET; a.sin_port = htons(9090); a.sin_addr.s_addr = htonl(0x7f000001);
+  if (s < 0 || connect(s, (struct sockaddr *)&a, sizeof a)) { if (s >= 0) close(s); free(b); snprintf(why, wn, "BinLoader (9090) not answering"); return -2; }
+  long sent = 0;
+  while (sent < n) { ssize_t k = send(s, b + sent, n - sent, 0); if (k <= 0) break; sent += k; }
+  close(s); free(b);
+  if (sent != n) { snprintf(why, wn, "sent %ld of %ld", sent, n); return -1; }
+  return 0;
+}
+static int bl_up(void) {
+  int s = socket(AF_INET, SOCK_STREAM, 0);
+  struct sockaddr_in a; memset(&a, 0, sizeof a);
+  a.sin_family = AF_INET; a.sin_port = htons(9090); a.sin_addr.s_addr = htonl(0x7f000001);
+  int ok = s >= 0 && !connect(s, (struct sockaddr *)&a, sizeof a);
+  if (s >= 0) close(s); /* BinLoader just sees an empty connection */
+  return ok;
+}
+static void dns_elf_path(char *out, size_t on) { /* where AutoRun starts nanoDNS from (GoldHEN payloads.ini) */
+  out[0] = 0;
+  FILE *f = fopen("/data/GoldHEN/payloads.ini", "r");
+  char l[300];
+  while (f && fgets(l, sizeof l, f)) {
+    if (!has_ci(l, "nanodns") || !has_ci(l, ".elf")) continue;
+    char *a = l; while (*a == ' ') a++;
+    size_t k = strcspn(a, "=\r\n"); while (k && a[k - 1] == ' ') k--;
+    a[k] = 0;
+    if (a[0] == '/' && file_exists(a)) { snprintf(out, on, "%s", a); break; }
+  }
+  if (f) fclose(f);
+  if (!out[0]) { static const char *c[] = { "/data/payloads/nanodns.elf", "/user/data/payloads/nanodns.elf", "/data/nanodns/nanodns.elf" };
+    for (unsigned i = 0; i < 3; i++) if (file_exists(c[i])) { snprintf(out, on, "%s", c[i]); break; } }
+}
+static int dns_lookup(const char *host, uint32_t *ip) {
+  struct addrinfo hints, *res = 0;
+  memset(&hints, 0, sizeof hints); hints.ai_family = AF_INET; hints.ai_socktype = SOCK_STREAM;
+  if (getaddrinfo(host, 0, &hints, &res) || !res) return -1;
+  *ip = ((struct sockaddr_in *)res->ai_addr)->sin_addr.s_addr;
+  freeaddrinfo(res);
+  return 0;
+}
+static int dns_test(char *why, size_t wn) { /* up to ~25 s while nanoDNS starts */
+  for (int i = 0; i < 12; i++) {
+    uint32_t ip = 1;
+    if (dns_lookup("ps4-system.sec.np.dl.playstation.net", &ip)) { snprintf(why, wn, "nanoDNS not answering"); sleep(2); continue; }
+    if (ip != 0) { snprintf(why, wn, "Sony update name NOT blocked"); return 0; }
+    if (dns_lookup(ENGINE_HOST, &ip) || !ip) { snprintf(why, wn, "engine name blocked or not found"); sleep(2); continue; }
+    char b[200], err[120];
+    int st = r2tls_request(ENGINE_HOST, "GET", "/time", 0, 0, 0, b, sizeof b, err, sizeof err);
+    if (st == 200) { snprintf(why, wn, "ok"); return 1; }
+    snprintf(why, wn, "engine didn't answer (%d %s)", st, err); sleep(2);
+  }
+  return 0;
+}
+static int dns_restart(const char *elf, char *why, size_t wn) {
+  dns_find_t f; memset(&f, 0, sizeof f); f.me = getpid();
+  ps_list(dns_find_one, &f);
+  for (int i = 0; i < f.n; i++) kill(f.pids[i], SIGTERM);
+  for (int t = 0; t < 10; t++) { int alive = 0; for (int i = 0; i < f.n; i++) if (!kill(f.pids[i], 0)) alive = 1; if (!alive) break; usleep(500000); }
+  for (int i = 0; i < f.n; i++) if (!kill(f.pids[i], 0)) kill(f.pids[i], SIGKILL);
+  sleep(1);
+  return bl_send(elf, why, wn);
+}
+static int copy_text(const char *from, const char *to) {
+  FILE *a = fopen(from, "rb"); if (!a) return -1;
+  char tmp[300]; snprintf(tmp, sizeof tmp, "%s.tmp", to);
+  FILE *b = fopen(tmp, "wb"); if (!b) { fclose(a); return -1; }
+  char buf[4096]; size_t k; int bad = 0;
+  while ((k = fread(buf, 1, sizeof buf, a)) > 0) if (fwrite(buf, 1, k, b) != k) bad = 1;
+  fclose(a); if (fclose(b)) bad = 1;
+  if (bad || rename(tmp, to)) { unlink(tmp); return -1; }
+  return 0;
+}
+static void dns_report(const char *key, const char *cid, int ok, const char *why, const char *steps) {
+  Jn = 0;
+  jadd("{\"id\":\"%s\",\"cid\":", console_id); jstr(cid);
+  jadd(",\"ok\":%d,\"refused\":0,\"why\":", ok); jstr(why);
+  jadd(",\"list\":{"); look_n = 0;
+  for (const char *p = steps; p && *p;) { /* "k=v\n" pairs */
+    const char *e = strchr(p, '\n'); size_t L = e ? (size_t)(e - p) : strlen(p);
+    char l[200]; if (L > sizeof l - 1) L = sizeof l - 1; memcpy(l, p, L); l[L] = 0;
+    char *eq = strchr(l, '='); if (eq) { *eq = 0; look_kv(l, eq + 1); }
+    p = e ? e + 1 : 0;
+  }
+  jadd("}}");
+  char hdr[200], rb[200], err[120];
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  for (int i = 0; i < 3 && r2tls_request(ENGINE_HOST, "POST", "/ps4/done", hdr, J, Jn, rb, sizeof rb, err, sizeof err) != 200; i++) sleep(5);
+}
+static void do_dns(const char *key, const char *cid, const char *body) {
+  char sha[80], why[160] = "", steps[1200] = "", elf[200], w[160];
+  size_t sl = 0;
+#define STEP(...) do { if (sl < sizeof steps) sl += snprintf(steps + sl, sizeof steps - sl, __VA_ARGS__); } while (0)
+  jget(body, "sha", sha, sizeof sha);
+  const char *INI = "/data/nanodns/nanodns.ini", *PREV = "/data/nanodns/nanodns.ini.prev", *NEW = "/data/nanodns/nanodns.ini.new";
+  char oldsha[16]; dns_file_sha(INI, oldsha); STEP("dns/before=%s\n", oldsha[0] ? oldsha : "(no file)");
+  /* 1) can we restart nanoDNS here at all? if not, change nothing */
+  dns_find_t f; memset(&f, 0, sizeof f); f.me = getpid(); ps_list(dns_find_one, &f);
+  dns_elf_path(elf, sizeof elf);
+  STEP("dns/process=%d found\n", f.n); STEP("dns/program=%s\n", elf[0] ? elf : "(not found)");
+  if (f.n != 1 || !elf[0] || !bl_up()) {
+    snprintf(why, sizeof why, "nothing changed: can't restart nanoDNS here (%s)", f.n != 1 ? "its program not found by name" : !elf[0] ? "nanodns.elf not found" : "BinLoader off");
+    dns_report(key, cid, 0, why, steps); return;
+  }
+  /* 2) fetch the new settings, check sha + rules */
+  char hdr[200], req[120], err[120];
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  int rn = snprintf(req, sizeof req, "{\"id\":\"%s\",\"cid\":\"%s\"}", console_id, cid);
+  unsigned char *d = 0; size_t dl = 0;
+  int st = r2tls_fetch(ENGINE_HOST, "POST", "/ps4/dnsini", hdr, req, rn, &d, &dl, 16384, err, sizeof err);
+  if (st != 200 || !d) { snprintf(why, sizeof why, "nothing changed: download failed (%d %s)", st, err); free(d); dns_report(key, cid, 0, why, steps); return; }
+  unsigned char h[32]; char hex[65]; mbedtls_sha256(d, dl, h, 0); for (int i = 0; i < 32; i++) sprintf(hex + i * 2, "%02x", h[i]);
+  if (strcasecmp(hex, sha)) { free(d); dns_report(key, cid, 0, "nothing changed: the file didn't match its checksum", steps); return; }
+  if (!dns_check((const char *)d, dl, w, sizeof w)) { free(d); snprintf(why, sizeof why, "nothing changed: refused – %s", w); dns_report(key, cid, 0, why, steps); return; }
+  /* 3) keep the old one, put the new one in place (temp file + rename) */
+  if (file_exists(INI) && copy_text(INI, PREV)) { free(d); dns_report(key, cid, 0, "nothing changed: couldn't keep a copy of the old settings", steps); return; }
+  FILE *o = fopen(NEW, "wb"); int bad = !o || fwrite(d, 1, dl, o) != dl; if (o && fclose(o)) bad = 1; free(d);
+  if (bad || rename(NEW, INI)) { unlink(NEW); dns_report(key, cid, 0, "nothing changed: couldn't write the new settings", steps); return; }
+  STEP("dns/new=%.12s\n", sha);
+  /* 4) restart + test */
+  int r = dns_restart(elf, w, sizeof w);
+  STEP("dns/restart=%s\n", r ? w : "ok");
+  if (!r && dns_test(w, sizeof w)) {
+    STEP("dns/test=%s\n", w);
+    snprintf(why, sizeof why, "new blocker settings on and tested (Sony blocked, engine answers)");
+    dns_report(key, cid, 1, why, steps); return;
+  }
+  STEP("dns/test=%s\n", r ? "not run" : w);
+  /* 5) roll back */
+  char w2[160] = "";
+  int back = file_exists(PREV) ? copy_text(PREV, INI) : -1;
+  int r2 = back ? -1 : dns_restart(elf, w2, sizeof w2);
+  int ok2 = !r2 && dns_test(w2, sizeof w2);
+  STEP("dns/rollback=%s\n", back ? "couldn't put the old file back" : r2 ? w2 : ok2 ? "old settings back and tested" : w2);
+  snprintf(why, sizeof why, "rolled back: %s%s", r ? "restart failed" : w, ok2 ? "" : " – CHECK THIS PS4 (old settings not confirmed)");
+  dns_report(key, cid, 0, why, steps);
+#undef STEP
+}
+
 static void do_look(const char *key, const char *cid, const char *body) {
   Jn = 0;
   look_n = 0;
@@ -1228,6 +1518,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_wkey")) look_wkey();
     else if (!strcmp(t, "/_ddpall")) look_ddpall();
     else if (!strncmp(t, "/_wol.", 6)) look_wol(t);
+    else if (!strncmp(t, "/_tail.", 7)) look_tail(t + 7, dp);
+    else if (!strcmp(t, "/_ps")) look_ps();
     else if (t[0] == '/' && !strstr(t, "..")) look_dir(t, 0, dp > 6 ? 6 : dp);
   }
   jadd("}}");
@@ -1257,6 +1549,7 @@ static int check_cmd(const char *key) { /* every minute; 1 = it did something (r
   else if (strstr(body, "\"do\":\"update\"")) do_update(key, cid, body);
   else if (strstr(body, "\"do\":\"look\"")) do_look(key, cid, body);
   else if (strstr(body, "\"do\":\"prof\"")) do_prof(key, cid, body);
+  else if (strstr(body, "\"do\":\"dns\"")) do_dns(key, cid, body);
   else cmd_done(key, cid, 0, 1, 0, 0, 0, "this helper doesn't know that command - update it");
   return 1;
 }

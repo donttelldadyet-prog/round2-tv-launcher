@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -52,7 +53,16 @@ static int r2_connect(mbedtls_net_context *net, const char *host, const char *po
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
-  if (getaddrinfo(host, port, &hints, &res) || !res) return MBEDTLS_ERR_NET_UNKNOWN_HOST;
+  /* 1.1.16: remember the last good address of each host in /data/round2/addr-<host>.txt and use it when the name can't be
+     looked up or comes back blocked (0.0.0.0) – so a bad blocker setting can't cut the helper off from the engine. */
+  char cpath[200], cached[64] = "";
+  snprintf(cpath, sizeof cpath, "/data/round2/addr-%s.txt", host);
+  for (char *c = cpath + 18; *c; c++) if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '.' || *c == '-' || *c == '/')) *c = '_';
+  { FILE *cf = fopen(cpath, "r"); if (cf) { if (!fgets(cached, sizeof cached, cf)) cached[0] = 0; fclose(cf); cached[strcspn(cached, "\r\n")] = 0; } }
+  int gr = getaddrinfo(host, port, &hints, &res);
+  if (!gr && res && ((struct sockaddr_in *)res->ai_addr)->sin_addr.s_addr == 0) { freeaddrinfo(res); res = 0; gr = -1; }
+  if ((gr || !res) && cached[0]) gr = getaddrinfo(cached, port, &hints, &res);
+  if (gr || !res) return MBEDTLS_ERR_NET_UNKNOWN_HOST;
   int ret = MBEDTLS_ERR_NET_CONNECT_FAILED;
   for (a = res; a; a = a->ai_next) {
     int fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
@@ -73,6 +83,9 @@ static int r2_connect(mbedtls_net_context *net, const char *host, const char *po
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &st, sizeof st);
     net->fd = fd;
     ret = 0;
+    { char ip[32]; unsigned char *q = (unsigned char *)&((struct sockaddr_in *)a->ai_addr)->sin_addr.s_addr;
+      snprintf(ip, sizeof ip, "%u.%u.%u.%u", q[0], q[1], q[2], q[3]);
+      if (strcmp(ip, cached)) { FILE *cf = fopen(cpath, "w"); if (cf) { fputs(ip, cf); fclose(cf); } } }
     break;
   }
   freeaddrinfo(res);
