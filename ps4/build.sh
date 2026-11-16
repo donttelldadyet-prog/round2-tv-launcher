@@ -31,4 +31,6 @@ $CC -Wall -O2 -I"$D/mbedtls/include" -Itls -DMBEDTLS_USER_CONFIG_FILE='"r2_mbedt
   -o out/round2d.elf helper/main.c tls/r2tls.c "$D/ca_bundle.c" "$D/libmbedtls-ps4.a" \
   -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl
 $CC -Wall -O2 -o out/round2-boot.elf boot/main.c   # the starter (AutoRun) – no network, no TLS
+# Round2 build of the blocker (nanoDNS + settings reload without a restart) – see nanodns/main.c
+$CC -Wall -Wextra -Werror -O2 -std=c11 -DPLATFORM_PS4=1 -o out/nanodns-r2.elf nanodns/main.c -lSceNet
 ls -la out

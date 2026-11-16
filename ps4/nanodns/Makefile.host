@@ -1,0 +1,6 @@
+# Round2: computer build of the blocker, ONLY for testing the settings reload (not for a PS4).
+#   make -f Makefile.host DIR=/tmp/ndtest PORT=5353
+DIR ?= /tmp/ndtest
+PORT ?= 5353
+nanodns-host: main.c
+	cc -Wall -Wextra -O2 -std=gnu11 -D_DEFAULT_SOURCE -DPLATFORM_HOST=1 -DDATA_DIR='"$(DIR)"' -DDNS_PORT=$(PORT) -o $@ main.c
