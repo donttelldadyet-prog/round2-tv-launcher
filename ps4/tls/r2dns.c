@@ -120,3 +120,26 @@ void r2_where_start(const char *version) { /* at start: what was the last run do
   if (f) { char s[24]; stamp(s, sizeof s, (long long)time(0)); fprintf(f, "%s helper %s started; the run before was last in: %s\n", s, version, b[0] ? b : "(no note)"); fclose(f); }
   r2_where("start", 1);
 }
+
+/* 1.1.27 (16 Nov, owner: "what's the next step"): a line in /data/round2/net-fail.log for every FAILED request to the
+   engine (time, request, the step it failed in, the error) and one line when they work again ("back after N failures,
+   M s"). 1.1.26 made the steps give up quickly instead of hanging – so a dead spell now shows up as failures, not as a
+   slow step, and this is where it is written down. Kept under 32 KB (old file -> net-fail.log.old). */
+static int nf_count; static long long nf_first;
+void r2_netnote(const char *path, int status, const char *err) {
+  int ok = status >= 200 && status < 500;
+  if (ok && !nf_count) return;
+  FILE *f;
+  { FILE *t = fopen("/data/round2/net-fail.log", "r"); if (t) { fseek(t, 0, SEEK_END); long sz = ftell(t); fclose(t); if (sz > 32768) rename("/data/round2/net-fail.log", "/data/round2/net-fail.log.old"); } }
+  f = fopen("/data/round2/net-fail.log", "a");
+  long long now = (long long)time(0); char s[24]; stamp(s, sizeof s, now);
+  if (ok) {
+    if (f) fprintf(f, "%s back after %d failure(s), %lld s\n", s, nf_count, now - nf_first);
+    nf_count = 0;
+  } else {
+    if (!nf_count) nf_first = now;
+    nf_count++;
+    if (f && (nf_count <= 5 || nf_count % 10 == 0)) fprintf(f, "%s fail #%d %s in '%s': %d %.80s\n", s, nf_count, path ? path : "", w_name, status, err ? err : "");
+  }
+  if (f) fclose(f);
+}

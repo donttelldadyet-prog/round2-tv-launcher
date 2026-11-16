@@ -16,3 +16,4 @@ void r2tls_set_dns(const char *a, const char *b);             /* the PS4's own D
 void r2dns_set_port(int p);                                   /* test only */
 void r2_where(const char *name, int save);                    /* "I'm in this step now"; a step over a minute gets a line in /data/round2/slow.log */
 void r2_where_start(const char *version);
+void r2_netnote(const char *path, int status, const char *err);   /* 1.1.27: failed engine requests -> /data/round2/net-fail.log */

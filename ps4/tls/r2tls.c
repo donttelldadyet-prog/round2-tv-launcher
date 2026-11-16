@@ -205,6 +205,7 @@ int r2tls_request(const char *host, const char *method, const char *path, const 
   size_t n = 0;
   if (out && outlen) out[0] = 0;
   int st = tls_go(host, method, path, headers, body, blen, &r, &n, 65536, err, errlen);
+  r2_netnote(path, st, err);
   if (r) {
     char *b = strstr(r, "\r\n\r\n");
     if (out && outlen) snprintf(out, outlen, "%s", b ? b + 4 : r);
