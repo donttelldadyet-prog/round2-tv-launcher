@@ -5,6 +5,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/entropy.h"
@@ -35,6 +42,43 @@ unsigned long long r2tls_last_bytes = 0;
 static mbedtls_x509_crt cacert;
 static int ca_ready = 0;
 
+/* 1.1.15 (16 Nov): every network step has a time limit. Bella (16 Nov morning) and Max (2:12pm update) had a helper that
+   was alive but stuck – most likely a connect or send that never came back on weak Wi-Fi. Reads already stop after 15 s
+   (mbedtls read timeout); now the connect gives up after 10 s per address and sends after 20 s. */
+#define R2_CONNECT_S 10
+#define R2_SEND_S 20
+static int r2_connect(mbedtls_net_context *net, const char *host, const char *port) {
+  struct addrinfo hints, *res = 0, *a;
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  if (getaddrinfo(host, port, &hints, &res) || !res) return MBEDTLS_ERR_NET_UNKNOWN_HOST;
+  int ret = MBEDTLS_ERR_NET_CONNECT_FAILED;
+  for (a = res; a; a = a->ai_next) {
+    int fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+    if (fd < 0) { ret = MBEDTLS_ERR_NET_SOCKET_FAILED; continue; }
+    int fl = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+    int ok = connect(fd, a->ai_addr, a->ai_addrlen) == 0;
+    if (!ok && errno == EINPROGRESS) {
+      fd_set wf; FD_ZERO(&wf); FD_SET(fd, &wf);
+      struct timeval tv = { R2_CONNECT_S, 0 };
+      int e = 0; socklen_t el = sizeof e;
+      ok = select(fd + 1, 0, &wf, 0, &tv) > 0 && !getsockopt(fd, SOL_SOCKET, SO_ERROR, &e, &el) && !e;
+    }
+    if (!ok) { close(fd); continue; }
+    fcntl(fd, F_SETFL, fl & ~O_NONBLOCK);
+    struct timeval st = { R2_SEND_S, 0 };
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &st, sizeof st);
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &st, sizeof st);
+    net->fd = fd;
+    ret = 0;
+    break;
+  }
+  freeaddrinfo(res);
+  return ret;
+}
+
 static int tls_go(const char *host, const char *method, const char *path, const char *headers, const char *body,
                   size_t blen, char **rbuf, size_t *rlen, size_t max, char *err, size_t errlen) {
   int ret, status = -1;
@@ -60,7 +104,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   mbedtls_ctr_drbg_init(&drbg);
 
   if ((ret = mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &ent, (const unsigned char *)"round2", 6))) goto fail;
-  if ((ret = mbedtls_net_connect(&net, host, "443", MBEDTLS_NET_PROTO_TCP))) goto fail;
+  if ((ret = r2_connect(&net, host, "443"))) goto fail;
   if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
                                          MBEDTLS_SSL_PRESET_DEFAULT))) goto fail;
   mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_REQUIRED);

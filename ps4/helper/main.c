@@ -34,7 +34,7 @@
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 
-#define R2_VERSION "1.1.14"
+#define R2_VERSION "1.1.15"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -634,12 +634,16 @@ static void do_update(const char *key, const char *cid, const char *body) {
   }
   free(d);
   if (why[0]) { unlink(APP "/new.elf.tmp"); cmd_done(key, cid, 0, 0, 0, 0, 0, why); notify("Round2 helper: update not done - still on the old version."); return; }
+  /* 1.1.15 (16 Nov, Max 2:12pm): let go FIRST, then report and show the pop-up. Before, the old helper reported and showed
+     the pop-up while still holding on; on Max it got stuck after that and the starter waited until the PS4 was restarted.
+     Now whatever happens afterwards, the starter can swap in the new version. */
+  put_file(APP "/switch", v);
+  if (g_lock >= 0) { flock(g_lock, LOCK_UN); close(g_lock); g_lock = -1; }
   snprintf(why, sizeof why, "downloaded %s - switching", v);
   cmd_done(key, cid, 1, 0, 0, 0, 0, why);
-  put_file(APP "/switch", v);
   snprintf(msg, sizeof msg, "Round2 helper: switching to %s", v);
   notify(msg);
-  step_aside(); /* lock released -> the starter swaps it in (1.0.6 and older exited here) */
+  step_aside(); /* lock already released -> the starter swaps it in (1.0.6 and older exited here) */
 }
 
 /* look (1.0.5): read-only listing of folders for staff/Claude (names, sizes, dates) – e.g. what the Capture Gallery keeps after a
