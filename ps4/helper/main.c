@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.19"
+#define R2_VERSION "1.1.20"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -403,6 +403,9 @@ static int update_guard(void) { /* 1 = it stopped something just now */
      the control centre next time instead of by FTP in the room. */
 static long long g_up, wake_at, wake_slept;
 static int wake_n;
+static const char *wake_via = "";
+static long long drift0, drift_seen;
+static double mono_s(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 static int tail_n;
 static void add_tail(const char *name, const char *path, int lines) {
   FILE *f = fopen(path, "r");
@@ -460,7 +463,7 @@ static int report(const char *key, char *status, size_t slen) {
     jadd(",\"dns\":{\"sha\":\"%s\",\"prev\":%d}", dh, file_exists("/data/nanodns/nanodns.ini.prev")); }
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
-  if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld}", wake_n, wake_at, wake_slept);
+  if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld,\"via\":\"%s\"}", wake_n, wake_at, wake_slept, wake_via);
   tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); jadd("}");
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
@@ -1754,6 +1757,7 @@ int main(void) {
   char key[128] = "", status[400] = "starting";
   int warned = 0;
   g_up = (long long)time(0);
+  drift0 = (long long)time(0) - (long long)mono_s();
   write_status("started, first report in about 10 seconds");
   update_guard();
   for (unsigned long m = 0;; m++) {
@@ -1788,14 +1792,26 @@ int main(void) {
       time_t t0 = time(0);
       sleep(2);
       long long gap = (long long)(time(0) - t0);
-      if (gap > 90) { /* 1.1.14: a 2 s sleep that took minutes = the PS4 was in rest mode (frozen) and has just woken */
-        wake_n++; wake_slept = gap; wake_at = (long long)time(0);
+      /* 1.1.20 (Kai 16 Nov 5:37pm: a wake after OUR remote rest wasn't noticed – the PS4 froze during another step, not in
+         this sleep): also compare the wall clock with the running clock. If the running clock stands still in rest mode,
+         the difference jumps by the time slept, wherever the freeze happened. wake_via says which check saw it. */
+      long long drift = (long long)time(0) - (long long)mono_s() - drift0, slept = 0;
+      if (gap > 90) { slept = gap; wake_via = "sleep"; } /* 1.1.14: a 2 s sleep that took minutes */
+      else if (drift - drift_seen > 60) { slept = drift - drift_seen; wake_via = "clock"; }
+      drift_seen = drift;
+      if (slept) { /* the PS4 was in rest mode (frozen) and has just woken */
+        wake_n++; wake_slept = slept; wake_at = (long long)time(0);
         sleep(12); /* the network comes back a few seconds after the screen */
+        int st = -1;
         if (read_key(key, sizeof key)) {
-          int st = report(key, status, sizeof status);
+          st = report(key, status, sizeof status);
           for (int i = 0; st != 200 && i < 6; i++) { sleep(8); st = report(key, status, sizeof status); }
           write_status(status);
         }
+        { char msg[200]; /* owner 16 Nov: a pop-up after every wake, like GoldHEN's FTP / BinLoader ones */
+          snprintf(msg, sizeof msg, "Round2 helper %s: awake after rest mode - %s", R2_VERSION, st == 200 ? "running and connected" : "running (can't reach Round2 yet, will retry)");
+          notify(msg); }
+        drift_seen = (long long)time(0) - (long long)mono_s() - drift0;
       }
     }
   }
