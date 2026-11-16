@@ -3025,7 +3025,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function tile(p) {
       var R = ROOMS[RK(p.room)] || { name: 'New PS4', c: '#888' }, now = R2Day.now(), on = p.poll && now - p.poll < 3 * 60000;
       var lines = [], warn = [];
-      if (!on) lines.push('<span style="color:var(--bad);font-weight:700">Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '') + '</span>');
+      /* owner, 16 Nov: "Offline" couldn't tell rest mode from a stopped helper. Rest mode we sent is known from the job itself;
+         helper 1.1.14+ says when the PS4 last woke and for how long it slept, and sends the starter's last log lines. */
+      var byUs = !on && p.cmd && p.cmd.do === 'look' && /\/_rest/.test(p.cmd.p || '') && p.cmd.state === 'done' && p.cmd.doneAt && Math.abs((p.poll || 0) - p.cmd.doneAt) < 3 * 60000 && !(p.cmd.res && /refused/.test(JSON.stringify(p.cmd.res)));
+      if (byUs) lines.push('<span style="color:var(--warn,#F2C21B);font-weight:700">😴 Rest mode · sent by us ' + esc(ago(p.cmd.doneAt)) + '</span>');
+      else if (!on) lines.push('<span style="color:var(--bad);font-weight:700">Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '') + '</span><span class="tvv" style="white-space:normal">Rest mode, switched off, or the helper stopped. If the PS4 is on: restart it and run the jailbreak.</span>');
       else lines.push('<span style="color:var(--ok)">✓ Online' + (p.running ? ' · playing ' + esc(p.runName || p.running) : '') + '</span>');
       if (p.sony !== 'blocked') warn.push('⚠️ Sony NOT blocked – check its DNS (127.0.0.1)');
       if (p.rolled) warn.push('↩️ Helper ' + p.rolled + ' – it stays on ' + (p.v || 'the old version') + ' until a newer one is out');
@@ -3037,13 +3041,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var vtxt = 'v' + esc(p.v || '?') + (latest && p.v && p4newer(latest, p.v) ? ' <i class="uw">(' + esc(latest) + ' out' + (old || !p.boot ? ' – needs ' + esc(selfUp) + '+ and the new starter by FTP once' : ' – updates by itself in quiet time') + ')</i>' : p.boot ? ' <i class="uo">up to date</i>' : '');
       if (p.wifi && p.wifi.ip) lines.push('<span class="tvv">FTP <b>' + esc(p.wifi.ip) + ':2121</b>' + (p.wifi.pct ? ' · Wi-Fi ' + (+p.wifi.pct) + '%' : '') + '</span>');   /* from its latest report – always current */
       lines.push('<span class="tvv">' + vtxt + ' · FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games · reported ' + esc(ago(p.t)) + cmdLine(p.cmd) + '</span>');
+      if (p.woke && p.woke.at && p.psClock) { var wk = p.t - (p.psClock - p.woke.at) * 1000, sl = +p.woke.sleptS || 0; lines.push('<span class="tvv">😴 Last woke from rest ' + esc(ago(wk)) + ' · slept ' + (sl >= 3600 ? Math.floor(sl / 3600) + ' h ' : '') + Math.round(sl % 3600 / 60) + ' min</span>'); }
+      if (p.up && p.psClock) lines.push('<span class="tvv">Helper running since ' + esc(ago(p.t - (p.psClock - p.up) * 1000)) + '</span>');
+      var lg = p.log && ((p.log.stopped || []).concat(p.log.boot || [])).length ? '<details class="tvv" style="white-space:normal"><summary>Helper log (PS4 clock)</summary>' + ((p.log.stopped || []).map(function (l) { return '<div style="color:var(--bad)">' + esc(l) + '</div>'; }).join('')) + ((p.log.boot || []).map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('')) + '</details>' : '';
       var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
       var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
           Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
         : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ~' + gb(junk) : '') + '</button>' +
           (p.boot && !old && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update now to ' + esc(latest) + '</button>' : '');
       return '<div class="tvt" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><b>' + esc(R.name) + '</b>' + lines.join('') +
-        (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + btn + '</div>';
+        (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + lg + btn + '</div>';
     }
     function draw() {
       if (!sKey()) { $('p4KeyBox').hidden = false; $('p4Tiles').innerHTML = ''; return; }
