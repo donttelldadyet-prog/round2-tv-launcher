@@ -916,6 +916,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="row" style="justify-content:space-between;align-items:flex-end"><h1 style="margin:0">PS4s</h1><button class="btn ghost" type="button" id="p4Refresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
     <p class="sub">Each room’s PS4 (once its Round2 helper is installed): online, Sony blocked, temperature, free space, what’s being played. The PS4 reports every 15 minutes and checks for jobs from here every minute.</p>
     <div class="banner warn" id="p4KeyBox" hidden><div class="grow">Add the <b>staff code</b> (Keys) to see the PS4s.</div></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0"><button class="btn" type="button" id="p4WakeEarly">⏰ Wake early-bird rooms</button><button class="btn" type="button" id="p4WakeAll">⏰ Wake all</button><button class="btn" type="button" id="p4SleepAll">😴 Sleep all</button><span class="hint" id="p4GroupMsg"></span></div>
     <div id="p4Tiles"></div>
     <details class="card" id="p4FileBox" style="margin-top:12px;padding:10px 12px"><summary><b>📄 Read a file on a PS4</b> – logs and settings, read-only (helper 1.1.16+)</summary>
       <div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap"><select id="p4FileRoom"></select>
@@ -3221,9 +3222,31 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         }, function () { $('p4DnsSend').disabled = false; dnsMsg('Couldn’t reach the engine.'); });
       };
     }
+    /* 16 Nov (owner): Wake early-bird rooms · Wake all · Sleep all. Wakes go through an awake PS4 (a phone's browser can't send
+       the wake message itself). Sleep all = rest mode for every PS4 that is on; the engine refuses a room with guests now or
+       within 15 min and the PS4 refuses with a game open – those stay on. */
+    function groupWake(which, label) {
+      $('p4GroupMsg').textContent = 'Sending…';
+      gm({ action: 'ps4wake', id: which, by: 'control centre' }).then(function (j) {
+        $('p4GroupMsg').textContent = j.ok ? label + ': ' + (j.rooms || []).map(function (r) { return (ROOMS[RK(r)] || {}).name || r; }).join(', ') + ' – sent by ' + ((ROOMS[RK(j.sender)] || {}).name || j.sender) + '’s PS4. Online within 2 minutes; one that stays Offline was switched off (start it and run the jailbreak).' : (j.error || 'Not sent');
+        setTimeout(draw, 3000); setTimeout(draw, 100000);
+      }, function () { $('p4GroupMsg').textContent = 'Couldn’t reach the engine.'; });
+    }
+    function sleepAll() {
+      var now = R2Day.now(), on = lastList.filter(function (p) { return p.room && p.poll && now - p.poll < 3 * 60000; });
+      if (!on.length) { $('p4GroupMsg').textContent = 'No PS4 is on.'; return; }
+      if (!confirm('Put ' + on.length + ' PS4(s) into rest mode?\n\nA room with guests now or within 15 minutes, or with a game open, stays on.')) return;
+      $('p4GroupMsg').textContent = 'Sending…';
+      Promise.all(on.map(function (p) { return gm({ action: 'ps4look', id: p.id, paths: '/_rest', by: 'control centre (sleep all)' }).then(function (j) { return rname(p) + (j.ok ? '' : ' ✗ ' + (j.error || '')); }); })).then(function (r) {
+        $('p4GroupMsg').textContent = 'Rest mode sent: ' + r.join(', ') + '. Each PS4 picks it up within a minute.'; setTimeout(draw, 90000);
+      });
+    }
     function init() {
       if (ready) return; ready = true;
       $('p4Refresh').onclick = draw;
+      $('p4WakeEarly').onclick = function () { groupWake('early', 'Wake early-bird rooms'); };
+      $('p4WakeAll').onclick = function () { groupWake('all', 'Wake all'); };
+      $('p4SleepAll').onclick = sleepAll;
       initFiles();
       $('p4Tiles').addEventListener('change', function (e) {
         var id = e.target.getAttribute && e.target.getAttribute('data-p4map'); if (!id || !e.target.value) return;
