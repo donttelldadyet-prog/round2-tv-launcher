@@ -1031,7 +1031,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <h1>System check</h1>
     <p class="sub">Runs the whole system end to end, like a real night: booking prices, the food menu, guest links, TVs reporting in, Add a session, +1h, Undo, Change, Vale ↔ Atlas, SimplyBook labels, today’s messages and TV setup. Run it after any new feature, so new parts don’t quietly break old ones.</p>
     <div class="card"><b>Safe to run any time.</b> <span class="hint">Test sessions are called ZZTEST and go in at 3–6am on a date about 6 weeks ahead, so nothing shows on a TV and no guest is affected; they’re removed at the end. Takes about a minute.</span>
-      <div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="scGo">Run full check</button></div><p class="hint" id="scWhen" style="margin:8px 0 0"></p></div>
+      <div class="row" style="margin-top:10px"><button class="btn primary" type="button" id="scGo">Run full check</button> <button class="btn" type="button" id="scLight">Light check (no SimplyBook)</button></div>
+      <p class="hint" style="margin:8px 0 0"><b>Light check</b> – for changes that can’t touch bookings (PS4 helper, TV app, this control centre): engine, clock, 7am rule, timers, TVs, PS4s, keys, pages. It makes <b>no SimplyBook requests</b>. <b>Full check</b> – for anything that touches bookings, notes, messages or payments: also plays through a test night, which costs about <b>650 SimplyBook requests</b> a run (SimplyBook’s guideline is ~5,000 a day in total).</p><p class="hint" id="scWhen" style="margin:8px 0 0"></p></div>
     <p id="scSum"></p>
     <div id="scList"></div>
   </section>
@@ -3370,7 +3371,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     function ago(t) { var m = Math.round((Date.now() - t) / 60000); return m < 60 ? m + ' min ago' : m < 2880 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; }
     function draw() {
       var n = { ok: 0, warn: 0, bad: 0 }; rows.forEach(function (r) { if (n[r.st] !== undefined) n[r.st]++; });
-      $('scSum').innerHTML = rows.length ? (running ? 'Running… ' : '') + '<b class="cok">' + n.ok + ' passed</b> · <b class="cwarn">' + n.warn + ' to look at</b> · <b class="cbad">' + n.bad + ' failed</b>' : '';
+      $('scSum').innerHTML = rows.length ? (LIGHT ? 'Light check · ' : '') + (running ? 'Running… ' : '') + '<b class="cok">' + n.ok + ' passed</b> · <b class="cwarn">' + n.warn + ' to look at</b> · <b class="cbad">' + n.bad + ' failed</b>' : '';
       $('scList').innerHTML = rows.map(function (r) {
         var ic = r.st === 'ok' ? '✅' : r.st === 'warn' ? '⚠️' : r.st === 'bad' ? '❌' : '⏳';
         return '<div class="card" style="margin:6px 0;padding:10px 12px;border-left:4px solid ' + (r.st === 'ok' ? 'var(--ok)' : r.st === 'warn' ? 'var(--warn)' : r.st === 'bad' ? 'var(--bad)' : 'var(--line2)') + '"><b>' + ic + ' ' + esc(r.name) + '</b>' +
@@ -3378,7 +3379,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }).join('');
     }
     /* one step: fn returns a note (pass), or throws {warn:'…'} / Error('…') */
+    /* Light check (owner, 16 Nov 2026): the full check's test night costs ~650 SimplyBook requests a run; 8 runs in one day
+       (before/after each PS4 helper change) helped push the day past 10,000. LIGHT runs only the steps listed here – none of
+       them asks SimplyBook anything. A new step is NOT in the light check until its name is added here (safe by default). */
+    var LIGHT = false, sb0 = null;
+    var LIGHT_OK = ['Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
+      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
     function step(name, fn) {
+      if (LIGHT && !LIGHT_OK.some(function (p) { return name.indexOf(p) === 0; })) return Promise.resolve();
       var r = { name: name, st: 'run', note: '' }; rows.push(r); draw();
       return Promise.resolve().then(fn).then(function (note) { r.st = 'ok'; r.note = note || ''; }, function (e) { r.st = e && e.warn ? 'warn' : 'bad'; r.note = (e && (e.warn || e.message)) || String(e); }).then(draw);
     }
@@ -3404,15 +3412,17 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       return gm({ action: 'insess', day: day }).then(function (j) { var R = Object.keys(j.rooms || {}).map(function (k) { return j.rooms[k]; }).filter(function (r) { return String(r.unit) === String(unit); })[0]; return R ? R.sessions.filter(function (s) { return /ZZTEST/.test(s.name); }) : []; });
     }
     function cleanup() {
+      if (LIGHT) return Promise.resolve();   /* nothing was made, and the clean-up itself asks SimplyBook */
       return Promise.all((T.links || []).map(function (c) { return gm({ action: 'cancel', code: c }).catch(function () {}); })).then(function () { return gm({ action: 'latelist' }); }).then(function (j) {
         return (j.sessions || []).filter(function (x) { return /^ZZTEST/.test(x.text); }).reduce(function (pr, x) { return pr.then(function () { return gm({ action: 'latecancel', id: x.id, day: x.day }); }); }, Promise.resolve());
       }).then(function () { return T.night ? gm({ action: 'shadow', from: addD(T.night, -1), n: '2' }) : null; }).catch(function () {});
     }
-    function run() {
+    function run(light) {
       if (running) return; if (!key()) { toast('Add the Guest messages staff code first (Keys).'); return; }
-      running = true; rows = []; T = {}; $('scGo').disabled = true; draw();
+      LIGHT = light === true; sb0 = null;
+      running = true; rows = []; T = {}; $('scGo').disabled = true; $('scLight').disabled = true; draw();
       var today = sgToday();
-      var chain = Promise.resolve()
+      var chain = Promise.resolve().then(function () { return LIGHT ? gm({ action: 'auto' }).then(function (a) { sb0 = a; }, function () {}) : null; })
       /* 1. engine + keys */
       .then(function () { return step('Booking engine is up, keys are in', function () {
         return J('/status').then(function (s) {
@@ -3888,15 +3898,31 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var urls = ['https://www.round2.sg/', 'https://book.round2.sg/', 'https://menu.round2.sg/', 'https://cue.round2.sg/', 'https://staff.round2.sg/late/'], bad = [];
         return Promise.all(urls.map(function (u) { return fetch(u, { mode: 'no-cors', cache: 'no-store' }).catch(function () { bad.push(u); }); })).then(function () { must(!bad.length, 'Can’t reach: ' + bad.join(', ')); return urls.length + ' pages up'; });
       }); });
+      chain = chain.then(function () { return !LIGHT ? null : step('Light check: no SimplyBook requests made by this run', function () {
+        /* the engine counts every SimplyBook request by who made it; the check's own would show as "gm …" or "/day", "/quote"… */
+        return gm({ action: 'auto' }).then(function (a) {
+          var b0 = (sb0 && sb0.sbBy) || {}, b1 = a.sbBy || {}, mine = [], other = 0;
+          Object.keys(b1).forEach(function (k) { var d = b1[k] - (b0[k] || 0); if (d <= 0) return; if (/^cron/.test(k)) other += d; else mine.push(k + ' +' + d); });
+          must(sb0, 'Couldn’t read the SimplyBook count at the start.');
+          warnIf(mine.length, 'SimplyBook requests during this run that aren’t from the timers (this check, or staff/guests using the site at the same time): ' + mine.join(' · '));
+          return 'None from this check' + (other ? ' (the background timers made ' + other + ' meanwhile)' : '') + ' · ' + (a.sbToday || 0) + ' so far today';
+        });
+      }); });
       chain.catch(function () {}).then(cleanup).then(function () {
-        running = false; $('scGo').disabled = false; draw();
-        try { ls('r2.sysCheckLast', JSON.stringify({ t: Date.now(), rows: rows })); } catch (e) {}
+        running = false; $('scGo').disabled = false; $('scLight').disabled = false; draw();
+        try { ls('r2.sysCheckLast', JSON.stringify({ t: Date.now(), rows: rows, light: LIGHT })); } catch (e) {}
       });
     }
     function open() {
-      if (!rows.length) { try { var l = JSON.parse(ls('r2.sysCheckLast') || 'null'); if (l) { rows = l.rows; $('scWhen').textContent = 'Last run ' + ago(l.t) + ' on this phone.'; } } catch (e) {} draw(); }
+      if (!rows.length) { try { var l = JSON.parse(ls('r2.sysCheckLast') || 'null'); if (l) { rows = l.rows; $('scWhen').textContent = 'Last run ' + ago(l.t) + ' on this phone' + (l.light ? ' (light check).' : '.'); } } catch (e) {} draw(); }
     }
-    $('scGo').onclick = run;
+    $('scGo').onclick = function () {   /* a full run costs ~650 SimplyBook requests: say so when the day is already busy */
+      gm({ action: 'auto' }).then(function (a) { return a.sbToday || 0; }, function () { return 0; }).then(function (n) {
+        if (n > 4000 && !confirm('SimplyBook has had ' + n + ' requests today (guideline ~5,000, hard stop ~10,000).\n\nA full check adds about 650. For changes that can’t touch bookings, use the Light check instead.\n\nRun the full check anyway?')) return;
+        run(false);
+      });
+    };
+    $('scLight').onclick = function () { run(true); };
     return { open: open };
   }());
 

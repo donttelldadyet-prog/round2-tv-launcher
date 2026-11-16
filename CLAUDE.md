@@ -2,6 +2,10 @@
 
 - **Run the System check before and after any change** (control centre › Tests & systems › System check). Add a step for
   every new feature that touches another part. Why and how: `docs/system-check.md`. This is the owner's standing rule.
+  **Two sizes (owner, 16 Nov 2026):** the **Light check** for changes that can't touch bookings (PS4 helper, TV app, the
+  control centre itself) – it makes NO SimplyBook requests; the **Full check** for anything touching bookings, notes,
+  messages, payments or the engine's booking code – it costs ~650 SimplyBook requests a run (guideline ~5,000 a day, hard
+  stop ~10,000; 16 Nov: 8 full runs in a day helped push it past 10,000). Look at "SimplyBook requests today" before a full run.
 - The owner describes behaviour; he doesn't read code. Explain results in plain words, and keep `manager/systems.json`
   (All systems / Planned) up to date when something changes stage.
 - **One clock:** all time-based code uses the engine's time (Cloudflare `/time`) via `r2Now()` (TV web), `snow` (LG helper),

@@ -96,3 +96,18 @@ No new step: "Moves and Vale/Atlas blocks can run …" (gm `mvselftest` → `mir
 time-blocked note (kv `mir:<booking>` = {note}) and checks the note is still there, in the twin, at the booking's times –
 SimplyBook doesn't call the engine when a note is deleted by hand, so this is where a missing one shows. The result line says
 how many blocks are notes and how many are still bookings (made before 14 Nov).
+
+## Light check and Full check (16 Nov 2026)
+The full check plays through a test night in SimplyBook (add, extend, change, cancel…). That costs about **650 SimplyBook
+requests a run**. SimplyBook's guideline is ~5,000 requests a day in total (hard stop ~10,000). On 16 Nov the full check was
+run 8 times in one afternoon (before and after each PS4 helper change) and the day ended above 10,000.
+
+- **Light check** (button "Light check (no SimplyBook)"): engine + keys, one clock, the 7am rule and its watchdog, the
+  background timers, today's SimplyBook count, food menu prices, TVs, PS4 helpers + save storage, PS4 blocker settings, TV
+  setup saving, key expiry, public pages. Its last step reads the engine's per-caller SimplyBook counts before and after and
+  must find none from the check itself. Use it for changes that cannot touch bookings: the PS4 helper, the TV app, the control
+  centre's own screens.
+- **Full check**: everything, for changes to bookings, notes, guest messages, payments, or the engine's booking code. It asks
+  first when the day has already passed 4,000 SimplyBook requests.
+- A new step is only part of the light check once its name is added to `LIGHT_OK` in `manager/index.html` – and only if it
+  asks SimplyBook nothing.
