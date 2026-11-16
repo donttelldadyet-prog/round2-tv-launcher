@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.22"
+#define R2_VERSION "1.1.23"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -404,6 +404,7 @@ static int update_guard(void) { /* 1 = it stopped something just now */
 static long long g_up, wake_at, wake_slept;
 static int wake_n;
 static const char *wake_via = "";
+static int wake_login = -1; /* 1.1.23: result of signing the main profile in after a wake (1 = someone was already in) */
 static long long drift0, drift_seen;
 static double mono_s(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 static int tail_n;
@@ -463,7 +464,7 @@ static int report(const char *key, char *status, size_t slen) {
     jadd(",\"dns\":{\"sha\":\"%s\",\"prev\":%d}", dh, file_exists("/data/nanodns/nanodns.ini.prev")); }
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
-  if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld,\"via\":\"%s\"}", wake_n, wake_at, wake_slept, wake_via);
+  if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld,\"via\":\"%s\",\"login\":%d}", wake_n, wake_at, wake_slept, wake_via, wake_login);
   tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); jadd("}");
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
@@ -1772,6 +1773,17 @@ static int read_key(char *key, size_t n) {
   return key[0] != 0;
 }
 
+/* 1.1.23 (Kai 16 Nov 6:22pm – first remote wake): a PS4 woken over the network starts with NOBODY signed in and waits at
+   "press the PS button". If nobody is signed in a few seconds after a wake, sign the room's main profile in (the PS4's own
+   auto-login profile) so it lands on the home screen. Signing in only – the profile itself is never changed.
+   Returns the call's result, or 1 = somebody was already signed in (woken by a controller), 2 = no main profile known. */
+static int wake_login_main(void) {
+  UserIdList l; memset(&l, 0, sizeof l);
+  if (!sceUserServiceGetLoginUserIdList(&l)) for (int i = 0; i < 4; i++) if (l.userId[i] != -1 && l.userId[i] != 0) return 1;
+  uint32_t m = r2_main_user();
+  if (!m) return 2;
+  return sceUserServiceLogin((int32_t)m);
+}
 int main(void) {
   mkdir("/data/round2", 0777);
   mkdir(APP, 0777);
@@ -1848,6 +1860,8 @@ int main(void) {
           for (int i = 0; st != 200 && i < 6; i++) { sleep(8); st = report(key, status, sizeof status); }
           write_status(status);
         }
+        wake_login = wake_login_main();
+        if (wake_login != 1 && read_key(key, sizeof key)) { sleep(4); report(key, status, sizeof status); write_status(status); } /* tell the engine who is in now */
         { char msg[200]; /* owner 16 Nov: a pop-up after every wake, like GoldHEN's FTP / BinLoader ones */
           snprintf(msg, sizeof msg, "Round2 helper %s: awake after rest mode - %s", R2_VERSION, st == 200 ? "running and connected" : "running (can't reach Round2 yet, will retry)");
           notify(msg); }
