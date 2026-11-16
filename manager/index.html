@@ -228,6 +228,12 @@ details.adraw { margin-top: 10px; } details.adraw pre { white-space: pre-wrap; f
 .tvt span { display: block; font-size: 12px; color: var(--mute); }
 .tvt .tvv { color: var(--mute) !important; font-weight: 400 !important; margin-top: 3px; } .tvt .tvv i { font-style: normal; } .tvt .tvv .uo { color: var(--ok); } .tvt .tvv .uw { color: var(--warn); } .tvt .tvv .ub { color: var(--bad); }
 .tvt .tvu { margin-top: 4px; background: none; border: 1px solid var(--accent); color: var(--accent); font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; }
+/* PS4 tiles (owner, 16 Nov): one long tile per room – what's happening on the left, the buttons on the right */
+.p4grid { grid-template-columns: 1fr; } @media (min-width: 900px) { .p4grid { grid-template-columns: repeat(2, 1fr); } }
+.p4grid .tvt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 10px 12px; }
+.p4grid .tvt > .p4i { min-width: 0; } .p4grid .tvt > .p4b { display: flex; flex-direction: column; gap: 6px; align-items: stretch; min-width: 132px; }
+.p4grid .tvt b { font-size: 13px; } .p4grid .tvt span { font-size: 13px; }
+.p4grid .tvt .tvu { margin: 0; font-size: 12px; padding: 9px 10px; text-align: left; white-space: nowrap; }
 .tvt.ok span { color: var(--ok); } .tvt.sleep span { color: var(--mute); } .tvt.bad { border-color: var(--bad); border-left-color: var(--rc); } .tvt.bad span { color: var(--bad); font-weight: 700; white-space: normal; }
 #mRooms.roompick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 #mRooms.roompick button { padding: 10px 2px; font-size: 12px; letter-spacing: .06em; text-align: center; min-width: 0; }
@@ -3039,7 +3045,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var junk = (+p.downloadsMB || 0) + (p.captures ? +p.captures.mb || 0 : 0);
       var old = p.v && p4newer(selfUp, p.v);   /* helpers before 1.0.7 can't hand over safely – FTP once */
       var behind = latest && p.v && p4newer(latest, p.v);
-      lines.push('<span>' + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' GB free · ' : '') + 'v' + esc(p.v || '?') + (behind ? ' <i class="uw">→ ' + esc(latest) + '</i>' : p.boot ? ' <i class="uo">✓</i>' : '') + '</span>');
+      lines.push('<span>' + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' GB free · ' : '') + '<i style="font-style:normal;white-space:nowrap">v' + esc(p.v || '?') + (behind ? ' <i class="uw" style="font-style:normal">→ ' + esc(latest) + '</i>' : p.boot ? ' <i class="uo">✓</i>' : '') + '</i></span>');
       var cl = cmdLine(p.cmd).replace(/^<br>/, '');   /* the last job's result: on the tile for an hour, then under More */
       if (cl && now - (p.cmd.doneAt || p.cmd.takenAt || p.cmd.at || 0) < 60 * 60000) lines.push('<span class="tvv" style="white-space:normal">' + cl + '</span>');
       else if (cl) more.push('Last job: ' + cl);
@@ -3054,10 +3060,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
       var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
           Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
-        : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ~' + gb(junk) : '') + '</button>' +
-          (p.boot && !old && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update now to ' + esc(latest) + '</button>' : '');
-      return '<div class="tvt" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><b>' + esc(R.name) + '</b>' + lines.join('') +
-        (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + lg + btn + '</div>';
+        : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ' + gb(junk) : '') + '</button>' +
+          (p.boot && !old && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update to ' + esc(latest) + '</button>' : '');
+      return '<div class="tvt" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><div class="p4i"><b>' + esc(R.name) + '</b>' + lines.join('') +
+        (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + lg + '</div><div class="p4b">' + btn + '</div></div>';
     }
     function draw() {
       if (!sKey()) { $('p4KeyBox').hidden = false; $('p4Tiles').innerHTML = ''; return; }
@@ -3067,7 +3073,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         latest = j.latest || null; selfUp = j.selfUp || selfUp;
         var order = Object.keys(ROOMS).map(ER), L = (j.list || []).slice().sort(function (a, b) { return (a.room ? order.indexOf(a.room) : 99) - (b.room ? order.indexOf(b.room) : 99); });
         var have = L.map(function (p) { return p.room; }), missing = order.filter(function (r) { return have.indexOf(r) < 0; });
-        $('p4Tiles').innerHTML = '<div class="tvgrid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div>'; }).join('') + '</div>' +
+        $('p4Tiles').innerHTML = '<div class="tvgrid p4grid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><div class="p4i"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div></div>'; }).join('') + '</div>' +
           '<p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date(R2Day.now())).toLowerCase()) + '.</p>';
         var live = L.some(function (p) { return p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken' || (p.cmd.do === 'update' && p.cmd.state === 'done')) && R2Day.now() - p.cmd.at < 10 * 60000; });
         if (live && !fast) fast = setTimeout(function () { fast = 0; if (!$('tab-ps4s').hidden) draw(); }, 10000);   /* follow a clean-up closely */
