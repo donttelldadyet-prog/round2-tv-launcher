@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.27"
+#define R2_VERSION "1.1.28"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -299,11 +299,19 @@ static void add_wifi(void) {
   memset(info, 0, sizeof info); if (!sceNetCtlGetInfo(9, info)) pct = info[0];
   memset(info, 0, sizeof info); if (!sceNetCtlGetInfo(10, info)) ch = info[0];
   memset(info, 0, sizeof info); if (!sceNetCtlGetInfo(14, info)) snprintf(ip, sizeof ip, "%.16s", (char *)info);
+  /* 1.1.28 (owner 16 Nov 11:51pm): WHICH mesh unit the PS4 is on (BSSID = that unit's radio address), signal in dBm and
+     cable vs Wi-Fi – Atlas and Bella drop off the network in rest mode while Kai, Vale, Max and Scarlett don't. */
+  char ap[20] = ""; int dbm = 0, dev = -1;
+  memset(info, 0, sizeof info);
+  if (!sceNetCtlGetInfo(5, info) && (info[0] | info[1] | info[2] | info[3] | info[4] | info[5]))
+    snprintf(ap, sizeof ap, "%02x:%02x:%02x:%02x:%02x:%02x", info[0], info[1], info[2], info[3], info[4], info[5]);
+  memset(info, 0, sizeof info); if (!sceNetCtlGetInfo(8, info)) dbm = info[0];
+  memset(info, 0, sizeof info); if (!sceNetCtlGetInfo(1, info)) dev = info[0]; /* 0 = cable, 1 = Wi-Fi */
   jadd(",\"wifi\":{\"ssid\":");
   jstr(ssid);
   jadd(",\"pct\":%d,\"ch\":%d,\"ip\":\"%s\",\"dns\":", pct, ch, ip);
   { char d[48]; snprintf(d, sizeof d, "%s %s", g_dns1, g_dns2); jstr(d); } /* 1.1.26: the PS4's DNS servers */
-  jadd("}");
+  jadd(",\"ap\":\"%s\",\"dbm\":%d,\"dev\":%d}", ap, dbm, dev);
 }
 
 static void add_users(void) {
