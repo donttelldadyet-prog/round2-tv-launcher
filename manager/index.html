@@ -2706,8 +2706,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         $('mvList').innerHTML = j.list.length ? j.list.map(function (b, i) {
           return '<button type="button" class="mvbk" data-i="' + i + '" style="--c:' + (RC[rn(b.room)] || '#888') + '" aria-pressed="' + (cur.bk && cur.bk.bid === b.bid) + '"' + (b.started ? ' disabled' : '') + '><b style="min-width:84px">' + esc(rn(b.room)) + '</b><span class="grow">' + clk(b.s) + ' – ' + clk(b.guestEnd) + ' · ' + esc(b.name || 'guest') + '</span><small>' + (b.link ? '🔗 ' : '') + (b.started ? 'started' : (b.ext ? '+' + Math.round(b.ext / 60) + 'h · ' : '') + '#' + esc(b.bid)) + '</small></button>';
         }).join('') : '<p class="hint">No guest bookings that night.</p>';
-        [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.onclick = function () { pick(j.list[+el.getAttribute('data-i')]); }; });
+        [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.onclick = function () { var b = j.list[+el.getAttribute('data-i')]; if (cur.bk && cur.bk.bid === b.bid) unpick(); else pick(b); }; });
       }).catch(function () { err('Couldn’t reach the booking engine.'); });
+    }
+    /* tap the open booking again → close it (owner, 16 Nov: "after opening 1 entry I can't click it again to close") */
+    function unpick() {
+      if (cur.ref && !confirm('A payment for this move is still waiting. Close it anyway? (A guest who pays later is still moved by the engine.)')) return;
+      stop(); cur.bk = null; cur.slot = null; cur.q = null; cur.ref = '';
+      [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.setAttribute('aria-pressed', 'false'); });
+      $('mvPick').hidden = true; $('mvQuote').hidden = true; $('mvFree').innerHTML = ''; $('mvPay').innerHTML = '';
     }
     function pick(b) {
       stop(); cur.bk = b; cur.slot = null; cur.q = null; cur.ref = '';
