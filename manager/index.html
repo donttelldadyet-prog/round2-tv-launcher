@@ -389,6 +389,16 @@ label.f textarea { min-height: 96px; resize: vertical; }
 .chip.ack { border-color: var(--ok); color: var(--ok); }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .mvbk{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:10px 12px;margin:6px 0;border:1px solid var(--line2);border-left:5px solid var(--c,#888);background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}.mvbk[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 16%,var(--bg));box-shadow:inset 0 0 0 1px var(--c)}.mvbk small{color:var(--mute)}
+/* Move a booking: day, hours, fee and name fields in the control-centre look (owner, 16 Nov: "date and hour selector doesn't follow theme") */
+#tab-move input, #tab-move select { min-height: 42px; padding: 9px 12px; background: var(--panel2); border: 1px solid var(--line2); border-radius: 0; color: var(--ink); font-size: 14px; font-weight: 600; letter-spacing: .04em; outline: none; }
+#tab-move input:hover, #tab-move select:hover { border-color: var(--ink); }
+#tab-move input:focus, #tab-move select:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+#tab-move input[type=date]::-webkit-calendar-picker-indicator { opacity: .8; cursor: pointer; }
+#tab-move select { -webkit-appearance: none; appearance: none; padding-right: 34px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 52%, calc(100% - 12px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+#tab-move select option { background: var(--panel2); color: var(--ink); }
+#tab-move input::placeholder { color: var(--mute); font-weight: 400; }
 .mvtabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;margin-bottom:6px}.mvtabs button{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 8px;text-align:left;border:1px solid var(--line2);border-top:3px solid var(--c,#888);background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}.mvtabs button b{font-size:13px;letter-spacing:.04em}.mvtabs button small{font-size:11px;color:var(--mute)}.mvtabs button[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 22%,var(--bg));border-color:var(--c)}.mvtabs button:disabled{opacity:.4;cursor:default}
 .mvgrp{margin:10px 0 0}.mvgh{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:0 0 5px}.mvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:6px}.mvgrid .mvt{margin:0;padding:9px 4px;text-align:center}
 .mvroom{margin:8px 0}.mvroom b{display:inline-block;min-width:96px}.mvt{padding:6px 9px;margin:2px;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}.mvt[aria-pressed="true"]{background:var(--ink);color:#0b0914}
