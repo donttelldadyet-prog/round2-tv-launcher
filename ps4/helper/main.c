@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.25"
+#define R2_VERSION "1.1.26"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -203,8 +203,20 @@ static void running_title(char *tid, size_t n) {
   }
 }
 
+static char g_dns1[20], g_dns2[20];
+static void set_dns_servers(void) { /* the DNS servers in the PS4's network settings (17, 18 = primary, secondary) */
+  static uint8_t info[1024];
+  memset(info, 0, sizeof info); g_dns1[0] = 0; if (!sceNetCtlGetInfo(17, info)) snprintf(g_dns1, sizeof g_dns1, "%.16s", (char *)info);
+  memset(info, 0, sizeof info); g_dns2[0] = 0; if (!sceNetCtlGetInfo(18, info)) snprintf(g_dns2, sizeof g_dns2, "%.16s", (char *)info);
+  r2tls_set_dns(g_dns1, g_dns2);
+}
 static int sony_blocked(void) { /* 1 = blocked (nanoDNS answers 0.0.0.0 or nothing answers), 0 = NOT blocked */
-  struct addrinfo hints, *res = 0;
+  /* 1.1.26: asked with our own time-limited lookup, and only of the PS4's OWN DNS servers (never the public fallback –
+     that one isn't blocked and would say "open" wrongly). getaddrinfo had no time limit. */
+  char ip[24];
+  set_dns_servers();
+  if (g_dns1[0] || g_dns2[0]) return r2dns_lookup_own("ps4-system.sec.np.dl.playstation.net", ip, sizeof ip) != 0;
+  struct addrinfo hints, *res = 0; /* servers unknown: the old way */
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -289,7 +301,9 @@ static void add_wifi(void) {
   memset(info, 0, sizeof info); if (!sceNetCtlGetInfo(14, info)) snprintf(ip, sizeof ip, "%.16s", (char *)info);
   jadd(",\"wifi\":{\"ssid\":");
   jstr(ssid);
-  jadd(",\"pct\":%d,\"ch\":%d,\"ip\":\"%s\"}", pct, ch, ip);
+  jadd(",\"pct\":%d,\"ch\":%d,\"ip\":\"%s\",\"dns\":", pct, ch, ip);
+  { char d[48]; snprintf(d, sizeof d, "%s %s", g_dns1, g_dns2); jstr(d); } /* 1.1.26: the PS4's DNS servers */
+  jadd("}");
 }
 
 static void add_users(void) {
@@ -466,7 +480,7 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
   if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld,\"via\":\"%s\",\"login\":%d}", wake_n, wake_at, wake_slept, wake_via, wake_login);
-  tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); jadd("}");
+  tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); add_tail("slow", "/data/round2/slow.log", 6); jadd("}");
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
   jadd("}");
@@ -1826,11 +1840,16 @@ int main(void) {
   g_up = (long long)time(0);
   drift0 = (long long)time(0) - (long long)mono_s();
   write_status("started, first report in about 10 seconds");
+  r2_where_start(R2_VERSION); /* 1.1.26: slow.log gets "the run before was last in: <step>" */
   update_guard();
   for (unsigned long m = 0;; m++) {
     char run[32];
+    set_dns_servers(); /* 1.1.26: our own name lookups ask the PS4's DNS servers first */
+    r2_where("title", 0);
     running_title(run, sizeof run);
+    r2_where("playing", 0);
     note_playing(run);
+    r2_where("loop", 0);
     FILE *a = fopen("/data/round2/alive", "w"); /* for the starter (later) */
     if (a) { fprintf(a, "%lu\n", m); fclose(a); }
     if (m % REPORT_EVERY == 0) { /* 1.0.5: first report ~10 s after start (was 1 min), retried while the network settles */
@@ -1849,15 +1868,19 @@ int main(void) {
         }
       }
     }
+    r2_where("check-in", 1);
     if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
     for (int t = 0; t < 30; t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
       if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
+      r2_where("guard", 0);
       if (update_guard()) {
         notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
         if (read_key(key, sizeof key)) { report(key, status, sizeof status); write_status(status); } /* tell the engine now */
       }
       time_t t0 = time(0);
+      r2_where("wait", 0);
       sleep(2);
+      r2_where("loop", 0);
       long long gap = (long long)(time(0) - t0);
       /* 1.1.20 (Kai 16 Nov 5:37pm: a wake after OUR remote rest wasn't noticed – the PS4 froze during another step, not in
          this sleep): also compare the wall clock with the running clock. If the running clock stands still in rest mode,

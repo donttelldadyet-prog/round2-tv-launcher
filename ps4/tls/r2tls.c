@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -49,27 +50,30 @@ static int ca_ready = 0;
 #define R2_CONNECT_S 10
 #define R2_SEND_S 20
 static int r2_connect(mbedtls_net_context *net, const char *host, const char *port) {
-  struct addrinfo hints, *res = 0, *a;
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
   /* 1.1.16: remember the last good address of each host in /data/round2/addr-<host>.txt and use it when the name can't be
-     looked up or comes back blocked (0.0.0.0) – so a bad blocker setting can't cut the helper off from the engine. */
-  char cpath[200], cached[64] = "";
+     looked up or comes back blocked (0.0.0.0) – so a bad blocker setting can't cut the helper off from the engine.
+     1.1.26: the lookup itself is r2dns_lookup (our own question to the DNS servers, a few seconds at most) – getaddrinfo
+     had no time limit and was the one step that could still stand still for good. */
+  char cpath[200], cached[64] = "", found[64] = "";
   snprintf(cpath, sizeof cpath, "/data/round2/addr-%s.txt", host);
   for (char *c = cpath + 18; *c; c++) if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '.' || *c == '-' || *c == '/')) *c = '_';
   { FILE *cf = fopen(cpath, "r"); if (cf) { if (!fgets(cached, sizeof cached, cf)) cached[0] = 0; fclose(cf); cached[strcspn(cached, "\r\n")] = 0; } }
-  int gr = getaddrinfo(host, port, &hints, &res);
-  if (!gr && res && ((struct sockaddr_in *)res->ai_addr)->sin_addr.s_addr == 0) { freeaddrinfo(res); res = 0; gr = -1; }
-  if ((gr || !res) && cached[0]) gr = getaddrinfo(cached, port, &hints, &res);
-  if (gr || !res) return MBEDTLS_ERR_NET_UNKNOWN_HOST;
+  r2_where("lookup", 1);
+  if (r2dns_lookup(host, found, sizeof found)) found[0] = 0;
+  if (!found[0] && !cached[0]) return MBEDTLS_ERR_NET_UNKNOWN_HOST;
   int ret = MBEDTLS_ERR_NET_CONNECT_FAILED;
-  for (a = res; a; a = a->ai_next) {
-    int fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
+  r2_where("connect", 1);
+  for (int k = 0; k < 2; k++) {
+    const char *ip = k == 0 ? found : cached;
+    if (!ip[0] || (k == 1 && !strcmp(found, cached))) continue;
+    struct sockaddr_in sa; memset(&sa, 0, sizeof sa);
+    sa.sin_family = AF_INET; sa.sin_port = htons((unsigned short)atoi_safe(port));
+    if (inet_pton(AF_INET, ip, &sa.sin_addr) != 1) continue;
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) { ret = MBEDTLS_ERR_NET_SOCKET_FAILED; continue; }
     int fl = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, fl | O_NONBLOCK);
-    int ok = connect(fd, a->ai_addr, a->ai_addrlen) == 0;
+    int ok = connect(fd, (struct sockaddr *)&sa, sizeof sa) == 0;
     if (!ok && errno == EINPROGRESS) {
       fd_set wf; FD_ZERO(&wf); FD_SET(fd, &wf);
       struct timeval tv = { R2_CONNECT_S, 0 };
@@ -83,12 +87,9 @@ static int r2_connect(mbedtls_net_context *net, const char *host, const char *po
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &st, sizeof st);
     net->fd = fd;
     ret = 0;
-    { char ip[32]; unsigned char *q = (unsigned char *)&((struct sockaddr_in *)a->ai_addr)->sin_addr.s_addr;
-      snprintf(ip, sizeof ip, "%u.%u.%u.%u", q[0], q[1], q[2], q[3]);
-      if (strcmp(ip, cached)) { FILE *cf = fopen(cpath, "w"); if (cf) { fputs(ip, cf); fclose(cf); } } }
+    if (strcmp(ip, cached)) { FILE *cf = fopen(cpath, "w"); if (cf) { fputs(ip, cf); fclose(cf); } }
     break;
   }
-  freeaddrinfo(res);
   return ret;
 }
 
@@ -127,6 +128,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   if ((ret = mbedtls_ssl_setup(&ssl, &conf))) goto fail;
   if ((ret = mbedtls_ssl_set_hostname(&ssl, host))) goto fail;
   mbedtls_ssl_set_bio(&ssl, &net, mbedtls_net_send, NULL, mbedtls_net_recv_timeout);
+  r2_where("handshake", 1);
   while ((ret = mbedtls_ssl_handshake(&ssl))) {
     if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
       uint32_t flags = mbedtls_ssl_get_verify_result(&ssl);
@@ -146,6 +148,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
                      "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: Round2PS4\r\nConnection: close\r\n%s"
                      "Content-Length: %zu\r\n\r\n",
                      method, path, host, headers ? headers : "", body ? blen : 0);
+    r2_where("send", 1);
     if ((ret = mbedtls_ssl_write(&ssl, (const unsigned char *)req, n)) < 0) goto fail;
     size_t sent = 0;
     while (body && sent < blen) {
@@ -160,6 +163,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
     char *resp = malloc(cap + 1);
     static unsigned char scratch[16384];
     r2tls_last_bytes = 0;
+    r2_where("read", 1);
     for (;;) {
       if (resp && got == cap && cap < max) { size_t nc = cap * 2 > max ? max : cap * 2; char *x = realloc(resp, nc + 1); if (x) { resp = x; cap = nc; } }
       int room = resp && got < cap;
