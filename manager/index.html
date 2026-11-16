@@ -389,7 +389,7 @@ label.f textarea { min-height: 96px; resize: vertical; }
 .chip.ack { border-color: var(--ok); color: var(--ok); }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .mvbk{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:10px 12px;margin:6px 0;border:1px solid var(--line2);border-left:5px solid var(--c,#888);background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}.mvbk[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 16%,var(--bg));box-shadow:inset 0 0 0 1px var(--c)}.mvbk small{color:var(--mute)}
-.mvtabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:6px;scrollbar-width:thin}.mvtabs button{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 12px;border:1px solid var(--line2);border-top:3px solid var(--c,#888);background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}.mvtabs button b{font-size:13px;letter-spacing:.04em}.mvtabs button small{font-size:11px;color:var(--mute)}.mvtabs button[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 22%,var(--bg));border-color:var(--c)}.mvtabs button:disabled{opacity:.4;cursor:default}
+.mvtabs{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;margin-bottom:6px}.mvtabs button{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 8px;text-align:left;border:1px solid var(--line2);border-top:3px solid var(--c,#888);background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}.mvtabs button b{font-size:13px;letter-spacing:.04em}.mvtabs button small{font-size:11px;color:var(--mute)}.mvtabs button[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 22%,var(--bg));border-color:var(--c)}.mvtabs button:disabled{opacity:.4;cursor:default}
 .mvgrp{margin:10px 0 0}.mvgh{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin:0 0 5px}.mvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:6px}.mvgrid .mvt{margin:0;padding:9px 4px;text-align:center}
 .mvroom{margin:8px 0}.mvroom b{display:inline-block;min-width:96px}.mvt{padding:6px 9px;margin:2px;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}.mvt[aria-pressed="true"]{background:var(--ink);color:#0b0914}
 .mvtotal{margin-top:12px;font-size:15px}.mvtotal b.big{font-size:30px;display:block;letter-spacing:.02em}.mvqr{background:#fff;display:inline-block;padding:12px;margin-top:8px}.mvqr svg{display:block;width:240px;height:240px}
@@ -2737,14 +2737,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       });
     }
     /* free times (owner, 16 Nov: "the time list lists everything and is messy"): one room at a time (room tabs with a count,
-       the guest's own room first), times grouped Day / Evening / Late in an even grid, :00 and :30 only unless "+ :15 / :45" */
-    var mvQuarter = false;
+       the guest's own room first), times grouped Day / Evening / Late in an even grid. Owner, 16 Nov: every time shown (no
+       :15/:45 toggle) and the room tabs wrap onto a second line instead of scrolling sideways (easy to miss). */
     function drawFree() {
       var j = cur.free; if (!j) return;
       var rooms = Object.keys(j.free), own = cur.bk && cur.bk.room;
       rooms.sort(function (a, b) { return (b === own) - (a === own); });
       if (!cur.room || !j.free[cur.room] || !j.free[cur.room].length) cur.room = rooms.filter(function (r) { return j.free[r].length; })[0] || rooms[0];
-      var L = j.free[cur.room] || [], show = L.filter(function (m) { return mvQuarter || m % 30 === 0; }), hid = L.length - show.length;
+      var L = j.free[cur.room] || [], show = L;
       var G = [['Day', 0, 17 * 60], ['Evening', 17 * 60, 23 * 60], ['Late night', 23 * 60, 1e9]];
       var tabs = '<div class="mvtabs">' + rooms.map(function (r) {
         var n = j.free[r].length; return '<button type="button" data-r="' + esc(r) + '" style="--c:' + (RC[rn(r)] || '#888') + '" aria-pressed="' + (r === cur.room) + '"' + (n ? '' : ' disabled') + '><b>' + esc(rn(r)) + '</b><small>' + (n ? n + ' time' + (n > 1 ? 's' : '') : 'full') + (r === own ? ' · now' : '') + '</small></button>';
@@ -2757,10 +2757,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }).join('');
       $('mvFree').innerHTML = tabs + body +
         '<div class="row" style="gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><span class="hint grow">Free for ' + j.hours + ' hours · pick one to see the fee.</span>' +
-        (L.some(function (m) { return m % 30; }) ? '<button type="button" class="btn ghost" id="mvQtr" style="padding:6px 10px;font-size:12px">' + (mvQuarter ? 'Hide :15 / :45' : '+ :15 / :45 (' + hid + ')') + '</button>' : '') + '</div>';
+        '</div>';
       [].forEach.call($('mvFree').querySelectorAll('.mvtabs button'), function (el) { el.onclick = function () { cur.room = el.getAttribute('data-r'); drawFree(); }; });
       [].forEach.call($('mvFree').querySelectorAll('.mvt'), function (el) { el.onclick = function () { var m = +el.getAttribute('data-m'); quote(cur.room, m); cur.slot.m = m; drawFree(); }; });
-      if ($('mvQtr')) $('mvQtr').onclick = function () { mvQuarter = !mvQuarter; drawFree(); };
     }
     var TIER = { Vale: 'n', Kaeden: 'n', Scarlett: 'n', Kai: 'd', Bella: 'd', Atlas: 'd', Max: 'v', Maximillion: 'v' };
     var UNIT = { Vale: 5, Kaeden: 7, Scarlett: 8, Kai: 9, Bella: 10, Atlas: 12, Max: 11, Maximillion: 11 };
