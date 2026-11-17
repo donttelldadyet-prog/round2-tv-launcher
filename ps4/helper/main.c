@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.47"
+#define R2_VERSION "1.1.48"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1958,6 +1958,33 @@ static void look_udel(const char *spec) {
     still ? "STILL THERE" : "gone", home ? "still there" : "gone", sl ? "still there" : "gone", avl ? ", picture folder removed" : "");
   sv_log("profile delete: %s %s", u, v); look_kv("udel/result", v);
 }
+/* ---- 1.1.48 PROFILE ORDER (owner 17 Nov 7:24pm: Kai showed Kai, Player 3, Aliff, Player 4, Karen). The profile-select
+   screen lists the main profile first, then by setting 0x0900 of each profile slot, highest first = most recently signed in
+   (Kai: Player 3 483, Kai 481, Aliff 474, Player 4 471, Karen 435). "/_uorder.<user>,<user>,..." gives the listed profiles
+   the SAME numbers they hold now, re-dealt in the wanted order (biggest to the first) - so the PS4's own counting carries on
+   and a member who signs in still jumps to the front. Profiles not listed keep theirs. Old values in save.log. */
+static void look_uorder(const char *spec) {
+  char lst[200] = ""; if (sscanf(spec, "/_uorder.%199[0-9a-f,]", lst) != 1) { look_kv("order/error", "bad spec"); return; }
+  uint32_t ids[16]; long bases[16]; int vals[16], n = 0;
+  for (char *t = strtok(lst, ","); t && n < 16; t = strtok(0, ",")) {
+    if (strlen(t) != 8) { look_kv("order/error", "bad user id"); return; }
+    ids[n] = (uint32_t)strtoul(t, 0, 16); bases[n] = prof_slot_base(ids[n]);
+    if (!bases[n]) { look_kv("order/error", "no such profile"); return; }
+    if (sceRegMgrGetInt(bases[n] + 0x900, &vals[n])) { look_kv("order/error", "can't read the order number"); return; }
+    n++;
+  }
+  if (n < 2) { look_kv("order/error", "list at least 2 profiles"); return; }
+  int sorted[16]; memcpy(sorted, vals, sizeof(int) * n);
+  for (int i = 0; i < n; i++) for (int j = i + 1; j < n; j++) if (sorted[j] > sorted[i]) { int x = sorted[i]; sorted[i] = sorted[j]; sorted[j] = x; }
+  char old[300] = "", nw[300] = ""; int bad = 0;
+  for (int i = 0; i < n; i++) {
+    size_t l = strlen(old); snprintf(old + l, sizeof old - l, "%s%08x=%d", i ? " " : "", ids[i], vals[i]);
+    if (sceRegMgrSetInt(bases[i] + 0x900, sorted[i])) bad++;
+    l = strlen(nw); snprintf(nw + l, sizeof nw - l, "%s%08x=%d", i ? " " : "", ids[i], sorted[i]);
+  }
+  sv_log("profile order: before %s; after %s; %d write(s) failed", old, nw, bad);
+  char v[120]; snprintf(v, sizeof v, "%d profiles re-ordered, %d failed - check the profile screen", n, bad); look_kv("order/result", v);
+}
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
    the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
@@ -2585,6 +2612,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_avcopy.", 9)) look_avcopy(t, 0);
     else if (!strncmp(t, "/_avreset.", 10)) look_avcopy(t, 1);
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
+    else if (!strncmp(t, "/_uorder.", 9)) look_uorder(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
