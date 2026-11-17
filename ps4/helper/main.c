@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.29"
+#define R2_VERSION "1.1.30"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1290,6 +1290,34 @@ static void look_wakerp(const char *spec) {
   ddp_status(ip, "3-after-25s");
   rp_log("wake %s with key %s: sent %d", ip, key, r);
 }
+/* 1.1.30 (owner 17 Nov: "let's try method b") – the Second Screen / PlayStation App protocol (ss/r2ss.c):
+   "/_ss.<ip>.<account id 16 hex>.<8-digit PIN from Mobile App Connection Settings > Add Device, or 0>.<ops>"
+      log in to that PS4 (first time with the PIN = pairing), then ops: "ps", "enter", "back", "boot-CUSA12345",
+      "wait-500", joined by "," ("none" = login only); a "w" before the ops ("wps") sends a type-C wake first.
+   "/_sswake.<ip>.<account id 16 hex>"  type-C wake only. Full lines go to /data/round2/rp.log. */
+int r2ss_run(const char *ip, const char *acct_hex, const char *pin, const char *ops, int wake_first, char *log, size_t logn);
+int r2ss_wake(const char *ip, const char *acct_hex);
+static void look_ss(const char *spec) {
+  int a, b, c, d; char idh[20] = "", pin[12] = "", ops[100] = "", ip[24], lg[600];
+  if (sscanf(spec, "/_ss.%d.%d.%d.%d.%16[0-9a-f].%9[0-9].%99[a-zA-Z0-9,-]", &a, &b, &c, &d, idh, pin, ops) != 7 || strlen(idh) != 16) { look_kv("ss/error", "bad spec"); return; }
+  snprintf(ip, sizeof ip, "%d.%d.%d.%d", a, b, c, d);
+  int wake = ops[0] == 'w' && ops[1] != 'a' ? 1500 : 0; /* "wps" = wake first; "wait-.." is an op */
+  const char *o = wake ? ops + 1 : ops; if (!strcmp(o, "none")) o = "";
+  int r = r2ss_run(ip, idh, strcmp(pin, "0") ? pin : "", o, wake, lg, sizeof lg);
+  rp_log("second screen %s acct %s pin %s ops %s: %d - %s", ip, idh, strcmp(pin, "0") ? "given" : "none", ops, r, lg);
+  char v[48]; snprintf(v, sizeof v, "%d", r); look_kv("ss/result", v);
+  /* the step line in pieces of 40 (look values are cut) */
+  for (int i = 0, n = (int)strlen(lg); i * 40 < n && i < 8; i++) { char k[16], piece[44]; snprintf(k, sizeof k, "ss/log%d", i); snprintf(piece, 41, "%s", lg + i * 40); look_kv(k, piece); }
+}
+static void look_sswake(const char *spec) {
+  int a, b, c, d; char idh[20] = "", ip[24];
+  if (sscanf(spec, "/_sswake.%d.%d.%d.%d.%16[0-9a-f]", &a, &b, &c, &d, idh) != 5) { look_kv("sswake/error", "bad spec"); return; }
+  snprintf(ip, sizeof ip, "%d.%d.%d.%d", a, b, c, d);
+  ddp_status(ip, "1-before");
+  int r = r2ss_wake(ip, idh);
+  look_kv("sswake/sent", r ? "send failed" : "3 times (type C)");
+  sleep(20); ddp_status(ip, "3-after-20s");
+}
 static void wkey_one(const char *k, unsigned long long id) {
   char dec[32], v[120]; unsigned char h[32];
   snprintf(dec, sizeof dec, "%llu", id);
@@ -1752,6 +1780,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_thr", 5)) look_thr(t);
     else if (!strcmp(t, "/_sock")) look_sock();
     else if (!strncmp(t, "/_rpreg.", 8)) look_rpreg(t);
+    else if (!strncmp(t, "/_ss.", 5)) look_ss(t);
+    else if (!strncmp(t, "/_sswake.", 9)) look_sswake(t);
     else if (!strncmp(t, "/_wakerp.", 9)) look_wakerp(t);
     else if (!strcmp(t, "/_own")) look_own();
     else if (!strcmp(t, "/_selfown")) look_selfown();
