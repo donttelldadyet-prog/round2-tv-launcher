@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.34"
+#define R2_VERSION "1.1.35"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1143,6 +1143,25 @@ static void mkdirs_for(const char *file) {
   char d[512]; snprintf(d, sizeof d, "%s", file);
   for (char *q = d + 1; *q; q++) if (*q == '/') { *q = 0; mkdir(d, 0777); *q = '/'; }
 }
+/* 1.1.35 (owner 17 Nov): before a restore writes the source's files in, remove the receiving save's own game files but KEEP
+   sce_sys/ (param.sfo etc. = that profile's identity). Without this a "move" merges two save sets: PlateUp and others name
+   each save file by its own timestamp, so the receiving room's old files don't get overwritten by name - they pile up next to
+   the new ones. Returns how many files were cleared. The receiving save is backed up first, so this is safe. */
+static int sv_wipe_data(const char *dir, const char *rel) {
+  DIR *d = opendir(dir); if (!d) return 0;
+  struct dirent *e; char p[512], r[400]; int n = 0;
+  while ((e = readdir(d))) {
+    if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+    if (!rel[0] && !strcmp(e->d_name, "sce_sys")) continue; /* keep the receiving profile's identity */
+    snprintf(p, sizeof p, "%s/%s", dir, e->d_name);
+    snprintf(r, sizeof r, "%s%s%s", rel, rel[0] ? "/" : "", e->d_name);
+    struct stat st; if (lstat(p, &st)) continue;
+    if (S_ISDIR(st.st_mode)) { n += sv_wipe_data(p, r); rmdir(p); continue; }
+    if (unlink(p) == 0) n++;
+  }
+  closedir(d);
+  return n;
+}
 static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<title>.<save>.<backup path>" */
   char v[220], u[16] = "", t[16] = "", nm[48] = "", src[200];
   if (sscanf(spec, "/_srest.%8[0-9a-f].%9[A-Z0-9].%47[^.].%199[^|]", u, t, nm, src) != 4) { look_kv("restore/error", "bad spec"); return -1; }
@@ -1159,8 +1178,10 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   char prepbase[256]; snprintf(prepbase, sizeof prepbase, "/data/round2/prep/%s/%s/%s", u, t, nm); mkdirs_for(prepbase);
   sv_log("restore start: cloud %s -> prep %s -> slot user %s game %s save %s", src, prepbase, u, t, nm);
   int ok = sv_open(u, t, nm, 0, v, sizeof v), files = 0, fail = 0, skipped = 0;
-  unsigned long long bytes = 0;
+  unsigned long long bytes = 0; int wiped = 0;
   if (ok == 0) {
+    wiped = sv_wipe_data(SV_MNT, ""); /* 1.1.35: clear the receiving save's old game files (keep sce_sys) so this replaces, not merges */
+    sv_log("restore cleared %d old file(s) from receiving save (kept sce_sys)", wiped);
     for (char *ln = mt, *nx; ln && *ln; ln = nx) {
       nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
       char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0;
@@ -1201,8 +1222,8 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     }
     int cr = sv_close();
     { FILE *cf = fopen("/dev/null","r"); (void)cf; char pmf[300]; snprintf(pmf,sizeof pmf,"%s/manifest.txt",prepbase); FILE *pf=fopen(pmf,"w"); if(pf){ if(mt) fputs(mt,pf); fclose(pf);} char cfp[300]; snprintf(cfp,sizeof cfp,"%s/cloud.txt",prepbase); FILE *c3=fopen(cfp,"w"); if(c3){ fprintf(c3,"%s\n",src); fclose(c3);} }
-    sv_log("restore done: user %s game %s save %s: %d files, %llu bytes, %d failed, %d kept%s%s", u, t, nm, files, bytes, fail, skipped, first_err[0]?", first problem: ":"", first_err);
-    snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, %d kept (sce_sys), closed %d", files, bytes, fail, skipped, cr);
+    sv_log("restore done: user %s game %s save %s: %d files, %llu bytes, %d failed, %d kept, %d cleared%s%s", u, t, nm, files, bytes, fail, skipped, wiped, first_err[0]?", first problem: ":"", first_err);
+    snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, %d kept (sce_sys), %d cleared, closed %d", files, bytes, fail, skipped, wiped, cr);
     { char kk[80]; snprintf(kk, sizeof kk, "restore/%s/result", nm); look_kv(kk, v); if (first_err[0]) { snprintf(kk, sizeof kk, "restore/%s/first-problem", nm); look_kv(kk, first_err); } }
     ok = fail ? -1 : 0;
   } else look_kv("restore/error", v);
