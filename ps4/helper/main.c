@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.36"
+#define R2_VERSION "1.1.37"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -984,9 +984,9 @@ static int sv_open(const char *u, const char *t, const char *nm, int ro, char *w
     char ap[200], dir[200]; snprintf(dir, sizeof dir, "/user/home/%s/savedata/%s", u, t);
     snprintf(ap, sizeof ap, "/user/app/%s/app.pkg", t); int inst = !stat(ap, &st);
     if (!inst) { snprintf(ap, sizeof ap, "/mnt/ext0/user/app/%s/app.pkg", t); inst = !stat(ap, &st); }
-    if (!inst) snprintf(why, wn, "no such save: game %s is not installed in this room - install it here first", t);
-    else if (stat(dir, &st)) snprintf(why, wn, "no such save: game %s is installed but this profile has never saved it - play it once on this profile first", t);
-    else snprintf(why, wn, "no such save: this profile has no '%s' save part for %s yet (the game makes it when that slot/mode is first used)", nm, t);
+    if (!inst) snprintf(why, wn, "game not installed in this room (%s) - install it here first", t);
+    else if (stat(dir, &st)) snprintf(why, wn, "profile never played this game (%s) - play it once on this profile first", t);
+    else snprintf(why, wn, "no save part '%s' here yet (%s makes it when that slot/mode is first used)", nm, t);
     return -1;
   }
   if (sv_lib()) { snprintf(why, wn, "save library missing"); return -1; }
