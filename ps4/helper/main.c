@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.57"
+#define R2_VERSION "1.1.58"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2228,11 +2228,16 @@ static int reset_confirm(const char *key, char *why, size_t wn) { /* 1 = go, 0 =
    every 2 s during a reset countdown. Not proven yet that a background program sees the pad while a game has it - if nothing
    is readable the countdown simply runs on its timer as in 1.1.55 (never less safe). "/_input.<seconds>" = read-only test:
    counts changes while someone presses buttons. */
-int scePadInit(void); int scePadOpen(int32_t, int32_t, int32_t, const void *); int scePadGetHandle(int32_t, int32_t, int32_t);
-int scePadReadState(int32_t, void *); int scePadGetIdleCount(int32_t, void *);
+/* 1.1.58 (18 Nov 12:08am): the test froze Max right after it started reading the controller -> ALL controller reading is
+   switched off and libScePad is no longer linked. The countdown runs on its timer only (silent), as in 1.1.55. */
+#define R2_NO_PAD 1
+static int scePadInit(void) { return -1; } static int scePadOpen(int32_t a, int32_t b, int32_t c, const void *d) { (void)a; (void)b; (void)c; (void)d; return -1; }
+static int scePadGetHandle(int32_t a, int32_t b, int32_t c) { (void)a; (void)b; (void)c; return -1; }
+static int scePadReadState(int32_t a, void *b) { (void)a; (void)b; return -1; } static int scePadGetIdleCount(int32_t a, void *b) { (void)a; (void)b; return -1; }
 static int in_init, in_h[4] = { -1, -1, -1, -1 }, in_have[4], in_idl_ok[4]; static int32_t in_u[4]; static unsigned char in_last[4][12]; static uint32_t in_idl[4];
 static long long in_scan;
 static void in_open(void) {
+  if (R2_NO_PAD) return;
   if (!in_init) { in_init = 1; int r = scePadInit(); sv_log("input: scePadInit -> 0x%08x", (unsigned)r); }
   if ((long long)time(0) - in_scan < 30) return; in_scan = (long long)time(0);
   UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l);
@@ -2246,6 +2251,7 @@ static void in_open(void) {
 }
 static int in_activity(char *dbg, size_t dn) { /* 1 = someone pressed/moved something since the last call, 0 = quiet, -1 = nothing readable */
   int readable = 0, act = 0; if (dbg) dbg[0] = 0;
+  if (R2_NO_PAD) return -1;
   for (int i = 0; i < 4; i++) {
     if (in_h[i] < 0) continue;
     unsigned char d[256]; memset(d, 0, sizeof d); int r = scePadReadState(in_h[i], d);
@@ -2259,6 +2265,7 @@ static int in_activity(char *dbg, size_t dn) { /* 1 = someone pressed/moved some
   return readable ? act : -1;
 }
 static void look_input(const char *spec) { /* "/_input.<seconds>" read-only test: press buttons during it */
+  if (R2_NO_PAD) { (void)spec; look_kv("input/result", "switched off in 1.1.58 (the test froze Max)"); return; }
   int secs = atoi_safe(spec + 8); if (secs < 5) secs = 5; if (secs > 60) secs = 60;
   in_scan = 0; in_open(); char dbg[600] = "", first[600] = ""; int changes = 0, reads = 0, unread = 0;
   in_activity(first, sizeof first);
