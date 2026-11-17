@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.55"
+#define R2_VERSION "1.1.56"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -59,6 +59,7 @@ static long long g_awake_until;
 static int snap_on, snap_bg, look_mute, sv_noprep, clean_on;
 static void cloud_report(void); /* 1.1.52 */
 static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
+static long long cd_last_in, cd_play_from; static int cd_input = -2; /* 1.1.56: button detector (-2 not tried, -1 not readable, 0/1) */
 static int snap_covered(const char *u, const char *t, const char *nm, long long stamp); /* 1.1.52 */
 static int clean_status(char *st, int *done, int *total, int *fails, int *parts);
 static long long snap_hb;
@@ -536,7 +537,7 @@ static int report(const char *key, char *status, size_t slen) {
   { char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; if (clean_status(cst, &cd, &ct, &cf, &cp)) { char rk[64] = ""; FILE *rf = fopen("/data/round2/clean/run", "r"); if (rf) { if (!fgets(rk, sizeof rk, rf)) rk[0] = 0; fclose(rf); } rk[strcspn(rk, " \n")] = 0;
     jadd(",\"clean\":{\"kind\":"); jstr(rk[0] ? rk : "clean"); jadd(",\"state\":"); jstr(cst); jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"parts\":%d}", cd, ct, cf, cp); } }
   cloud_report(); /* 1.1.52 */
-  if (cd_on) { jadd(",\"countdown\":{\"left\":%lld,\"lab\":", cd_deadline - (long long)time(0)); jstr(cd_lab); jadd(",\"ok\":%d}", cd_ok); } /* 1.1.55 */
+  if (cd_on) { jadd(",\"countdown\":{\"left\":%lld,\"lab\":", cd_deadline - (long long)time(0)); jstr(cd_lab); jadd(",\"ok\":%d,\"input\":%d,\"play\":%lld}", cd_ok, cd_input, cd_play_from ? (long long)time(0) - cd_play_from : 0LL); } /* 1.1.55/56 */
   { char lab[24] = "", stp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
     if (snap_status(lab, stp, sst, &dn, &tt, &fl, &by)) { jadd(",\"snap\":{\"label\":"); jstr(lab); jadd(",\"stamp\":"); jstr(stp); jadd(",\"state\":"); jstr(sst);
       jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"mb\":%lld}", dn, tt, fl, by / 1048576); } }
@@ -2208,7 +2209,7 @@ static void cd_stop(const char *why, int hold, const char *popup) {
   if (!hold) cl_err("reset %s not done: %s", cd_lab, why);
   sv_log("countdown stopped (%s): %s", hold ? "held" : "not done", why);
   if (popup) notify(popup);
-  cd_on = 0; cd_ok = 0; cd_save();
+  cd_on = 0; cd_ok = 0; cd_play_from = 0; cd_save();
 }
 static int reset_confirm(const char *key, char *why, size_t wn) { /* 1 = go, 0 = hold (why), -1 = no answer */
   char hdr[200], body[160], out[400], err[120];
@@ -2221,9 +2222,70 @@ static int reset_confirm(const char *key, char *why, size_t wn) { /* 1 = go, 0 =
   }
   snprintf(why, wn, "no answer from Round2 - not reset (nothing closed or cleared)"); return -1;
 }
+/* ---- 1.1.56 BUTTON DETECTOR (owner 17 Nov 11:26pm: "check if any button input is being made for 2 mins, if there are button
+   inputs then pause and restart the 2 min timer ... if a game keeps input highly likely guests would extend"). Reads each
+   signed-in profile's controller (scePadReadState: buttons, sticks, triggers) and the pad's idle counter (scePadGetIdleCount)
+   every 2 s during a reset countdown. Not proven yet that a background program sees the pad while a game has it - if nothing
+   is readable the countdown simply runs on its timer as in 1.1.55 (never less safe). "/_input.<seconds>" = read-only test:
+   counts changes while someone presses buttons. */
+int scePadInit(void); int scePadOpen(int32_t, int32_t, int32_t, const void *); int scePadGetHandle(int32_t, int32_t, int32_t);
+int scePadReadState(int32_t, void *); int scePadGetIdleCount(int32_t, void *);
+static int in_init, in_h[4] = { -1, -1, -1, -1 }, in_have[4], in_idl_ok[4]; static int32_t in_u[4]; static unsigned char in_last[4][12]; static uint32_t in_idl[4];
+static long long in_scan;
+static void in_open(void) {
+  if (!in_init) { in_init = 1; int r = scePadInit(); sv_log("input: scePadInit -> 0x%08x", (unsigned)r); }
+  if ((long long)time(0) - in_scan < 30) return; in_scan = (long long)time(0);
+  UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l);
+  for (int i = 0; i < 4; i++) {
+    int32_t u = l.userId[i]; if (u == -1 || u == 0) { in_h[i] = -1; in_u[i] = 0; continue; }
+    if (in_u[i] == u && in_h[i] >= 0) continue;
+    int h = scePadGetHandle(u, 0, 0), h2 = 0; if (h < 0) { h2 = h; h = scePadOpen(u, 0, 0, 0); }
+    in_h[i] = h; in_u[i] = u; in_have[i] = 0; in_idl_ok[i] = 0;
+    sv_log("input: profile %08x pad handle %d (get 0x%08x, open 0x%08x)", (uint32_t)u, h, (unsigned)h2, (unsigned)h);
+  }
+}
+static int in_activity(char *dbg, size_t dn) { /* 1 = someone pressed/moved something since the last call, 0 = quiet, -1 = nothing readable */
+  int readable = 0, act = 0; if (dbg) dbg[0] = 0;
+  for (int i = 0; i < 4; i++) {
+    if (in_h[i] < 0) continue;
+    unsigned char d[256]; memset(d, 0, sizeof d); int r = scePadReadState(in_h[i], d);
+    if (r == 0) { readable = 1;
+      if (in_have[i]) { int ch = memcmp(d, in_last[i], 4) != 0; for (int k = 4; k < 10; k++) if (abs((int)d[k] - (int)in_last[i][k]) > 24) ch = 1; if (ch) act = 1; }
+      memcpy(in_last[i], d, 12); in_have[i] = 1; }
+    uint32_t ic[8]; memset(ic, 0, sizeof ic); int r2 = scePadGetIdleCount(in_h[i], ic);
+    if (r2 == 0) { readable = 1; if (in_idl_ok[i] && ic[0] < in_idl[i]) act = 1; in_idl[i] = ic[0]; in_idl_ok[i] = 1; }
+    if (dbg) { size_t l = strlen(dbg); snprintf(dbg + l, dn - l, "%s%08x:read 0x%x btn %02x%02x%02x%02x sticks %d,%d,%d,%d idle 0x%x=%u", l ? " | " : "", (uint32_t)in_u[i], (unsigned)r, d[3], d[2], d[1], d[0], d[4], d[5], d[6], d[7], (unsigned)r2, ic[0]); }
+  }
+  return readable ? act : -1;
+}
+static void look_input(const char *spec) { /* "/_input.<seconds>" read-only test: press buttons during it */
+  int secs = atoi_safe(spec + 8); if (secs < 5) secs = 5; if (secs > 60) secs = 60;
+  in_scan = 0; in_open(); char dbg[600] = "", first[600] = ""; int changes = 0, reads = 0, unread = 0;
+  in_activity(first, sizeof first);
+  for (int t = 0; t < secs * 4; t++) { usleep(250000); int a = in_activity(t == secs * 4 - 1 ? dbg : 0, sizeof dbg); if (a < 0) unread++; else { reads++; if (a) changes++; } }
+  char v[120]; snprintf(v, sizeof v, "%d changes in %d s (%d readable samples, %d not readable)", changes, secs, reads, unread);
+  look_kv("input/result", v); look_kv("input/first", first); look_kv("input/last", dbg);
+  sv_log("input test: %s", v); sv_log_long("input test first: ", first); sv_log_long("input test last: ", dbg);
+}
 static void countdown_tick(const char *key) {
   if (!cd_on || !key || !key[0]) return;
-  long long left = cd_deadline - (long long)time(0);
+  long long now = (long long)time(0);
+  /* 1.1.56: buttons pressed = the deadline moves to 2 min after the last press (pop-ups start over) */
+  in_open(); int a = in_activity(0, 0);
+  if (a != cd_input && (a < 0 || cd_input < 0)) sv_log("countdown: controllers %s", a < 0 ? "NOT readable - timer only" : "readable - waiting for 2 min without play");
+  cd_input = a;
+  if (a == 1) {
+    static long long said; cd_last_in = now;
+    if (cd_last_in + 120 > cd_deadline) {
+      if (!cd_play_from && now >= cd_deadline - 120) cd_play_from = now;
+      cd_deadline = cd_last_in + 120; cd_mask = 0; cd_ok = 0; cd_save();
+      if (now - said >= 60) { said = now; notify("Round2: still playing? This PS4 resets after 2 minutes without play. Need more time? Please ask our staff."); }
+    }
+  }
+  long long play = cd_play_from ? now - cd_play_from : 0;
+  { static int told; if (play >= 600 && !told) { told = 1; char st[400]; sv_log("countdown: still being played %lld min past the reset time - staff alerted", play / 60); report(key, st, sizeof st); write_status(st); } if (!play) told = 0; }
+  if (play >= 3600) { cd_play_from = 0; cd_stop("still being played 60 min after the reset time - not reset (ask staff)", 0, 0); return; }
+  long long left = cd_deadline - now;
   static const int mk[] = { 60, 30, 10 };
   static const char *msg[] = { "Round2: this PS4 resets in 1 minute - please save your game now.", "Round2: resetting in 30 seconds - save now.", "Round2: resetting in 10 seconds. Thanks for playing!" };
   for (int i = 0; i < 3; i++) if (left <= mk[i] && !(cd_mask & (1 << i))) { cd_mask |= 1 << i; cd_save(); if (left > mk[i] - 8) notify(msg[i]); }
@@ -2251,6 +2313,7 @@ static void look_reset(const char *spec) {
   if (cd_on) { look_kv("reset/refused", "a countdown is already running"); return; }
   if (w >= 15) {
     cd_on = 1; cd_ok = 0; cd_mask = 0; cd_deadline = (long long)time(0) + w; snprintf(cd_lab, sizeof cd_lab, "%s", lab[0] ? lab : "-");
+    cd_last_in = 0; cd_play_from = 0; cd_input = -2; in_scan = 0;
     if (w < 60) cd_mask |= 1; if (w < 30) cd_mask |= 2; cd_save();
     char m[200]; int mins = (w + 30) / 60;
     snprintf(m, sizeof m, "Round2: your session has ended. This PS4 resets in %d minute%s - please save your game now. Need more time? Ask our staff.", mins ? mins : 1, mins == 1 ? "" : "s");
@@ -3097,6 +3160,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_clean.", 8)) look_clean(t);
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
+    else if (!strncmp(t, "/_input.", 8)) look_input(t);
     else if (!strncmp(t, "/_cloud.", 8)) look_cloud(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
