@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.50"
+#define R2_VERSION "1.1.51"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1990,6 +1990,46 @@ static void look_uorder(const char *spec) {
   sv_log("profile order: before %s; after %s; %d write(s) failed", old, nw, bad);
   char v[120]; snprintf(v, sizeof v, "%d profiles re-ordered, %d failed - check the profile screen", n, bad); look_kv("order/result", v);
 }
+/* ---- 1.1.51 INTERNAL FIRST (owner 17 Nov 7:43pm, critical: "save to internal first ... batch save them in the background,
+   it takes less effort and has less failures" - agreed earlier, then missed). A part is copied from the opened save to the
+   PS4's own storage /data/round2/prep/<user>/<game>/<part>/ with a fingerprint (SHA-256) per file in manifest.txt
+   ("path<TAB>size<TAB>sha256"); the copy is checked (sizes) before anything is removed; the part is then queued in
+   /data/round2/prep/pending.txt for the later background cloud batch (which can skip files whose fingerprint is already up). */
+static int lc_walk(const char *src, const char *dst, const char *rel, FILE *man, int depth, int *nf, unsigned long long *nb) {
+  DIR *d = opendir(src); if (!d) return -1; struct dirent *e; int bad = 0;
+  while ((e = readdir(d))) {
+    if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+    char sp[512], dp[512], r[400]; snprintf(sp, sizeof sp, "%s/%s", src, e->d_name); snprintf(dp, sizeof dp, "%s/%s", dst, e->d_name);
+    snprintf(r, sizeof r, "%s%s%s", rel, rel[0] ? "/" : "", e->d_name);
+    struct stat st; if (lstat(sp, &st)) { bad++; continue; }
+    if (S_ISDIR(st.st_mode)) { if (depth < 8) { mkdir(dp, 0777); bad += lc_walk(sp, dp, r, man, depth + 1, nf, nb) < 0; } continue; }
+    if (!S_ISREG(st.st_mode)) continue;
+    int in = open(sp, O_RDONLY), out = open(dp, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (in < 0 || out < 0) { if (in >= 0) close(in); if (out >= 0) close(out); bad++; continue; }
+    mbedtls_sha256_context h; mbedtls_sha256_init(&h); mbedtls_sha256_starts(&h, 0);
+    unsigned long long got = 0; ssize_t x; int werr = 0;
+    while ((x = read(in, sv_buf, SV_PIECE)) > 0) { if (write(out, sv_buf, (size_t)x) != x) { werr = 1; break; } mbedtls_sha256_update(&h, sv_buf, (size_t)x); got += (unsigned long long)x; }
+    unsigned char hs[32]; char hx[65]; mbedtls_sha256_finish(&h, hs); mbedtls_sha256_free(&h); hexs(hs, 32, hx);
+    fsync(out); close(out); close(in);
+    struct stat ds; if (x < 0 || werr || stat(dp, &ds) || (unsigned long long)ds.st_size != (unsigned long long)st.st_size || got != (unsigned long long)st.st_size) { bad++; continue; }
+    fprintf(man, "%s\t%llu\t%s\n", r, got, hx); (*nf)++; *nb += got;
+  }
+  closedir(d); return bad ? -1 : 0;
+}
+static int sv_local_copy(const char *u, const char *t, const char *nm, int *nf, unsigned long long *nb, char *why, size_t wn) {
+  char dst[260], rv[200]; snprintf(dst, sizeof dst, "/data/round2/prep/%s/%s/%s", u, t, nm);
+  if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { snprintf(why, wn, "no memory"); return -1; } sv_buf = b; }
+  sv_wipe_data(dst, "x"); char mk[300]; snprintf(mk, sizeof mk, "%s/x", dst); mkdirs_for(mk);
+  sv_rights_up(rv, sizeof rv);
+  if (sv_open(u, t, nm, 1, why, wn)) { sv_rights_back(); return -1; }
+  char mp[300]; snprintf(mp, sizeof mp, "%s/manifest.txt", dst); FILE *man = fopen(mp, "w");
+  int r = man ? lc_walk(SV_MNT, dst, "", man, 0, nf, nb) : -1;
+  if (man) { fflush(man); fsync(fileno(man)); fclose(man); }
+  sv_close(); sv_rights_back();
+  if (r || !*nf) { snprintf(why, wn, "internal copy incomplete (%d files)", *nf); return -1; }
+  FILE *q = fopen("/data/round2/prep/pending.txt", "a"); if (q) { fprintf(q, "%s %s %s %lld\n", u, t, nm, (long long)time(0)); fclose(q); }
+  return 0;
+}
 /* ---- 1.1.50 CLEAN SLATE (owner 17 Nov 7:33pm: test a full clean slate on Kai before the 9pm guest, main profile included).
    "/_clean.<user>-<user>-..." lists every game of those profiles into /data/round2/clean/todo; a background job (like the
    snapshot: ~45 s a minute, paused while a game is open, carries on after restart/update) then, game by game: whole-game
@@ -2050,12 +2090,14 @@ static void clean_step(const char *key, int budget) {
     char u[16] = "", t[16] = ""; if (sscanf(line, "%15s %15s", u, t) != 2) { pos++; continue; }
     if (sv_game_open()) { cl_wr("state", "paused\n"); sv_log("clean slate paused: a game is open"); break; }
     sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer();
-    char base[200] = ""; int np = 0; look_mute = 1; sv_noprep = 1;
-    int br = sv_game_back(key, u, t, base, sizeof base, &np);
-    look_mute = 0; sv_noprep = 0;
+    /* 1.1.51: INTERNAL FIRST - every part copied to /data/round2/prep with fingerprints + queued for the cloud batch;
+       only if every part of the game copied cleanly are the parts removed. No upload here (owner 7:43pm). */
+    char base[200] = "internal"; static char nm[64][32]; int n = sv_disk_parts(u, t, nm, 64), br = 0, nf = 0; unsigned long long nb = 0;
+    for (int i = 0; i < n && !br; i++) { char why[160] = ""; int f1 = 0; unsigned long long b1 = 0;
+      if (sv_local_copy(u, t, nm[i], &f1, &b1, why, sizeof why)) { br = -1; sv_log("clean slate: internal copy FAILED %s %s %s: %s", u, t, nm[i], why); } else { nf += f1; nb += b1; } }
+    if (!br) sv_log("clean slate: user %s game %s: internal copy ok, %d part(s), %d files, %llu bytes", u, t, n, nf, nb);
     int gone = 0, left = 0;
     if (br == 0) {
-      static char nm[64][32]; int n = sv_disk_parts(u, t, nm, 64);
       for (int i = 0; i < n; i++) { char res[300]; if (sv_del_part(u, t, nm[i], res, sizeof res)) left++; else gone++; }
       char d[200]; snprintf(d, sizeof d, "/user/home/%s/savedata/%s", u, t); rmdir(d);
       snprintf(d, sizeof d, "/user/home/%s/savedata_meta/user/%s", u, t); rmdir(d);
@@ -2063,7 +2105,7 @@ static void clean_step(const char *key, int budget) {
     if (br != 0 || left) fails++;
     parts += gone; done++; pos++;
     FILE *ix = fopen(CLND "/index", "a"); if (ix) { fprintf(ix, "%s %s backup %s removed %d left %d %s\n", u, t, br ? "FAILED" : "ok", gone, left, base); fclose(ix); }
-    sv_log("clean slate: user %s game %s: backup %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
+    sv_log("clean slate: user %s game %s: internal copy %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
     cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
   }
   fclose(td);
