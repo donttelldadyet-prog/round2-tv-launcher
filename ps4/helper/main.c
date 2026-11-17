@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.37"
+#define R2_VERSION "1.1.38"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1247,6 +1247,88 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   free(mt);
   return ok;
 }
+/* ---- 1.1.38 (owner 17 Nov "yes": when a member's game moves in, leftover parts from earlier players are backed up, then
+   removed). Delete goes through the PS4's own save service (libSceSaveData sceSaveDataDelete - what Apollo uses), so the
+   PS4's Saved Data list keeps no broken entry. sceSaveDataDirNameSearch = the save list's own view of a game's parts. */
+typedef struct { char data[32]; } R2DirName;
+typedef struct { char data[10]; char pad[6]; } R2TitleId;
+typedef struct { int32_t userId; int32_t u1; const R2TitleId *titleId; const R2DirName *dirName; uint32_t unused; uint8_t reserved[32]; int32_t u2; } R2SdDelete;
+typedef struct { int32_t userId; int32_t pad; const R2TitleId *titleId; const R2DirName *dirName; uint32_t key; uint32_t order; uint8_t reserved[32]; } R2SdSearchCond;
+typedef struct { uint32_t hitNum; int32_t pad; R2DirName *dirNames; uint32_t dirNamesNum; uint32_t setNum; void *params; void *infos; uint8_t reserved[12]; int32_t pad2; } R2SdSearchResult;
+static int (*sdInit3)(int32_t), (*sdDelete)(R2SdDelete *), (*sdSearch)(const R2SdSearchCond *, R2SdSearchResult *);
+static int sd_init_rc = 1;
+static int sd_lib(char *why, size_t wn) {
+  static int m;
+  if (!m) {
+    int h = sceKernelLoadStartModule("/system/common/lib/libSceSaveData.sprx", 0, 0, 0, 0, 0);
+    if (h < 0) { snprintf(why, wn, "save service load 0x%08x", (unsigned)h); return -1; }
+    m = h;
+    sceKernelDlsym(m, "sceSaveDataInitialize3", (void **)&sdInit3); sceKernelDlsym(m, "sceSaveDataDelete", (void **)&sdDelete);
+    sceKernelDlsym(m, "sceSaveDataDirNameSearch", (void **)&sdSearch);
+  }
+  if (!sdInit3 || !sdDelete || !sdSearch) { snprintf(why, wn, "save service functions missing"); return -1; }
+  if (sd_init_rc > 0) sd_init_rc = sdInit3(0); /* once; an "already initialised" error is harmless - the calls below say */
+  return 0;
+}
+/* the parts the PS4's save list knows for one game of one profile, comma-joined. Returns how many, or the error code (<0). */
+static int sd_parts(uint32_t user, const char *t, char *out, size_t on) {
+  static R2DirName names[64];
+  R2TitleId ti; memset(&ti, 0, sizeof ti); snprintf(ti.data, sizeof ti.data, "%s", t);
+  R2SdSearchCond c; memset(&c, 0, sizeof c); c.userId = (int32_t)user; c.titleId = &ti;
+  R2SdSearchResult r; memset(&r, 0, sizeof r); memset(names, 0, sizeof names); r.dirNames = names; r.dirNamesNum = 64;
+  out[0] = 0;
+  int rc = sdSearch(&c, &r); if (rc < 0) return rc;
+  for (uint32_t i = 0; i < r.hitNum && i < 64; i++) { size_t l = strlen(out); snprintf(out + l, on - l, "%s%.32s", i ? "," : "", names[i].data); }
+  return (int)r.hitNum;
+}
+static int sv_part_files(const char *u, const char *t, const char *nm) { /* 1 = the part's image + key are on disk */
+  char a[200], b[200]; struct stat st;
+  snprintf(a, sizeof a, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm); snprintf(b, sizeof b, "/user/home/%s/savedata/%s/%s.bin", u, t, nm);
+  return !stat(a, &st) && !stat(b, &st);
+}
+static void look_sparts(const char *spec) { /* "/_sparts.<user>.<title>": what the save list knows + what's on disk */
+  char u[16] = "", t[16] = "", v[600], why[120] = "";
+  if (sscanf(spec, "/_sparts.%8[0-9a-f].%9[A-Z0-9]", u, t) != 2) { look_kv("parts/error", "bad spec"); return; }
+  if (sd_lib(why, sizeof why)) { look_kv("parts/error", why); return; }
+  char rv[200]; sv_rights_up(rv, sizeof rv);
+  int n = sd_parts((uint32_t)strtoul(u, 0, 16), t, v, sizeof v);
+  sv_rights_back();
+  char k[40]; snprintf(k, sizeof k, "%d", n); look_kv("parts/count", k);
+  snprintf(k, sizeof k, "%d", sd_init_rc); look_kv("parts/init", k);
+  look_kv("parts/list", n >= 0 ? v : "search failed");
+  sv_log("parts: user %s game %s: save list %d [%s], init %d", u, t, n, n >= 0 ? v : "-", sd_init_rc);
+}
+static int look_sdel(const char *key, const char *spec) { /* "/_sdel.<user>.<title>.<save>" - backup first, then delete */
+  char u[16] = "", t[16] = "", nm[48] = "", why[160] = "", v[300];
+  if (sscanf(spec, "/_sdel.%8[0-9a-f].%9[A-Z0-9].%47[^|]", u, t, nm) != 3 || strlen(nm) > 31 || strstr(nm, "/") || strstr(nm, "..")) { look_kv("delete/error", "bad spec"); return -1; }
+  if (!strcmp(t, VUE_ID)) { look_kv("delete/refused", "PS Vue - never touched (owner)"); return -1; }
+  if (r2_protected(t) && (uint32_t)strtoul(u, 0, 16) == r2_main_user()) { look_kv("delete/refused", "protected game in the main profile (owner)"); return -1; }
+  if (!strncmp(nm, "sce_bu_", 7)) { look_kv("delete/refused", "that's the PS4's own backup copy - delete the part itself"); return -1; }
+  if (sv_game_open()) { look_kv("delete/refused", "a game is open"); return -1; }
+  if (!sv_part_files(u, t, nm)) { look_kv("delete/error", "no such save part"); return -1; }
+  if (sd_lib(why, sizeof why)) { look_kv("delete/error", why); sv_log("delete FAILED: %s %s %s: %s", u, t, nm, why); return -1; }
+  char bs[120]; snprintf(bs, sizeof bs, "/_sback.%s.%s.%s", u, t, nm);
+  if (look_sback(key, bs) != 0) { look_kv("delete/refused", "backup failed - nothing deleted"); sv_log("delete REFUSED: %s %s %s: backup failed", u, t, nm); return -1; }
+  uint32_t uid = (uint32_t)strtoul(u, 0, 16);
+  char before[400], after[400], rv[200];
+  sv_rights_up(rv, sizeof rv);
+  int nb = sd_parts(uid, t, before, sizeof before);
+  R2TitleId ti; memset(&ti, 0, sizeof ti); snprintf(ti.data, sizeof ti.data, "%s", t);
+  R2DirName dn; memset(&dn, 0, sizeof dn); snprintf(dn.data, sizeof dn.data, "%s", nm);
+  R2SdDelete d; memset(&d, 0, sizeof d); d.userId = (int32_t)uid; d.titleId = &ti; d.dirName = &dn;
+  int rc = sdDelete(&d);
+  int na = sd_parts(uid, t, after, sizeof after);
+  sv_rights_back();
+  int left = sv_part_files(u, t, nm);
+  char bu[200]; struct stat st; snprintf(bu, sizeof bu, "/user/home/%s/savedata/%s/sdimg_sce_bu_%s", u, t, nm); int buleft = !stat(bu, &st);
+  snprintf(v, sizeof v, "%s (rc 0x%08x, init %d) - files %s, PS4 backup copy %s, save list %d -> %d", rc == 0 && !left ? "deleted" : "NOT deleted",
+    (unsigned)rc, sd_init_rc, left ? "STILL THERE" : "gone", buleft ? "still there" : "gone", nb, na);
+  { char kk[80]; snprintf(kk, sizeof kk, "delete/%s/result", nm); look_kv(kk, v); }
+  look_kv("delete/list-after", na >= 0 ? after : "search failed");
+  sv_log("delete %s: user %s game %s part %s: rc 0x%08x init %d, files %s, sce_bu %s, save list before %d [%s] after %d [%s]", rc == 0 && !left ? "done" : "FAILED",
+    u, t, nm, (unsigned)rc, sd_init_rc, left ? "still there" : "gone", buleft ? "still there" : "gone", nb, nb >= 0 ? before : "-", na, na >= 0 ? after : "-");
+  return rc == 0 && !left ? 0 : -1;
+}
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
    the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
@@ -1863,6 +1945,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_save.", 7)) look_save(t, dp);
     else if (!strncmp(t, "/_sback.", 8)) look_sback(key, t);
     else if (!strncmp(t, "/_srest.", 8)) look_srest(key, t);
+    else if (!strncmp(t, "/_sdel.", 7)) look_sdel(key, t);
+    else if (!strncmp(t, "/_sparts.", 9)) look_sparts(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
