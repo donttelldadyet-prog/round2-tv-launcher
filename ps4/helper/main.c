@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.60"
+#define R2_VERSION "1.1.61"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -695,6 +695,25 @@ static void step_aside(void) {
 }
 static void put_file(const char *p, const char *txt) { FILE *f = fopen(p, "w"); if (f) { fputs(txt, f); fclose(f); } }
 static int file_exists(const char *p) { struct stat st; return !stat(p, &st); }
+/* 1.1.61 (18 Nov 3:30am, owner: "overflow?"): starting a helper as its own PS4 program (elfldr spawn) can FREEZE the whole PS4
+   once it has been done many times since the PS4 last started - Kai froze on its 15th spawn since its restart (3:04:46am,
+   own-spawn.log stops at "spawning"; the very same file started fine after the restart), Max on its 6th (11:42pm, the
+   controller-library build). Something in the system builds up per spawn and only a PS4 restart clears it. So: at most
+   OWN_SPAWN_MAX spawns per PS4 start; after that an update waits for the next restart. Normal days need 1-2. */
+#define SPAWNCNT "/data/round2/own-spawns.txt"
+#define OWN_SPAWN_MAX 5
+static long long boot_id(void) {
+  struct timeval tv; size_t l = sizeof tv; memset(&tv, 0, sizeof tv);
+  if (!sysctlbyname("kern.boottime", &tv, &l, 0, 0) && tv.tv_sec > 0) return tv.tv_sec;
+  struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return (long long)time(0) - ts.tv_sec;
+}
+static int own_spawns(void) { /* spawns since this PS4 started */
+  FILE *f = fopen(SPAWNCNT, "r"); long long b = 0; int n = 0;
+  if (f) { if (fscanf(f, "%lld %d", &b, &n) != 2) n = 0; fclose(f); }
+  long long now = boot_id();
+  return (b > now - 300 && b < now + 300) ? n : 0;
+}
+static void own_spawn_add(void) { char t[48]; int n = own_spawns() + 1; snprintf(t, sizeof t, "%lld %d", boot_id(), n); put_file(SPAWNCNT, t); }
 /* update (1.0.4): download the new helper through the engine, check size + SHA-256 + ELF, save it as app/new.elf, tell the
    starter (app/switch) and exit – the starter swaps it in and rolls back by itself if the new one doesn't work */
 /* 1.1.32: update while running as our OWN program. new.elf is already downloaded and checked. Install it as current.elf
@@ -716,6 +735,7 @@ static void do_own_update_impl(const char *key, const char *cid, const char *v) 
   if (!b) { rename(APP "/previous.elf", APP "/current.elf"); cmd_done(key, cid, 0, 0, 0, 0, 0, "couldn't read the new version"); return; }
   unlink(OWNOK); unlink(OWNHELPER);
   char why[160] = "";
+  own_spawn_add(); r2_slog("own-update: spawn %d since this PS4 started", own_spawns());
   pid_t pid = r2_spawn_own("round2d", b, n, why, sizeof why);
   free(b);
   if (pid <= 0) { r2_slog("own-update: spawn failed (%s)", why); rename(APP "/previous.elf", APP "/current.elf"); cmd_done(key, cid, 0, 0, 0, 0, 0, "the new version could not be started - stayed on the old one"); return; }
@@ -743,6 +763,7 @@ static void do_update(const char *key, const char *cid, const char *body) {
   if (run[0] && strcmp(run, VUE_ID)) { cmd_done(key, cid, 0, 1, 0, 0, 0, "a game is open"); return; }
   if (!v[0] || strlen(sha) != 64 || atoi_safe(sz) < 1024) { cmd_done(key, cid, 0, 0, 0, 0, 0, "bad update details"); return; }
   if (!strcmp(v, R2_VERSION)) { cmd_done(key, cid, 1, 0, 0, 0, 0, "already on this version"); return; }
+  if (g_own && own_spawns() >= OWN_SPAWN_MAX) { char w[120]; snprintf(w, sizeof w, "waits for the next PS4 restart (%d switches since it started - more can freeze it)", own_spawns()); cmd_done(key, cid, 0, 1, 0, 0, 0, w); return; }
   char msg[160], hdr[200], req[120], err[160];
   snprintf(msg, sizeof msg, "Round2 helper: downloading %s...", v);
   notify(msg);
@@ -3095,6 +3116,7 @@ static void look_selfown(void) {
   running_title(run, sizeof run);
   if (g_own) { look_kv("selfown/result", "already running as its own program"); return; }
   if (run[0] && strcmp(run, VUE_ID)) { look_kv("selfown/result", "refused: a game is open"); return; }
+  if (own_spawns() >= OWN_SPAWN_MAX) { look_kv("selfown/result", "refused: too many switches since the PS4 started - restart it first"); return; }
   selfown_after = 1;
   look_kv("selfown/result", "starting a copy as its own program in ~2 s");
 }
@@ -3107,6 +3129,8 @@ static void do_selfown(void) {
   if (!b || fread(b, 1, n, f) != (size_t)n) { fclose(f); free(b); r2_slog("selfown: can't read current.elf (%ld bytes)", n); return; }
   fclose(f);
   unlink(OWNOK); unlink(OWNHELPER);
+  if (own_spawns() >= OWN_SPAWN_MAX) { r2_slog("selfown: skipped - %d spawns since this PS4 started (limit %d)", own_spawns(), OWN_SPAWN_MAX); return; }
+  own_spawn_add(); r2_slog("selfown: spawn %d since this PS4 started", own_spawns());
   pid_t pid = r2_spawn_own("round2d", b, n, why, sizeof why);
   free(b);
   if (pid <= 0) { r2_slog("selfown: not started (%s) - carrying on as before", why); return; }
