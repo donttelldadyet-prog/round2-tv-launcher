@@ -32,13 +32,14 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include "mbedtls/sha256.h"
+#include "mbedtls/md.h"
 
 #include "r2tls.h"
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.43"
+#define R2_VERSION "1.1.44"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1650,6 +1651,90 @@ static int close_game(char *res, size_t rn) {
   return ok ? 0 : -1;
 }
 static void look_close(void) { char r[160]; close_game(r, sizeof r); look_kv("close/result", r); }
+/* ---- 1.1.44 (owner 17 Nov 4:13pm "u can proceed": make a save part a profile doesn't have yet). Step 1, READ-ONLY:
+   "/_sdbinfo.<user>.<game>" writes to save.log how the PS4 itself built that game's saves on that profile - the save-list
+   database's layout and the game's rows in it, and each part's param.sfo fields (owner IDs, console fingerprint, blocks, titles)
+   - and checks our fingerprint maths (Apollo: HMAC-SHA256 of the console's PSID) against what the PS4 wrote. Nothing written. */
+static const unsigned char R2_PSID_KEY[16] = { 0x13, 0xD1, 0xDF, 0x06, 0x75, 0xC9, 0xFD, 0x95, 0x0A, 0x17, 0xE5, 0x64, 0xC2, 0x77, 0x7F, 0x2C };
+static void hexs(const unsigned char *b, int n, char *o) { for (int i = 0; i < n; i++) sprintf(o + i * 2, "%02x", b[i]); o[n * 2] = 0; }
+static int sfo_find(const unsigned char *b, size_t n, const char *key, uint32_t *off, uint32_t *len, uint16_t *fmt) {
+  uint32_t kt, dt, ne;
+  if (n < 20 || memcmp(b, "\0PSF", 4)) return -1;
+  memcpy(&kt, b + 8, 4); memcpy(&dt, b + 12, 4); memcpy(&ne, b + 16, 4);
+  for (uint32_t i = 0; i < ne && 20 + i * 16 + 16 <= n; i++) {
+    const unsigned char *x = b + 20 + i * 16; uint16_t ko, f; uint32_t pl, doff;
+    memcpy(&ko, x, 2); memcpy(&f, x + 2, 2); memcpy(&pl, x + 4, 4); memcpy(&doff, x + 12, 4);
+    if (kt + ko >= n) continue;
+    if (!strcmp((const char *)b + kt + ko, key)) { if (dt + doff + pl > n) return -1; *off = dt + doff; *len = pl; if (fmt) *fmt = f; return 0; }
+  }
+  return -1;
+}
+static void sv_log_long(const char *pre, const char *txt) { /* save.log lines are read back 300 chars at a time */
+  size_t n = strlen(txt); for (size_t i = 0; i < n || i == 0; i += 220) { sv_log("%s%s%.220s", pre, i ? " ...": "", txt + i); if (!n) break; }
+}
+static void look_sdbinfo(const char *spec) {
+  char u[16] = "", t[16] = "", v[200];
+  if (sscanf(spec, "/_sdbinfo.%8[0-9a-f].%9[A-Z0-9]", u, t) != 2) { look_kv("dbinfo/error", "bad spec"); return; }
+  if (sv_game_open()) { look_kv("dbinfo/refused", "a game is open"); return; }
+  sv_rights_up(v, sizeof v);
+  uint32_t uid = (uint32_t)strtoul(u, 0, 16);
+  unsigned char op[16] = { 0 }, ps[16] = { 0 }, h1[32], h2[32]; char a[80], b2[80];
+  sceKernelGetOpenPsId(op);
+  int (*psys)(uint8_t *) = 0; int lk = sceKernelLoadStartModule("/system/common/lib/libkernel_sys.sprx", 0, 0, 0, 0, 0);
+  if (lk > 0) sceKernelDlsym(lk, "sceKernelGetOpenPsIdForSystem", (void **)&psys);
+  int rs = psys ? psys(ps) : -99;
+  const mbedtls_md_info_t *mi = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+  mbedtls_md_hmac(mi, R2_PSID_KEY, 16, op, 16, h1); mbedtls_md_hmac(mi, R2_PSID_KEY, 16, ps, 16, h2);
+  hexs(op, 16, a); hexs(ps, 16, b2); sv_log("dbinfo %s %s: OpenPsId %s, ForSystem %s (rc %d)", u, t, a, b2, rs);
+  hexs(h1, 8, a); hexs(h2, 8, b2); sv_log("dbinfo: hmac(OpenPsId) %s.., hmac(ForSystem) %s..", a, b2);
+  { long base = prof_slot_base(uid); unsigned char ac[8] = { 0 }; int r = base ? sceRegMgrGetBin(base + 0x500, ac, 8) : -1; hexs(ac, 8, a); sv_log("dbinfo: profile %s account id %s (read %d)", u, a, r); }
+  char dp[200]; db_path(u, dp, sizeof dp); sqlite3 *db = 0;
+  if (sqlite3_open_v2(dp, &db, SQLITE_OPEN_READONLY, 0) == SQLITE_OK) {
+    sqlite3_stmt *q = 0;
+    if (sqlite3_prepare_v2(db, "SELECT type||' '||name||': '||ifnull(sql,'') FROM sqlite_master", -1, &q, 0) == SQLITE_OK)
+      while (sqlite3_step(q) == SQLITE_ROW) sv_log_long("dbinfo schema: ", (const char *)sqlite3_column_text(q, 0));
+    sqlite3_finalize(q);
+    int uv = -1, pg = -1;
+    if (sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &q, 0) == SQLITE_OK && sqlite3_step(q) == SQLITE_ROW) uv = sqlite3_column_int(q, 0); sqlite3_finalize(q);
+    if (sqlite3_prepare_v2(db, "PRAGMA page_size", -1, &q, 0) == SQLITE_OK && sqlite3_step(q) == SQLITE_ROW) pg = sqlite3_column_int(q, 0); sqlite3_finalize(q);
+    sv_log("dbinfo: user_version %d, page_size %d", uv, pg);
+    if (sqlite3_prepare_v2(db, "SELECT * FROM savedata WHERE title_id=?1", -1, &q, 0) == SQLITE_OK) {
+      sqlite3_bind_text(q, 1, t, -1, SQLITE_STATIC);
+      while (sqlite3_step(q) == SQLITE_ROW) {
+        static char row[4000]; row[0] = 0; int nc = sqlite3_column_count(q);
+        for (int c = 0; c < nc; c++) { size_t l = strlen(row); int ty = sqlite3_column_type(q, c);
+          if (ty == SQLITE_BLOB) { char hb[70]; int bl = sqlite3_column_bytes(q, c); hexs(sqlite3_column_blob(q, c), bl > 24 ? 24 : bl, hb); snprintf(row + l, sizeof row - l, "%s=x%s(%d); ", sqlite3_column_name(q, c), hb, bl); }
+          else snprintf(row + l, sizeof row - l, "%s=%s; ", sqlite3_column_name(q, c), ty == SQLITE_NULL ? "NULL" : (const char *)sqlite3_column_text(q, c)); }
+        sv_log_long("dbinfo row: ", row);
+      }
+    }
+    sqlite3_finalize(q); sqlite3_close(db);
+  } else { sv_log("dbinfo: no save list database (%s)", dp); sqlite3_close(db); }
+  static char names[16][32]; int np = sv_disk_parts(u, t, names, 16);
+  for (int i = 0; i < np && i < 6; i++) {
+    char why[160], img[220]; struct stat st; snprintf(img, sizeof img, "/user/home/%s/savedata/%s/sdimg_%s", u, t, names[i]);
+    long long isz = stat(img, &st) ? -1 : (long long)st.st_size;
+    if (sv_open(u, t, names[i], 1, why, sizeof why)) { sv_log("dbinfo part %s: can't open (%s)", names[i], why); continue; }
+    char sp[200]; snprintf(sp, sizeof sp, "%s/sce_sys/param.sfo", SV_MNT); static unsigned char sf[65536]; size_t sn = 0;
+    FILE *f = fopen(sp, "rb"); if (f) { sn = fread(sf, 1, sizeof sf, f); fclose(f); }
+    sv_close();
+    uint32_t off, len; uint16_t fmt; char line[900] = ""; size_t l;
+    if (!sfo_find(sf, sn, "ACCOUNT_ID", &off, &len, &fmt) && len <= 16) { hexs(sf + off, len, a); l = strlen(line); snprintf(line + l, sizeof line - l, "ACCOUNT_ID=%s; ", a); }
+    if (!sfo_find(sf, sn, "PARAMS", &off, &len, &fmt) && len >= 0x50) { uint32_t pu; memcpy(&pu, sf + off + 4, 4); hexs(sf + off + 8, 8, a);
+      l = strlen(line); snprintf(line + l, sizeof line - l, "PARAMS(len %u) user=%08x hmac=%s.. %s t1=%.16s t2=%.16s; ", len, pu, a,
+        !memcmp(sf + off + 8, h1, 32) ? "=OpenPsId" : !memcmp(sf + off + 8, h2, 32) ? "=ForSystem" : "=neither", (char *)sf + off + 0x2C, (char *)sf + off + 0x3C); }
+    const char *keys[] = { "SAVEDATA_BLOCKS", "SAVEDATA_DIRECTORY", "MAINTITLE", "SUBTITLE", "DETAIL", "TITLE_ID", "CATEGORY", "FORMAT", "SAVEDATA_LIST_PARAM" };
+    for (unsigned k = 0; k < sizeof keys / sizeof *keys; k++) if (!sfo_find(sf, sn, keys[k], &off, &len, &fmt)) {
+      l = strlen(line);
+      if (fmt == 0x0404 && len == 4) { uint32_t x; memcpy(&x, sf + off, 4); snprintf(line + l, sizeof line - l, "%s=%u; ", keys[k], x); }
+      else if (fmt == 0x0004 || fmt == 0x0404) { uint64_t x = 0; memcpy(&x, sf + off, len > 8 ? 8 : len); snprintf(line + l, sizeof line - l, "%s=%llu(fmt %04x len %u); ", keys[k], (unsigned long long)x, fmt, len); }
+      else snprintf(line + l, sizeof line - l, "%s=%.40s; ", keys[k], (char *)sf + off);
+    }
+    char pre[80]; snprintf(pre, sizeof pre, "dbinfo part %s (image %lld, sfo %zu): ", names[i], isz, sn); sv_log_long(pre, line);
+  }
+  sv_rights_back();
+  snprintf(v, sizeof v, "%d parts read - details in save.log", np); look_kv("dbinfo/result", v);
+}
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
    the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
@@ -2272,6 +2357,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_gmove.", 8)) look_gmove(key, t);
     else if (!strncmp(t, "/_snap.", 7)) look_snap(key, t);
     else if (!strcmp(t, "/_close")) look_close();
+    else if (!strncmp(t, "/_sdbinfo.", 10)) look_sdbinfo(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
