@@ -919,8 +919,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0"><button class="btn" type="button" id="p4WakeEarly">⏰ Wake early-bird rooms</button><button class="btn" type="button" id="p4WakeAll">⏰ Wake all</button><button class="btn" type="button" id="p4SleepAll">😴 Sleep all</button><span class="hint" id="p4GroupMsg"></span></div>
     <div id="p4Tiles"></div>
     <details class="card" id="p4CsBox" style="margin-top:12px;padding:10px 12px" open><summary><b>🧽 Clean slate</b> – after each session: what ran, and any problems (helper 1.1.53+)</summary>
-      <p class="hint" style="margin:8px 0 6px">After a guest session ends the engine tells the room’s PS4 to reset (2–12 min after the guest end, in the cleaning gap). The PS4: closes the game left open (waits if it’s still saving) · signs out the spare profiles · copies every save on every profile to its own storage (with a fingerprint per file), then removes them – a game that didn’t copy stays on the PS4 and shows here as a problem · deletes profiles guests made (keeps the main + 4 spares) · names the spares Player 1–4, default pictures, main profile first. Never touched: GT Sport on Max’s main profile, PS Vue, homebrew settings. Twin/noise blocks and “room blocked” notes aren’t guest sessions.</p>
-      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><label style="white-space:nowrap"><input type="checkbox" id="p4CsAuto"> <b>Reset after each session</b> (automatic)</label><span class="hint" id="p4CsAutoMsg"></span></div>
+      <p class="hint" style="margin:8px 0 6px">After a guest session ends the room’s PS4 resets at the guest end + the minutes set below (the cleaning gap is 15 min, so a back-to-back guest still walks into a clean PS4). Right before it runs, the engine asks SimplyBook again: if the room is still in use – an extension added (add it in time!) or the next guest already in – it waits. The PS4: closes the game left open (waits if it’s still saving) · signs out the spare profiles · copies every save on every profile to its own storage (with a fingerprint per file), then removes them – a game that didn’t copy stays on the PS4 and shows here as a problem · deletes profiles guests made (keeps the main + 4 spares) · names the spares Player 1–4, default pictures, main profile first. Never touched: GT Sport on Max’s main profile, PS Vue, homebrew settings. Twin/noise blocks and “room blocked” notes aren’t guest sessions.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><label style="white-space:nowrap"><input type="checkbox" id="p4CsAuto"> <b>Reset after each session</b> (automatic)</label> <label style="white-space:nowrap">at guest end + <select id="p4CsAfter"><option>5</option><option selected>10</option><option>12</option></select> min</label><span class="hint" id="p4CsAutoMsg"></span></div>
       <div id="p4CsOut" style="margin-top:8px;font-size:12px;line-height:1.45"></div></details>
     <details class="card" id="p4FileBox" style="margin-top:12px;padding:10px 12px"><summary><b>📄 Read a file on a PS4</b> – logs and settings, read-only (helper 1.1.16+)</summary>
       <div class="row" style="margin-top:8px;gap:6px;flex-wrap:wrap"><select id="p4FileRoom"></select>
@@ -3105,7 +3105,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function csDraw(j) {
       var A = j.resetAuto, now = R2Day.now(), on = !!(A && A.on), from = A && A.from && A.from > now ? A.from : 0;
-      $('p4CsAuto').checked = on;
+      $('p4CsAuto').checked = on; if (A && A.after) $('p4CsAfter').value = String(A.after);
       $('p4CsAutoMsg').textContent = !A ? 'Off – nothing runs by itself yet.' : on ? (from ? 'On from ' + new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(from)) + '.' : 'On.') + ' Set ' + ago(A.at) + '.' : 'Off (set ' + ago(A.at) + ').';
       var SS = { sent: ['uo', 'sent'], waiting: ['uw', 'waiting'], missed: ['ub', 'MISSED'] }, fmt = function (t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)); };
       var eng = (j.resetLog || []).slice(0, 12).map(function (x) { var y = SS[x.state] || ['', x.state]; return '<div>' + esc(fmt(x.t)) + ' · <b>' + esc((ROOMS[RK(x.room)] || {}).name || x.room) + '</b> (session ended ' + esc(fmt(x.end)) + ') · <i class="' + y[0] + '">' + esc(y[1]) + '</i> – ' + esc(x.why || '') + '</div>'; });
@@ -3114,7 +3114,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return '<div style="margin-top:8px"><b>' + esc(rname(p)) + '</b>' + h.map(function (l) { return '<div style="' + (/ PROBLEMS | NOT DONE /.test(l) ? 'color:var(--bad)' : '') + '">' + esc(l) + '</div>'; }).join('') +
           (e.length ? '<div style="margin-top:3px;opacity:.85">Problems (newest first):</div>' + e.map(function (l) { return '<div style="color:var(--bad)">⚠️ ' + esc(l) + '</div>'; }).join('') : '') + '</div>';
       });
-      $('p4CsOut').innerHTML = '<div><b>Sent by the engine</b></div>' + (eng.length ? eng.join('') : '<div class="hint">Nothing yet.</div>') + '<div style="margin-top:10px"><b>On each PS4</b> (newest first; PS4 clock = Singapore time)</div>' + (rooms.length ? rooms.join('') : '<div class="hint">No clean slate has run on a PS4 with helper 1.1.53+ yet.</div>');
+      var plan = (j.resetPlan || []).filter(function (x) { return !(j.resetLog || []).some(function (l) { return l.room === x.room && l.end === x.end && l.state !== 'waiting'; }); }).slice(0, 8);
+      var nx = plan.length ? '<div style="margin-bottom:8px"><b>Next resets</b>' + (on ? '' : ' (only if switched on)') + ': ' + plan.map(function (x) { return esc((ROOMS[RK(x.room)] || {}).name || x.room) + ' ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(x.at)).toLowerCase()); }).join(' · ') + '</div>' : '';
+      $('p4CsOut').innerHTML = nx + '<div><b>Sent by the engine</b></div>' + (eng.length ? eng.join('') : '<div class="hint">Nothing yet.</div>') + '<div style="margin-top:10px"><b>On each PS4</b> (newest first; PS4 clock = Singapore time)</div>' + (rooms.length ? rooms.join('') : '<div class="hint">No clean slate has run on a PS4 with helper 1.1.53+ yet.</div>');
     }
     function tile(p) {
       var R = ROOMS[RK(p.room)] || { name: 'New PS4', c: '#888' }, now = R2Day.now(), on = p.poll && now - p.poll < 3 * 60000;
@@ -3282,12 +3284,15 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('p4WakeAll').onclick = function () { groupWake('all', 'Wake all'); };
       $('p4SleepAll').onclick = sleepAll;
       initFiles();
+      $('p4CsAfter').onchange = function () {   /* minutes after the guest end */
+        var m = this.value; gm({ action: 'ps4resetauto', after: m, by: 'control centre' }).then(function (j) { toast(j.ok ? 'Clean slate runs at guest end + ' + m + ' min' : (j.error || 'not saved')); draw(); }, function () { toast('Couldn’t reach the engine.'); });
+      };
       $('p4CsAuto').onchange = function () {   /* 17 Nov: automatic reset after each session on/off */
         var want = this.checked, t7 = 0;
         if (want) { var d = new Date(R2Day.now() + 8 * 3600e3), h = d.getUTCHours(); if (h >= 19 || h < 7) { var b7 = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 7) - 8 * 3600e3; t7 = b7 > R2Day.now() ? b7 : b7 + 86400e3; }
           var msg = 'Turn ON the automatic clean slate after each guest session?' + (t7 ? '\n\nOK = from 7am tomorrow (tonight’s late sessions are left alone).\nCancel, then tick again and choose “now” to start tonight.' : '');
           if (t7 && !confirm(msg)) { if (confirm('Start it NOW instead (tonight’s sessions too)?')) t7 = 0; else { this.checked = false; return; } } else if (!t7 && !confirm(msg)) { this.checked = false; return; } }
-        gm({ action: 'ps4resetauto', on: want ? '1' : '0', from: String(t7), by: 'control centre' }).then(function (j) { toast(j.ok ? 'Clean slate after each session: ' + (want ? 'ON' + (t7 ? ' from 7am' : '') : 'OFF') : (j.error || 'not saved')); draw(); }, function () { toast('Couldn’t reach the engine.'); draw(); });
+        gm({ action: 'ps4resetauto', on: want ? '1' : '0', from: String(t7), after: $('p4CsAfter').value, by: 'control centre' }).then(function (j) { toast(j.ok ? 'Clean slate after each session: ' + (want ? 'ON' + (t7 ? ' from 7am' : '') : 'OFF') : (j.error || 'not saved')); draw(); }, function () { toast('Couldn’t reach the engine.'); draw(); });
       };
       $('p4Tiles').addEventListener('change', function (e) {
         var id = e.target.getAttribute && e.target.getAttribute('data-p4map'); if (!id || !e.target.value) return;
