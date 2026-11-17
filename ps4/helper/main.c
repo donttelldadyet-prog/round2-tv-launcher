@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.51"
+#define R2_VERSION "1.1.52"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -57,6 +57,8 @@ static long long g_awake_until;
    a background job, see "SNAPSHOT" further down. */
 #define SNAPD "/data/round2/snap"
 static int snap_on, snap_bg, look_mute, sv_noprep, clean_on;
+static void cloud_report(void); /* 1.1.52 */
+static int snap_covered(const char *u, const char *t, const char *nm, long long stamp); /* 1.1.52 */
 static int clean_status(char *st, int *done, int *total, int *fails, int *parts);
 static long long snap_hb;
 static int snap_status(char *lab, char *stamp, char *st, int *done, int *total, int *fails, long long *by);
@@ -531,6 +533,7 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"up\":%lld", g_up);
   if (g_awake_until) jadd(",\"awakeHold\":%lld", g_awake_until - (long long)time(0));
   { char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; if (clean_status(cst, &cd, &ct, &cf, &cp)) { jadd(",\"clean\":{\"state\":"); jstr(cst); jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"parts\":%d}", cd, ct, cf, cp); } }
+  cloud_report(); /* 1.1.52 */
   { char lab[24] = "", stp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
     if (snap_status(lab, stp, sst, &dn, &tt, &fl, &by)) { jadd(",\"snap\":{\"label\":"); jstr(lab); jadd(",\"stamp\":"); jstr(stp); jadd(",\"state\":"); jstr(sst);
       jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"mb\":%lld}", dn, tt, fl, by / 1048576); } }
@@ -1368,7 +1371,8 @@ static int sv_del_part(const char *u, const char *t, const char *nm, char *res, 
   char after[600]; int nl = sv_list_parts(u, t, after, sizeof after);
   sv_rights_back();
   int ok = dr == 0 && !left && !sv_part_files(u, t, nm);
-  if (ok) { char pd[260]; snprintf(pd, sizeof pd, "/data/round2/prep/%s/%s/%s", u, t, nm); sv_wipe_data(pd, "x"); rmdir(pd); } /* its prep copy goes too (cloud keeps the backup) */
+  /* 1.1.52 BUG FIX (17 Nov 8pm): this used to delete the part's internal copy too (1.1.40, when the cloud copy came first).
+     With INTERNAL FIRST the internal copy IS the backup - it stays until the cloud batch has it (and after). */
   snprintf(res, rn, "%s: list row %d->%d, %d files removed%s%s%s", ok ? "deleted" : "NOT deleted", nb, na, gone, left ? ", SOME LEFT" : "", dr ? " - " : "", dr ? why : "");
   sv_log("delete %s: user %s game %s part %s: list row %d -> %d, %d files removed, %d left%s%s; game now has %d [%s]", ok ? "done" : "FAILED", u, t, nm, nb, na, gone, left,
     dr ? ", problem: " : "", dr ? why : "", nl, nl >= 0 ? after : "-");
@@ -2038,6 +2042,9 @@ static int sv_local_copy(const char *u, const char *t, const char *nm, int *nf, 
    game in the main profile (GT Sport on Max). Pictures/names/order are separate commands (/_avreset, rename, /_uorder).
    "/_clean.stop" stops it. Progress in the report ("clean"), every step in save.log. */
 #define CLND "/data/round2/clean"
+/* 1.1.52: homebrew tools keep their own settings as "saves" (Kai 17 Nov: the clean slate wiped Apollo Save Tool's settings).
+   Not guest saves - skipped by the clean slate and the purge. */
+static int r2_homebrew(const char *t) { return !strncmp(t, "APOL", 4) || !strncmp(t, "LAPY", 4); }
 static int cl_rd(const char *f, char *b, size_t n) { char p[100]; snprintf(p, sizeof p, CLND "/%s", f); FILE *x = fopen(p, "r"); if (!x) { b[0] = 0; return -1; }
   size_t r = fread(b, 1, n - 1, x); fclose(x); b[r] = 0; while (r && (b[r - 1] == '\n' || b[r - 1] == ' ')) b[--r] = 0; return 0; }
 static void cl_wr(const char *f, const char *fmt, ...) { char p[100]; snprintf(p, sizeof p, CLND "/%s", f); FILE *x = fopen(p, "w"); if (!x) return;
@@ -2064,7 +2071,7 @@ static void look_clean(const char *spec) {
     nu++;
     char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f; static char nm[64][32];
     while (g && (f = readdir(g))) {
-      if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID)) continue;
+      if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name)) continue;
       if (r2_protected(f->d_name) && uid == mainu) continue;
       if (!sv_disk_parts(u, f->d_name, nm, 64)) continue;
       fprintf(td, "%s %s\n", u, f->d_name); ng++;
@@ -2072,7 +2079,7 @@ static void look_clean(const char *spec) {
     if (g) closedir(g);
   }
   fclose(td);
-  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("state", ng ? "running\n" : "done\n");
+  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("mode", "clean\n"); cl_wr("state", ng ? "running\n" : "done\n");
   clean_on = ng > 0;
   sv_log("clean slate started: %d profile(s), %d game(s)", nu, ng);
   char v[80]; snprintf(v, sizeof v, "%d games on %d profiles", ng, nu); look_kv("clean/started", v);
@@ -2092,13 +2099,18 @@ static void clean_step(const char *key, int budget) {
     sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer();
     /* 1.1.51: INTERNAL FIRST - every part copied to /data/round2/prep with fingerprints + queued for the cloud batch;
        only if every part of the game copied cleanly are the parts removed. No upload here (owner 7:43pm). */
-    char base[200] = "internal"; static char nm[64][32]; int n = sv_disk_parts(u, t, nm, 64), br = 0, nf = 0; unsigned long long nb = 0;
+    char base[200] = "internal"; static char nm[64][32]; int n = sv_disk_parts(u, t, nm, 64), br = 0, nf = 0, cov = 0; unsigned long long nb = 0;
+    static char copied[64]; memset(copied, 0, sizeof copied);
+    char md[40] = ""; long long pst = 0; cl_rd("mode", md, sizeof md); int purge = !strncmp(md, "purge ", 6); if (purge) pst = atoll(md + 6);
     for (int i = 0; i < n && !br; i++) { char why[160] = ""; int f1 = 0; unsigned long long b1 = 0;
-      if (sv_local_copy(u, t, nm[i], &f1, &b1, why, sizeof why)) { br = -1; sv_log("clean slate: internal copy FAILED %s %s %s: %s", u, t, nm[i], why); } else { nf += f1; nb += b1; } }
-    if (!br) sv_log("clean slate: user %s game %s: internal copy ok, %d part(s), %d files, %llu bytes", u, t, n, nf, nb);
+      if (purge && snap_covered(u, t, nm[i], pst)) { cov++; continue; } /* 1.1.52: already safe in the restore point, unchanged since */
+      if (sv_local_copy(u, t, nm[i], &f1, &b1, why, sizeof why)) { br = -1; sv_log("clean slate: internal copy FAILED %s %s %s: %s", u, t, nm[i], why); } else { nf += f1; nb += b1; copied[i] = 1; } }
+    if (!br) sv_log("clean slate: user %s game %s: %d part(s): %d copied internally (%d files, %llu bytes), %d already in the restore point", u, t, n, n - cov, nf, nb, cov);
+    if (cov) snprintf(base, sizeof base, "internal+restore-point(%d)", cov);
     int gone = 0, left = 0;
     if (br == 0) {
-      for (int i = 0; i < n; i++) { char res[300]; if (sv_del_part(u, t, nm[i], res, sizeof res)) left++; else gone++; }
+      for (int i = 0; i < n; i++) { char res[300]; if (sv_del_part(u, t, nm[i], res, sizeof res)) left++; else gone++;
+        if (copied[i]) { char mf[300]; snprintf(mf, sizeof mf, "/data/round2/prep/%s/%s/%s/manifest.txt", u, t, nm[i]); if (!file_exists(mf)) sv_log("clean slate: WARNING internal copy of %s %s %s is MISSING after removal", u, t, nm[i]); } }
       char d[200]; snprintf(d, sizeof d, "/user/home/%s/savedata/%s", u, t); rmdir(d);
       snprintf(d, sizeof d, "/user/home/%s/savedata_meta/user/%s", u, t); rmdir(d);
     }
@@ -2111,6 +2123,170 @@ static void clean_step(const char *key, int budget) {
   fclose(td);
   if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); }
   if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
+}
+/* ---- 1.1.52 LAUNCH PURGE (owner 17 Nov 8:05pm: "clear all saves IF restore point succeeded"). "/_purge.<label>" = clean slate of
+   EVERY profile on this PS4 (main included; never PS Vue, the protected main-profile game, homebrew settings), but only if the
+   snapshot <label> (the day0 restore point) finished with 0 failures. A part that is in that restore point and hasn't changed
+   since is removed without another copy; anything newer or missing from it is copied internally first (INTERNAL FIRST). Before
+   it starts, the old internal folder is kept aside (renamed prep-before-<label>-<time>, nothing deleted) and a fresh empty one
+   made, so tomorrow's tests start from nothing. Runs as the clean slate job (report "clean", /_clean.stop). */
+static int snap_covered(const char *u, const char *t, const char *nm, long long stamp) {
+  char img[240]; struct stat st; snprintf(img, sizeof img, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm);
+  if (stat(img, &st) || (long long)st.st_mtime > stamp) return 0;
+  FILE *ix = fopen(SNAPD "/index", "r"); if (!ix) return 0;
+  char ln[200], a[16], b[16], c[48]; int f, fl, hit = 0; unsigned long long by;
+  while (!hit && fgets(ln, sizeof ln, ix)) if (sscanf(ln, "%15s %15s %47s %d %llu %d", a, b, c, &f, &by, &fl) == 6 && !fl && f > 0 && !strcmp(a, u) && !strcmp(b, t) && !strcmp(c, nm)) hit = 1;
+  fclose(ix); return hit;
+}
+static void look_purge(const char *spec) {
+  char lab[24] = "", slab[24] = "", stamp[24] = "", sst[16] = "", st[16] = "", v[200]; int dn = 0, tt = 0, fl = 0; long long by = 0;
+  if (sscanf(spec, "/_purge.%16[a-z0-9-]", lab) != 1) { look_kv("purge/error", "bad label"); return; }
+  if (!snap_status(slab, stamp, sst, &dn, &tt, &fl, &by) || strcmp(slab, lab)) { look_kv("purge/refused", "no such restore point on this PS4 - nothing cleared"); return; }
+  if (strcmp(sst, "done") || fl || dn < tt) { snprintf(v, sizeof v, "restore point %s not complete (%s, %d/%d, %d failed) - nothing cleared", lab, sst, dn, tt, fl); look_kv("purge/refused", v); return; }
+  cl_rd("state", st, sizeof st); if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("purge/refused", "a clean slate is already running"); return; }
+  if (sv_game_open()) { look_kv("purge/refused", "a game is open - close it first (/_close)"); return; }
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  uint32_t mainu = r2_main_user();
+  for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu && user_signed_in((uint32_t)L.userId[i])) { look_kv("purge/refused", "a spare profile is signed in - sign it out first"); return; } }
+  /* fresh internal folder; the old one is kept aside */
+  struct stat ps; if (!stat("/data/round2/prep", &ps)) { char old[120]; snprintf(old, sizeof old, "/data/round2/prep-before-%s-%lld", lab, (long long)time(0));
+    if (rename("/data/round2/prep", old)) { snprintf(v, sizeof v, "can't set the old internal folder aside (errno %d) - nothing cleared", errno); look_kv("purge/error", v); return; } sv_log("purge: old internal folder kept as %s", old); }
+  mkdir("/data/round2/prep", 0777); put_file("/data/round2/prep/pending.txt", "");
+  mkdir(CLND, 0777);
+  FILE *td = fopen(CLND "/todo", "w"); if (!td) { look_kv("purge/error", "can't write the list"); return; }
+  int ng = 0, nu = 0, skip = 0; static char nm[64][32];
+  for (int i = 0; i < 16; i++) {
+    if (L.userId[i] == -1 || !L.userId[i]) continue;
+    char u[9]; snprintf(u, sizeof u, "%08x", (uint32_t)L.userId[i]); nu++;
+    char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f;
+    while (g && (f = readdir(g))) {
+      if (strlen(f->d_name) != 9) continue;
+      if (!strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name) || (r2_protected(f->d_name) && (uint32_t)L.userId[i] == mainu)) { skip++; continue; }
+      if (!sv_disk_parts(u, f->d_name, nm, 64)) continue;
+      fprintf(td, "%s %s\n", u, f->d_name); ng++;
+    }
+    if (g) closedir(g);
+  }
+  fclose(td);
+  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("mode", "purge %s\n", stamp); cl_wr("state", ng ? "running\n" : "done\n");
+  clean_on = ng > 0;
+  sv_log("purge started (restore point %s, stamp %s, %d parts in it): %d profile(s), %d game(s), %d kept (PS Vue/protected/homebrew)", lab, stamp, dn, nu, ng, skip);
+  snprintf(v, sizeof v, "%d games on %d profiles (%d kept)", ng, nu, skip); look_kv("purge/started", v);
+}
+/* ---- 1.1.52 BACKGROUND CLOUD BATCH (owner 17 Nov 7:43pm: internal first, "batch save them in the background"; 8:05pm: code it
+   now, but no cloud backups needed yet - no membership yet). OFF unless /data/round2/prep/cloud_on exists ("/_cloud.on",
+   "/_cloud.off"). When on, once a minute while no game is open and no snapshot/clean slate is running, it works ~20 s through
+   prep/pending.txt: for each part, if its manifest.txt is identical to the one last sent (uploaded.txt) the cloud already has
+   it - skipped, no upload. Otherwise every file is read from the internal copy, its SHA-256 checked against the manifest (a
+   damaged copy is never sent), sent in 1 MB pieces to <console>/<user>/<game>/<part>/<time>/ with the usual manifest (so
+   /_srest can restore it), and uploaded.txt + cloud.txt are written. A failing part is retried next minute, up to 5 times,
+   then listed in cloud_failed.txt. Costs Worker requests only (no Durable Object calls). Report: "cloud". */
+#define PREPD "/data/round2/prep"
+static int pr_rd(const char *f, char *b, size_t n) { char p[100]; snprintf(p, sizeof p, PREPD "/%s", f); FILE *x = fopen(p, "r"); if (!x) { b[0] = 0; return -1; }
+  size_t r = fread(b, 1, n - 1, x); fclose(x); b[r] = 0; while (r && (b[r - 1] == '\n' || b[r - 1] == ' ')) b[--r] = 0; return 0; }
+static void pr_wr(const char *f, const char *fmt, ...) { char p[100]; snprintf(p, sizeof p, PREPD "/%s", f); FILE *x = fopen(p, "w"); if (!x) return;
+  va_list ap; va_start(ap, fmt); vfprintf(x, fmt, ap); va_end(ap); fflush(x); fsync(fileno(x)); fclose(x); }
+static char *read_all(const char *p, size_t *n, size_t max) {
+  FILE *f = fopen(p, "r"); if (!f) return 0; char *b = malloc(max + 1); if (!b) { fclose(f); return 0; }
+  *n = fread(b, 1, max, f); b[*n] = 0; fclose(f); return b;
+}
+static int cloud_waiting(void) {
+  char a[32]; pr_rd("cloud_pos", a, sizeof a); long pos = atol(a);
+  FILE *q = fopen(PREPD "/pending.txt", "r"); if (!q) return 0;
+  if (fseek(q, pos, SEEK_SET)) { fclose(q); return 0; }
+  int n = 0, c; while ((c = fgetc(q)) != EOF) if (c == '\n') n++;
+  fclose(q); return n;
+}
+static void cloud_report(void) {
+  struct stat st; if (stat(PREPD, &st)) return;
+  char a[80]; int up = 0, same = 0, fl = 0; long long by = 0; pr_rd("cloud_stat", a, sizeof a); sscanf(a, "%d %d %d %lld", &up, &same, &fl, &by);
+  jadd(",\"cloud\":{\"on\":%d,\"waiting\":%d,\"up\":%d,\"same\":%d,\"fails\":%d,\"mb\":%lld}", file_exists(PREPD "/cloud_on"), cloud_waiting(), up, same, fl, by / 1048576);
+}
+/* 0 = in the cloud (sent now, or *same = already there); -1 = try again later; -2 = nothing to send (no internal copy) */
+static int cloud_part(const char *key, const char *u, const char *t, const char *nm, int *same, unsigned long long *sent, char *why, size_t wn) {
+  char d[220], p[320]; size_t mn = 0, un = 0; *same = 0; *sent = 0;
+  snprintf(d, sizeof d, PREPD "/%s/%s/%s", u, t, nm);
+  snprintf(p, sizeof p, "%s/manifest.txt", d); char *man = read_all(p, &mn, 256 * 1024);
+  if (!man || !mn) { free(man); snprintf(why, wn, "no internal copy"); return -2; }
+  snprintf(p, sizeof p, "%s/uploaded.txt", d); char *upl = read_all(p, &un, 256 * 1024);
+  if (upl && un == mn && !memcmp(upl, man, mn)) { free(man); free(upl); *same = 1; return 0; }
+  free(upl);
+  if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { free(man); snprintf(why, wn, "no memory"); return -1; } sv_buf = b; }
+  char base[220]; snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
+  sv_man_n = 0; if (sv_man) sv_man[0] = 0;
+  int bad = 0, nfiles = 0;
+  for (char *ln = man, *nx; ln && *ln && !bad; ln = nx) {
+    nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
+    char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0; char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
+    const char *r = ln; unsigned long long sz = strtoull(t1, 0, 10); const char *hx = t2;
+    if (strstr(r, "..")) { bad = 1; snprintf(why, wn, "bad name in manifest"); break; }
+    char fp[600]; snprintf(fp, sizeof fp, "%s/%s", d, r);
+    int fd = open(fp, O_RDONLY); if (fd < 0) { bad = 1; snprintf(why, wn, "internal file missing: %.80s", r); break; }
+    mbedtls_sha256_context h; mbedtls_sha256_init(&h); mbedtls_sha256_starts(&h, 0);
+    unsigned long long done = 0; int pieces = 0;
+    do {
+      size_t want = sz - done > SV_PIECE ? SV_PIECE : (size_t)(sz - done), got = 0;
+      while (got < want) { ssize_t x = read(fd, sv_buf + got, want - got); if (x <= 0) break; got += (size_t)x; }
+      if (got != want) { bad = 1; snprintf(why, wn, "internal file short: %.80s", r); break; }
+      mbedtls_sha256_update(&h, sv_buf, got);
+      char k[760]; snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pieces);
+      if (sv_put(key, k, sv_buf, got)) { bad = 1; snprintf(why, wn, "upload failed: %.80s", r); break; }
+      snap_tick(key);
+      done += got; pieces++;
+    } while (done < sz);
+    close(fd);
+    unsigned char hs[32]; char hh[65]; mbedtls_sha256_finish(&h, hs); mbedtls_sha256_free(&h); hexs(hs, 32, hh);
+    if (!bad && strncmp(hh, hx, 64)) { bad = 1; snprintf(why, wn, "fingerprint differs - internal copy damaged: %.80s", r); sv_log("cloud batch: DAMAGED internal copy %s %s %s file %s", u, t, nm, r); }
+    if (bad) break;
+    char line[620]; snprintf(line, sizeof line, "%s\t%llu\t%d\n", r, sz, pieces); sv_man_add(line); nfiles++; *sent += sz;
+  }
+  free(man);
+  if (!bad) { char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", base); if (sv_put(key, mk, (const unsigned char *)(sv_man ? sv_man : ""), sv_man_n)) { bad = 1; snprintf(why, wn, "manifest upload failed"); } }
+  if (bad) return -1;
+  /* remember what is up: the manifest as it was when read (re-read: same thread, nothing changed it meanwhile) */
+  snprintf(p, sizeof p, "%s/manifest.txt", d); size_t n2 = 0; char *m2 = read_all(p, &n2, 256 * 1024);
+  snprintf(p, sizeof p, "%s/uploaded.txt", d); FILE *f = fopen(p, "w"); if (f && m2) fwrite(m2, 1, n2, f); if (f) { fflush(f); fsync(fileno(f)); fclose(f); } free(m2);
+  snprintf(p, sizeof p, "%s/cloud.txt", d); put_file(p, base);
+  sv_log("cloud batch: sent %s %s %s: %d files, %llu bytes -> %s", u, t, nm, nfiles, *sent, base);
+  return 0;
+}
+static void cloud_step(const char *key, int budget) {
+  if (!file_exists(PREPD "/cloud_on") || sv_game_open()) return;
+  char a[80]; pr_rd("cloud_pos", a, sizeof a); long pos = atol(a);
+  int up = 0, same = 0, fl = 0, tries = 0; long long by = 0; pr_rd("cloud_stat", a, sizeof a); sscanf(a, "%d %d %d %lld", &up, &same, &fl, &by);
+  pr_rd("cloud_tries", a, sizeof a); tries = atoi(a);
+  FILE *q = fopen(PREPD "/pending.txt", "r"); if (!q) return;
+  struct stat qs; fstat(fileno(q), &qs);
+  if (pos > (long)qs.st_size) pos = 0;
+  fseek(q, pos, SEEK_SET);
+  long long t0 = (long long)time(0); char ln[200]; int worked = 0;
+  while ((long long)time(0) - t0 < budget && fgets(ln, sizeof ln, q)) {
+    if (sv_game_open()) break;
+    char u[16] = "", t[16] = "", nm[48] = ""; long next = ftell(q);
+    if (sscanf(ln, "%15s %15s %47s", u, t, nm) != 3 || strchr(nm, '/') || strstr(nm, "..")) { pos = next; continue; }
+    int sm = 0; unsigned long long sent = 0; char why[160] = "";
+    int r = cloud_part(key, u, t, nm, &sm, &sent, why, sizeof why); worked = 1;
+    if (r == 0) { if (sm) same++; else { up++; by += (long long)sent; } tries = 0; pos = next; }
+    else if (r == -2 || ++tries >= 5) {
+      fl++; tries = 0; pos = next;
+      FILE *ff = fopen(PREPD "/cloud_failed.txt", "a"); if (ff) { fprintf(ff, "%s %s %s %lld %s\n", u, t, nm, (long long)time(0), why); fclose(ff); }
+      sv_log("cloud batch: GAVE UP on %s %s %s: %s", u, t, nm, why);
+    } else { sv_log("cloud batch: %s %s %s not sent (try %d of 5): %s", u, t, nm, tries, why); pr_wr("cloud_tries", "%d\n", tries); break; }
+    pr_wr("cloud_pos", "%ld\n", pos); pr_wr("cloud_stat", "%d %d %d %lld\n", up, same, fl, by); pr_wr("cloud_tries", "%d\n", tries);
+  }
+  int atend = pos >= (long)qs.st_size && feof(q);
+  fclose(q);
+  if (atend && worked) { /* all sent: start the list afresh (same thread as the copies, so nothing is appended meanwhile) */
+    struct stat q2; if (!stat(PREPD "/pending.txt", &q2) && (long)q2.st_size == pos) { put_file(PREPD "/pending.txt", ""); pr_wr("cloud_pos", "0\n"); sv_log("cloud batch: list done (%d sent, %d unchanged, %d failed so far)", up, same, fl); } }
+}
+static void look_cloud(const char *spec) {
+  char v[160];
+  if (!strcmp(spec, "/_cloud.on")) { mkdir(PREPD, 0777); put_file(PREPD "/cloud_on", "1"); sv_log("cloud batch switched ON"); }
+  else if (!strcmp(spec, "/_cloud.off")) { unlink(PREPD "/cloud_on"); sv_log("cloud batch switched OFF"); }
+  else if (strcmp(spec, "/_cloud.state")) { look_kv("cloud/error", "use /_cloud.on, /_cloud.off or /_cloud.state"); return; }
+  char a[80]; int up = 0, same = 0, fl = 0; long long by = 0; pr_rd("cloud_stat", a, sizeof a); sscanf(a, "%d %d %d %lld", &up, &same, &fl, &by);
+  snprintf(v, sizeof v, "%s, %d waiting, %d sent, %d unchanged, %d failed", file_exists(PREPD "/cloud_on") ? "ON" : "OFF", cloud_waiting(), up, same, fl);
+  look_kv("cloud/result", v);
 }
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
@@ -2741,6 +2917,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
     else if (!strncmp(t, "/_uorder.", 9)) look_uorder(t);
     else if (!strncmp(t, "/_clean.", 8)) look_clean(t);
+    else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
+    else if (!strncmp(t, "/_cloud.", 8)) look_cloud(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
@@ -2941,6 +3119,7 @@ int main(void) {
     if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
+    else if (key[0] && file_exists(PREPD "/cloud_on")) { r2_where("cloud", 1); cloud_step(key, 20); } /* 1.1.52: background cloud batch, off by default */
     for (int t = 0; t < (snap_on || clean_on ? 5 : 30); t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
       if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
       r2_where("guard", 0);
