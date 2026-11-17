@@ -43,7 +43,7 @@ $CC -Wall -O2 -mstackrealign -Irp -c rp/r2rp.c -o "$D/rp-r2rp.o"
 # 1.1.39: the helper links SQLite (the PS4 save-list database, for deleting/creating save parts the way Apollo does)
 $CC -Wall -O2 -mstackrealign -I"$D/mbedtls/include" -Itls -I"$D/inc" -DMBEDTLS_USER_CONFIG_FILE='"r2_mbedtls_config.h"' \
   -o out/round2d.elf helper/main.c tls/r2tls.c tls/r2dns.c "$D/ca_bundle.c" "$D/own_elf.c" "$D/sp-elfldr.o" "$D/sp-pt.o" "$D/sp-r2spawn.o" "$D/rp-rpcrypt.o" "$D/rp-r2rp.o" "$D/libmbedtls-ps4.a" "$D/sqlite3.o" \
-  -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl
+  -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl -lpthread
 $CC -Wall -O2 -o out/round2-boot.elf boot/main.c   # the starter (AutoRun) – no network, no TLS
 # Round2 build of the blocker (nanoDNS + settings reload without a restart) – see nanodns/main.c
 $CC -Wall -Wextra -Werror -O2 -std=c11 -DPLATFORM_PS4=1 -o out/nanodns-r2.elf nanodns/main.c -lSceNet

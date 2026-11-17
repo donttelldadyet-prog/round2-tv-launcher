@@ -8,6 +8,8 @@
 
 #include <arpa/inet.h>
 #include <dirent.h>
+#include <pthread.h>
+#include <sys/socket.h>
 #include "sqlite3.h"
 #include <netdb.h>
 #include <netinet/in.h>
@@ -36,7 +38,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.41"
+#define R2_VERSION "1.1.42"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -960,6 +962,7 @@ static int (*fsMount)(R2MountOpt *, const char *, const char *, uint8_t *);
 static int (*fsInitUmount)(R2UmountOpt *);
 static int (*fsUmount)(R2UmountOpt *, const char *, int, bool);
 static const char SV_MNT[] = "/data/round2/mnt";
+static volatile int sv_mounted; /* 1.1.42: the watchdog never restarts the helper while a save is open */
 static uint64_t sv_old_auth;
 static uint8_t sv_old_caps[16];
 static int sv_caps_ok;
@@ -1013,13 +1016,14 @@ static int sv_open(const char *u, const char *t, const char *nm, int ro, char *w
   int mr = fsMount(&mo, img, SV_MNT, enc + 0x60);
   memset(enc, 0, sizeof enc);
   if (mr < 0) { snprintf(why, wn, "open %d (0x%08x)", mr, (unsigned)mr); rmdir(SV_MNT); return -1; }
+  sv_mounted = 1;
   return 0;
 }
 static int sv_close(void) {
   R2UmountOpt uo; memset(&uo, 0, sizeof uo); fsInitUmount(&uo);
   int ur = fsUmount(&uo, SV_MNT, 0, false);
   if (ur < 0) { sleep(2); ur = fsUmount(&uo, SV_MNT, 0, true); }
-  rmdir(SV_MNT);
+  rmdir(SV_MNT); sv_mounted = 0;
   return ur;
 }
 static int sv_game_open(void) { char run[32]; running_title(run, sizeof run); return run[0] && strcmp(run, VUE_ID); }
@@ -2326,6 +2330,34 @@ static int wake_login_main(void) {
   if (!m) return 2;
   return sceUserServiceLogin((int32_t)m);
 }
+/* 1.1.42 WATCHDOG (17 Nov: Vale's helper sat in 'read' from 2:37pm until the owner forced the PS4 off; Atlas + Bella went
+   quiet the same minutes). A second thread looks every 15 s at how long ago the helper last moved (the running clock - it
+   stands still in rest mode, so a wake never trips it). Stuck 5 min in a network step -> cut that connection loose (the
+   stuck call returns with an error and the helper carries on). Stuck 20 min anywhere -> a helper running as its own
+   program restarts (the starter brings a fresh one); in GoldHEN's shared program it can only note it (exiting there would
+   take the blocker down too). Every action is written to slow.log. */
+extern volatile int r2tls_fd;
+double r2_where_age(void); const char *r2_where_now(void);
+static void wd_note(const char *fmt, ...) {
+  FILE *f = fopen("/data/round2/slow.log", "a"); if (!f) return;
+  time_t x = time(0) + 8 * 3600; struct tm tm; gmtime_r(&x, &tm);
+  fprintf(f, "%02d/%02d %02d:%02d:%02d watchdog: ", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fputc('\n', f); fclose(f);
+}
+static void *watchdog(void *arg) {
+  (void)arg; int cuts = 0, noted = 0;
+  for (;;) {
+    sleep(15);
+    double age = r2_where_age(); const char *st = r2_where_now();
+    if (age < 300) { cuts = 0; noted = 0; continue; }
+    int net = !strcmp(st, "read") || !strcmp(st, "send") || !strcmp(st, "connect") || !strcmp(st, "handshake") || !strcmp(st, "lookup");
+    int fd = r2tls_fd;
+    if (net && fd >= 0 && cuts < 3) { shutdown(fd, SHUT_RDWR); cuts++; wd_note("stuck %d s in '%s' - cut the connection (%d)", (int)age, st, cuts); continue; }
+    if (age >= 1200 && g_own && !sv_mounted) { wd_note("stuck %d s in '%s' - restarting the helper", (int)age, st); _exit(3); }
+    if (!noted && age >= 600) { noted = 1; wd_note("stuck %d s in '%s'%s", (int)age, st, g_own ? "" : " (shared program: can't restart itself)"); }
+  }
+  return 0;
+}
 int main(void) {
   mkdir("/data/round2", 0777);
   mkdir(APP, 0777);
@@ -2354,6 +2386,7 @@ int main(void) {
   drift0 = (long long)time(0) - (long long)mono_s();
   write_status("started, first report in about 10 seconds");
   r2_where_start(R2_VERSION); /* 1.1.26: slow.log gets "the run before was last in: <step>" */
+  { pthread_t wt; if (pthread_create(&wt, 0, watchdog, 0) == 0) pthread_detach(wt); else wd_note("could not start"); } /* 1.1.42 */
   update_guard();
   { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
   for (unsigned long m = 0;; m++) {
@@ -2408,6 +2441,7 @@ int main(void) {
          this sleep): also compare the wall clock with the running clock. If the running clock stands still in rest mode,
          the difference jumps by the time slept, wherever the freeze happened. wake_via says which check saw it. */
       long long drift = (long long)time(0) - (long long)mono_s() - drift0, slept = 0;
+      if ((long long)t0 < 1577836800LL && (long long)time(0) >= 1577836800LL) { gap = 0; drift_seen = drift; } /* 1.1.42: the PS4 setting its clock after a cold start (Vale 17 Nov: 01/01 08:00 -> today) is not a wake */
       if (gap > 90) { slept = gap; wake_via = "sleep"; } /* 1.1.14: a 2 s sleep that took minutes */
       else if (drift - drift_seen > 60) { slept = drift - drift_seen; wake_via = "clock"; }
       drift_seen = drift;

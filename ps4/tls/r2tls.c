@@ -13,6 +13,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "mbedtls/ctr_drbg.h"
@@ -48,6 +49,12 @@ static int ca_ready = 0;
    was alive but stuck – most likely a connect or send that never came back on weak Wi-Fi. Reads already stop after 15 s
    (mbedtls read timeout); now the connect gives up after 10 s per address and sends after 20 s. */
 #define R2_CONNECT_S 10
+/* 1.1.42 (17 Nov 2:37pm: Vale's helper froze for good in 'read' while downloading an update; Atlas + Bella went quiet the
+   same minutes): the handshake and read loops retried on "not ready, try again" with no overall limit. Now: no new data for
+   R2_STALL_S -> give up. And the socket in use is visible to the helper's watchdog, which can cut it loose. */
+#define R2_STALL_S 30
+volatile int r2tls_fd = -1;
+static double r2_mono(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 #define R2_SEND_S 20
 static int r2_connect(mbedtls_net_context *net, const char *host, const char *port) {
   /* 1.1.16: remember the last good address of each host in /data/round2/addr-<host>.txt and use it when the name can't be
@@ -129,7 +136,10 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   if ((ret = mbedtls_ssl_set_hostname(&ssl, host))) goto fail;
   mbedtls_ssl_set_bio(&ssl, &net, mbedtls_net_send, NULL, mbedtls_net_recv_timeout);
   r2_where("handshake", 1);
+  r2tls_fd = net.fd;
+  double hs0 = r2_mono();
   while ((ret = mbedtls_ssl_handshake(&ssl))) {
+    if ((ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) && r2_mono() - hs0 > R2_STALL_S) { snprintf(err, errlen, "handshake stalled %d s", R2_STALL_S); goto done; }
     if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
       uint32_t flags = mbedtls_ssl_get_verify_result(&ssl);
       if (flags && flags != (uint32_t)-1) {
@@ -164,13 +174,18 @@ static int tls_go(const char *host, const char *method, const char *path, const 
     static unsigned char scratch[16384];
     r2tls_last_bytes = 0;
     r2_where("read", 1);
+    double lastp = r2_mono();
     for (;;) {
       if (resp && got == cap && cap < max) { size_t nc = cap * 2 > max ? max : cap * 2; char *x = realloc(resp, nc + 1); if (x) { resp = x; cap = nc; } }
       int room = resp && got < cap;
       ret = room ? mbedtls_ssl_read(&ssl, (unsigned char *)resp + got, cap - got)
                  : mbedtls_ssl_read(&ssl, scratch, sizeof scratch); /* past max: keep counting, don't keep */
-      if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) continue;
+      if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+        if (r2_mono() - lastp > R2_STALL_S) { if (err && errlen) snprintf(err, errlen, "no data for %d s", R2_STALL_S); break; }
+        usleep(20000); continue;
+      }
       if (ret <= 0) break;
+      lastp = r2_mono();
       if (room) got += ret;
       r2tls_last_bytes += ret;
     }
@@ -188,6 +203,7 @@ fail:
     snprintf(err, errlen, "-0x%04x %s", -ret, eb);
   }
 done:
+  r2tls_fd = -1;
   mbedtls_ssl_close_notify(&ssl);
   mbedtls_net_free(&net);
   mbedtls_ssl_free(&ssl);

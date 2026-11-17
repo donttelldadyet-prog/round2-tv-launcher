@@ -113,6 +113,8 @@ void r2_where(const char *name, int save) {
   snprintf(w_name, sizeof w_name, "%s", name); w_wall = wall; w_mono = mono;
   if (save) { FILE *f = fopen("/data/round2/where.txt", "w"); if (f) { char s[24]; stamp(s, sizeof s, wall); fprintf(f, "%s %s\n", s, name); fclose(f); } }
 }
+double r2_where_age(void) { return w_mono ? mono_now() - w_mono : 0; }   /* 1.1.42: for the watchdog (running clock: stands still in rest mode) */
+const char *r2_where_now(void) { return w_name; }
 void r2_where_start(const char *version) { /* at start: what was the last run doing when it ended? */
   char b[100] = ""; FILE *f = fopen("/data/round2/where.txt", "r");
   if (f) { if (!fgets(b, sizeof b, f)) b[0] = 0; fclose(f); b[strcspn(b, "\r\n")] = 0; }
