@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.48"
+#define R2_VERSION "1.1.49"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1960,15 +1960,18 @@ static void look_udel(const char *spec) {
 }
 /* ---- 1.1.48 PROFILE ORDER (owner 17 Nov 7:24pm: Kai showed Kai, Player 3, Aliff, Player 4, Karen). The profile-select
    screen lists the main profile first, then by setting 0x0900 of each profile slot, highest first = most recently signed in
-   (Kai: Player 3 483, Kai 481, Aliff 474, Player 4 471, Karen 435). "/_uorder.<user>,<user>,..." gives the listed profiles
+   (Kai: Player 3 483, Kai 481, Aliff 474, Player 4 471, Karen 435). "/_uorder.<user>-<user>-..." gives the listed profiles
    the SAME numbers they hold now, re-dealt in the wanted order (biggest to the first) - so the PS4's own counting carries on
    and a member who signs in still jumps to the front. Profiles not listed keep theirs. Old values in save.log. */
 static void look_uorder(const char *spec) {
-  char lst[200] = ""; if (sscanf(spec, "/_uorder.%199[0-9a-f,]", lst) != 1) { look_kv("order/error", "bad spec"); return; }
+  /* 1.1.49: ids separated by "-" (the engine keeps only letters, digits and . / | ; - in a look path) */
+  char lst[200] = ""; if (sscanf(spec, "/_uorder.%199[0-9a-f-]", lst) != 1) { look_kv("order/error", "bad spec"); return; }
   uint32_t ids[16]; long bases[16]; int vals[16], n = 0;
-  for (char *t = strtok(lst, ","); t && n < 16; t = strtok(0, ",")) {
-    if (strlen(t) != 8) { look_kv("order/error", "bad user id"); return; }
-    ids[n] = (uint32_t)strtoul(t, 0, 16); bases[n] = prof_slot_base(ids[n]);
+  for (char *t = lst; *t && n < 16; ) {
+    char *e = strchr(t, '-'); size_t len = e ? (size_t)(e - t) : strlen(t);
+    if (len != 8) { look_kv("order/error", "bad user id"); return; }
+    char one[9]; memcpy(one, t, 8); one[8] = 0; t += len + (e ? 1 : 0);
+    ids[n] = (uint32_t)strtoul(one, 0, 16); bases[n] = prof_slot_base(ids[n]);
     if (!bases[n]) { look_kv("order/error", "no such profile"); return; }
     if (sceRegMgrGetInt(bases[n] + 0x900, &vals[n])) { look_kv("order/error", "can't read the order number"); return; }
     n++;
