@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.49"
+#define R2_VERSION "1.1.50"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -56,7 +56,8 @@ static long long g_awake_until;
 /* 1.1.41 (owner 17 Nov: back up every save on every PS4 = the "pre day 0" restore point, and prove each PS4 can do it):
    a background job, see "SNAPSHOT" further down. */
 #define SNAPD "/data/round2/snap"
-static int snap_on, snap_bg, look_mute, sv_noprep;
+static int snap_on, snap_bg, look_mute, sv_noprep, clean_on;
+static int clean_status(char *st, int *done, int *total, int *fails, int *parts);
 static long long snap_hb;
 static int snap_status(char *lab, char *stamp, char *st, int *done, int *total, int *fails, long long *by);
 static void write_status(const char *line);      /* unix seconds; 0 = no hold */
@@ -529,6 +530,7 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
   if (g_awake_until) jadd(",\"awakeHold\":%lld", g_awake_until - (long long)time(0));
+  { char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; if (clean_status(cst, &cd, &ct, &cf, &cp)) { jadd(",\"clean\":{\"state\":"); jstr(cst); jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"parts\":%d}", cd, ct, cf, cp); } }
   { char lab[24] = "", stp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
     if (snap_status(lab, stp, sst, &dn, &tt, &fl, &by)) { jadd(",\"snap\":{\"label\":"); jstr(lab); jadd(",\"stamp\":"); jstr(stp); jadd(",\"state\":"); jstr(sst);
       jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"mb\":%lld}", dn, tt, fl, by / 1048576); } }
@@ -1988,6 +1990,86 @@ static void look_uorder(const char *spec) {
   sv_log("profile order: before %s; after %s; %d write(s) failed", old, nw, bad);
   char v[120]; snprintf(v, sizeof v, "%d profiles re-ordered, %d failed - check the profile screen", n, bad); look_kv("order/result", v);
 }
+/* ---- 1.1.50 CLEAN SLATE (owner 17 Nov 7:33pm: test a full clean slate on Kai before the 9pm guest, main profile included).
+   "/_clean.<user>-<user>-..." lists every game of those profiles into /data/round2/clean/todo; a background job (like the
+   snapshot: ~45 s a minute, paused while a game is open, carries on after restart/update) then, game by game: whole-game
+   backup to the cloud (<console>/<user>/<game>/_game/<stamp>, restorable with /_gmove) and ONLY if that worked removes every
+   part (save-list row + files); a failed backup leaves the game untouched and counts as failed. Never: PS Vue, the protected
+   game in the main profile (GT Sport on Max). Pictures/names/order are separate commands (/_avreset, rename, /_uorder).
+   "/_clean.stop" stops it. Progress in the report ("clean"), every step in save.log. */
+#define CLND "/data/round2/clean"
+static int cl_rd(const char *f, char *b, size_t n) { char p[100]; snprintf(p, sizeof p, CLND "/%s", f); FILE *x = fopen(p, "r"); if (!x) { b[0] = 0; return -1; }
+  size_t r = fread(b, 1, n - 1, x); fclose(x); b[r] = 0; while (r && (b[r - 1] == '\n' || b[r - 1] == ' ')) b[--r] = 0; return 0; }
+static void cl_wr(const char *f, const char *fmt, ...) { char p[100]; snprintf(p, sizeof p, CLND "/%s", f); FILE *x = fopen(p, "w"); if (!x) return;
+  va_list ap; va_start(ap, fmt); vfprintf(x, fmt, ap); va_end(ap); fflush(x); fsync(fileno(x)); fclose(x); }
+static int clean_status(char *st, int *done, int *total, int *fails, int *parts) {
+  char b[100]; if (cl_rd("state", b, sizeof b)) return 0; snprintf(st, 16, "%s", b);
+  cl_rd("stat", b, sizeof b); sscanf(b, "%d %d %d %d", done, total, fails, parts); return 1;
+}
+static void look_clean(const char *spec) {
+  char st[16] = ""; cl_rd("state", st, sizeof st);
+  if (!strcmp(spec, "/_clean.stop")) { if (!strcmp(st, "running") || !strcmp(st, "paused")) { cl_wr("state", "stopped\n"); clean_on = 0; sv_log("clean slate stopped by staff"); look_kv("clean/result", "stopped"); } else look_kv("clean/result", "nothing running"); return; }
+  if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("clean/refused", "a clean slate is already running"); return; }
+  char lst[200] = ""; if (sscanf(spec, "/_clean.%199[0-9a-f-]", lst) != 1) { look_kv("clean/error", "bad spec"); return; }
+  mkdir(CLND, 0777);
+  FILE *td = fopen(CLND "/todo", "w"); if (!td) { look_kv("clean/error", "can't write the list"); return; }
+  int ng = 0, nu = 0; uint32_t mainu = r2_main_user();
+  for (char *t = lst; *t; ) {
+    char *e = strchr(t, '-'); size_t len = e ? (size_t)(e - t) : strlen(t); char u[9];
+    if (len != 8) { fclose(td); look_kv("clean/error", "bad user id"); return; }
+    memcpy(u, t, 8); u[8] = 0; t += len + (e ? 1 : 0);
+    uint32_t uid = (uint32_t)strtoul(u, 0, 16);
+    if (!prof_slot_base(uid)) { fclose(td); look_kv("clean/error", "no such profile"); return; }
+    if (user_signed_in(uid) && uid != mainu) { fclose(td); look_kv("clean/refused", "a listed spare profile is signed in - sign it out first"); return; }
+    nu++;
+    char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f; static char nm[64][32];
+    while (g && (f = readdir(g))) {
+      if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID)) continue;
+      if (r2_protected(f->d_name) && uid == mainu) continue;
+      if (!sv_disk_parts(u, f->d_name, nm, 64)) continue;
+      fprintf(td, "%s %s\n", u, f->d_name); ng++;
+    }
+    if (g) closedir(g);
+  }
+  fclose(td);
+  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("state", ng ? "running\n" : "done\n");
+  clean_on = ng > 0;
+  sv_log("clean slate started: %d profile(s), %d game(s)", nu, ng);
+  char v[80]; snprintf(v, sizeof v, "%d games on %d profiles", ng, nu); look_kv("clean/started", v);
+}
+static void clean_step(const char *key, int budget) {
+  char st[16] = ""; int done = 0, total = 0, fails = 0, parts = 0;
+  if (!clean_status(st, &done, &total, &fails, &parts) || (strcmp(st, "running") && strcmp(st, "paused"))) { clean_on = 0; return; }
+  if (sv_game_open()) { if (strcmp(st, "paused")) { cl_wr("state", "paused\n"); sv_log("clean slate paused: a game is open"); } return; }
+  if (strcmp(st, "running")) { cl_wr("state", "running\n"); sv_log("clean slate resumed"); }
+  char pb[24]; cl_rd("pos", pb, sizeof pb); int pos = atoi(pb);
+  FILE *td = fopen(CLND "/todo", "r"); if (!td) { cl_wr("state", "stopped\n"); clean_on = 0; return; }
+  char line[100]; for (int i = 0; i < pos && fgets(line, sizeof line, td); i++) {}
+  long long t0 = (long long)time(0);
+  while (pos < total && (long long)time(0) - t0 < budget && fgets(line, sizeof line, td)) {
+    char u[16] = "", t[16] = ""; if (sscanf(line, "%15s %15s", u, t) != 2) { pos++; continue; }
+    if (sv_game_open()) { cl_wr("state", "paused\n"); sv_log("clean slate paused: a game is open"); break; }
+    sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer();
+    char base[200] = ""; int np = 0; look_mute = 1; sv_noprep = 1;
+    int br = sv_game_back(key, u, t, base, sizeof base, &np);
+    look_mute = 0; sv_noprep = 0;
+    int gone = 0, left = 0;
+    if (br == 0) {
+      static char nm[64][32]; int n = sv_disk_parts(u, t, nm, 64);
+      for (int i = 0; i < n; i++) { char res[300]; if (sv_del_part(u, t, nm[i], res, sizeof res)) left++; else gone++; }
+      char d[200]; snprintf(d, sizeof d, "/user/home/%s/savedata/%s", u, t); rmdir(d);
+      snprintf(d, sizeof d, "/user/home/%s/savedata_meta/user/%s", u, t); rmdir(d);
+    }
+    if (br != 0 || left) fails++;
+    parts += gone; done++; pos++;
+    FILE *ix = fopen(CLND "/index", "a"); if (ix) { fprintf(ix, "%s %s backup %s removed %d left %d %s\n", u, t, br ? "FAILED" : "ok", gone, left, base); fclose(ix); }
+    sv_log("clean slate: user %s game %s: backup %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
+    cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
+  }
+  fclose(td);
+  if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); }
+  if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
+}
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
    the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
@@ -2616,6 +2698,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_avreset.", 10)) look_avcopy(t, 1);
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
     else if (!strncmp(t, "/_uorder.", 9)) look_uorder(t);
+    else if (!strncmp(t, "/_clean.", 8)) look_clean(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
@@ -2778,6 +2861,7 @@ int main(void) {
   { pthread_t wt; if (pthread_create(&wt, 0, watchdog, 0) == 0) pthread_detach(wt); else wd_note("could not start"); } /* 1.1.42 */
   update_guard();
   { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
+  { char st[16] = ""; cl_rd("state", st, sizeof st); clean_on = !strcmp(st, "running") || !strcmp(st, "paused"); } /* 1.1.50: carry on a clean slate */
   for (unsigned long m = 0;; m++) {
     char run[32];
     set_dns_servers(); /* 1.1.26: our own name lookups ask the PS4's DNS servers first */
@@ -2814,7 +2898,8 @@ int main(void) {
     r2_where("check-in", 1);
     if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
-    for (int t = 0; t < (snap_on ? 5 : 30); t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
+    else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
+    for (int t = 0; t < (snap_on || clean_on ? 5 : 30); t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
       if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
       r2_where("guard", 0);
       if (update_guard()) {
