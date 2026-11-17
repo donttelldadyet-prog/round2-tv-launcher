@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.45"
+#define R2_VERSION "1.1.46"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1877,6 +1877,56 @@ static int sv_make_part(const char *key, const char *u, const char *t, const cha
   int r = sv_make_part_do(key, u, t, nm, src, why, wn);
   sv_rights_back(); return r;
 }
+/* ---- 1.1.46 AVATARS (owner 17 Nov: members choose a profile picture; Lapy's Avatar Changer / .xavatar use the same files
+   the PS4 keeps per profile in /system_data/priv/cache/profile/0x<USER ID>/: avatar.png + avatar64/128/260/440.dds,
+   picture.png + picture64/128/260/440.dds, online.json; version.json stays). The PS4 reads them at sign-in, so they're
+   changed while the profile is signed OUT. "/_avinfo.<user>" lists the folder + logs online.json; "/_avcopy.<from>.<to>"
+   copies the picture files (not online.json - first test); "/_avreset.<user>" puts the default picture back. Before any
+   change the target's files are kept in /data/round2/avbak/<user>-<time>/. Never the main profile as a target. */
+static int user_signed_in(uint32_t uid) { UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l);
+  for (int i = 0; i < 4; i++) if ((uint32_t)l.userId[i] == uid) return 1; return 0; }
+static int av_name(const char *n) { return (!strncmp(n, "avatar", 6) || !strncmp(n, "picture", 7)) && (strstr(n, ".png") || strstr(n, ".dds")); }
+static void av_dir(uint32_t uid, char *d, size_t n) { snprintf(d, n, "/system_data/priv/cache/profile/0x%08X", uid); }
+static int av_keep(uint32_t uid, const char *d) { /* copy the folder's current files to /data/round2/avbak/<uid>-<time>/ */
+  char b[200]; snprintf(b, sizeof b, "/data/round2/avbak/%08x-%lld/x", uid, (long long)time(0)); mkdirs_for(b); b[strlen(b) - 2] = 0;
+  DIR *x = opendir(d); struct dirent *e; int n = 0;
+  while (x && (e = readdir(x))) { if (e->d_name[0] == '.') continue; char a[300], c[300]; snprintf(a, sizeof a, "%s/%s", d, e->d_name); snprintf(c, sizeof c, "%s/%s", b, e->d_name); if (!file_copy(a, c)) n++; }
+  if (x) closedir(x); sv_log("avatar: kept %d file(s) of %08x in %s", n, uid, b); return n;
+}
+static void av_log_json(uint32_t uid) {
+  char d[120], p[200]; av_dir(uid, d, sizeof d); snprintf(p, sizeof p, "%s/online.json", d);
+  FILE *f = fopen(p, "r"); if (!f) { sv_log("avatar: %08x has no online.json", uid); return; }
+  static char b[2048]; size_t r = fread(b, 1, sizeof b - 1, f); fclose(f); b[r] = 0; for (char *c = b; *c; c++) if (*c == '\n' || *c == '\r') *c = ' ';
+  char pre[60]; snprintf(pre, sizeof pre, "avatar: %08x online.json: ", uid); sv_log_long(pre, b);
+}
+static void look_avinfo(const char *spec) {
+  char u[16] = ""; if (sscanf(spec, "/_avinfo.%8[0-9a-f]", u) != 1) { look_kv("avatar/error", "bad spec"); return; }
+  uint32_t uid = (uint32_t)strtoul(u, 0, 16); char d[120], rv[200]; av_dir(uid, d, sizeof d);
+  sv_rights_up(rv, sizeof rv); look_dir(d, 0, 0); av_log_json(uid); sv_rights_back();
+  look_kv("avatar/signed-in", user_signed_in(uid) ? "yes" : "no");
+}
+static void look_avcopy(const char *spec, int reset) {
+  char a[16] = "", b[16] = "", v[160];
+  if (reset ? sscanf(spec, "/_avreset.%8[0-9a-f]", b) != 1 : sscanf(spec, "/_avcopy.%8[0-9a-f].%8[0-9a-f]", a, b) != 2) { look_kv("avatar/error", "bad spec"); return; }
+  uint32_t from = (uint32_t)strtoul(a, 0, 16), to = (uint32_t)strtoul(b, 0, 16);
+  if (to == r2_main_user()) { look_kv("avatar/refused", "not the main profile"); return; }
+  if (!prof_slot_base(to)) { look_kv("avatar/refused", "no such profile"); return; }
+  if (user_signed_in(to)) { look_kv("avatar/refused", "that profile is signed in - sign it out first"); return; }
+  char fd[120], td[120], rv[200]; av_dir(from, fd, sizeof fd); av_dir(to, td, sizeof td);
+  sv_rights_up(rv, sizeof rv);
+  mkdir(td, 0777); av_keep(to, td);
+  int rm = 0, cp = 0, bad = 0; DIR *x = opendir(td); struct dirent *e;
+  while (x && (e = readdir(x))) if (av_name(e->d_name) || (reset && !strcmp(e->d_name, "online.json"))) { char p[300]; snprintf(p, sizeof p, "%s/%s", td, e->d_name); if (!unlink(p)) rm++; }
+  if (x) closedir(x);
+  if (!reset) { x = opendir(fd);
+    while (x && (e = readdir(x))) if (av_name(e->d_name)) { char p[300], q[300]; snprintf(p, sizeof p, "%s/%s", fd, e->d_name); snprintf(q, sizeof q, "%s/%s", td, e->d_name); if (file_copy(p, q)) bad++; else cp++; }
+    if (x) closedir(x); av_log_json(from); }
+  sv_rights_back();
+  if (reset) snprintf(v, sizeof v, "default picture back: %d file(s) removed", rm);
+  else snprintf(v, sizeof v, "%d picture file(s) copied, %d failed, %d old removed - sign in to see it", cp, bad, rm);
+  sv_log("avatar %s: %s -> %s: %s", reset ? "reset" : "copy", reset ? "-" : a, b, v);
+  look_kv("avatar/result", v);
+}
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
    the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
@@ -2500,6 +2550,9 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_snap.", 7)) look_snap(key, t);
     else if (!strcmp(t, "/_close")) look_close();
     else if (!strncmp(t, "/_sdbinfo.", 10)) look_sdbinfo(t);
+    else if (!strncmp(t, "/_avinfo.", 9)) look_avinfo(t);
+    else if (!strncmp(t, "/_avcopy.", 9)) look_avcopy(t, 0);
+    else if (!strncmp(t, "/_avreset.", 10)) look_avcopy(t, 1);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
