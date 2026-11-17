@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.46"
+#define R2_VERSION "1.1.47"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1927,6 +1927,37 @@ static void look_avcopy(const char *spec, int reset) {
   sv_log("avatar %s: %s -> %s: %s", reset ? "reset" : "copy", reset ? "-" : a, b, v);
   look_kv("avatar/result", v);
 }
+/* ---- 1.1.47 DELETE A PROFILE (owner 17 Nov: each PS4 keeps main + User1-4, recycled; extra profiles guests create are backed
+   up / parked under the booking, then deleted). "/_udel.<user>" = sceUserServiceDestroyUser, the PS4's own delete (Settings >
+   User Management; also what ps5upload uses). Refused: the main profile, a signed-in profile (checked again right before), a
+   game open, any save part still on the profile (back it up / park it first - nothing is ever deleted unsaved). Afterwards
+   checks the profile, its home folder and its save list are gone, and removes the picture folder the PS4 leaves behind. */
+static void look_udel(const char *spec) {
+  char u[16] = "", v[200]; if (sscanf(spec, "/_udel.%8[0-9a-f]", u) != 1 || strlen(spec) != 15) { look_kv("udel/error", "bad spec"); return; }
+  uint32_t uid = (uint32_t)strtoul(u, 0, 16);
+  if (uid == r2_main_user()) { look_kv("udel/refused", "the main profile is never deleted"); return; }
+  if (!prof_slot_base(uid)) { look_kv("udel/refused", "no such profile"); return; }
+  if (sv_game_open()) { look_kv("udel/refused", "a game is open"); return; }
+  { int parts = 0; char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f; static char nm[64][32];
+    while (g && (f = readdir(g))) if (strlen(f->d_name) == 9) parts += sv_disk_parts(u, f->d_name, nm, 64);
+    if (g) closedir(g);
+    if (parts) { snprintf(v, sizeof v, "%d save part(s) still on it - back up / park first", parts); look_kv("udel/refused", v); return; } }
+  if (user_signed_in(uid)) { look_kv("udel/refused", "signed in - sign it out first"); return; }
+  static int (*destroy)(int); static int looked;
+  if (!looked) { looked = 1; int m = sceKernelLoadStartModule("/system/common/lib/libSceUserService.sprx", 0, 0, 0, 0, 0); if (m > 0) sceKernelDlsym(m, "sceUserServiceDestroyUser", (void **)&destroy); }
+  if (!destroy) { look_kv("udel/error", "delete function not found"); return; }
+  char name[64] = ""; sceUserServiceGetUserName((int)uid, name, sizeof name);
+  char rv[200]; sv_rights_up(rv, sizeof rv);
+  int r = destroy((int)uid);
+  sleep(2);
+  struct stat st; char h[120], sd2[120], av[120]; snprintf(h, sizeof h, "/user/home/%s", u); snprintf(sd2, sizeof sd2, "/system_data/savedata/%s", u); av_dir(uid, av, sizeof av);
+  int still = prof_slot_base(uid) != 0, home = !stat(h, &st), sl = !stat(sd2, &st), avl = 0;
+  if (r == 0 && !still && !stat(av, &st)) { sv_wipe_data(av, "x"); avl = rmdir(av) == 0; }
+  sv_rights_back();
+  snprintf(v, sizeof v, "%s '%s' (rc 0x%08x): profile %s, home %s, save list %s%s", r == 0 && !still ? "deleted" : "NOT deleted", name, (unsigned)r,
+    still ? "STILL THERE" : "gone", home ? "still there" : "gone", sl ? "still there" : "gone", avl ? ", picture folder removed" : "");
+  sv_log("profile delete: %s %s", u, v); look_kv("udel/result", v);
+}
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
    the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
@@ -2553,6 +2584,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_avinfo.", 9)) look_avinfo(t);
     else if (!strncmp(t, "/_avcopy.", 9)) look_avcopy(t, 0);
     else if (!strncmp(t, "/_avreset.", 10)) look_avcopy(t, 1);
+    else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
