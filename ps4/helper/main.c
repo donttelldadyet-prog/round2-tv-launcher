@@ -38,7 +38,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.42"
+#define R2_VERSION "1.1.43"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1606,6 +1606,50 @@ static void snap_step(const char *key, int budget) {
   if (pos >= total) snap_finish(key, lab, stamp, done, fails, by);
   if ((long long)time(0) - snap_hb >= 300) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
 }
+/* 1.1.43 CLOSE THE GAME (owner 17 Nov 4:03pm: "ok make it" - guests leave games running and every save step refuses while
+   a game is open; replaces the 12 Nov rule "the helper never closes a game"). "/_close" closes the game that is open, the
+   same close as Options > Close Application (sceSystemServiceKillApp, else sceLncUtilKillApp). Safeguards: the engine only
+   sends a look job when the room has no real guest session now or within 15 min (twin/noise blocks don't count); PS Vue is
+   never closed; never mid-save - if any save of that game changed in the last 60 s it waits (up to 3 min), else refuses;
+   afterwards it checks the game really closed. Everything in save.log. */
+static long long game_save_newest(const char *t) { /* newest change to any save image of this game, any profile */
+  long long nw = 0; DIR *h = opendir("/user/home"); struct dirent *e;
+  while (h && (e = readdir(h))) {
+    if (strlen(e->d_name) != 8) continue;
+    char d[200]; snprintf(d, sizeof d, "/user/home/%s/savedata/%s", e->d_name, t);
+    DIR *g = opendir(d); struct dirent *f;
+    while (g && (f = readdir(g))) { if (strncmp(f->d_name, "sdimg_", 6)) continue; char p[300]; struct stat st; snprintf(p, sizeof p, "%s/%s", d, f->d_name); if (!stat(p, &st) && st.st_mtime > nw) nw = st.st_mtime; }
+    if (g) closedir(g);
+  }
+  if (h) closedir(h); return nw;
+}
+static int close_game(char *res, size_t rn) {
+  char t[32]; running_title(t, sizeof t);
+  if (!t[0]) { snprintf(res, rn, "no game open"); return 0; }
+  if (!strcmp(t, VUE_ID)) { snprintf(res, rn, "PS Vue is open - never closed (owner)"); return -1; }
+  int app = sceSystemServiceGetAppIdOfBigApp();
+  long long quiet = 0;
+  for (int i = 0; i < 12; i++) { /* up to 3 min for a save in progress to finish */
+    long long nw = game_save_newest(t), now = (long long)time(0);
+    if (now - nw >= 60) { quiet = 1; break; }
+    sv_log("close: %s saved %lld s ago - waiting", t, now - nw); sleep(15);
+    char t2[32]; running_title(t2, sizeof t2); if (strcmp(t2, t)) { snprintf(res, rn, "%s closed by itself", t); sv_log("close: %s", res); return 0; }
+  }
+  if (!quiet) { snprintf(res, rn, "%s kept saving for 3 min - not closed", t); sv_log("close REFUSED: %s", res); return -1; }
+  static int (*killApp)(uint32_t, int32_t, int32_t, int32_t), (*lncKill)(uint32_t); static int looked;
+  if (!looked) { looked = 1; int m = sceKernelLoadStartModule("/system/common/lib/libSceSystemService.sprx", 0, 0, 0, 0, 0);
+    if (m > 0) { sceKernelDlsym(m, "sceSystemServiceKillApp", (void **)&killApp); sceKernelDlsym(m, "sceLncUtilKillApp", (void **)&lncKill); } }
+  int r1 = -1, r2 = -1;
+  if (killApp) r1 = killApp((uint32_t)app, -1, 0, 0);
+  for (int i = 0; i < 10; i++) { char t2[32]; running_title(t2, sizeof t2); if (!t2[0]) break; sleep(1); }
+  char t3[32]; running_title(t3, sizeof t3);
+  if (t3[0] && lncKill) { r2 = lncKill((uint32_t)app); for (int i = 0; i < 10; i++) { running_title(t3, sizeof t3); if (!t3[0]) break; sleep(1); } }
+  int ok = !t3[0];
+  snprintf(res, rn, "%s %s (kill 0x%08x%s%s)", t, ok ? "closed" : "NOT closed", (unsigned)r1, r2 != -1 ? ", lnc " : "", r2 != -1 ? "tried" : "");
+  sv_log("close %s: %s, app 0x%x, SystemServiceKillApp 0x%08x%s, LncUtilKillApp %s", ok ? "done" : "FAILED", t, (unsigned)app, (unsigned)r1, killApp ? "" : " (not found)", r2 == -1 ? "not used" : "used");
+  return ok ? 0 : -1;
+}
+static void look_close(void) { char r[160]; close_game(r, sizeof r); look_kv("close/result", r); }
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
    the PS4 goes to rest; the helper freezes with it and carries on when the PS4 wakes. */
@@ -2227,6 +2271,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_gback.", 8)) look_gback(key, t);
     else if (!strncmp(t, "/_gmove.", 8)) look_gmove(key, t);
     else if (!strncmp(t, "/_snap.", 7)) look_snap(key, t);
+    else if (!strcmp(t, "/_close")) look_close();
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
