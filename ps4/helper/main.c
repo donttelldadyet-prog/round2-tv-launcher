@@ -36,7 +36,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.39"
+#define R2_VERSION "1.1.40"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1067,6 +1067,7 @@ static void sv_log(const char *fmt, ...) {
    as it reads it; set to "" when no prep copy is wanted. */
 static char sv_prep[256];
 static int sv_prep_fail;
+static char sv_base_fixed[200]; /* 1.1.40: a whole-game backup puts every part under one stamp: <base>/<part> */
 static void sv_up_dir(const char *key, const char *base, const char *dir, const char *rel, int depth) {
   DIR *d = opendir(dir);
   if (!d) { sv_fail++; return; }
@@ -1112,7 +1113,8 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
   sv_rights_up(v, sizeof v);
   int ok = sv_open(u, t, nm, 1, v, sizeof v);
   if (ok == 0) {
-    snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
+    if (sv_base_fixed[0]) snprintf(base, sizeof base, "%s/%s", sv_base_fixed, nm);
+    else snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
     snprintf(sv_prep, sizeof sv_prep, "/data/round2/prep/%s/%s/%s", u, t, nm); sv_prep_fail = 0; mkdirs_for(sv_prep);
     sv_log("backup start: user %s game %s save %s -> prep %s + cloud %s", u, t, nm, sv_prep, base);
     sv_files = sv_fail = 0; sv_bytes = 0; sv_man_n = 0; if (sv_man) sv_man[0] = 0;
@@ -1320,19 +1322,16 @@ static void look_sparts(const char *spec) { /* "/_sparts.<user>.<title>": the sa
   look_kv("parts/list", n >= 0 ? v : "save list unreadable");
   sv_log("parts: user %s game %s: save list has %d [%s]", u, t, n, n >= 0 ? v : "-");
 }
-static int look_sdel(const char *key, const char *spec) { /* "/_sdel.<user>.<title>.<save>" - backup first, then delete */
-  char u[16] = "", t[16] = "", nm[48] = "", why[200] = "", v[300];
-  if (sscanf(spec, "/_sdel.%8[0-9a-f].%9[A-Z0-9].%47[^|]", u, t, nm) != 3 || strlen(nm) > 31 || strchr(nm, '/') || strstr(nm, "..")) { look_kv("delete/error", "bad spec"); return -1; }
-  if (!strcmp(t, VUE_ID)) { look_kv("delete/refused", "PS Vue - never touched (owner)"); return -1; }
-  if (r2_protected(t) && (uint32_t)strtoul(u, 0, 16) == r2_main_user()) { look_kv("delete/refused", "protected game in the main profile (owner)"); return -1; }
-  if (!strncmp(nm, "sce_bu_", 7)) { look_kv("delete/refused", "PS4's own backup copy - delete the part"); return -1; }
-  if (sv_game_open()) { look_kv("delete/refused", "a game is open"); return -1; }
-  if (!sv_part_files(u, t, nm)) { look_kv("delete/error", "no such save part"); return -1; }
-  char bs[120]; snprintf(bs, sizeof bs, "/_sback.%s.%s.%s", u, t, nm);
-  if (look_sback(key, bs) != 0) { look_kv("delete/refused", "backup failed - nothing deleted"); sv_log("delete REFUSED: user %s game %s part %s: backup failed", u, t, nm); return -1; }
-  char rv[200]; sv_rights_up(rv, sizeof rv);
-  int nb = -1, na = -1, dr = sv_db_del(u, t, nm, &nb, &na, why, sizeof why);
-  int gone = 0, left = 0;
+static int game_installed(const char *t) {
+  char ap[200]; struct stat st;
+  snprintf(ap, sizeof ap, "/user/app/%s/app.pkg", t); if (!stat(ap, &st)) return 1;
+  snprintf(ap, sizeof ap, "/mnt/ext0/user/app/%s/app.pkg", t); return !stat(ap, &st);
+}
+/* remove one part (row in the save list, then its files) - the caller has backed it up. 0 = gone. */
+static int sv_del_part(const char *u, const char *t, const char *nm, char *res, size_t rn) {
+  char why[200] = "", rv[200];
+  sv_rights_up(rv, sizeof rv);
+  int nb = -1, na = -1, dr = sv_db_del(u, t, nm, &nb, &na, why, sizeof why), gone = 0, left = 0;
   if (dr == 0) {
     const char *fmt[] = { "/user/home/%s/savedata/%s/sdimg_%s", "/user/home/%s/savedata/%s/%s.bin", "/user/home/%s/savedata/%s/sdimg_sce_bu_%s",
                           "/user/home/%s/savedata/%s/sce_bu_%s.bin", "/user/home/%s/savedata_meta/user/%s/%s_icon0.png" };
@@ -1345,11 +1344,117 @@ static int look_sdel(const char *key, const char *spec) { /* "/_sdel.<user>.<tit
   char after[600]; int nl = sv_list_parts(u, t, after, sizeof after);
   sv_rights_back();
   int ok = dr == 0 && !left && !sv_part_files(u, t, nm);
-  snprintf(v, sizeof v, "%s: list row %d->%d, %d files removed%s", ok ? "deleted" : "NOT deleted", nb, na, gone, left ? ", SOME LEFT" : "");
-  { char kk[80]; snprintf(kk, sizeof kk, "delete/%s/result", nm); look_kv(kk, v); if (dr) { snprintf(kk, sizeof kk, "delete/%s/problem", nm); look_kv(kk, why); } }
+  if (ok) { char pd[260]; snprintf(pd, sizeof pd, "/data/round2/prep/%s/%s/%s", u, t, nm); sv_wipe_data(pd, "x"); rmdir(pd); } /* its prep copy goes too (cloud keeps the backup) */
+  snprintf(res, rn, "%s: list row %d->%d, %d files removed%s%s%s", ok ? "deleted" : "NOT deleted", nb, na, gone, left ? ", SOME LEFT" : "", dr ? " - " : "", dr ? why : "");
   sv_log("delete %s: user %s game %s part %s: list row %d -> %d, %d files removed, %d left%s%s; game now has %d [%s]", ok ? "done" : "FAILED", u, t, nm, nb, na, gone, left,
     dr ? ", problem: " : "", dr ? why : "", nl, nl >= 0 ? after : "-");
   return ok ? 0 : -1;
+}
+static int sv_del_guard(const char *u, const char *t, const char *nm, const char *pre) { /* shared refusals; 0 = may go on */
+  char k[48]; snprintf(k, sizeof k, "%s/refused", pre);
+  if (!strcmp(t, VUE_ID)) { look_kv(k, "PS Vue - never touched (owner)"); return -1; }
+  if (r2_protected(t) && (uint32_t)strtoul(u, 0, 16) == r2_main_user()) { look_kv(k, "protected game in the main profile (owner)"); return -1; }
+  if (nm && !strncmp(nm, "sce_bu_", 7)) { look_kv(k, "PS4's own backup copy - delete the part"); return -1; }
+  if (sv_game_open()) { look_kv(k, "a game is open"); return -1; }
+  return 0;
+}
+static int look_sdel(const char *key, const char *spec) { /* "/_sdel.<user>.<title>.<save>" - backup first, then delete */
+  char u[16] = "", t[16] = "", nm[48] = "", v[300];
+  if (sscanf(spec, "/_sdel.%8[0-9a-f].%9[A-Z0-9].%47[^|]", u, t, nm) != 3 || strlen(nm) > 31 || strchr(nm, '/') || strstr(nm, "..")) { look_kv("delete/error", "bad spec"); return -1; }
+  if (sv_del_guard(u, t, nm, "delete")) return -1;
+  if (!sv_part_files(u, t, nm)) { look_kv("delete/error", "no such save part"); return -1; }
+  char bs[120]; snprintf(bs, sizeof bs, "/_sback.%s.%s.%s", u, t, nm);
+  if (look_sback(key, bs) != 0) { look_kv("delete/refused", "backup failed - nothing deleted"); sv_log("delete REFUSED: user %s game %s part %s: backup failed", u, t, nm); return -1; }
+  int r = sv_del_part(u, t, nm, v, sizeof v);
+  { char kk[80]; snprintf(kk, sizeof kk, "delete/%s/result", nm); look_kv(kk, v); }
+  return r;
+}
+/* ---- 1.1.40 whole games (the 17 Nov study: a game's save is 1-17 parts with names the game picks, often more as people play).
+   "/_gback.<user>.<title>": every part on disk -> cloud <console>/<user>/<title>/_game/<stamp>/<part>/... + game.txt (one part
+   per line) + the prep copies. "/_gmove.<user>.<title>.<game backup>": the member's whole game into this profile (owner 17 Nov:
+   leftovers from earlier players are removed). Order, so a profile never ends up with neither save:
+   1) plan: every member part must already exist here (making new parts is the next build) - else refuse, nothing written;
+   2) back up this profile's whole game; 3) clean-replace each member part; 4) only if all of them worked, remove this
+   profile's parts the member doesn't have. */
+static int sv_disk_parts(const char *u, const char *t, char (*names)[32], int max) {
+  char dir[200]; snprintf(dir, sizeof dir, "/user/home/%s/savedata/%s", u, t);
+  DIR *d = opendir(dir); if (!d) return 0;
+  struct dirent *e; int n = 0;
+  while ((e = readdir(d)) && n < max) {
+    if (strncmp(e->d_name, "sdimg_", 6) || !strncmp(e->d_name, "sdimg_sce_bu_", 13)) continue;
+    const char *nm = e->d_name + 6;
+    if (strlen(nm) > 31 || !sv_part_files(u, t, nm)) continue;
+    snprintf(names[n++], 32, "%s", nm);
+  }
+  closedir(d); return n;
+}
+static int sv_game_back(const char *key, const char *u, const char *t, char *base, size_t bn, int *nparts) {
+  static char names[64][32]; static char list[64 * 33];
+  int n = sv_disk_parts(u, t, names, 64), fails = 0; *nparts = n; list[0] = 0;
+  snprintf(base, bn, "%s/%s/%s/_game/%lld", console_id, u, t, (long long)time(0));
+  if (!n) return 0;
+  sv_log("game backup start: user %s game %s, %d parts -> %s", u, t, n, base);
+  snprintf(sv_base_fixed, sizeof sv_base_fixed, "%s", base);
+  for (int i = 0; i < n; i++) {
+    char bs[120]; snprintf(bs, sizeof bs, "/_sback.%s.%s.%s", u, t, names[i]);
+    if (look_sback(key, bs) != 0) fails++;
+    size_t l = strlen(list); snprintf(list + l, sizeof list - l, "%s\n", names[i]);
+  }
+  sv_base_fixed[0] = 0;
+  char gk[260]; snprintf(gk, sizeof gk, "%s/game.txt", base);
+  int gr = fails ? -1 : sv_put(key, gk, (const unsigned char *)list, strlen(list));
+  sv_log("game backup %s: user %s game %s: %d parts, %d failed, list %s", fails || gr ? "FAILED" : "done", u, t, n, fails, gr ? "NOT saved" : "saved");
+  return fails || gr ? -1 : 0;
+}
+static void look_gback(const char *key, const char *spec) {
+  char u[16] = "", t[16] = "", base[200]; int n = 0;
+  if (sscanf(spec, "/_gback.%8[0-9a-f].%9[A-Z0-9]", u, t) != 2) { look_kv("gback/error", "bad spec"); return; }
+  if (sv_game_open()) { look_kv("gback/refused", "a game is open"); return; }
+  int r = sv_game_back(key, u, t, base, sizeof base, &n);
+  char v[80]; snprintf(v, sizeof v, "%s: %d parts", r ? "FAILED" : n ? "saved" : "nothing to save", n);
+  look_kv("gback/result", v); look_kv("gback/where", base);
+}
+static int look_gmove(const char *key, const char *spec) {
+  char u[16] = "", t[16] = "", src[200] = "", why[200] = "", v[300];
+  static char srcp[64][32], recv[64][32]; char missing[600] = "", extra[600] = "";
+  if (sscanf(spec, "/_gmove.%8[0-9a-f].%9[A-Z0-9].%199[^|]", u, t, src) != 3 || strstr(src, "..") || !strstr(src, t) || !strstr(src, "/_game/") || strlen(src) > 150) { look_kv("move/error", "bad spec"); return -1; }
+  if (sv_del_guard(u, t, 0, "move")) return -1;
+  if (!game_installed(t)) { look_kv("move/refused", "game not installed in this room"); sv_log("move REFUSED: user %s game %s: not installed here", u, t); return -1; }
+  if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { look_kv("move/error", "no memory"); return -1; } sv_buf = b; }
+  char gk[260]; snprintf(gk, sizeof gk, "%s/game.txt", src);
+  unsigned char *g = 0; size_t gl = 0;
+  if (sv_get(key, gk, &g, &gl, why, sizeof why) || !gl) { free(g); look_kv("move/error", "member's game backup not found"); return -1; }
+  int ns = 0;
+  for (char *ln = (char *)g, *e = (char *)g + gl; ln < e && ns < 64; ) {
+    char *nx = memchr(ln, '\n', (size_t)(e - ln)); size_t l = nx ? (size_t)(nx - ln) : (size_t)(e - ln);
+    if (l && l < 32 && !memchr(ln, '/', l)) { memcpy(srcp[ns], ln, l); srcp[ns][l] = 0; ns++; }
+    ln += l + 1;
+  }
+  free(g);
+  int nr = sv_disk_parts(u, t, recv, 64), nmiss = 0, nextra = 0;
+  for (int i = 0; i < ns; i++) { int f = 0; for (int j = 0; j < nr; j++) if (!strcmp(srcp[i], recv[j])) f = 1;
+    if (!f) { size_t l = strlen(missing); snprintf(missing + l, sizeof missing - l, "%s%s", nmiss++ ? "," : "", srcp[i]); } }
+  for (int j = 0; j < nr; j++) { int f = 0; for (int i = 0; i < ns; i++) if (!strcmp(srcp[i], recv[j])) f = 1;
+    if (!f) { size_t l = strlen(extra); snprintf(extra + l, sizeof extra - l, "%s%s", nextra++ ? "," : "", recv[j]); } }
+  sv_log("move plan: %s -> user %s game %s: member parts %d, here %d, missing here %d [%s], leftovers to remove %d [%s]", src, u, t, ns, nr, nmiss, missing, nextra, extra);
+  snprintf(v, sizeof v, "member %d parts, here %d, missing %d, leftovers %d", ns, nr, nmiss, nextra); look_kv("move/plan", v);
+  if (!ns) { look_kv("move/error", "member's game backup is empty"); return -1; }
+  if (nmiss) { look_kv("move/refused", "member parts missing here - nothing written"); look_kv("move/missing", missing);
+    sv_log("move REFUSED (nothing written): user %s game %s: member parts not on this profile yet [%s] - they need creating", u, t, missing); return -1; }
+  char rb[200]; int rn = 0;
+  if (sv_game_back(key, u, t, rb, sizeof rb, &rn)) { look_kv("move/refused", "backup of this profile failed - nothing written"); return -1; }
+  look_kv("move/backup", rb);
+  int rf = 0;
+  for (int i = 0; i < ns; i++) { char rs[400]; snprintf(rs, sizeof rs, "/_srest.%s.%s.%s.%s/%s", u, t, srcp[i], src, srcp[i]); if (look_srest(key, rs) != 0) rf++; }
+  if (rf) { snprintf(v, sizeof v, "%d of %d parts failed - leftovers kept; this profile's backup: %s", rf, ns, rb); look_kv("move/result", v);
+    sv_log("move FAILED: user %s game %s: %d of %d parts failed to restore - leftovers kept, nothing removed; profile backup %s", u, t, rf, ns, rb); return -1; }
+  int df = 0;
+  for (int j = 0; j < nr; j++) { int f = 0; for (int i = 0; i < ns; i++) if (!strcmp(srcp[i], recv[j])) f = 1;
+    if (!f) { char res[300]; if (sv_del_part(u, t, recv[j], res, sizeof res)) df++; } }
+  snprintf(v, sizeof v, "%s: %d parts in, %d leftovers removed%s", df ? "moved, SOME LEFTOVERS STAYED" : "moved", ns, nextra - df, df ? " (see save.log)" : "");
+  look_kv("move/result", v);
+  sv_log("move %s: %s -> user %s game %s: %d member parts in, %d leftovers removed, %d not removed; profile backup %s", df ? "done with problems" : "done", src, u, t, ns, nextra - df, df, rb);
+  return df ? -1 : 0;
 }
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
@@ -1969,6 +2074,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_srest.", 8)) look_srest(key, t);
     else if (!strncmp(t, "/_sdel.", 7)) look_sdel(key, t);
     else if (!strncmp(t, "/_sparts.", 9)) look_sparts(t);
+    else if (!strncmp(t, "/_gback.", 8)) look_gback(key, t);
+    else if (!strncmp(t, "/_gmove.", 8)) look_gmove(key, t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
