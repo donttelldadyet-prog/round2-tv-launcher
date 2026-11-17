@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.53"
+#define R2_VERSION "1.1.54"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2141,7 +2141,7 @@ static void reset_profiles(char *out, size_t on) {
     look_mute = 1; look_last[0] = 0; look_uorder(sp2); look_mute = 0;
     if (strstr(look_last, " 0 failed")) snprintf(ord, sizeof ord, "ok"); else { bad++; snprintf(ord, sizeof ord, "FAILED"); cl_err("profile order: %s", look_last); }
   }
-  snprintf(out, on, "main + %d spare(s)%s, %d renamed, %d pictures reset, %d extra deleted, order %s", keep, ns < 4 ? " (SHORT)" : "", ren, pic, del, ord);
+  snprintf(out, on, "%d spares%s, %d renamed, %d deleted, order %s", keep, ns < 4 ? " SHORT" : "", ren, del, ord); /* 1.1.54: short - the report keeps 150 chars a line */
   sv_log("reset profiles: %s (%d problem(s))", out, bad);
 }
 static void clean_finish(int done, int fails, int parts) {
@@ -2151,8 +2151,8 @@ static void clean_finish(int done, int fails, int parts) {
   cl_rd("copied", cb, sizeof cb); sscanf(cb, "%lld %lld", &cp, &cby);
   char eb[16]; cl_rd("errn", eb, sizeof eb); int en = atoi(eb);
   cl_stamp(t0s, sizeof t0s, t0 ? t0 : (long long)time(0)); cl_stamp(t1s, sizeof t1s, (long long)time(0));
-  char line[600]; snprintf(line, sizeof line, "%s-%s %s %s: %s - %d game(s), %d failed, %d part(s) removed, %lld copied (%lld MB)%s%s, %d problem(s)",
-    t0s, t1s + 6, kind, lab, en || fails ? "PROBLEMS" : "OK", done, fails, parts, cp, cby / 1048576, pr[0] ? "; profiles: " : "", pr, en);
+  char line[600]; snprintf(line, sizeof line, "%s-%s %s %s: %s · %d games, %d failed, %d removed, %lld copied %lldMB%s%s · %d problems",
+    t0s, t1s + 6, kind, lab, en || fails ? "PROBLEMS" : "OK", done, fails, parts, cp, cby / 1048576, pr[0] ? " · " : "", pr, en);
   cl_hist(line); sv_log("clean log: %s", line);
 }
 static void look_reset(const char *spec) {
