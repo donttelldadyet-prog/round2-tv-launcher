@@ -3472,7 +3472,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var LIGHT = false, sb0 = null;
     function autoQ() { return LIGHT ? { action: 'auto', lite: '1' } : { action: 'auto' }; }   /* lite: counters only, no SimplyBook */
     var LIGHT_OK = ['Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
-      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
+      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'PS4 clean slate after each session', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
     function step(name, fn) {
       if (LIGHT && !LIGHT_OK.some(function (p) { return name.indexOf(p) === 0; })) return Promise.resolve();
       var r = { name: name, st: 'run', note: '' }; rows.push(r); draw();
@@ -3809,7 +3809,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(j.ok && Array.isArray(j.resetLog), 'The engine doesn’t return the clean-slate log (ps4list.resetLog) – engine not deployed?');
           var now = j.now || Date.now(), A = j.resetAuto, newer = function (a, b) { var x = String(a).split('.'), y = String(b).split('.'); for (var i = 0; i < 3; i++) { var d = (+x[i] || 0) - (+y[i] || 0); if (d) return d > 0; } return false; };
           var v53 = (j.list || []).filter(function (p) { return p.room && p.v && !newer('1.1.53', p.v); });
-          var missed = j.resetLog.filter(function (x) { return x.state === 'missed' && now - x.t < 86400e3; });
+          var missed = j.resetLog.filter(function (x) { return x.state === 'missed' && now - x.t < 86400e3; });   /* day-ok: a rolling 24 h window of log entries, not a calendar day */
           var bad = []; v53.forEach(function (p) { ((p.log && p.log.clean) || []).forEach(function (l) { if (/ PROBLEMS | NOT DONE /.test(l)) bad.push(p.room + ': ' + l.slice(0, 60)); }); });
           warnIf(missed.length, 'Resets the engine missed in the last 24 h: ' + missed.map(function (x) { return x.room + ' (' + x.why + ')'; }).join('; '));
           warnIf(bad.length, 'Clean slate runs with problems (see PS4s › Clean slate): ' + bad.slice(0, 3).join(' · '));
