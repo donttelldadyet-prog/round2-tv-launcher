@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.31"
+#define R2_VERSION "1.1.32"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -51,6 +51,9 @@ int sceShellCoreUtilResetAutoPowerDownTimer(void);
 static long long g_awake_until;      /* unix seconds; 0 = no hold */
 static unsigned char *sv_buf;        /* the save buffer */
 #define SV_PIECE (1u << 20)
+pid_t r2_spawn_own(const char *name, const uint8_t *elf, size_t n, char *why, size_t wn); /* ps4/spawn/r2spawn.c */
+static int fw_major(void) { int fw = 0; size_t l = sizeof fw; sysctlbyname("kern.sdk_version", &fw, &l, 0, 0); return (fw >> 24) & 0xff; }
+void r2_slog(const char *fmt, ...);
 #define OWNHELPER "/data/round2/own-helper.pid"
 #define OWNOK "/data/round2/own-ok"
 
@@ -671,6 +674,42 @@ static void put_file(const char *p, const char *txt) { FILE *f = fopen(p, "w"); 
 static int file_exists(const char *p) { struct stat st; return !stat(p, &st); }
 /* update (1.0.4): download the new helper through the engine, check size + SHA-256 + ELF, save it as app/new.elf, tell the
    starter (app/switch) and exit – the starter swaps it in and rolls back by itself if the new one doesn't work */
+/* 1.1.32: update while running as our OWN program. new.elf is already downloaded and checked. Install it as current.elf
+   (old kept as previous.elf), spawn the new version as its own program, and when it reports, _exit(0) - the OS frees this
+   whole process, image included, so nothing accumulates. If the new copy doesn't come up, put the old file back and exit;
+   the starter then relaunches the old version (which auto-promotes again). */
+void do_own_update(const char *key, const char *cid, const char *v);
+static void do_own_update_impl(const char *key, const char *cid, const char *v) {
+  unlink(APP "/previous.elf");
+  rename(APP "/current.elf", APP "/previous.elf");
+  if (rename(APP "/new.elf", APP "/current.elf")) {
+    rename(APP "/previous.elf", APP "/current.elf");
+    cmd_done(key, cid, 0, 0, 0, 0, 0, "couldn't install the new version"); return; /* keep running the old one */
+  }
+  notify("Round2 helper: switching to the new version");
+  FILE *f = fopen(APP "/current.elf", "rb");
+  long n = 0; unsigned char *b = 0;
+  if (f) { fseek(f, 0, SEEK_END); n = ftell(f); fseek(f, 0, SEEK_SET); b = (n > 64 && n < 8 * 1024 * 1024) ? malloc(n) : 0; if (b && fread(b, 1, n, f) != (size_t)n) { free(b); b = 0; } fclose(f); }
+  if (!b) { rename(APP "/previous.elf", APP "/current.elf"); cmd_done(key, cid, 0, 0, 0, 0, 0, "couldn't read the new version"); return; }
+  unlink(OWNOK); unlink(OWNHELPER);
+  char why[160] = "";
+  pid_t pid = r2_spawn_own("round2d", b, n, why, sizeof why);
+  free(b);
+  if (pid <= 0) { r2_slog("own-update: spawn failed (%s)", why); rename(APP "/previous.elf", APP "/current.elf"); cmd_done(key, cid, 0, 0, 0, 0, 0, "the new version could not be started - stayed on the old one"); return; }
+  char pv[24]; snprintf(pv, sizeof pv, "%d", (int)pid); put_file(OWNHELPER, pv);
+  if (g_lock >= 0) { flock(g_lock, LOCK_UN); close(g_lock); g_lock = -1; }
+  char ok[120];
+  for (int i = 0; i < 36; i++) {
+    sleep(5);
+    if (file_exists(OWNOK)) { r2_slog("own-update: new copy %d reported - exiting cleanly", (int)pid); snprintf(ok, sizeof ok, "switched to %s (own program)", v); cmd_done(key, cid, 1, 0, 0, 0, 0, ok); _exit(0); }
+    if (kill(pid, 0)) { r2_slog("own-update: new copy died - restoring old"); rename(APP "/previous.elf", APP "/current.elf"); unlink(OWNHELPER); cmd_done(key, cid, 0, 0, 0, 0, 0, "the new version stopped at once - rolled back"); _exit(1); }
+  }
+  r2_slog("own-update: no report in 3 min - stopping new, restoring old");
+  kill(pid, SIGKILL); rename(APP "/previous.elf", APP "/current.elf"); unlink(OWNHELPER);
+  cmd_done(key, cid, 0, 0, 0, 0, 0, "the new version didn't report in 3 min - rolled back"); _exit(1);
+}
+void do_own_update(const char *key, const char *cid, const char *v) { do_own_update_impl(key, cid, v); }
+
 static void do_update(const char *key, const char *cid, const char *body) {
   char v[24], sha[80], sz[24], run[32];
   jget(body, "v", v, sizeof v);
@@ -708,6 +747,7 @@ static void do_update(const char *key, const char *cid, const char *body) {
   }
   free(d);
   if (why[0]) { unlink(APP "/new.elf.tmp"); cmd_done(key, cid, 0, 0, 0, 0, 0, why); notify("Round2 helper: update not done - still on the old version."); return; }
+  if (g_own) { do_own_update(key, cid, v); return; } /* 1.1.32: an own-program helper updates itself without BinLoader (no sleeping copy, no RAM creep) */
   /* 1.1.15 (16 Nov, Max 2:12pm): let go FIRST, then report and show the pop-up. Before, the old helper reported and showed
      the pop-up while still holding on; on Max it got stuck after that and the starter waited until the PS4 was restarted.
      Now whatever happens afterwards, the starter can swap in the new version. */
@@ -1680,7 +1720,6 @@ static void do_dns(const char *key, const char *cid, const char *body) {
    (own/main.c: writes /data/round2/own-test.txt for 3 minutes, then ends) as its OWN PS4 program – see spawn/r2spawn.c.
    "/_kill.<pid>" stops it again – only the program number that "/_own" started. Steps are in /data/round2/own-spawn.log. */
 extern const unsigned char r2_own_elf[]; extern const unsigned int r2_own_elf_len;
-pid_t r2_spawn_own(const char *name, const uint8_t *elf, size_t n, char *why, size_t wn);
 #define OWNPID "/data/round2/own-pid.txt"
 static void look_own(void) {
   char run[32], why[160] = "", v[64];
@@ -1914,6 +1953,11 @@ int main(void) {
           char msg[200];
           snprintf(msg, sizeof msg, "Round2 helper %s: %s", R2_VERSION, st == 200 ? "connected" : "can't reach Round2 (will retry)");
           notify(msg);
+        }
+        if (m == 0 && st == 200 && !g_own && fw_major() == 9) { /* 1.1.32: become our own program (9.00 only - own-program proven on 9.00, not yet on 11.00) so later updates don't pile up sleeping copies.
+             Gated: at most one attempt per hour (marker file), and a failed attempt just leaves us running the normal way. */
+          struct stat ms; int recent = !stat(APP "/promote-try", &ms) && (long long)time(0) - ms.st_mtime < 3600;
+          if (!recent) { put_file(APP "/promote-try", R2_VERSION); selfown_after = 1; }
         }
       }
     }
