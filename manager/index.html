@@ -3081,6 +3081,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         if (c.res && c.res.why && c.state !== 'updated' && c.state !== 'done') tx += ': ' + c.res.why;
         return '<br><i class="' + y[0] + '">' + esc(tx) + '</i>';
       }
+      if (c && c.do === 'look' && /^\/_reset/.test(c.p || '')) {   /* 17 Nov: the session reset – its result is the 🧽 line from the PS4's own log */
+        var RS = { sent: ['uw', '🧽 Clean slate sent – the PS4 picks it up within a minute'], taken: ['uw', '🧽 Clean slate starting…'], refused: ['ub', '🧽 Clean slate not done'], failed: ['ub', '🧽 Clean slate failed'], expired: ['ub', '🧽 Clean slate not picked up (PS4 off?)'] }, z = RS[c.state];
+        return z && R2Day.now() - (c.doneAt || c.takenAt || c.at) < 3 * 3600e3 ? '<br><i class="' + z[0] + '">' + esc(z[1] + (c.res && c.res.why && c.state !== 'taken' ? ': ' + c.res.why : '')) + '</i>' : '';
+      }
       if (!c || !ST[c.state]) return '';
       var t = c.doneAt || c.takenAt || c.at; if (R2Day.now() - t > 3 * 3600e3) return '';   /* the last result shows for 3 hours */
       var x = ST[c.state], txt = x[1];
