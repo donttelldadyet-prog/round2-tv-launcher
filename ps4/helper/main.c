@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.56"
+#define R2_VERSION "1.1.57"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2279,7 +2279,7 @@ static void countdown_tick(const char *key) {
     if (cd_last_in + 120 > cd_deadline) {
       if (!cd_play_from && now >= cd_deadline - 120) cd_play_from = now;
       cd_deadline = cd_last_in + 120; cd_mask = 0; cd_ok = 0; cd_save();
-      if (now - said >= 60) { said = now; notify("Round2: still playing? This PS4 resets after 2 minutes without play. Need more time? Please ask our staff."); }
+      if (now - said >= 60) { said = now; sv_log("countdown: buttons pressed - reset moved to 2 min after the last press"); } /* 1.1.57: silent */
     }
   }
   long long play = cd_play_from ? now - cd_play_from : 0;
@@ -2288,11 +2288,11 @@ static void countdown_tick(const char *key) {
   long long left = cd_deadline - now;
   static const int mk[] = { 60, 30, 10 };
   static const char *msg[] = { "Round2: this PS4 resets in 1 minute - please save your game now.", "Round2: resetting in 30 seconds - save now.", "Round2: resetting in 10 seconds. Thanks for playing!" };
-  for (int i = 0; i < 3; i++) if (left <= mk[i] && !(cd_mask & (1 << i))) { cd_mask |= 1 << i; cd_save(); if (left > mk[i] - 8) notify(msg[i]); }
+  for (int i = 0; i < 3; i++) if (left <= mk[i] && !(cd_mask & (1 << i))) { cd_mask |= 1 << i; cd_save(); if (left > mk[i] - 8 && 0) notify(msg[i]); } /* 1.1.57: no pop-ups (owner 11:53pm: they break the guest experience) */
   if (left <= 20 && !cd_ok) {
     char why[200] = ""; int r = reset_confirm(key, why, sizeof why);
     if (r == 1) { cd_ok = 1; sv_log("countdown: engine confirmed the room is clear (live SimplyBook check)"); }
-    else { cd_stop(why, r == 0, r == 0 ? "Round2: reset cancelled - your session carries on. Enjoy!" : 0); return; }
+    else { cd_stop(why, r == 0, 0); return; }
   }
   if (left <= 0) {
     char lab[48]; snprintf(lab, sizeof lab, "%s", cd_lab); cd_on = 0; cd_ok = 0; cd_save();
@@ -2304,7 +2304,7 @@ static void look_reset(const char *spec) {
   char lab[48] = "", v[220]; int w = 0;
   if (!strcmp(spec, "/_reset.cancel")) {
     if (!cd_on) { look_kv("reset/result", "no countdown running"); return; }
-    cd_stop("stopped by staff / extension", 1, "Round2: reset cancelled - your session carries on. Enjoy!"); look_kv("reset/result", "countdown stopped"); return;
+    cd_stop("stopped by staff / extension", 1, 0); look_kv("reset/result", "countdown stopped"); return;
   }
   if (spec[7] == '.') { if (sscanf(spec, "/_reset.%40[A-Za-z0-9-]", lab) != 1) { look_kv("reset/error", "bad label"); return; }
     if (spec[7 + 1 + strlen(lab)] == '.') { if (sscanf(spec + 8 + strlen(lab), ".w%d", &w) != 1 || w < 0 || w > 900) { look_kv("reset/error", "bad wait"); return; } }
@@ -2317,7 +2317,7 @@ static void look_reset(const char *spec) {
     if (w < 60) cd_mask |= 1; if (w < 30) cd_mask |= 2; cd_save();
     char m[200]; int mins = (w + 30) / 60;
     snprintf(m, sizeof m, "Round2: your session has ended. This PS4 resets in %d minute%s - please save your game now. Need more time? Ask our staff.", mins ? mins : 1, mins == 1 ? "" : "s");
-    notify(m); sv_log("countdown started: reset %s in %d s", cd_lab, w);
+    (void)m; sv_log("countdown started (silent): reset %s in %d s, then only after 2 min without buttons", cd_lab, w); /* 1.1.57: no pop-up */
     snprintf(v, sizeof v, "countdown %d s - pop-ups at the start, 60, 30, 10 s", w); look_kv("reset/countdown", v); return;
   }
   reset_go(lab);
