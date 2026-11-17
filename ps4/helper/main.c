@@ -36,7 +36,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.40"
+#define R2_VERSION "1.1.41"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -49,7 +49,14 @@ static int g_own;
 /* 1.1.31: keep a woken PS4 on (power tick) + the 1 MB save buffer, declared early so report() and step_aside() can use them. */
 int sceSystemServicePowerTick(void);
 int sceShellCoreUtilResetAutoPowerDownTimer(void);
-static long long g_awake_until;      /* unix seconds; 0 = no hold */
+static long long g_awake_until;
+/* 1.1.41 (owner 17 Nov: back up every save on every PS4 = the "pre day 0" restore point, and prove each PS4 can do it):
+   a background job, see "SNAPSHOT" further down. */
+#define SNAPD "/data/round2/snap"
+static int snap_on, snap_bg, look_mute, sv_noprep;
+static long long snap_hb;
+static int snap_status(char *lab, char *stamp, char *st, int *done, int *total, int *fails, long long *by);
+static void write_status(const char *line);      /* unix seconds; 0 = no hold */
 static unsigned char *sv_buf;        /* the save buffer */
 #define SV_PIECE (1u << 20)
 pid_t r2_spawn_own(const char *name, const uint8_t *elf, size_t n, char *why, size_t wn); /* ps4/spawn/r2spawn.c */
@@ -519,6 +526,9 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
   if (g_awake_until) jadd(",\"awakeHold\":%lld", g_awake_until - (long long)time(0));
+  { char lab[24] = "", stp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
+    if (snap_status(lab, stp, sst, &dn, &tt, &fl, &by)) { jadd(",\"snap\":{\"label\":"); jstr(lab); jadd(",\"stamp\":"); jstr(stp); jadd(",\"state\":"); jstr(sst);
+      jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"mb\":%lld}", dn, tt, fl, by / 1048576); } }
   if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld,\"via\":\"%s\",\"login\":%d}", wake_n, wake_at, wake_slept, wake_via, wake_login);
   tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); add_tail("slow", "/data/round2/slow.log", 6); add_tail("netfail", "/data/round2/net-fail.log", 8); add_tail("save", "/data/round2/save.log", 10); jadd("}");
   jadd(",\"played\":{");
@@ -785,7 +795,7 @@ static void look_dir(const char *path, int depth, int maxdepth) {
 /* 1.0.9: read-only profile probe ("/_profiles" in a look job) – owner 13 Nov: members get their own PS4 profiles; first find
    where a profile lives. Reads the PS4's profile list and, per used profile slot, every setting in that slot's block of the
    settings store (0x07800000 + (slot-1)*0x10000, step 0x100 – Apollo's name/account-ID/login keys are in there). Changes nothing. */
-static void look_kv(const char *k, const char *v) { if (look_n++ < 400) { jadd("%s", look_n > 1 ? "," : ""); jstr(k); jadd(":"); jstr(v); } }
+static void look_kv(const char *k, const char *v) { if (look_mute) return; if (look_n++ < 400) { jadd("%s", look_n > 1 ? "," : ""); jstr(k); jadd(":"); jstr(v); } }
 static void look_profiles(void) {
   char k[64], v[96], nm[64];
   RegUserIdList L;
@@ -1068,6 +1078,12 @@ static void sv_log(const char *fmt, ...) {
 static char sv_prep[256];
 static int sv_prep_fail;
 static char sv_base_fixed[200]; /* 1.1.40: a whole-game backup puts every part under one stamp: <base>/<part> */
+static void snap_tick(const char *key) { /* 1.1.41: during a background snapshot, inside a long upload */
+  static long long last; long long now = (long long)time(0);
+  update_guard();
+  if (now - last >= 20) { last = now; sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } /* finish before rest mode */
+  if (now - snap_hb >= 300 && key && key[0]) { char st[400]; snap_hb = now; report(key, st, sizeof st); write_status(st); }
+}
 static void sv_up_dir(const char *key, const char *base, const char *dir, const char *rel, int depth) {
   DIR *d = opendir(dir);
   if (!d) { sv_fail++; return; }
@@ -1093,6 +1109,7 @@ static void sv_up_dir(const char *key, const char *base, const char *dir, const 
       if (got != want) { bad = 1; break; }
       snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pieces);
       if (sv_put(key, k, sv_buf, got)) { bad = 1; break; }
+      if (snap_bg) snap_tick(key);
       if (pfd >= 0 && write(pfd, sv_buf, got) != (ssize_t)got) { sv_prep_fail++; sv_log("prep write fail %s (errno %d)", r, errno); close(pfd); pfd = -1; }
       done += got; pieces++;
     } while (done < sz);
@@ -1115,7 +1132,7 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
   if (ok == 0) {
     if (sv_base_fixed[0]) snprintf(base, sizeof base, "%s/%s", sv_base_fixed, nm);
     else snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
-    snprintf(sv_prep, sizeof sv_prep, "/data/round2/prep/%s/%s/%s", u, t, nm); sv_prep_fail = 0; mkdirs_for(sv_prep);
+    if (sv_noprep) sv_prep[0] = 0; else { snprintf(sv_prep, sizeof sv_prep, "/data/round2/prep/%s/%s/%s", u, t, nm); mkdirs_for(sv_prep); } sv_prep_fail = 0;
     sv_log("backup start: user %s game %s save %s -> prep %s + cloud %s", u, t, nm, sv_prep, base);
     sv_files = sv_fail = 0; sv_bytes = 0; sv_man_n = 0; if (sv_man) sv_man[0] = 0;
     sv_up_dir(key, base, SV_MNT, "", 0);
@@ -1125,7 +1142,7 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
     { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/where", nm); look_kv(kk, base); }
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, manifest %s, closed %d", sv_files, sv_bytes, sv_fail, mr ? "NOT saved" : "saved", cr);
     { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/result", nm); look_kv(kk, v); }
-    { char pmf[300]; snprintf(pmf, sizeof pmf, "%s/manifest.txt", sv_prep); FILE *pf = fopen(pmf, "w"); if (pf) { if (sv_man) fputs(sv_man, pf); fclose(pf); }
+    if (sv_prep[0]) { char pmf[300]; snprintf(pmf, sizeof pmf, "%s/manifest.txt", sv_prep); FILE *pf = fopen(pmf, "w"); if (pf) { if (sv_man) fputs(sv_man, pf); fclose(pf); }
       char cf[300]; snprintf(cf, sizeof cf, "%s/cloud.txt", sv_prep); FILE *cf2 = fopen(cf, "w"); if (cf2) { fprintf(cf2, "%s\n", base); fclose(cf2); } }
     sv_log("backup done: user %s game %s save %s: %d files, %llu bytes, %d failed, prep-fails %d, manifest %s", u, t, nm, sv_files, sv_bytes, sv_fail, sv_prep_fail, mr ? "NOT saved" : "saved");
     sv_prep[0] = 0;
@@ -1455,6 +1472,135 @@ static int look_gmove(const char *key, const char *spec) {
   look_kv("move/result", v);
   sv_log("move %s: %s -> user %s game %s: %d member parts in, %d leftovers removed, %d not removed; profile backup %s", df ? "done with problems" : "done", src, u, t, ns, nextra - df, df, rb);
   return df ? -1 : 0;
+}
+/* ---- SNAPSHOT (1.1.41, owner 17 Nov: "let's do a backup ... mark these as pre day 0 restore point"). "/_snap.<label>" lists
+   every part of every game of every profile folder on this PS4 (PS Vue skipped - never touched) into SNAPD/todo and works
+   through it in the background: ~45 s per minute, never while a game is open (paused, carries on after), resumes after a
+   restart, an update or rest mode (pos/stat files on disk; a part cut off midway is simply done again). Cloud layout =
+   whole-game backups, so /_gmove can restore from it: <console>/<user>/<game>/_game/<stamp>/<part>/... + game.txt; plus
+   <console>/_snap/<stamp>/index.txt (user, game, part, files, bytes, failed), users.txt (profile id, name, still on the PS4?)
+   and label.txt. No prep copies (these saves are about to be cleared). Progress in the report ("snap") every 5 min. */
+static void snap_put(const char *f, const char *v) { char p[120]; snprintf(p, sizeof p, SNAPD "/%s", f); put_file(p, v); }
+static int snap_get(const char *f, char *v, size_t vn) {
+  char p[120]; snprintf(p, sizeof p, SNAPD "/%s", f); v[0] = 0;
+  FILE *x = fopen(p, "r"); if (!x) return -1;
+  size_t n = fread(v, 1, vn - 1, x); v[n] = 0; fclose(x);
+  while (n && (v[n - 1] == '\n' || v[n - 1] == '\r')) v[--n] = 0;
+  return 0;
+}
+static int snap_status(char *lab, char *stamp, char *st, int *done, int *total, int *fails, long long *by) {
+  char j[120], a[80];
+  if (snap_get("job", j, sizeof j) || snap_get("state", st, 16)) return 0;
+  sscanf(j, "%23s %23s %d", lab, stamp, total);
+  if (!snap_get("stat", a, sizeof a)) sscanf(a, "%d %d %lld", done, fails, by);
+  return 1;
+}
+static int is_hex8(const char *n) { if (strlen(n) != 8) return 0; for (int i = 0; i < 8; i++) { char c = n[i]; if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return 0; } return 1; }
+static void look_snap(const char *key, const char *spec) {
+  char lab[24] = "", st[16] = "", v[160];
+  if (!strcmp(spec, "/_snap.stop")) {
+    if (snap_get("state", st, sizeof st) || !strcmp(st, "done")) { look_kv("snap/result", "no snapshot running"); return; }
+    snap_put("state", "stopped"); snap_on = 0; sv_log("snapshot stopped by command"); look_kv("snap/result", "stopped"); return;
+  }
+  if (sscanf(spec, "/_snap.%16[a-z0-9-]", lab) != 1 || strlen(spec) != 7 + strlen(lab)) { look_kv("snap/error", "bad label (a-z 0-9 -, up to 16)"); return; }
+  if (!snap_get("state", st, sizeof st) && (!strcmp(st, "running") || !strcmp(st, "paused"))) { look_kv("snap/refused", "a snapshot is already running"); return; }
+  mkdir(SNAPD, 0777);
+  char rv[200]; sv_rights_up(rv, sizeof rv);
+  FILE *td = fopen(SNAPD "/todo", "w"), *us = fopen(SNAPD "/users", "w");
+  if (!td || !us) { if (td) fclose(td); if (us) fclose(us); sv_rights_back(); look_kv("snap/error", "can't write the job list"); return; }
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  int nu = 0, ng = 0, np = 0;
+  static char names[64][32];
+  DIR *h = opendir("/user/home"); struct dirent *e;
+  while (h && (e = readdir(h))) {
+    if (!is_hex8(e->d_name)) continue;
+    uint32_t id = (uint32_t)strtoul(e->d_name, 0, 16); int reg = 0;
+    for (int i = 0; i < 16; i++) if ((uint32_t)L.userId[i] == id) reg = 1;
+    char nm[64] = "", up[200]; snprintf(up, sizeof up, "/user/home/%s/username.dat", e->d_name);
+    if (reg) sceUserServiceGetUserName((int32_t)id, nm, sizeof nm);
+    if (!nm[0]) { FILE *f = fopen(up, "r"); if (f) { size_t n = fread(nm, 1, sizeof nm - 1, f); nm[n] = 0; fclose(f); } }
+    for (char *q = nm; *q; q++) if (*q == '\t' || *q == '\n' || *q == '\r') *q = ' ';
+    fprintf(us, "%s\t%s\t%s\n", e->d_name, nm, reg ? "on this PS4" : "profile removed");
+    nu++;
+    char sd[200]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", e->d_name);
+    DIR *g = opendir(sd); struct dirent *ge;
+    while (g && (ge = readdir(g))) {
+      if (ge->d_name[0] == '.' || !strcmp(ge->d_name, VUE_ID) || strlen(ge->d_name) > 12) continue;
+      int n = sv_disk_parts(e->d_name, ge->d_name, names, 64);
+      if (n) ng++;
+      for (int i = 0; i < n; i++) { fprintf(td, "%s %s %s\n", e->d_name, ge->d_name, names[i]); np++; }
+    }
+    if (g) closedir(g);
+  }
+  if (h) closedir(h);
+  fclose(td); fclose(us);
+  sv_rights_back();
+  long long stamp = (long long)time(0);
+  char j[120]; snprintf(j, sizeof j, "%s %lld %d", lab, stamp, np); snap_put("job", j);
+  snap_put("pos", "0"); snap_put("stat", "0 0 0"); unlink(SNAPD "/index");
+  snap_put("state", np ? "running" : "done"); snap_on = np > 0; snap_hb = 0;
+  sv_log("snapshot '%s' %lld started: %d parts in %d games, %d profile folders", lab, stamp, np, ng, nu);
+  snprintf(v, sizeof v, "%d parts, %d games, %d profiles", np, ng, nu); look_kv("snap/started", v);
+}
+static void snap_finish(const char *key, const char *lab, const char *stamp, int done, int fails, long long by) {
+  /* game.txt per game (the parts that made it), then index, users, label */
+  FILE *ix = fopen(SNAPD "/index", "r"); char ln[200], cu[16] = "", ct[16] = "", list[64 * 33] = ""; int games = 0, gfail = 0;
+  for (int last = 0; !last; ) {
+    char u[16] = "", t[16] = "", nm[48] = ""; int f = 0, okp = 0; long long b = 0; int fl = 0;
+    if (!ix || !fgets(ln, sizeof ln, ix)) last = 1;
+    else okp = sscanf(ln, "%15s %15s %47s %d %lld %d", u, t, nm, &f, &b, &fl) == 6;
+    if ((last || (okp && (strcmp(u, cu) || strcmp(t, ct)))) && cu[0]) {
+      if (list[0]) { char gk[260]; snprintf(gk, sizeof gk, "%s/%s/%s/_game/%s/game.txt", console_id, cu, ct, stamp);
+        if (sv_put(key, gk, (const unsigned char *)list, strlen(list))) gfail++; else games++; }
+      list[0] = 0;
+    }
+    if (okp) { snprintf(cu, sizeof cu, "%s", u); snprintf(ct, sizeof ct, "%s", t); if (!fl) { size_t l = strlen(list); snprintf(list + l, sizeof list - l, "%s\n", nm); } }
+  }
+  if (ix) fclose(ix);
+  const char *fs[] = { "index", "users" };
+  for (int i = 0; i < 2; i++) {
+    char p[120], k[200]; snprintf(p, sizeof p, SNAPD "/%s", fs[i]); snprintf(k, sizeof k, "%s/_snap/%s/%s.txt", console_id, stamp, fs[i]);
+    FILE *f = fopen(p, "r"); if (!f) continue;
+    static char buf[256 * 1024]; size_t n = fread(buf, 1, sizeof buf, f); fclose(f);
+    if (sv_put(key, k, (const unsigned char *)buf, n)) gfail++;
+  }
+  char lb[200], k[200]; snprintf(lb, sizeof lb, "%s\nstamp %s\nparts %d, failed %d, %lld bytes, %d games\n", lab, stamp, done, fails, by, games);
+  snprintf(k, sizeof k, "%s/_snap/%s/label.txt", console_id, stamp);
+  if (sv_put(key, k, (const unsigned char *)lb, strlen(lb))) gfail++;
+  snap_put("state", "done"); snap_on = 0;
+  sv_log("snapshot '%s' %s DONE: %d parts, %d failed, %lld bytes, %d games listed, %d list uploads failed", lab, stamp, done, fails, by, games, gfail);
+}
+static void snap_step(const char *key, int budget) {
+  char lab[24] = "", stamp[24] = "", st[16] = ""; int done = 0, total = 0, fails = 0; long long by = 0;
+  if (!snap_status(lab, stamp, st, &done, &total, &fails, &by) || (strcmp(st, "running") && strcmp(st, "paused"))) { snap_on = 0; return; }
+  if (sv_game_open()) { if (strcmp(st, "paused")) { snap_put("state", "paused"); sv_log("snapshot paused: a game is open"); } return; }
+  if (strcmp(st, "running")) { snap_put("state", "running"); sv_log("snapshot carries on"); }
+  char a[24] = ""; snap_get("pos", a, sizeof a); int pos = atoi_safe(a);
+  FILE *td = fopen(SNAPD "/todo", "r"); if (!td) { snap_put("state", "stopped"); snap_on = 0; sv_log("snapshot STOPPED: job list missing"); return; }
+  char ln[200]; for (int i = 0; i < pos && fgets(ln, sizeof ln, td); i++) {}
+  long long t0 = (long long)time(0);
+  sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer();
+  while (pos < total && (long long)time(0) - t0 < budget) {
+    if (sv_game_open()) { snap_put("state", "paused"); sv_log("snapshot paused: a game is open"); break; }
+    if (!fgets(ln, sizeof ln, td)) { total = pos; break; }
+    char u[16] = "", t[16] = "", nm[48] = "";
+    if (sscanf(ln, "%15s %15s %47s", u, t, nm) == 3) {
+      char bs[120]; snprintf(bs, sizeof bs, "/_sback.%s.%s.%s", u, t, nm);
+      snprintf(sv_base_fixed, sizeof sv_base_fixed, "%s/%s/%s/_game/%s", console_id, u, t, stamp);
+      sv_noprep = 1; look_mute = 1; snap_bg = 1;
+      int r = look_sback(key, bs);
+      sv_noprep = 0; look_mute = 0; snap_bg = 0; sv_base_fixed[0] = 0;
+      if (r) fails++;
+      by += (long long)sv_bytes;
+      FILE *ix = fopen(SNAPD "/index", "a"); if (ix) { fprintf(ix, "%s %s %s %d %llu %d\n", u, t, nm, sv_files, sv_bytes, r ? 1 : 0); fclose(ix); }
+    }
+    pos++; done = pos;
+    snprintf(a, sizeof a, "%d", pos); snap_put("pos", a);
+    char sb[80]; snprintf(sb, sizeof sb, "%d %d %lld", done, fails, by); snap_put("stat", sb);
+  }
+  fclose(td);
+  if (pos >= total) snap_finish(key, lab, stamp, done, fails, by);
+  if ((long long)time(0) - snap_hb >= 300) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
 }
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
@@ -2076,6 +2222,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_sparts.", 9)) look_sparts(t);
     else if (!strncmp(t, "/_gback.", 8)) look_gback(key, t);
     else if (!strncmp(t, "/_gmove.", 8)) look_gmove(key, t);
+    else if (!strncmp(t, "/_snap.", 7)) look_snap(key, t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
@@ -2208,6 +2355,7 @@ int main(void) {
   write_status("started, first report in about 10 seconds");
   r2_where_start(R2_VERSION); /* 1.1.26: slow.log gets "the run before was last in: <step>" */
   update_guard();
+  { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
   for (unsigned long m = 0;; m++) {
     char run[32];
     set_dns_servers(); /* 1.1.26: our own name lookups ask the PS4's DNS servers first */
@@ -2243,7 +2391,8 @@ int main(void) {
     if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); } /* 1.1.33: act on auto-promote here, not only after a look job */
     r2_where("check-in", 1);
     if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
-    for (int t = 0; t < 30; t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
+    if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
+    for (int t = 0; t < (snap_on ? 5 : 30); t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
       if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
       r2_where("guard", 0);
       if (update_guard()) {
