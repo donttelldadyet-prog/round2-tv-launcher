@@ -919,7 +919,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0"><button class="btn" type="button" id="p4WakeEarly">⏰ Wake early-bird rooms</button><button class="btn" type="button" id="p4WakeAll">⏰ Wake all</button><button class="btn" type="button" id="p4SleepAll">😴 Sleep all</button><span class="hint" id="p4GroupMsg"></span></div>
     <div id="p4Tiles"></div>
     <details class="card" id="p4CsBox" style="margin-top:12px;padding:10px 12px" open><summary><b>🧽 Clean slate</b> – after each session: what ran, and any problems (helper 1.1.53+)</summary>
-      <p class="hint" style="margin:8px 0 6px">After a guest session ends the room’s PS4 resets at the guest end + the minutes set below (the cleaning gap is 15 min, so a back-to-back guest still walks into a clean PS4). Right before it runs, the engine asks SimplyBook again: if the room is still in use – an extension added (add it in time!) or the next guest already in – it waits. The PS4: closes the game left open (waits if it’s still saving) · signs out the spare profiles · copies every save on every profile to its own storage (with a fingerprint per file), then removes them – a game that didn’t copy stays on the PS4 and shows here as a problem · deletes profiles guests made (keeps the main + 4 spares) · names the spares Player 1–4, default pictures, main profile first. Never touched: GT Sport on Max’s main profile, PS Vue, homebrew settings. Twin/noise blocks and “room blocked” notes aren’t guest sessions.</p>
+      <p class="hint" style="margin:8px 0 6px">After a guest session ends the room’s PS4 resets at the guest end + the minutes set below (the cleaning gap is 15 min, so a back-to-back guest still walks into a clean PS4). 5 minutes before, the guests get pop-ups on the PS4 (5 min, 1 min, 30 s, 10 s – they show over the game). The engine asks SimplyBook live when the countdown starts, every 2 minutes during it, and once more 20 s before the end: an extension in SimplyBook, the next guest already in, the switch off, or no answer at all = nothing is closed or cleared. Staff can press ✋ Stop reset on the tile. The PS4: closes the game left open (waits if it’s still saving) · signs out the spare profiles · copies every save on every profile to its own storage (with a fingerprint per file), then removes them – a game that didn’t copy stays on the PS4 and shows here as a problem · deletes profiles guests made (keeps the main + 4 spares) · names the spares Player 1–4, default pictures, main profile first. Never touched: GT Sport on Max’s main profile, PS Vue, homebrew settings. Twin/noise blocks and “room blocked” notes aren’t guest sessions.</p>
       <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><label style="white-space:nowrap"><input type="checkbox" id="p4CsAuto"> <b>Reset after each session</b> (automatic)</label> <label style="white-space:nowrap">at guest end + <select id="p4CsAfter"><option>5</option><option selected>10</option><option>12</option></select> min</label><span class="hint" id="p4CsAutoMsg"></span></div>
       <div id="p4CsOut" style="margin-top:8px;font-size:12px;line-height:1.45"></div></details>
     <details class="card" id="p4FileBox" style="margin-top:12px;padding:10px 12px"><summary><b>📄 Read a file on a PS4</b> – logs and settings, read-only (helper 1.1.16+)</summary>
@@ -3096,18 +3096,19 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
        (1.1.53+) sends its last 6 clean-slate runs (log.clean) and last 6 problems (log.cleanerr), PS4 clock = Singapore time. */
     function csState(p) {
       var c = p.clean, h = (p.log && p.log.clean) || [], e = (p.log && p.log.cleanerr) || [], last = h.length ? h[h.length - 1] : '';
+      if (p.countdown && p.countdown.left > -30) { var lf = Math.max(0, Math.round(p.countdown.left - (R2Day.now() - p.t) / 1000)); return { line: '<i class="uw">⏳ Reset countdown – ' + (lf >= 60 ? Math.round(lf / 60) + ' min' : lf + ' s') + ' left (guests see pop-ups)</i>', cd: 1 }; }
       var KN = { reset: 'Clean slate', purge: 'Launch clear', clean: 'Clean slate (manual)' };
       if (c && (c.state === 'running' || c.state === 'paused')) return { line: '<i class="uw">🧽 ' + esc(KN[c.kind] || 'Clean slate') + (c.state === 'paused' ? ' paused (a game is open)' : ' running') + ': ' + c.done + ' of ' + c.total + ' games' + (c.fails ? ', ' + c.fails + ' problem(s)' : '') + '</i>' };
       if (!last) return {};
-      var bad = / PROBLEMS | NOT DONE /.test(last), m = last.match(/^(\d\d\/\d\d \d\d:\d\d)/);
+      var held = / HELD /.test(last), bad = / PROBLEMS | NOT DONE /.test(last), m = last.match(/^(\d\d\/\d\d \d\d:\d\d)/);
       var short = last.replace(/^\S+ \S+ /, '').replace(/^(\w+) (\S+): /, function (x, k) { return (KN[k] || k) + ': '; });
-      return { line: '<i class="' + (bad ? 'ub' : 'uo') + '">🧽 ' + (bad ? 'Last clean slate had problems' : 'Last clean slate OK') + (m ? ' (' + esc(m[1]) + ')' : '') + '</i>' + (bad && e.length ? '<br><span style="color:var(--bad)">' + esc(e[e.length - 1]) + '</span>' : ''), more: '🧽 ' + esc(short) };
+      return { line: '<i class="' + (bad ? 'ub' : held ? 'uw' : 'uo') + '">🧽 ' + (bad ? 'Last clean slate had problems' : held ? 'Last reset held (room still in use)' : 'Last clean slate OK') + (m ? ' (' + esc(m[1]) + ')' : '') + '</i>' + (bad && e.length ? '<br><span style="color:var(--bad)">' + esc(e[e.length - 1]) + '</span>' : ''), more: '🧽 ' + esc(short) };
     }
     function csDraw(j) {
       var A = j.resetAuto, now = R2Day.now(), on = !!(A && A.on), from = A && A.from && A.from > now ? A.from : 0;
       $('p4CsAuto').checked = on; if (A && A.after) $('p4CsAfter').value = String(A.after);
       $('p4CsAutoMsg').textContent = !A ? 'Off – nothing runs by itself yet.' : on ? (from ? 'On from ' + new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(from)) + '.' : 'On.') + ' Set ' + ago(A.at) + '.' : 'Off (set ' + ago(A.at) + ').';
-      var SS = { sent: ['uo', 'sent'], waiting: ['uw', 'waiting'], missed: ['ub', 'MISSED'] }, fmt = function (t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)); };
+      var SS = { sent: ['uo', 'sent'], waiting: ['uw', 'waiting'], held: ['uw', 'held'], missed: ['ub', 'MISSED'] }, fmt = function (t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)); };
       var eng = (j.resetLog || []).slice(0, 12).map(function (x) { var y = SS[x.state] || ['', x.state]; return '<div>' + esc(fmt(x.t)) + ' · <b>' + esc((ROOMS[RK(x.room)] || {}).name || x.room) + '</b> (session ended ' + esc(fmt(x.end)) + ') · <i class="' + y[0] + '">' + esc(y[1]) + '</i> – ' + esc(x.why || '') + '</div>'; });
       var rooms = (j.list || []).filter(function (p) { return p.room && p.log && ((p.log.clean || []).length || (p.log.cleanerr || []).length); }).map(function (p) {
         var h = (p.log.clean || []).slice().reverse(), e = (p.log.cleanerr || []).slice().reverse();
@@ -3136,7 +3137,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var old = p.v && p4newer(selfUp, p.v);   /* helpers before 1.0.7 can't hand over safely – FTP once */
       var behind = latest && p.v && p4newer(latest, p.v);
       lines.push('<span>' + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' GB free · ' : '') + '<i style="font-style:normal;white-space:nowrap">v' + esc(p.v || '?') + (behind ? ' <i class="uw" style="font-style:normal">→ ' + esc(latest) + '</i>' : p.boot ? ' <i class="uo">✓</i>' : '') + '</i></span>');
-      { var cs = csState(p); if (cs.line) lines.push('<span class="tvv" style="white-space:normal">' + cs.line + '</span>'); if (cs.more) more.push(cs.more); }
+      var cs = csState(p); if (cs.line) lines.push('<span class="tvv" style="white-space:normal">' + cs.line + '</span>'); if (cs.more) more.push(cs.more);
       var cl = cmdLine(p.cmd).replace(/^<br>/, '');   /* the last job's result: on the tile for an hour, then under More */
       if (cl && now - (p.cmd.doneAt || p.cmd.takenAt || p.cmd.at || 0) < 60 * 60000) lines.push('<span class="tvv" style="white-space:normal">' + cl + '</span>');
       else if (cl) more.push('Last job: ' + cl);
@@ -3154,6 +3155,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
           Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
         : !on && p.wake ? '<button type="button" class="tvu" data-p4wake="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '">⏰ Wake</button>'
+        : cs.cd ? '<button type="button" class="tvu" data-p4stop="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '">✋ Stop reset</button>'
         : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ' + gb(junk) : '') + '</button>' +
           (p.v && !p4newer('1.1.53', p.v) && !(p.clean && (p.clean.state === 'running' || p.clean.state === 'paused')) ? ' <button type="button" class="tvu" data-p4reset="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '">🧽 Clean slate now</button>' : '') +
           (p.boot && !old && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update to ' + esc(latest) + '</button>' : '');
@@ -3318,6 +3320,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
             toast(j.ok ? wn + ': wake sent by ' + ((ROOMS[RK(j.sender)] || {}).name || j.sender) + '’s PS4 – it should be Online within 2 minutes. If not, it was switched off (not in rest mode): start it and run the jailbreak.' : wn + ': ' + (j.error || 'not sent'));
             setTimeout(draw, 3000); setTimeout(draw, 90000);
           }, function () { toast('Couldn’t reach the engine.'); draw(); });
+          return;
+        }
+        var sp = e.target.closest && e.target.closest('[data-p4stop]');
+        if (sp) {   /* 17 Nov: stop a reset countdown (the guests got an extension) – the PS4 picks it up within a minute */
+          var sn = sp.getAttribute('data-p4room');
+          if (!confirm('Stop the reset countdown on ' + sn + '’s PS4?\n\nNothing gets closed or cleared. Add the extension in SimplyBook too, or the next reset is planned at the old time.')) return;
+          sp.disabled = true; sp.textContent = 'Stopping…';
+          gm({ action: 'ps4look', id: sp.getAttribute('data-p4stop'), paths: '/_reset.cancel', by: 'control centre: stop reset' }).then(function (j) { toast(j.ok ? sn + ': stop sent – the PS4 picks it up within a minute (guests see “reset cancelled”)' : sn + ': ' + (j.error || 'not sent')); draw(); }, function () { toast('Couldn’t reach the engine.'); draw(); });
           return;
         }
         var rs = e.target.closest && e.target.closest('[data-p4reset]');
