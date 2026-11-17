@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.52"
+#define R2_VERSION "1.1.53"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -532,13 +532,14 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
   if (g_awake_until) jadd(",\"awakeHold\":%lld", g_awake_until - (long long)time(0));
-  { char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; if (clean_status(cst, &cd, &ct, &cf, &cp)) { jadd(",\"clean\":{\"state\":"); jstr(cst); jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"parts\":%d}", cd, ct, cf, cp); } }
+  { char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; if (clean_status(cst, &cd, &ct, &cf, &cp)) { char rk[64] = ""; FILE *rf = fopen("/data/round2/clean/run", "r"); if (rf) { if (!fgets(rk, sizeof rk, rf)) rk[0] = 0; fclose(rf); } rk[strcspn(rk, " \n")] = 0;
+    jadd(",\"clean\":{\"kind\":"); jstr(rk[0] ? rk : "clean"); jadd(",\"state\":"); jstr(cst); jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"parts\":%d}", cd, ct, cf, cp); } }
   cloud_report(); /* 1.1.52 */
   { char lab[24] = "", stp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
     if (snap_status(lab, stp, sst, &dn, &tt, &fl, &by)) { jadd(",\"snap\":{\"label\":"); jstr(lab); jadd(",\"stamp\":"); jstr(stp); jadd(",\"state\":"); jstr(sst);
       jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"mb\":%lld}", dn, tt, fl, by / 1048576); } }
   if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld,\"via\":\"%s\",\"login\":%d}", wake_n, wake_at, wake_slept, wake_via, wake_login);
-  tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); add_tail("slow", "/data/round2/slow.log", 6); add_tail("netfail", "/data/round2/net-fail.log", 8); add_tail("save", "/data/round2/save.log", 10); jadd("}");
+  tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); add_tail("slow", "/data/round2/slow.log", 6); add_tail("netfail", "/data/round2/net-fail.log", 8); add_tail("save", "/data/round2/save.log", 10); add_tail("clean", "/data/round2/clean/history.txt", 6); add_tail("cleanerr", "/data/round2/clean/errors.txt", 6); jadd("}");
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
   jadd("}");
@@ -803,7 +804,8 @@ static void look_dir(const char *path, int depth, int maxdepth) {
 /* 1.0.9: read-only profile probe ("/_profiles" in a look job) – owner 13 Nov: members get their own PS4 profiles; first find
    where a profile lives. Reads the PS4's profile list and, per used profile slot, every setting in that slot's block of the
    settings store (0x07800000 + (slot-1)*0x10000, step 0x100 – Apollo's name/account-ID/login keys are in there). Changes nothing. */
-static void look_kv(const char *k, const char *v) { if (look_mute) return; if (look_n++ < 400) { jadd("%s", look_n > 1 ? "," : ""); jstr(k); jadd(":"); jstr(v); } }
+static char look_last[240]; /* 1.1.53: with look_mute on, the last result is kept here for the job that called */
+static void look_kv(const char *k, const char *v) { if (look_mute) { snprintf(look_last, sizeof look_last, "%s: %s", k, v); return; } if (look_n++ < 400) { jadd("%s", look_n > 1 ? "," : ""); jstr(k); jadd(":"); jstr(v); } }
 static void look_profiles(void) {
   char k[64], v[96], nm[64];
   RegUserIdList L;
@@ -2049,6 +2051,24 @@ static int cl_rd(const char *f, char *b, size_t n) { char p[100]; snprintf(p, si
   size_t r = fread(b, 1, n - 1, x); fclose(x); b[r] = 0; while (r && (b[r - 1] == '\n' || b[r - 1] == ' ')) b[--r] = 0; return 0; }
 static void cl_wr(const char *f, const char *fmt, ...) { char p[100]; snprintf(p, sizeof p, CLND "/%s", f); FILE *x = fopen(p, "w"); if (!x) return;
   va_list ap; va_start(ap, fmt); vfprintf(x, fmt, ap); va_end(ap); fflush(x); fsync(fileno(x)); fclose(x); }
+/* 1.1.53 CLEAN-SLATE LOG (owner 17 Nov 10:15pm: "a log in the control centre under the PS4 tab - summary of clean slate status
+   and its errors"). history.txt = one plain line per run (clean / purge / reset), errors.txt = one line per problem; the last
+   6 of each go in every report (log.clean, log.cleanerr) and the control centre shows them. */
+static void cl_trim(const char *p, long keep) { struct stat st; if (stat(p, &st) || st.st_size < keep * 2) return;
+  FILE *f = fopen(p, "r"); if (!f) return; char *b = malloc(keep + 1); if (!b) { fclose(f); return; }
+  fseek(f, -keep, SEEK_END); size_t n = fread(b, 1, keep, f); fclose(f); b[n] = 0; char *s1 = strchr(b, '\n'); s1 = s1 ? s1 + 1 : b;
+  f = fopen(p, "w"); if (f) { fputs(s1, f); fclose(f); } free(b); }
+static void cl_stamp(char *o, size_t on, long long t) { time_t x = (time_t)t + 8 * 3600; struct tm tm; gmtime_r(&x, &tm); snprintf(o, on, "%02d/%02d %02d:%02d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min); }
+static void cl_err(const char *fmt, ...) {
+  char m[220], ts[24]; va_list ap; va_start(ap, fmt); vsnprintf(m, sizeof m, fmt, ap); va_end(ap);
+  cl_stamp(ts, sizeof ts, (long long)time(0)); mkdir(CLND, 0777);
+  FILE *f = fopen(CLND "/errors.txt", "a"); if (f) { fprintf(f, "%s %s\n", ts, m); fclose(f); }
+  cl_trim(CLND "/errors.txt", 6000);
+  char b[16]; cl_rd("errn", b, sizeof b); cl_wr("errn", "%d\n", atoi(b) + 1);
+  sv_log("clean ERROR: %s", m);
+}
+static void cl_hist(const char *line) { mkdir(CLND, 0777); FILE *f = fopen(CLND "/history.txt", "a"); if (f) { fprintf(f, "%s\n", line); fclose(f); } cl_trim(CLND "/history.txt", 8000); }
+static void cl_begin(const char *kind, const char *label) { cl_wr("run", "%s %lld %s\n", kind, (long long)time(0), label && label[0] ? label : "-"); cl_wr("errn", "0\n"); cl_wr("copied", "0 0\n"); cl_wr("profiles", "\n"); }
 static int clean_status(char *st, int *done, int *total, int *fails, int *parts) {
   char b[100]; if (cl_rd("state", b, sizeof b)) return 0; snprintf(st, 16, "%s", b);
   cl_rd("stat", b, sizeof b); sscanf(b, "%d %d %d %d", done, total, fails, parts); return 1;
@@ -2079,10 +2099,95 @@ static void look_clean(const char *spec) {
     if (g) closedir(g);
   }
   fclose(td);
+  cl_begin("clean", "");
   cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("mode", "clean\n"); cl_wr("state", ng ? "running\n" : "done\n");
   clean_on = ng > 0;
   sv_log("clean slate started: %d profile(s), %d game(s)", nu, ng);
   char v[80]; snprintf(v, sizeof v, "%d games on %d profiles", ng, nu); look_kv("clean/started", v);
+}
+/* ---- 1.1.53 SESSION RESET (owner 17 Nov 10:15pm: the clean slate after each session, tested from 18 Nov). "/_reset" or
+   "/_reset.<label>" (the engine sends it after a guest session ends; staff can press "Clean slate now"). In order:
+   1) close the game left open (waits while it is still saving, up to 3 min; if it can't close, nothing else happens);
+   2) sign out every spare profile still signed in (never the main);
+   3) every game on every profile (main included): each part copied to the PS4's own storage with fingerprints (INTERNAL
+      FIRST), then removed - only if the whole game copied; never PS Vue, the protected main-profile game, homebrew settings;
+   4) profiles: main + the 4 oldest spares kept; spares created by guests deleted (their saves were just copied + removed);
+      fewer than 4 spares = error "add by hand"; spares renamed Player 1-4, pictures back to default, order main first;
+   5) one line in the clean-slate log (+ every problem in the error log). */
+static void reset_profiles(char *out, size_t on) {
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  uint32_t mainu = r2_main_user(), sp[16]; int ns = 0;
+  for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
+  for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
+  int del = 0, ren = 0, pic = 0, bad = 0; char s1[64];
+  for (int i = 4; i < ns; i++) {
+    if (user_signed_in(sp[i])) { sceUserServiceLogout((int32_t)sp[i]); sleep(3); }
+    snprintf(s1, sizeof s1, "/_udel.%08x", sp[i]); look_mute = 1; look_last[0] = 0; look_udel(s1); look_mute = 0;
+    if (!strncmp(look_last, "udel/result: deleted", 20)) del++; else { bad++; cl_err("extra profile %08x not deleted: %s", sp[i], look_last); }
+  }
+  int keep = ns < 4 ? ns : 4;
+  if (ns < 4) { bad++; cl_err("only %d spare profile(s) - %d to add by hand (Settings > Users), the helper can't create profiles", ns, 4 - ns); }
+  for (int i = 0; i < keep; i++) {
+    char want[16], have[64] = ""; snprintf(want, sizeof want, "Player %d", i + 1);
+    if (user_signed_in(sp[i])) { sceUserServiceLogout((int32_t)sp[i]); sleep(3); if (user_signed_in(sp[i])) { bad++; cl_err("spare %08x would not sign out", sp[i]); } }
+    sceUserServiceGetUserName((int32_t)sp[i], have, sizeof have);
+    if (strcmp(have, want)) { int r = sceUserServiceSetUserName((int32_t)sp[i], want); if (r == 0) ren++; else { bad++; cl_err("spare %08x '%s' not renamed to %s (0x%08x)", sp[i], have, want, (unsigned)r); } }
+    snprintf(s1, sizeof s1, "/_avreset.%08x", sp[i]); look_mute = 1; look_last[0] = 0; look_avcopy(s1, 1); look_mute = 0;
+    if (!strncmp(look_last, "avatar/result", 13)) pic++; else { bad++; cl_err("spare %08x picture not reset: %s", sp[i], look_last); }
+  }
+  char ord[200] = "-";
+  if (keep) {
+    char sp2[200]; int n = snprintf(sp2, sizeof sp2, "/_uorder.%08x", mainu); for (int i = 0; i < keep; i++) n += snprintf(sp2 + n, sizeof sp2 - n, "-%08x", sp[i]);
+    look_mute = 1; look_last[0] = 0; look_uorder(sp2); look_mute = 0;
+    if (strstr(look_last, " 0 failed")) snprintf(ord, sizeof ord, "ok"); else { bad++; snprintf(ord, sizeof ord, "FAILED"); cl_err("profile order: %s", look_last); }
+  }
+  snprintf(out, on, "main + %d spare(s)%s, %d renamed, %d pictures reset, %d extra deleted, order %s", keep, ns < 4 ? " (SHORT)" : "", ren, pic, del, ord);
+  sv_log("reset profiles: %s (%d problem(s))", out, bad);
+}
+static void clean_finish(int done, int fails, int parts) {
+  char rn[120] = "", kind[16] = "clean", lab[48] = "-", pr[200] = "", cb[48], t0s[24], t1s[24]; long long t0 = 0, cp = 0, cby = 0;
+  cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kind, &t0, lab);
+  if (!strcmp(kind, "reset")) { reset_profiles(pr, sizeof pr); cl_wr("profiles", "%s\n", pr); }
+  cl_rd("copied", cb, sizeof cb); sscanf(cb, "%lld %lld", &cp, &cby);
+  char eb[16]; cl_rd("errn", eb, sizeof eb); int en = atoi(eb);
+  cl_stamp(t0s, sizeof t0s, t0 ? t0 : (long long)time(0)); cl_stamp(t1s, sizeof t1s, (long long)time(0));
+  char line[600]; snprintf(line, sizeof line, "%s-%s %s %s: %s - %d game(s), %d failed, %d part(s) removed, %lld copied (%lld MB)%s%s, %d problem(s)",
+    t0s, t1s + 6, kind, lab, en || fails ? "PROBLEMS" : "OK", done, fails, parts, cp, cby / 1048576, pr[0] ? "; profiles: " : "", pr, en);
+  cl_hist(line); sv_log("clean log: %s", line);
+}
+static void look_reset(const char *spec) {
+  char st[16] = "", lab[48] = "", v[220]; cl_rd("state", st, sizeof st);
+  if (spec[7] == '.') { if (sscanf(spec, "/_reset.%40[A-Za-z0-9-]", lab) != 1) { look_kv("reset/error", "bad label"); return; } } else if (spec[7]) { look_kv("reset/error", "bad spec"); return; }
+  if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("reset/refused", "a clean slate is already running"); return; }
+  mkdir(CLND, 0777); cl_begin("reset", lab);
+  char t[32]; running_title(t, sizeof t);
+  if (t[0]) { char res[160]; if (close_game(res, sizeof res)) { cl_err("reset NOT started: the game could not be closed (%s)", res); char ts[24], line[300]; cl_stamp(ts, sizeof ts, (long long)time(0));
+      snprintf(line, sizeof line, "%s reset %s: NOT DONE - game still open (%s)", ts, lab[0] ? lab : "-", res); cl_hist(line); look_kv("reset/refused", res); return; }
+    snprintf(v, sizeof v, "closed: %s", res); look_kv("reset/close", v); }
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  uint32_t mainu = r2_main_user(); int so = 0;
+  for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i] || (uint32_t)L.userId[i] == mainu) continue; if (user_signed_in((uint32_t)L.userId[i])) { sceUserServiceLogout(L.userId[i]); so++; } }
+  if (so) sleep(3);
+  FILE *td = fopen(CLND "/todo", "w"); if (!td) { cl_err("reset: can't write the list"); look_kv("reset/error", "can't write the list"); return; }
+  int ng = 0, nu = 0, skip = 0; static char nm[64][32];
+  for (int i = 0; i < 16; i++) {
+    if (L.userId[i] == -1 || !L.userId[i]) continue;
+    char u[9]; snprintf(u, sizeof u, "%08x", (uint32_t)L.userId[i]); nu++;
+    char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f;
+    while (g && (f = readdir(g))) {
+      if (strlen(f->d_name) != 9) continue;
+      if (!strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name) || (r2_protected(f->d_name) && (uint32_t)L.userId[i] == mainu)) { skip++; continue; }
+      if (!sv_disk_parts(u, f->d_name, nm, 64)) continue;
+      fprintf(td, "%s %s\n", u, f->d_name); ng++;
+    }
+    if (g) closedir(g);
+  }
+  fclose(td);
+  mkdir("/data/round2/prep", 0777);
+  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("mode", "reset %lld\n", (long long)time(0)); cl_wr("state", "running\n");
+  clean_on = 1; /* even with no games: the profile step still runs */
+  sv_log("session reset started (%s): %d profile(s), %d game(s), %d kept, %d spare(s) signed out", lab[0] ? lab : "-", nu, ng, skip, so);
+  snprintf(v, sizeof v, "%d games on %d profiles, %d signed out", ng, nu, so); look_kv("reset/started", v);
 }
 static void clean_step(const char *key, int budget) {
   char st[16] = ""; int done = 0, total = 0, fails = 0, parts = 0;
@@ -2104,13 +2209,15 @@ static void clean_step(const char *key, int budget) {
     char md[40] = ""; long long pst = 0; cl_rd("mode", md, sizeof md); int purge = !strncmp(md, "purge ", 6); if (purge) pst = atoll(md + 6);
     for (int i = 0; i < n && !br; i++) { char why[160] = ""; int f1 = 0; unsigned long long b1 = 0;
       if (purge && snap_covered(u, t, nm[i], pst)) { cov++; continue; } /* 1.1.52: already safe in the restore point, unchanged since */
-      if (sv_local_copy(u, t, nm[i], &f1, &b1, why, sizeof why)) { br = -1; sv_log("clean slate: internal copy FAILED %s %s %s: %s", u, t, nm[i], why); } else { nf += f1; nb += b1; copied[i] = 1; } }
+      if (sv_local_copy(u, t, nm[i], &f1, &b1, why, sizeof why)) { br = -1; sv_log("clean slate: internal copy FAILED %s %s %s: %s", u, t, nm[i], why); cl_err("%s game %s: internal copy failed (%s) - game LEFT on the PS4", u, t, why); } else { nf += f1; nb += b1; copied[i] = 1; } }
+    if (!br && n - cov > 0) { char cb[48]; long long cp0 = 0, cb0 = 0; cl_rd("copied", cb, sizeof cb); sscanf(cb, "%lld %lld", &cp0, &cb0); cl_wr("copied", "%lld %lld\n", cp0 + (n - cov), cb0 + (long long)nb); }
     if (!br) sv_log("clean slate: user %s game %s: %d part(s): %d copied internally (%d files, %llu bytes), %d already in the restore point", u, t, n, n - cov, nf, nb, cov);
     if (cov) snprintf(base, sizeof base, "internal+restore-point(%d)", cov);
     int gone = 0, left = 0;
     if (br == 0) {
       for (int i = 0; i < n; i++) { char res[300]; if (sv_del_part(u, t, nm[i], res, sizeof res)) left++; else gone++;
-        if (copied[i]) { char mf[300]; snprintf(mf, sizeof mf, "/data/round2/prep/%s/%s/%s/manifest.txt", u, t, nm[i]); if (!file_exists(mf)) sv_log("clean slate: WARNING internal copy of %s %s %s is MISSING after removal", u, t, nm[i]); } }
+        if (copied[i]) { char mf[300]; snprintf(mf, sizeof mf, "/data/round2/prep/%s/%s/%s/manifest.txt", u, t, nm[i]); if (!file_exists(mf)) { sv_log("clean slate: WARNING internal copy of %s %s %s is MISSING after removal", u, t, nm[i]); cl_err("%s game %s part %s: internal copy missing after removal", u, t, nm[i]); } } }
+      if (left) cl_err("%s game %s: %d part(s) could not be removed (still on the PS4)", u, t, left);
       char d[200]; snprintf(d, sizeof d, "/user/home/%s/savedata/%s", u, t); rmdir(d);
       snprintf(d, sizeof d, "/user/home/%s/savedata_meta/user/%s", u, t); rmdir(d);
     }
@@ -2121,7 +2228,7 @@ static void clean_step(const char *key, int budget) {
     cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
   }
   fclose(td);
-  if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); }
+  if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); clean_finish(done, fails, parts); }
   if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
 }
 /* ---- 1.1.52 LAUNCH PURGE (owner 17 Nov 8:05pm: "clear all saves IF restore point succeeded"). "/_purge.<label>" = clean slate of
@@ -2168,6 +2275,7 @@ static void look_purge(const char *spec) {
     if (g) closedir(g);
   }
   fclose(td);
+  cl_begin("purge", lab);
   cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("mode", "purge %s\n", stamp); cl_wr("state", ng ? "running\n" : "done\n");
   clean_on = ng > 0;
   sv_log("purge started (restore point %s, stamp %s, %d parts in it): %d profile(s), %d game(s), %d kept (PS Vue/protected/homebrew)", lab, stamp, dn, nu, ng, skip);
@@ -2918,6 +3026,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_uorder.", 9)) look_uorder(t);
     else if (!strncmp(t, "/_clean.", 8)) look_clean(t);
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
+    else if (!strncmp(t, "/_reset", 7)) look_reset(t);
     else if (!strncmp(t, "/_cloud.", 8)) look_cloud(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
