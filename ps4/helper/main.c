@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.54"
+#define R2_VERSION "1.1.55"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -58,6 +58,7 @@ static long long g_awake_until;
 #define SNAPD "/data/round2/snap"
 static int snap_on, snap_bg, look_mute, sv_noprep, clean_on;
 static void cloud_report(void); /* 1.1.52 */
+static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
 static int snap_covered(const char *u, const char *t, const char *nm, long long stamp); /* 1.1.52 */
 static int clean_status(char *st, int *done, int *total, int *fails, int *parts);
 static long long snap_hb;
@@ -535,6 +536,7 @@ static int report(const char *key, char *status, size_t slen) {
   { char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; if (clean_status(cst, &cd, &ct, &cf, &cp)) { char rk[64] = ""; FILE *rf = fopen("/data/round2/clean/run", "r"); if (rf) { if (!fgets(rk, sizeof rk, rf)) rk[0] = 0; fclose(rf); } rk[strcspn(rk, " \n")] = 0;
     jadd(",\"clean\":{\"kind\":"); jstr(rk[0] ? rk : "clean"); jadd(",\"state\":"); jstr(cst); jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"parts\":%d}", cd, ct, cf, cp); } }
   cloud_report(); /* 1.1.52 */
+  if (cd_on) { jadd(",\"countdown\":{\"left\":%lld,\"lab\":", cd_deadline - (long long)time(0)); jstr(cd_lab); jadd(",\"ok\":%d}", cd_ok); } /* 1.1.55 */
   { char lab[24] = "", stp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
     if (snap_status(lab, stp, sst, &dn, &tt, &fl, &by)) { jadd(",\"snap\":{\"label\":"); jstr(lab); jadd(",\"stamp\":"); jstr(stp); jadd(",\"state\":"); jstr(sst);
       jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"mb\":%lld}", dn, tt, fl, by / 1048576); } }
@@ -2155,9 +2157,8 @@ static void clean_finish(int done, int fails, int parts) {
     t0s, t1s + 6, kind, lab, en || fails ? "PROBLEMS" : "OK", done, fails, parts, cp, cby / 1048576, pr[0] ? " · " : "", pr, en);
   cl_hist(line); sv_log("clean log: %s", line);
 }
-static void look_reset(const char *spec) {
-  char st[16] = "", lab[48] = "", v[220]; cl_rd("state", st, sizeof st);
-  if (spec[7] == '.') { if (sscanf(spec, "/_reset.%40[A-Za-z0-9-]", lab) != 1) { look_kv("reset/error", "bad label"); return; } } else if (spec[7]) { look_kv("reset/error", "bad spec"); return; }
+static void reset_go(const char *lab) {
+  char st[16] = "", v[220]; cl_rd("state", st, sizeof st);
   if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("reset/refused", "a clean slate is already running"); return; }
   mkdir(CLND, 0777); cl_begin("reset", lab);
   char t[32]; running_title(t, sizeof t);
@@ -2188,6 +2189,75 @@ static void look_reset(const char *spec) {
   clean_on = 1; /* even with no games: the profile step still runs */
   sv_log("session reset started (%s): %d profile(s), %d game(s), %d kept, %d spare(s) signed out", lab[0] ? lab : "-", nu, ng, skip, so);
   snprintf(v, sizeof v, "%d games on %d profiles, %d signed out", ng, nu, so); look_kv("reset/started", v);
+}
+/* ---- 1.1.55 COUNTDOWN + FAILSAFES (owner 17 Nov 11:16pm: pop-ups 5 min, 1 min, 30 s and 10 s before; "executing it correctly
+   is the hardest part - suggest some failsafes"). "/_reset.<label>.w<seconds>" (the engine sends it 5 min before the reset
+   time) starts a countdown instead of resetting at once: PS4 pop-ups (they show over a running game) at the start, 60, 30 and
+   10 s. 20 s before the end the helper asks the engine (/ps4/resetok) - the engine looks at SimplyBook LIVE: room still in
+   use (extension, next guest), automatic reset switched off, or no answer at all = NOT reset (when in doubt, nothing is
+   closed or cleared). "/_reset.cancel" (staff "Stop reset", or the engine when it sees an extension) stops it. The countdown
+   runs on the helper's own timer, so it keeps going while a game is open, and survives a helper restart (clean/countdown). */
+static int cd_mask; /* cd_on, cd_ok, cd_deadline, cd_lab: declared at the top (the report uses them) */
+static void cd_save(void) { if (cd_on) cl_wr("countdown", "%lld %d %s\n", cd_deadline, cd_mask, cd_lab); else unlink(CLND "/countdown"); }
+static void cd_load(void) { char b[120] = ""; if (cl_rd("countdown", b, sizeof b)) return; long long d = 0; int m = 0; char l[48] = "";
+  if (sscanf(b, "%lld %d %47s", &d, &m, l) >= 2 && d > (long long)time(0) - 60) { cd_on = 1; cd_deadline = d; cd_mask = m; snprintf(cd_lab, sizeof cd_lab, "%s", l); sv_log("countdown carries on after a restart: %lld s left", d - (long long)time(0)); }
+  else unlink(CLND "/countdown"); }
+static void cd_stop(const char *why, int hold, const char *popup) {
+  char ts[24], line[300]; cl_stamp(ts, sizeof ts, (long long)time(0));
+  snprintf(line, sizeof line, "%s reset %s: %s · %s", ts, cd_lab[0] ? cd_lab : "-", hold ? "HELD" : "NOT DONE", why); cl_hist(line);
+  if (!hold) cl_err("reset %s not done: %s", cd_lab, why);
+  sv_log("countdown stopped (%s): %s", hold ? "held" : "not done", why);
+  if (popup) notify(popup);
+  cd_on = 0; cd_ok = 0; cd_save();
+}
+static int reset_confirm(const char *key, char *why, size_t wn) { /* 1 = go, 0 = hold (why), -1 = no answer */
+  char hdr[200], body[160], out[400], err[120];
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  int n = snprintf(body, sizeof body, "{\"id\":\"%s\",\"lab\":\"%s\"}", console_id, cd_lab);
+  for (int i = 0; i < 2; i++) {
+    out[0] = 0; int st = r2tls_request(ENGINE_HOST, "POST", "/ps4/resetok", hdr, body, n, out, sizeof out, err, sizeof err);
+    if (st == 200) { if (strstr(out, "\"ok\":true")) return 1; char h[160] = ""; jget(out, "hold", h, sizeof h); snprintf(why, wn, "%s", h[0] ? h : "the engine said no"); return 0; }
+    sleep(2);
+  }
+  snprintf(why, wn, "no answer from Round2 - not reset (nothing closed or cleared)"); return -1;
+}
+static void countdown_tick(const char *key) {
+  if (!cd_on || !key || !key[0]) return;
+  long long left = cd_deadline - (long long)time(0);
+  static const int mk[] = { 60, 30, 10 };
+  static const char *msg[] = { "Round2: this PS4 resets in 1 minute - please save your game now.", "Round2: resetting in 30 seconds - save now.", "Round2: resetting in 10 seconds. Thanks for playing!" };
+  for (int i = 0; i < 3; i++) if (left <= mk[i] && !(cd_mask & (1 << i))) { cd_mask |= 1 << i; cd_save(); if (left > mk[i] - 8) notify(msg[i]); }
+  if (left <= 20 && !cd_ok) {
+    char why[200] = ""; int r = reset_confirm(key, why, sizeof why);
+    if (r == 1) { cd_ok = 1; sv_log("countdown: engine confirmed the room is clear (live SimplyBook check)"); }
+    else { cd_stop(why, r == 0, r == 0 ? "Round2: reset cancelled - your session carries on. Enjoy!" : 0); return; }
+  }
+  if (left <= 0) {
+    char lab[48]; snprintf(lab, sizeof lab, "%s", cd_lab); cd_on = 0; cd_ok = 0; cd_save();
+    look_mute = 1; look_last[0] = 0; reset_go(lab); look_mute = 0;
+    sv_log("countdown over: reset %s - %s", lab, look_last);
+  }
+}
+static void look_reset(const char *spec) {
+  char lab[48] = "", v[220]; int w = 0;
+  if (!strcmp(spec, "/_reset.cancel")) {
+    if (!cd_on) { look_kv("reset/result", "no countdown running"); return; }
+    cd_stop("stopped by staff / extension", 1, "Round2: reset cancelled - your session carries on. Enjoy!"); look_kv("reset/result", "countdown stopped"); return;
+  }
+  if (spec[7] == '.') { if (sscanf(spec, "/_reset.%40[A-Za-z0-9-]", lab) != 1) { look_kv("reset/error", "bad label"); return; }
+    if (spec[7 + 1 + strlen(lab)] == '.') { if (sscanf(spec + 8 + strlen(lab), ".w%d", &w) != 1 || w < 0 || w > 900) { look_kv("reset/error", "bad wait"); return; } }
+    else if (spec[8 + strlen(lab)]) { look_kv("reset/error", "bad spec"); return; } }
+  else if (spec[7]) { look_kv("reset/error", "bad spec"); return; }
+  if (cd_on) { look_kv("reset/refused", "a countdown is already running"); return; }
+  if (w >= 15) {
+    cd_on = 1; cd_ok = 0; cd_mask = 0; cd_deadline = (long long)time(0) + w; snprintf(cd_lab, sizeof cd_lab, "%s", lab[0] ? lab : "-");
+    if (w < 60) cd_mask |= 1; if (w < 30) cd_mask |= 2; cd_save();
+    char m[200]; int mins = (w + 30) / 60;
+    snprintf(m, sizeof m, "Round2: your session has ended. This PS4 resets in %d minute%s - please save your game now. Need more time? Ask our staff.", mins ? mins : 1, mins == 1 ? "" : "s");
+    notify(m); sv_log("countdown started: reset %s in %d s", cd_lab, w);
+    snprintf(v, sizeof v, "countdown %d s - pop-ups at the start, 60, 30, 10 s", w); look_kv("reset/countdown", v); return;
+  }
+  reset_go(lab);
 }
 static void clean_step(const char *key, int budget) {
   char st[16] = ""; int done = 0, total = 0, fails = 0, parts = 0;
@@ -3191,6 +3261,7 @@ int main(void) {
   update_guard();
   { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
   { char st[16] = ""; cl_rd("state", st, sizeof st); clean_on = !strcmp(st, "running") || !strcmp(st, "paused"); } /* 1.1.50: carry on a clean slate */
+  cd_load(); /* 1.1.55: carry on a reset countdown */
   for (unsigned long m = 0;; m++) {
     char run[32];
     set_dns_servers(); /* 1.1.26: our own name lookups ask the PS4's DNS servers first */
@@ -3232,6 +3303,7 @@ int main(void) {
     for (int t = 0; t < (snap_on || clean_on ? 5 : 30); t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
       if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
       r2_where("guard", 0);
+      countdown_tick(key); /* 1.1.55: reset pop-ups + the engine's last check, every 2 s */
       if (update_guard()) {
         notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
         if (read_key(key, sizeof key)) { report(key, status, sizeof status); write_status(status); } /* tell the engine now */
