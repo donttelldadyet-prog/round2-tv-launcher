@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.59"
+#define R2_VERSION "1.1.60"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -3357,10 +3357,14 @@ int main(void) {
           snprintf(msg, sizeof msg, "Round2 helper %s: %s", R2_VERSION, st == 200 ? "connected" : "can't reach Round2 (will retry)");
           notify(msg);
         }
-        if (m == 0 && st == 200 && !g_own && fw_major() == 9) { /* 1.1.32: become our own program (9.00 only - own-program proven on 9.00, not yet on 11.00) so later updates don't pile up sleeping copies.
-             Gated: at most one attempt per hour (marker file), and a failed attempt just leaves us running the normal way. */
+        if (m == 0 && st == 200 && !g_own && (fw_major() == 9 || fw_major() == 0x11)) { /* 1.1.32: become our own program so later updates don't pile up sleeping copies.
+             9.00 since 1.1.32; 11.00 (sdk 0x11) since 1.1.60 - proven on Bella 18 Nov 3:03-3:15am: own switch, own->own update
+             (1.1.58->1.1.59, old program gone), rest + wake by PS button (same program carried on).
+             Gated: at most one attempt per hour (marker file), never while a game is open (1.1.60), and a failed attempt just
+             leaves us running the normal way. */
+          char rt[32]; running_title(rt, sizeof rt);
           struct stat ms; int recent = !stat(APP "/promote-try", &ms) && (long long)time(0) - ms.st_mtime < 3600;
-          if (!recent) { put_file(APP "/promote-try", R2_VERSION); selfown_after = 1; }
+          if (!recent && !(rt[0] && strcmp(rt, VUE_ID))) { put_file(APP "/promote-try", R2_VERSION); selfown_after = 1; }
         }
       }
     }
