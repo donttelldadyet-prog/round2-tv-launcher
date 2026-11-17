@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.35"
+#define R2_VERSION "1.1.36"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -980,7 +980,15 @@ static int sv_open(const char *u, const char *t, const char *nm, int ro, char *w
   struct stat st;
   snprintf(img, sizeof img, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm);
   snprintf(keyp, sizeof keyp, "/user/home/%s/savedata/%s/%s.bin", u, t, nm);
-  if (stat(img, &st) || stat(keyp, &st)) { snprintf(why, wn, "no such save"); return -1; }
+  if (stat(img, &st) || stat(keyp, &st)) { /* 1.1.36 (owner 17 Nov): say WHICH kind of missing - a smaller room may not have the game */
+    char ap[200], dir[200]; snprintf(dir, sizeof dir, "/user/home/%s/savedata/%s", u, t);
+    snprintf(ap, sizeof ap, "/user/app/%s/app.pkg", t); int inst = !stat(ap, &st);
+    if (!inst) { snprintf(ap, sizeof ap, "/mnt/ext0/user/app/%s/app.pkg", t); inst = !stat(ap, &st); }
+    if (!inst) snprintf(why, wn, "no such save: game %s is not installed in this room - install it here first", t);
+    else if (stat(dir, &st)) snprintf(why, wn, "no such save: game %s is installed but this profile has never saved it - play it once on this profile first", t);
+    else snprintf(why, wn, "no such save: this profile has no '%s' save part for %s yet (the game makes it when that slot/mode is first used)", nm, t);
+    return -1;
+  }
   if (sv_lib()) { snprintf(why, wn, "save library missing"); return -1; }
   uint8_t enc[0x90]; /* the key service writes 0x84 bytes (Apollo pads it the same way) */
   memset(enc, 0, sizeof enc);
@@ -1164,7 +1172,15 @@ static int sv_wipe_data(const char *dir, const char *rel) {
 }
 static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<title>.<save>.<backup path>" */
   char v[220], u[16] = "", t[16] = "", nm[48] = "", src[200];
-  if (sscanf(spec, "/_srest.%8[0-9a-f].%9[A-Z0-9].%47[^.].%199[^|]", u, t, nm, src) != 4) { look_kv("restore/error", "bad spec"); return -1; }
+  { /* 1.1.36: save names can contain dots (Cat Quest II "save-file1.dat", PS Vue "localstorage.aes"), so the name ends where the
+       backup path starts: the last ".<32-hex console id>/" in the spec. */
+    char rest[300] = "";
+    if (sscanf(spec, "/_srest.%8[0-9a-f].%9[A-Z0-9].%299[^|]", u, t, rest) != 3) { look_kv("restore/error", "bad spec"); return -1; }
+    char *cut = 0;
+    for (char *q = rest; (q = strchr(q, '.')); q++) { int h = 0; while (h < 32 && ((q[1 + h] >= '0' && q[1 + h] <= '9') || (q[1 + h] >= 'a' && q[1 + h] <= 'f'))) h++; if (h == 32 && q[33] == '/') cut = q; }
+    if (!cut || cut == rest || cut - rest > 47) { look_kv("restore/error", "bad spec"); return -1; }
+    *cut = 0; snprintf(nm, sizeof nm, "%s", rest); snprintf(src, sizeof src, "%s", cut + 1);
+  }
   if (r2_protected(t) && (uint32_t)strtoul(u, 0, 16) == r2_main_user()) { look_kv("restore/refused", "protected game in the main profile - never written (owner)"); return -1; }
   if (sv_game_open()) { look_kv("restore/refused", "a game is open"); return -1; }
   if (strstr(src, "..") || !strstr(src, t)) { look_kv("restore/error", "backup is for another game"); return -1; }
@@ -1226,7 +1242,7 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, %d kept (sce_sys), %d cleared, closed %d", files, bytes, fail, skipped, wiped, cr);
     { char kk[80]; snprintf(kk, sizeof kk, "restore/%s/result", nm); look_kv(kk, v); if (first_err[0]) { snprintf(kk, sizeof kk, "restore/%s/first-problem", nm); look_kv(kk, first_err); } }
     ok = fail ? -1 : 0;
-  } else look_kv("restore/error", v);
+  } else { look_kv("restore/error", v); sv_log("restore FAILED to open: user %s game %s save %s: %s", u, t, nm, v); }
   sv_rights_back();
   free(mt);
   return ok;
