@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.33"
+#define R2_VERSION "1.1.34"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -519,7 +519,7 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"up\":%lld", g_up);
   if (g_awake_until) jadd(",\"awakeHold\":%lld", g_awake_until - (long long)time(0));
   if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld,\"via\":\"%s\",\"login\":%d}", wake_n, wake_at, wake_slept, wake_via, wake_login);
-  tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); add_tail("slow", "/data/round2/slow.log", 6); add_tail("netfail", "/data/round2/net-fail.log", 8); jadd("}");
+  tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); add_tail("slow", "/data/round2/slow.log", 6); add_tail("netfail", "/data/round2/net-fail.log", 8); add_tail("save", "/data/round2/save.log", 10); jadd("}");
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
   jadd("}");
@@ -1044,6 +1044,20 @@ static void sv_man_add(const char *line) {
   if (sv_man_n + l + 1 > sv_man_cap) { size_t c = (sv_man_cap ? sv_man_cap * 2 : 16384) + l; char *x = realloc(sv_man, c); if (!x) return; sv_man = x; sv_man_cap = c; }
   memcpy(sv_man + sv_man_n, line, l); sv_man_n += l; sv_man[sv_man_n] = 0;
 }
+static void mkdirs_for(const char *file); /* defined below */
+/* 1.1.34 (owner 17 Nov): a log of every save backup/restore/prep step, so problems in the 3-copy flow can be analysed.
+   /data/round2/save.log, rolled at 64 KB; shown in the report as log.save. */
+static void sv_log(const char *fmt, ...) {
+  struct stat st; if (!stat("/data/round2/save.log", &st) && st.st_size > 65536) rename("/data/round2/save.log", "/data/round2/save.log.old");
+  FILE *f = fopen("/data/round2/save.log", "a"); if (!f) return;
+  time_t t = time(0) + 8 * 3600; struct tm tm; gmtime_r(&t, &tm);
+  fprintf(f, "%02d/%02d %02d:%02d:%02d ", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fputc('\n', f); fclose(f);
+}
+/* 1.1.34: the internal "prep/batch" copy (middle layer of slot -> internal prep -> cloud). sv_up_dir writes each file here
+   as it reads it; set to "" when no prep copy is wanted. */
+static char sv_prep[256];
+static int sv_prep_fail;
 static void sv_up_dir(const char *key, const char *base, const char *dir, const char *rel, int depth) {
   DIR *d = opendir(dir);
   if (!d) { sv_fail++; return; }
@@ -1058,18 +1072,22 @@ static void sv_up_dir(const char *key, const char *base, const char *dir, const 
     if (S_ISDIR(st.st_mode)) { if (depth < 8) sv_up_dir(key, base, p, r, depth + 1); continue; }
     if (!S_ISREG(st.st_mode)) continue;
     int fd = open(p, O_RDONLY);
-    if (fd < 0) { sv_fail++; continue; }
+    if (fd < 0) { sv_fail++; sv_log("backup read-fail %s (errno %d)", r, errno); continue; }
     unsigned long long sz = (unsigned long long)st.st_size, done = 0;
-    int pieces = 0, bad = 0;
+    int pieces = 0, bad = 0, pfd = -1;
+    char pp[600];
+    if (sv_prep[0]) { snprintf(pp, sizeof pp, "%s/%s", sv_prep, r); mkdirs_for(pp); pfd = open(pp, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (pfd < 0) { sv_prep_fail++; sv_log("prep write-open fail %s (errno %d)", r, errno); } }
     do {
       size_t want = sz - done > SV_PIECE ? SV_PIECE : (size_t)(sz - done), got = 0;
       while (got < want) { ssize_t x = read(fd, sv_buf + got, want - got); if (x <= 0) break; got += (size_t)x; }
       if (got != want) { bad = 1; break; }
       snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pieces);
       if (sv_put(key, k, sv_buf, got)) { bad = 1; break; }
+      if (pfd >= 0 && write(pfd, sv_buf, got) != (ssize_t)got) { sv_prep_fail++; sv_log("prep write fail %s (errno %d)", r, errno); close(pfd); pfd = -1; }
       done += got; pieces++;
     } while (done < sz);
     close(fd);
+    if (pfd >= 0) { fsync(pfd); close(pfd); }
     if (bad) { sv_fail++; continue; }
     sv_files++; sv_bytes += sz;
     snprintf(line, sizeof line, "%s\t%llu\t%d\n", r, sz, pieces);
@@ -1086,6 +1104,8 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
   int ok = sv_open(u, t, nm, 1, v, sizeof v);
   if (ok == 0) {
     snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
+    snprintf(sv_prep, sizeof sv_prep, "/data/round2/prep/%s/%s/%s", u, t, nm); sv_prep_fail = 0; mkdirs_for(sv_prep);
+    sv_log("backup start: user %s game %s save %s -> prep %s + cloud %s", u, t, nm, sv_prep, base);
     sv_files = sv_fail = 0; sv_bytes = 0; sv_man_n = 0; if (sv_man) sv_man[0] = 0;
     sv_up_dir(key, base, SV_MNT, "", 0);
     int cr = sv_close();
@@ -1094,8 +1114,13 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
     { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/where", nm); look_kv(kk, base); }
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, manifest %s, closed %d", sv_files, sv_bytes, sv_fail, mr ? "NOT saved" : "saved", cr);
     { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/result", nm); look_kv(kk, v); }
+    { char pmf[300]; snprintf(pmf, sizeof pmf, "%s/manifest.txt", sv_prep); FILE *pf = fopen(pmf, "w"); if (pf) { if (sv_man) fputs(sv_man, pf); fclose(pf); }
+      char cf[300]; snprintf(cf, sizeof cf, "%s/cloud.txt", sv_prep); FILE *cf2 = fopen(cf, "w"); if (cf2) { fprintf(cf2, "%s\n", base); fclose(cf2); } }
+    sv_log("backup done: user %s game %s save %s: %d files, %llu bytes, %d failed, prep-fails %d, manifest %s", u, t, nm, sv_files, sv_bytes, sv_fail, sv_prep_fail, mr ? "NOT saved" : "saved");
+    sv_prep[0] = 0;
     ok = sv_fail || mr ? -1 : 0;
-  } else look_kv("backup/error", v);
+  } else { look_kv("backup/error", v); sv_log("backup FAILED to open: user %s game %s save %s: %s", u, t, nm, v); }
+  sv_prep[0] = 0;
   sv_rights_back();
   return ok;
 }
@@ -1131,6 +1156,8 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   sv_rights_up(v, sizeof v);
   char first_err[160] = "";
   if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { look_kv("restore/error", "no memory"); free(mt); return -1; } sv_buf = b; }
+  char prepbase[256]; snprintf(prepbase, sizeof prepbase, "/data/round2/prep/%s/%s/%s", u, t, nm); mkdirs_for(prepbase);
+  sv_log("restore start: cloud %s -> prep %s -> slot user %s game %s save %s", src, prepbase, u, t, nm);
   int ok = sv_open(u, t, nm, 0, v, sizeof v), files = 0, fail = 0, skipped = 0;
   unsigned long long bytes = 0;
   if (ok == 0) {
@@ -1143,7 +1170,7 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
       char out[512], tmp[520], k[700];
       /* 1.1.7: download the whole file to the PS4's own storage first (the save has no room for a 2nd copy – 32 MB GT Sport
          memory.dat failed at 3 MB), check it's complete, only then write it into the save in one go. */
-      snprintf(out, sizeof out, "%s/%s", SV_MNT, ln); snprintf(tmp, sizeof tmp, "/data/round2/stage/%s", ln);
+      snprintf(out, sizeof out, "%s/%s", SV_MNT, ln); snprintf(tmp, sizeof tmp, "%s/%s", prepbase, ln);
       mkdirs_for(out); mkdirs_for(tmp);
       int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0;
       char why[160] = "";
@@ -1160,7 +1187,7 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
       }
       if (fd >= 0) { fsync(fd); close(fd); }
       if (!bad && got != sz) { bad = 1; snprintf(why, sizeof why, "%s: got %llu of %llu bytes", ln, got, sz); }
-      if (bad) { unlink(tmp); fail++; if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); continue; }
+      if (bad) { unlink(tmp); fail++; sv_log("restore stage fail %s: %s", ln, why); if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); continue; }
       { /* copy the complete staged file into the save */
         int in = open(tmp, O_RDONLY), of = in >= 0 ? open(out, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
         unsigned long long cp = 0; int cbad = in < 0 || of < 0, cerr = cbad ? errno : 0;
@@ -1168,12 +1195,13 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
           if (write(of, sv_buf, (size_t)x) != x) { cbad = 1; cerr = errno; break; } cp += (unsigned long long)x; }
         if (of >= 0) { fsync(of); close(of); }
         if (in >= 0) close(in);
-        unlink(tmp);
-        if (cbad || cp != sz) { if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s: copy into save %llu of %llu (errno %d)", ln, cp, sz, cerr); fail++; continue; }
+        if (cbad || cp != sz) { if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s: copy into save %llu of %llu (errno %d)", ln, cp, sz, cerr); sv_log("restore copy-into-save fail %s: %llu of %llu (errno %d)", ln, cp, sz, cerr); fail++; continue; } /* prep copy kept on /data/round2/prep */
       }
       files++; bytes += sz;
     }
     int cr = sv_close();
+    { FILE *cf = fopen("/dev/null","r"); (void)cf; char pmf[300]; snprintf(pmf,sizeof pmf,"%s/manifest.txt",prepbase); FILE *pf=fopen(pmf,"w"); if(pf){ if(mt) fputs(mt,pf); fclose(pf);} char cfp[300]; snprintf(cfp,sizeof cfp,"%s/cloud.txt",prepbase); FILE *c3=fopen(cfp,"w"); if(c3){ fprintf(c3,"%s\n",src); fclose(c3);} }
+    sv_log("restore done: user %s game %s save %s: %d files, %llu bytes, %d failed, %d kept%s%s", u, t, nm, files, bytes, fail, skipped, first_err[0]?", first problem: ":"", first_err);
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, %d kept (sce_sys), closed %d", files, bytes, fail, skipped, cr);
     { char kk[80]; snprintf(kk, sizeof kk, "restore/%s/result", nm); look_kv(kk, v); if (first_err[0]) { snprintf(kk, sizeof kk, "restore/%s/first-problem", nm); look_kv(kk, first_err); } }
     ok = fail ? -1 : 0;
