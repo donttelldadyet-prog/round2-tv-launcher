@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.44"
+#define R2_VERSION "1.1.45"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1436,6 +1436,7 @@ static void look_gback(const char *key, const char *spec) {
   char v[80]; snprintf(v, sizeof v, "%s: %d parts", r ? "FAILED" : n ? "saved" : "nothing to save", n);
   look_kv("gback/result", v); look_kv("gback/where", base);
 }
+static int sv_make_part(const char *key, const char *u, const char *t, const char *nm, const char *src, char *why, size_t wn);
 static int look_gmove(const char *key, const char *spec) {
   char u[16] = "", t[16] = "", src[200] = "", why[200] = "", v[300];
   static char srcp[64][32], recv[64][32]; char missing[600] = "", extra[600] = "";
@@ -1461,11 +1462,22 @@ static int look_gmove(const char *key, const char *spec) {
   sv_log("move plan: %s -> user %s game %s: member parts %d, here %d, missing here %d [%s], leftovers to remove %d [%s]", src, u, t, ns, nr, nmiss, missing, nextra, extra);
   snprintf(v, sizeof v, "member %d parts, here %d, missing %d, leftovers %d", ns, nr, nmiss, nextra); look_kv("move/plan", v);
   if (!ns) { look_kv("move/error", "member's game backup is empty"); return -1; }
-  if (nmiss) { look_kv("move/refused", "member parts missing here - nothing written"); look_kv("move/missing", missing);
-    sv_log("move REFUSED (nothing written): user %s game %s: member parts not on this profile yet [%s] - they need creating", u, t, missing); return -1; }
+  if (nmiss) { char dp[200]; struct stat dst; db_path(u, dp, sizeof dp);
+    if (stat(dp, &dst)) { look_kv("move/refused", "profile has no save list yet - open any game once on it"); look_kv("move/missing", missing);
+      sv_log("move REFUSED (nothing written): user %s game %s: parts [%s] need making but this profile has no save list yet", u, t, missing); return -1; } }
   char rb[200]; int rn = 0;
   if (sv_game_back(key, u, t, rb, sizeof rb, &rn)) { look_kv("move/refused", "backup of this profile failed - nothing written"); return -1; }
   look_kv("move/backup", rb);
+  if (nmiss) { /* 1.1.45: make the member's parts this profile doesn't have; if one can't be made, undo the ones made and stop */
+    static char made[64][32]; int nmade = 0, mfail = 0; char why[200] = "";
+    for (int i = 0; i < ns && !mfail; i++) { int f = 0; for (int j = 0; j < nr; j++) if (!strcmp(srcp[i], recv[j])) f = 1; if (f) continue;
+      char ps[260]; snprintf(ps, sizeof ps, "%s/%s", src, srcp[i]);
+      if (sv_make_part(key, u, t, srcp[i], ps, why, sizeof why)) mfail = 1; else snprintf(made[nmade++], 32, "%s", srcp[i]); }
+    if (mfail) { for (int k = 0; k < nmade; k++) { char res[300]; sv_del_part(u, t, made[k], res, sizeof res); }
+      snprintf(v, sizeof v, "couldn't make a part (%s) - undone, nothing moved", why); look_kv("move/result", v);
+      sv_log("move FAILED: user %s game %s: making a part failed (%s); %d made part(s) removed again, nothing moved", u, t, why, nmade); return -1; }
+    snprintf(v, sizeof v, "%d part(s) made", nmade); look_kv("move/made", v);
+  }
   int rf = 0;
   for (int i = 0; i < ns; i++) { char rs[400]; snprintf(rs, sizeof rs, "/_srest.%s.%s.%s.%s/%s", u, t, srcp[i], src, srcp[i]); if (look_srest(key, rs) != 0) rf++; }
   if (rf) { snprintf(v, sizeof v, "%d of %d parts failed - leftovers kept; this profile's backup: %s", rf, ns, rb); look_kv("move/result", v);
@@ -1734,6 +1746,136 @@ static void look_sdbinfo(const char *spec) {
   }
   sv_rights_back();
   snprintf(v, sizeof v, "%d parts read - details in save.log", np); look_kv("dbinfo/result", v);
+}
+/* ---- 1.1.45 MAKE A SAVE PART this profile doesn't have (owner 17 Nov). Apollo's recipe (apollo-ps4 sd.c createSave +
+   saves.c orbis_SaveMount CREATE2 + sfo.c patch_sfo), checked against saves the PS4 made itself on Kai (/_sdbinfo, 4:17pm):
+   1) the size comes from the source's param.sfo SAVEDATA_BLOCKS (PS4 image = blocks x 32 KB, row size_kib = blocks x 32);
+   2) a new key from the PS4's key service (/dev/sbl_srv 0x40845303), unlocked (0xc0845302) -> <part>.bin;
+   3) the image: sceFsUfsAllocateSaveData + sceFsCreatePfsSaveDataImage -> sdimg_<part>;
+   4) opened, the source's sce_sys copied in with param.sfo stamped for THIS profile + console: ACCOUNT_ID = the profile's
+      account ID, PARAMS user id, PARAMS console fingerprint = HMAC-SHA256(key, OpenPsId) (matched the PS4's own), title id 2;
+   5) its row in the save-list database (same columns as the PS4's own rows; worked on a checked copy, written back whole);
+   6) the save-list icon. The game's own files go in afterwards by the normal clean restore. Any failure -> everything undone. */
+typedef struct { int blockSize; uint8_t idk[2]; } R2CreateOpt;
+static int (*fsUfsAlloc)(int, uint64_t, uint64_t, int), (*fsInitCreate)(R2CreateOpt *), (*fsCreateImg)(R2CreateOpt *, const char *, int, uint64_t, uint8_t *);
+static int sv_make_lib(void) {
+  if (fsUfsAlloc && fsInitCreate && fsCreateImg) return 0;
+  int m = sceKernelLoadStartModule("/system/priv/lib/libSceFsInternalForVsh.sprx", 0, 0, 0, 0, 0); if (m < 0) return m;
+  sceKernelDlsym(m, "sceFsUfsAllocateSaveData", (void **)&fsUfsAlloc); sceKernelDlsym(m, "sceFsInitCreatePfsSaveDataOpt", (void **)&fsInitCreate);
+  sceKernelDlsym(m, "sceFsCreatePfsSaveDataImage", (void **)&fsCreateImg);
+  return fsUfsAlloc && fsInitCreate && fsCreateImg ? 0 : -1;
+}
+static int sv_new_key(uint8_t enc[0x60], uint8_t dec[0x20]) {
+  uint8_t a[0x90], b[0x90]; memset(a, 0, sizeof a); memset(b, 0, sizeof b);
+  int fd = open("/dev/sbl_srv", O_RDWR); if (fd < 0) return -1;
+  if (ioctl(fd, 0x40845303, a)) { close(fd); return -2; }
+  memcpy(enc, a, 0x60); memcpy(b, a, 0x60);
+  int r = ioctl(fd, 0xc0845302, b); close(fd); if (r) return -3;
+  memcpy(dec, b + 0x60, 0x20); memset(b, 0, sizeof b); return 0;
+}
+static int sv_db_add(const char *u, const char *t, const char *nm, const char *mt, const char *st, const char *dt, long long blocks, long long acct, uint32_t uid, char *why, size_t wn) {
+  char dp[200], bak[200], work[] = "/data/round2/db/work.db";
+  db_path(u, dp, sizeof dp); mkdir("/data/round2/db", 0777);
+  snprintf(bak, sizeof bak, "/data/round2/db/%s-%lld.db", u, (long long)time(0));
+  if (file_copy(dp, bak) || file_copy(dp, work)) { snprintf(why, wn, "can't copy the save list (errno %d)", errno); return -1; }
+  sqlite3 *db = 0; if (sqlite3_open_v2(work, &db, SQLITE_OPEN_READWRITE, 0) != SQLITE_OK) { snprintf(why, wn, "save list won't open"); sqlite3_close(db); return -1; }
+  sqlite3_exec(db, "PRAGMA journal_mode=OFF", 0, 0, 0);
+  int before = db_count(db, t, nm);
+  char mtime[40]; time_t now = time(0); struct tm tm; gmtime_r(&now, &tm); strftime(mtime, sizeof mtime, "%Y-%m-%dT%H:%M:%S.00Z", &tm);
+  sqlite3_stmt *q = 0; int rc = sqlite3_prepare_v2(db, "INSERT INTO savedata(title_id, dir_name, main_title, sub_title, detail, tmp_dir_name, is_broken, user_param, blocks, free_blocks, size_kib, mtime, fake_broken, account_id, user_id, faked_owner, cloud_icon_url, cloud_revision, game_title_id) "
+    "VALUES (?1, ?2, ?3, ?4, ?5, '', 0, 0, ?6, ?6, ?7, ?8, 0, ?9, ?10, 0, '', 0, ?1)", -1, &q, 0);
+  if (rc == SQLITE_OK) {
+    sqlite3_bind_text(q, 1, t, -1, SQLITE_STATIC); sqlite3_bind_text(q, 2, nm, -1, SQLITE_STATIC); sqlite3_bind_text(q, 3, mt, -1, SQLITE_STATIC);
+    sqlite3_bind_text(q, 4, st, -1, SQLITE_STATIC); sqlite3_bind_text(q, 5, dt, -1, SQLITE_STATIC); sqlite3_bind_int64(q, 6, blocks); sqlite3_bind_int64(q, 7, blocks * 32);
+    sqlite3_bind_text(q, 8, mtime, -1, SQLITE_STATIC); sqlite3_bind_int64(q, 9, acct); sqlite3_bind_int64(q, 10, (long long)uid);
+    rc = sqlite3_step(q) == SQLITE_DONE ? SQLITE_OK : -1;
+  }
+  sqlite3_finalize(q);
+  int after = db_count(db, t, nm);
+  char ok[16] = ""; sqlite3_stmt *ic = 0;
+  if (sqlite3_prepare_v2(db, "PRAGMA integrity_check", -1, &ic, 0) == SQLITE_OK && sqlite3_step(ic) == SQLITE_ROW) snprintf(ok, sizeof ok, "%s", (const char *)sqlite3_column_text(ic, 0));
+  sqlite3_finalize(ic); sqlite3_close(db);
+  if (rc != SQLITE_OK || before != 0 || after != 1 || strcmp(ok, "ok")) { snprintf(why, wn, "save list row not added (rc %d, %d->%d, check %s)", rc, before, after, ok); unlink(work); return -1; }
+  if (file_copy(work, dp)) { snprintf(why, wn, "writing the save list back failed (errno %d)", errno); return -1; }
+  unlink(work); return 0;
+}
+static int sv_make_part_do(const char *key, const char *u, const char *t, const char *nm, const char *src, char *why, size_t wn) {
+  char img[220], kp[220], dp[200], prep[260]; struct stat st;
+  snprintf(img, sizeof img, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm); snprintf(kp, sizeof kp, "/user/home/%s/savedata/%s/%s.bin", u, t, nm);
+  db_path(u, dp, sizeof dp); snprintf(prep, sizeof prep, "/data/round2/prep/%s/%s/%s", u, t, nm);
+  if (!strcmp(t, VUE_ID) || (r2_protected(t) && (uint32_t)strtoul(u, 0, 16) == r2_main_user())) { snprintf(why, wn, "not allowed for this game/profile"); return -1; }
+  if (!stat(img, &st) || !stat(kp, &st)) { snprintf(why, wn, "part already exists"); return -1; }
+  if (stat(dp, &st)) { snprintf(why, wn, "profile has no save list yet"); return -1; }
+  if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { snprintf(why, wn, "no memory"); return -1; } sv_buf = b; }
+  /* the source's sce_sys files (labels), from the cloud */
+  char mk[300]; snprintf(mk, sizeof mk, "%s/manifest.txt", src);
+  unsigned char *man = 0; size_t ml = 0; char gw[130] = "";
+  if (sv_get(key, mk, &man, &ml, gw, sizeof gw) || !ml) { free(man); snprintf(why, wn, "source not found (%s)", gw); return -1; }
+  static char mt[16384]; size_t mc = ml < sizeof mt - 1 ? ml : sizeof mt - 1; memcpy(mt, man, mc); mt[mc] = 0; free(man);
+  static char sysn[16][64]; static unsigned char *sysd[16]; static size_t sysl[16]; int ns = 0, sfoi = -1;
+  for (char *ln = mt, *nx; ln && *ln && ns < 16; ln = nx) {
+    nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
+    char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1 = 0;
+    if (strncmp(ln, "sce_sys/", 8) || strchr(ln + 8, '/') || strlen(ln) > 60) continue;
+    char k[400]; snprintf(k, sizeof k, "%s/f/%s~0", src, ln); unsigned char *d = 0; size_t dl = 0;
+    if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { free(d); for (int i = 0; i < ns; i++) free(sysd[i]); snprintf(why, wn, "%s: %s", ln, gw); return -1; }
+    snprintf(sysn[ns], 64, "%s", ln + 8); sysd[ns] = d; sysl[ns] = dl; if (!strcmp(ln + 8, "param.sfo")) sfoi = ns; ns++;
+  }
+  #define MK_FAIL(...) do { snprintf(why, wn, __VA_ARGS__); for (int i_ = 0; i_ < ns; i_++) free(sysd[i_]); sv_log("make part FAILED: user %s game %s part %s: %s", u, t, nm, why); return -1; } while (0)
+  if (sfoi < 0) MK_FAIL("source has no param.sfo");
+  unsigned char *sf = sysd[sfoi]; size_t sn = sysl[sfoi]; uint32_t off, len; uint16_t fmt;
+  long long blocks = 0; if (!sfo_find(sf, sn, "SAVEDATA_BLOCKS", &off, &len, &fmt) && len == 8) memcpy(&blocks, sf + off, 8);
+  if (blocks < 1 || blocks > 65536) MK_FAIL("odd size in the source (%lld blocks)", blocks);
+  char mtl[130] = "", stl[130] = "", dtl[1030] = "";
+  if (!sfo_find(sf, sn, "MAINTITLE", &off, &len, &fmt)) snprintf(mtl, sizeof mtl, "%.*s", (int)len, (char *)sf + off);
+  if (!sfo_find(sf, sn, "SUBTITLE", &off, &len, &fmt)) snprintf(stl, sizeof stl, "%.*s", (int)len, (char *)sf + off);
+  if (!sfo_find(sf, sn, "DETAIL", &off, &len, &fmt)) snprintf(dtl, sizeof dtl, "%.*s", (int)len, (char *)sf + off);
+  /* stamp param.sfo for this profile + console */
+  uint32_t uid = (uint32_t)strtoul(u, 0, 16); long base = prof_slot_base(uid); unsigned char ac[8] = { 0 };
+  if (!base || sceRegMgrGetBin(base + 0x500, ac, 8)) MK_FAIL("can't read this profile's account ID");
+  long long acct; memcpy(&acct, ac, 8);
+  unsigned char op[16] = { 0 }, hm[32]; if (sceKernelGetOpenPsId(op)) MK_FAIL("can't read the console ID");
+  mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), R2_PSID_KEY, 16, op, 16, hm);
+  if (sfo_find(sf, sn, "ACCOUNT_ID", &off, &len, &fmt) || len != 8) MK_FAIL("param.sfo has no ACCOUNT_ID"); memcpy(sf + off, ac, 8);
+  if (sfo_find(sf, sn, "PARAMS", &off, &len, &fmt) || len < 0x50) MK_FAIL("param.sfo has no PARAMS");
+  memcpy(sf + off + 4, &uid, 4); memcpy(sf + off + 8, hm, 32); memcpy(sf + off + 0x3C, sf + off + 0x2C, 0x10);
+  /* key + image */
+  if (sv_lib() || sv_make_lib()) MK_FAIL("save-making library missing");
+  char dir[200]; snprintf(dir, sizeof dir, "/user/home/%s/savedata/%s/x", u, t); mkdirs_for(dir);
+  uint8_t enc[0x60], dec[0x20]; int kr = sv_new_key(enc, dec); if (kr) MK_FAIL("new key from the key service failed (%d)", kr);
+  int fd = open(kp, O_CREAT | O_TRUNC | O_WRONLY, 0777); if (fd < 0) MK_FAIL("can't write the key (errno %d)", errno);
+  int wr = (int)write(fd, enc, 0x60); fsync(fd); close(fd); if (wr != 0x60) { unlink(kp); MK_FAIL("key write %d", wr); }
+  uint64_t vsz = (uint64_t)blocks << 15;
+  fd = open(img, O_CREAT | O_TRUNC | O_WRONLY, 0777); if (fd < 0) { unlink(kp); MK_FAIL("can't create the image (errno %d)", errno); }
+  int ar = fsUfsAlloc(fd, vsz, 0, 0); close(fd);
+  R2CreateOpt co; memset(&co, 0, sizeof co); int ir = ar < 0 ? -1 : fsInitCreate(&co);
+  int cr = ar < 0 || ir < 0 ? -1 : fsCreateImg(&co, img, 0, vsz, dec);
+  memset(dec, 0, sizeof dec);
+  if (ar < 0 || ir < 0 || cr < 0) { unlink(img); unlink(kp); MK_FAIL("image not made (allocate 0x%08x, init 0x%08x, create 0x%08x)", (unsigned)ar, (unsigned)ir, (unsigned)cr); }
+  fd = open(img, O_RDONLY); if (fd >= 0) { fsync(fd); close(fd); }
+  /* labels in */
+  char ow[160] = "";
+  if (sv_open(u, t, nm, 0, ow, sizeof ow)) { unlink(img); unlink(kp); MK_FAIL("new image won't open (%s)", ow); }
+  char sd[200]; snprintf(sd, sizeof sd, "%s/sce_sys", SV_MNT); mkdir(sd, 0777);
+  int wf = 0;
+  for (int i = 0; i < ns; i++) { char p[300]; snprintf(p, sizeof p, "%s/%s", sd, sysn[i]); int f = open(p, O_CREAT | O_TRUNC | O_WRONLY, 0666);
+    if (f < 0 || write(f, sysd[i], sysl[i]) != (ssize_t)sysl[i]) wf++; if (f >= 0) { fsync(f); close(f); } }
+  int clr = sv_close();
+  if (wf) { unlink(img); unlink(kp); MK_FAIL("%d label file(s) not written", wf); }
+  /* its row in the save list, then the icon */
+  char dw[200] = "";
+  if (sv_db_add(u, t, nm, mtl, stl, dtl, blocks, acct, uid, dw, sizeof dw)) { unlink(img); unlink(kp); MK_FAIL("%s", dw); }
+  for (int i = 0; i < ns; i++) if (!strcmp(sysn[i], "icon0.png")) { char ip[260]; snprintf(ip, sizeof ip, "/user/home/%s/savedata_meta/user/%s/%s_icon0.png", u, t, nm); mkdirs_for(ip);
+    int f = open(ip, O_CREAT | O_TRUNC | O_WRONLY, 0666); if (f >= 0) { if (write(f, sysd[i], sysl[i]) < 0) {} fsync(f); close(f); } }
+  for (int i = 0; i < ns; i++) free(sysd[i]);
+  sv_log("make part done: user %s game %s part %s: %lld blocks (%llu bytes), %d label files, account %016llx, close %d", u, t, nm, blocks, (unsigned long long)vsz, ns, (unsigned long long)acct, clr);
+  #undef MK_FAIL
+  (void)prep; return 0;
+}
+static int sv_make_part(const char *key, const char *u, const char *t, const char *nm, const char *src, char *why, size_t wn) {
+  char rv[200]; sv_rights_up(rv, sizeof rv);   /* the key service + system files need the raised rights, like backup/restore */
+  int r = sv_make_part_do(key, u, t, nm, src, why, wn);
+  sv_rights_back(); return r;
 }
 /* 1.1.8 (owner 14 Nov 2:48am): put the PS4 into rest mode remotely ("/_rest" in a look job) – e.g. after a session.
    Only if rest mode is enabled in the PS4's settings and no game is open. The job's result is sent first, then ~3 s later
