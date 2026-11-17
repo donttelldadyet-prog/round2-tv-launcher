@@ -35,7 +35,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.30"
+#define R2_VERSION "1.1.31"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -45,6 +45,12 @@ static void dns_file_sha(const char *path, char out[16]);
 static int file_exists(const char *p);
 static void put_file(const char *p, const char *txt);
 static int g_own;
+/* 1.1.31: keep a woken PS4 on (power tick) + the 1 MB save buffer, declared early so report() and step_aside() can use them. */
+int sceSystemServicePowerTick(void);
+int sceShellCoreUtilResetAutoPowerDownTimer(void);
+static long long g_awake_until;      /* unix seconds; 0 = no hold */
+static unsigned char *sv_buf;        /* the save buffer */
+#define SV_PIECE (1u << 20)
 #define OWNHELPER "/data/round2/own-helper.pid"
 #define OWNOK "/data/round2/own-ok"
 
@@ -508,6 +514,7 @@ static int report(const char *key, char *status, size_t slen) {
     jadd(",\"dns\":{\"sha\":\"%s\",\"prev\":%d}", dh, file_exists("/data/nanodns/nanodns.ini.prev")); }
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
+  if (g_awake_until) jadd(",\"awakeHold\":%lld", g_awake_until - (long long)time(0));
   if (wake_n) jadd(",\"woke\":{\"n\":%d,\"at\":%lld,\"sleptS\":%lld,\"via\":\"%s\",\"login\":%d}", wake_n, wake_at, wake_slept, wake_via, wake_login);
   tail_n = 0; jadd(",\"log\":{"); add_tail("boot", APP "/boot.log", 8); add_tail("stopped", "/data/round2/helper-stopped.txt", 3); add_tail("slow", "/data/round2/slow.log", 6); add_tail("netfail", "/data/round2/net-fail.log", 8); jadd("}");
   jadd(",\"played\":{");
@@ -654,6 +661,10 @@ static int g_lock = -1;
 static void step_aside(void) {
   if (g_lock >= 0) { flock(g_lock, LOCK_UN); close(g_lock); g_lock = -1; }
   if (g_own) _exit(0);
+  /* an updated-out helper can't leave this process (it is a thread inside GoldHEN's BinLoader host), but it gives back its
+     biggest allocation so each sleeping copy costs almost nothing. The ~1.27 MB code image is held by BinLoader and only a
+     restart frees it - the own-program route (/_selfown) is the real fix for that. */
+  if (sv_buf) { munmap(sv_buf, SV_PIECE); sv_buf = 0; }
   for (;;) sleep(3600);
 }
 static void put_file(const char *p, const char *txt) { FILE *f = fopen(p, "w"); if (f) { fputs(txt, f); fclose(f); } }
@@ -968,7 +979,6 @@ static int look_save(const char *spec, int dp) { /* "/_save.<user>.<title>.<save
 
 /* ---- 1.1.4 backup: every file of an opened save goes to the engine (/ps4/sput -> Cloudflare storage "round2-saves"),
    1 MB pieces, then a manifest ("<file>\t<size>\t<pieces>" per line). Stored under <console>/<user>/<title>/<save>/<stamp>/. */
-#define SV_PIECE (1u << 20) /* 1 MB: the helper's memory is small (8 MB failed on Max; 1.1 MB updates work) */
 static void url_enc(char *o, size_t on, const char *s) {
   static const char hx[] = "0123456789ABCDEF";
   size_t n = 0;
@@ -988,7 +998,6 @@ static int sv_put(const char *key, const char *k, const unsigned char *data, siz
   return -1;
 }
 static char *sv_man; static size_t sv_man_n, sv_man_cap;
-static unsigned char *sv_buf;
 static int sv_files, sv_fail; static unsigned long long sv_bytes;
 static void sv_man_add(const char *line) {
   size_t l = strlen(line);
@@ -1290,33 +1299,15 @@ static void look_wakerp(const char *spec) {
   ddp_status(ip, "3-after-25s");
   rp_log("wake %s with key %s: sent %d", ip, key, r);
 }
-/* 1.1.30 (owner 17 Nov: "let's try method b") – the Second Screen / PlayStation App protocol (ss/r2ss.c):
-   "/_ss.<ip>.<account id 16 hex>.<8-digit PIN from Mobile App Connection Settings > Add Device, or 0>.<ops>"
-      log in to that PS4 (first time with the PIN = pairing), then ops: "ps", "enter", "back", "boot-CUSA12345",
-      "wait-500", joined by "," ("none" = login only); a "w" before the ops ("wps") sends a type-C wake first.
-   "/_sswake.<ip>.<account id 16 hex>"  type-C wake only. Full lines go to /data/round2/rp.log. */
-int r2ss_run(const char *ip, const char *acct_hex, const char *pin, const char *ops, int wake_first, char *log, size_t logn);
-int r2ss_wake(const char *ip, const char *acct_hex);
-static void look_ss(const char *spec) {
-  int a, b, c, d; char idh[20] = "", pin[12] = "", ops[100] = "", ip[24], lg[600];
-  if (sscanf(spec, "/_ss.%d.%d.%d.%d.%16[0-9a-f].%9[0-9].%99[a-zA-Z0-9,-]", &a, &b, &c, &d, idh, pin, ops) != 7 || strlen(idh) != 16) { look_kv("ss/error", "bad spec"); return; }
-  snprintf(ip, sizeof ip, "%d.%d.%d.%d", a, b, c, d);
-  int wake = ops[0] == 'w' && ops[1] != 'a' ? 1500 : 0; /* "wps" = wake first; "wait-.." is an op */
-  const char *o = wake ? ops + 1 : ops; if (!strcmp(o, "none")) o = "";
-  int r = r2ss_run(ip, idh, strcmp(pin, "0") ? pin : "", o, wake, lg, sizeof lg);
-  rp_log("second screen %s acct %s pin %s ops %s: %d - %s", ip, idh, strcmp(pin, "0") ? "given" : "none", ops, r, lg);
-  char v[48]; snprintf(v, sizeof v, "%d", r); look_kv("ss/result", v);
-  /* the step line in pieces of 40 (look values are cut) */
-  for (int i = 0, n = (int)strlen(lg); i * 40 < n && i < 8; i++) { char k[16], piece[44]; snprintf(k, sizeof k, "ss/log%d", i); snprintf(piece, 41, "%s", lg + i * 40); look_kv(k, piece); }
-}
-static void look_sswake(const char *spec) {
-  int a, b, c, d; char idh[20] = "", ip[24];
-  if (sscanf(spec, "/_sswake.%d.%d.%d.%d.%16[0-9a-f]", &a, &b, &c, &d, idh) != 5) { look_kv("sswake/error", "bad spec"); return; }
-  snprintf(ip, sizeof ip, "%d.%d.%d.%d", a, b, c, d);
-  ddp_status(ip, "1-before");
-  int r = r2ss_wake(ip, idh);
-  look_kv("sswake/sent", r ? "send failed" : "3 times (type C)");
-  sleep(20); ddp_status(ip, "3-after-20s");
+/* 1.1.31 (owner 17 Nov): "/_keepawake.<minutes>" holds the PS4 awake for that long (0 = cancel); the loop ticks the power
+   timer while the hold lasts, so a network-woken room stays on until staff arrive instead of resting again after ~5-30 min. */
+static void look_keepawake(const char *spec) {
+  int mins = -1;
+  if (sscanf(spec, "/_keepawake.%d", &mins) != 1 || mins < 0 || mins > 600) { look_kv("keepawake/error", "bad spec (0-600 min)"); return; }
+  g_awake_until = mins ? (long long)time(0) + mins * 60 : 0;
+  if (mins) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); }
+  char v[32]; snprintf(v, sizeof v, mins ? "holding %d min" : "hold cleared", mins);
+  look_kv("keepawake/result", v);
 }
 static void wkey_one(const char *k, unsigned long long id) {
   char dec[32], v[120]; unsigned char h[32];
@@ -1779,9 +1770,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_ps")) look_ps();
     else if (!strncmp(t, "/_thr", 5)) look_thr(t);
     else if (!strcmp(t, "/_sock")) look_sock();
+    else if (!strncmp(t, "/_keepawake.", 12)) look_keepawake(t);
     else if (!strncmp(t, "/_rpreg.", 8)) look_rpreg(t);
-    else if (!strncmp(t, "/_ss.", 5)) look_ss(t);
-    else if (!strncmp(t, "/_sswake.", 9)) look_sswake(t);
     else if (!strncmp(t, "/_wakerp.", 9)) look_wakerp(t);
     else if (!strcmp(t, "/_own")) look_own();
     else if (!strcmp(t, "/_selfown")) look_selfown();
@@ -1927,6 +1917,7 @@ int main(void) {
         }
       }
     }
+    if (g_awake_until) { if ((long long)time(0) < g_awake_until) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } else g_awake_until = 0; }
     r2_where("check-in", 1);
     if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
     for (int t = 0; t < 30; t++) { /* one minute = 30 x 2 s; the update guard runs every 2 s */
