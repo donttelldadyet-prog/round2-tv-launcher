@@ -1,6 +1,6 @@
 {
   "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-11-16",
+  "updated": "2026-11-17",
   "areas": [
     {
       "name": "Website & booking",
@@ -130,6 +130,13 @@
           "status": "test",
           "what": "All done remotely by the helper on Max: rename a spare profile; sign a profile in and out; open a save decrypted (read-only); back a save up to the cloud; restore it into another profile (Gran Turismo Sport, Max → User4, checked on the TV by the owner); put the PS4 into rest mode. Saves load in profiles that are not activated. The real game data is small (KBs to ~32 MB). 16 Nov: a save from an 11.00 PS4 loads on a 9.00 PS4 (Moving Out 2, Vale → Kai, checked by the owner); the helper keeps running after the PS4 wakes from rest (1.1.13, Kai). 17 Nov (helper 1.1.34–1.1.40, Max + Vale): three copies of every save (the save on the PS4, a prep copy on the PS4, the cloud) with a save log; a save part is replaced cleanly instead of mixed with the old one (PlateUp Max → Vale, identical to the byte); clear messages when the room lacks the game or the profile never played it; a save part can be removed properly (backed up first; the PS4's saved-data list keeps no broken entry); a whole game moves between profiles – every part, the receiving profile backed up first, leftovers from earlier players removed only after all the member's parts are in (owner 17 Nov) – Mortal Kombat 11, Vale → Max. Study of 62 games: a save is 1 to 17 parts, names chosen by each game.",
           "runs": "Staff actions ps4prof, ps4look (/_save, /_sback, /_srest, /_sdel, /_sparts, /_gback, /_gmove, /_rest), ps4saves · System check step 'PS4 helpers + game-save storage'"
+        },
+        {
+          "name": "Clean slate after each session (from 18 Nov)",
+          "status": "test",
+          "what": "After a real guest session ends (twin/noise blocks and 'room blocked' notes don't count) the engine tells the room's PS4 to reset, 2–12 min after the guest end. The PS4: closes the game left open (waits while it's still saving) · signs out the spare profiles · copies every save on every profile to its own storage with a fingerprint per file, then removes it (a game that didn't copy stays and is reported) · deletes profiles guests created (keeps the main + 4 spares; fewer than 4 = 'add by hand') · spares named Player 1–4, default pictures, main profile first. Never: GT Sport on Max's main profile, PS Vue, homebrew settings. Staff can press 'Clean slate now'. Every run and every problem is in PS4s › Clean slate. Cloud upload of the copies is built but OFF until membership. 17 Nov: launch clear done on Kai, Max, Atlas (day0 restore points first); tested on Max + Atlas.",
+          "runs": "Engine (10-min tick, kv ps4resetAuto – ON from 7am 18 Nov; staff ps4reset / ps4resetauto) · PS4 helper 1.1.53+ (/_reset, /_purge, /_cloud) · System check step 'PS4 clean slate after each session'",
+          "code": "round2sg-home worker/round2-book.js ps4ResetRun · round2-tv-launcher ps4/helper/main.c (look_reset, clean_step) · manager/index.html PS4s › Clean slate"
         },
         {
           "name": "Game saves – still to build, in order",
