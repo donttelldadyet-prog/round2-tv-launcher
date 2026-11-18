@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.67"
+#define R2_VERSION "1.1.68"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -53,6 +53,7 @@ static int g_own;
 int sceSystemServicePowerTick(void);
 int sceShellCoreUtilResetAutoPowerDownTimer(void);
 static long long g_awake_until;
+static long long g_awake_engine; /* 1.1.68: booking hold from the engine ("aw") */
 /* 1.1.41 (owner 17 Nov: back up every save on every PS4 = the "pre day 0" restore point, and prove each PS4 can do it):
    a background job, see "SNAPSHOT" further down. */
 #define SNAPD "/data/round2/snap"
@@ -534,6 +535,7 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
   jadd(",\"up\":%lld", g_up);
   if (g_awake_until) jadd(",\"awakeHold\":%lld", g_awake_until - (long long)time(0));
+  if (g_awake_engine) jadd(",\"awakeBook\":%lld", g_awake_engine - (long long)time(0));
   { char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; if (clean_status(cst, &cd, &ct, &cf, &cp)) { char rk[64] = ""; FILE *rf = fopen("/data/round2/clean/run", "r"); if (rf) { if (!fgets(rk, sizeof rk, rf)) rk[0] = 0; fclose(rf); } rk[strcspn(rk, " \n")] = 0;
     jadd(",\"clean\":{\"kind\":"); jstr(rk[0] ? rk : "clean"); jadd(",\"state\":"); jstr(cst); jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"parts\":%d}", cd, ct, cf, cp); } }
   cloud_report(); /* 1.1.52 */
@@ -3548,6 +3550,15 @@ static int check_cmd(const char *key) { /* every minute; 1 = it did something (r
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
   int n = snprintf(req, sizeof req, "{\"id\":\"%s\"}", console_id);
   if (r2tls_request(ENGINE_HOST, "POST", "/ps4/cmd", hdr, req, n, body, sizeof body, err, sizeof err) != 200) return 0;
+  { /* 1.1.68 (owner 19 Nov 12:52am): the engine says how long to stay awake ("aw" seconds = 30 min before a booking until
+       30 min after its guest end). Kept separately from a staff /_keepawake hold; the loop holds until the later of the two.
+       Bounded: 0-12 h. No answer from the engine = the last hold simply runs out. */
+    const char *a = strstr(body, "\"aw\":");
+    if (a) { long long v = atoll(a + 5); if (v < 0) v = 0; if (v > 12 * 3600) v = 12 * 3600;
+      long long until = v ? (long long)time(0) + v : 0;
+      if ((until > 0) != (g_awake_engine > 0)) sv_log("booking keep-awake %s", until ? "ON" : "off");
+      g_awake_engine = until; }
+  }
   char *c = strstr(body, "\"cid\":\""), cid[24] = "";
   if (!c) return 0;
   c += 7;
@@ -3705,6 +3716,7 @@ int main(void) {
       }
     }
     if (g_awake_until) { if ((long long)time(0) < g_awake_until) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } else g_awake_until = 0; }
+    if (g_awake_engine) { if ((long long)time(0) < g_awake_engine) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } else g_awake_engine = 0; }
     if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); } /* 1.1.33: act on auto-promote here, not only after a look job */
     r2_where("check-in", 1);
     if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
