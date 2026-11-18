@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.64"
+#define R2_VERSION "1.1.65"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2226,7 +2226,7 @@ static int cd_mask; /* cd_on, cd_ok, cd_deadline, cd_lab: declared at the top (t
 static void cd_arm(void) {
   if (!cd_on) { unlink("/data/round2/input/arm"); return; }
   long long now = (long long)time(0), until = cd_deadline + 3660; if (until > now + 7000) until = now + 7000; if (until <= now) until = now + 60;
-  mkdir("/data/round2", 0777); mkdir("/data/round2/input", 0777);
+  mkdir("/data/round2", 0777); mkdir("/data/round2/input", 0777); chmod("/data/round2", 0777); chmod("/data/round2/input", 0777);
   char b[24]; int n = snprintf(b, sizeof b, "%lld\n", until); if (n <= 0 || n >= (int)sizeof b) return;
   int fd = open("/data/round2/input/arm.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0666); if (fd < 0) return;
   int w = (int)write(fd, b, (size_t)n); close(fd);
@@ -2329,6 +2329,13 @@ static int inp_activity(char *why, size_t wn) { /* 1 = new press/hold since the 
 /* 1.1.64 (owner 18 Nov 6:22pm): TEST-PHASE pop-ups on the PS4 screen while we try the detector. Only while the file
    /data/round2/input/popups exists ("/_inplug.pop.on" / ".pop.off"); off = silent as before. At most one every 4 s. */
 #define INP_POP INP_DIR "/popups"
+/* 1.1.65 (18 Nov 6:32pm: SF6 started with the plugin listed but no "loaded" file appeared): games run as a different,
+   limited user - the folder the helper made (0755 after umask) may be read-only for them. Open it up (folder only holds
+   our tiny status files). */
+static void inp_dir_open(void) {
+  mkdir("/data/round2", 0777); mkdir(INP_DIR, 0777);
+  chmod("/data/round2", 0777); chmod(INP_DIR, 0777);
+}
 static void inp_pop(const char *fmt, ...) {
   if (!file_exists(INP_POP)) return;
   static long long lastp; long long now = (long long)time(0); if (now - lastp < 4) return; lastp = now;
@@ -2337,6 +2344,7 @@ static void inp_pop(const char *fmt, ...) {
 }
 static void inp_watch(void) { /* every 2 s, only with test pop-ups on: plugin loaded into a game / woke / slept */
   if (!file_exists(INP_POP)) return;
+  static int opened; if (!opened) { opened = 1; inp_dir_open(); }
   static long long seen_m; static int seen_pid, was_armed = -1;
   struct stat st;
   if (!stat(INP_LAST, &st) && (long long)st.st_mtime != seen_m) {
@@ -2485,6 +2493,11 @@ static void inplug_status(void) {
   }
   look_kv("inplug/off", file_exists(INP_OFF) ? "OFF switch set" : "not set");
   look_kv("inplug/popups", file_exists(INP_POP) ? "ON (test phase)" : "off");
+  { struct stat a, b, c2; char v2[160]; snprintf(v2, sizeof v2, "input dir %o uid %d | round2 %o uid %d | GoldHEN %o uid %d",
+      stat(INP_DIR, &a) ? 0 : (unsigned)(a.st_mode & 07777), stat(INP_DIR, &a) ? -1 : (int)a.st_uid,
+      stat("/data/round2", &b) ? 0 : (unsigned)(b.st_mode & 07777), stat("/data/round2", &b) ? -1 : (int)b.st_uid,
+      stat("/data/GoldHEN", &c2) ? 0 : (unsigned)(c2.st_mode & 07777), stat("/data/GoldHEN", &c2) ? -1 : (int)c2.st_uid);
+    look_kv("inplug/perms", v2); }
   { static char cf[8192]; size_t cl = 0; const char *v = "unknown (no config.ini)"; if (!read_small("/data/GoldHEN/config.ini", cf, sizeof cf, &cl)) { char *q = strstr(cf, "PluginLoader_Enabled"); v = !q ? "not in config.ini" : strchr(q, '1') && strchr(q, '1') < strchr(q, '\n') ? "ON" : "OFF (switch on in the GoldHEN menu)"; } look_kv("inplug/goldhen loader", v); }
   { struct stat ast; char av[64] = "asleep (no arm file)"; static char ab[32]; size_t al = 0; if (!stat(INP_DIR "/arm", &ast) && !read_small(INP_DIR "/arm", ab, sizeof ab, &al)) snprintf(av, sizeof av, "awake until %lld (in %lld s)", atoll(ab), atoll(ab) - (long long)time(0)); look_kv("inplug/arm", av); }
   char last[200]; size_t ll = 0; if (!read_small(INP_LAST, last, sizeof last, &ll)) { char *nl = strchr(last, '\n'); if (nl) *nl = 0; look_kv("inplug/last", last); } else look_kv("inplug/last", "(no file yet)");
@@ -2504,7 +2517,7 @@ static void look_inplug(const char *spec) {
   }
   if (!strcmp(spec, "/_inplug.pop.on") || !strcmp(spec, "/_inplug.pop.off")) {
     int on = spec[13] == 'o' && spec[14] == 'n';
-    if (on) { mkdir("/data/round2", 0777); mkdir(INP_DIR, 0777); write_atomic(INP_POP, "1", 1); notify("Round2 test: detector pop-ups ON"); }
+    if (on) { inp_dir_open(); write_atomic(INP_POP, "1", 1); notify("Round2 test: detector pop-ups ON"); }
     else unlink(INP_POP);
     sv_log("detector test pop-ups %s", on ? "ON" : "OFF"); look_kv("inplug/popups", on ? "ON" : "OFF"); return;
   }
@@ -2518,7 +2531,7 @@ static void look_inplug(const char *spec) {
     if (!ini_valid_title(t) || strlen(spec + 12) >= sizeof t) { look_kv("inplug/error", "use /_inplug.on.CUSA12345 or /_inplug.on.default"); return; }
     char hex[65]; long sz; if (plug_sha(hex, sizeof hex, &sz)) { look_kv("inplug/error", "plugin file not installed (or wrong size) - run /_inplug.get.<sha> first"); return; }
     if (ini_edit(t, msg, sizeof msg)) { look_kv("inplug/error", msg); return; }
-    unlink(INP_OFF);
+    unlink(INP_OFF); inp_dir_open();
     sv_log("plugin round2_input ON for [%s] (%s)", t, msg); inp_pop("detector switched on for %s - (re)open the game", t);
     look_kv("inplug/result", "on - starts with the next launch of that game (close and reopen it if it is open)");
     look_kv("inplug/ini", msg); inplug_status(); return;
