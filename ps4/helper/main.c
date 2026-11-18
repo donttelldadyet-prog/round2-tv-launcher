@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.65"
+#define R2_VERSION "1.1.66"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2503,6 +2503,45 @@ static void inplug_status(void) {
   char last[200]; size_t ll = 0; if (!read_small(INP_LAST, last, sizeof last, &ll)) { char *nl = strchr(last, '\n'); if (nl) *nl = 0; look_kv("inplug/last", last); } else look_kv("inplug/last", "(no file yet)");
   char w[160]; int a = inp_activity(w, sizeof w); char k2[24]; snprintf(k2, sizeof k2, "inplug/now (%d)", a); look_kv(k2, w);
 }
+/* 1.1.66 (18 Nov 7:04pm: SF6 + plugin listed + loader ON, still no "loaded" file): read the PS4 system log for N seconds
+   ("/_klog.<secs>", 3-40) while someone starts the game, keeping lines about plugins / GoldHEN / round2 / errors.
+   Source: GoldHEN's log server (127.0.0.1:3232) if it runs, else /dev/klog. Everything bounded: 300-char lines, 60 kept. */
+static int klog_keep(const char *l) {
+  static const char *w[] = { "lugin", "GoldHEN", "round2", "prx", "PRX", "rror", "ERROR", "fail", "CUSA", 0 };
+  for (int i = 0; w[i]; i++) if (strstr(l, w[i])) return 1;
+  return 0;
+}
+static void look_klog(const char *spec) {
+  int secs = atoi_safe(spec + 7); if (secs < 3) secs = 3; if (secs > 40) secs = 40;
+  int fd = -1; const char *src = "none";
+  int sk = socket(AF_INET, SOCK_STREAM, 0);
+  if (sk >= 0) { struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_port = htons(3232); a.sin_addr.s_addr = htonl(0x7f000001);
+    if (!connect(sk, (struct sockaddr *)&a, sizeof a)) { fd = sk; src = "GoldHEN log server :3232"; } else close(sk); }
+  if (fd < 0) { fd = open("/dev/klog", O_RDONLY | O_NONBLOCK); if (fd >= 0) src = "/dev/klog"; }
+  if (fd < 0) { char e[80]; snprintf(e, sizeof e, "can't open the system log (errno %d)", errno); look_kv("klog/error", e); return; }
+  if (fd == sk) { struct timeval tv = { 0, 300000 }; setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv); }
+  look_kv("klog/source", src);
+  inp_pop("reading the system log for %d s - start the game now", secs);
+  char buf[2048], line[301]; size_t ll = 0; int kept = 0, total = 0, dropped = 0;
+  long long end = (long long)time(0) + secs;
+  while ((long long)time(0) < end) {
+    ssize_t n = read(fd, buf, sizeof buf);
+    if (n <= 0) { usleep(200000); continue; }
+    for (ssize_t i = 0; i < n; i++) {
+      char ch = buf[i];
+      if (ch == '\n' || ll >= sizeof line - 1) {
+        line[ll] = 0; total++;
+        if (ll && klog_keep(line)) { if (kept < 60) { char k[32]; snprintf(k, sizeof k, "tail/klog %02d", ++kept); look_kv(k, line); } else dropped++; }
+        ll = 0; if (ch == '\n') continue;
+      }
+      if (ch == '\r' || ch == 0) continue;
+      line[ll++] = (ch >= 32 && ch < 127) ? ch : '?';
+    }
+  }
+  close(fd);
+  char v[120]; snprintf(v, sizeof v, "%d lines read in %d s, %d kept, %d more not kept", total, secs, kept, dropped); look_kv("klog/result", v);
+  inp_pop("system log read: %d lines, %d about plugins", total, kept);
+}
 static void look_inplug(const char *spec) {
   char msg[200] = "";
   if (!strcmp(spec, "/_inplug.status")) { inplug_status(); return; }
@@ -3461,6 +3500,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
     else if (!strncmp(t, "/_input.", 8)) look_input(t);
     else if (!strncmp(t, "/_inplug.", 9)) look_inplug(t);
+    else if (!strncmp(t, "/_klog.", 7)) look_klog(t);
     else if (!strncmp(t, "/_cloud.", 8)) look_cloud(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
