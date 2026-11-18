@@ -29,7 +29,7 @@
 attr_public const char *g_pluginName = "round2_input";
 attr_public const char *g_pluginDesc = "Round2: notes when the controller was last used";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000100; // 1.00
+attr_public u32 g_pluginVersion = 0x00000101; // 1.01
 
 #define R2_DIR      "/data/round2/input"
 #define R2_LAST     R2_DIR "/last"
@@ -128,6 +128,7 @@ static void *r2_thread(void *arg) {
     u32 seen = g_active;
     long long last_in = 0, last_write = 0, last_written_in = -1;
     int tick = 0;
+    if (!g_off) write_status(0, (long long)time(NULL));   // 1.01: one line at game start = "loaded, asleep" (helper's test pop-up)
     while (g_run) {
         sleep(1);
         tick++;

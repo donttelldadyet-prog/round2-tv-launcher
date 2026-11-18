@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.63"
+#define R2_VERSION "1.1.64"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2326,6 +2326,27 @@ static int inp_activity(char *why, size_t wn) { /* 1 = new press/hold since the 
   if (why && wn) snprintf(why, wn, "%s", w);
   return res;
 }
+/* 1.1.64 (owner 18 Nov 6:22pm): TEST-PHASE pop-ups on the PS4 screen while we try the detector. Only while the file
+   /data/round2/input/popups exists ("/_inplug.pop.on" / ".pop.off"); off = silent as before. At most one every 4 s. */
+#define INP_POP INP_DIR "/popups"
+static void inp_pop(const char *fmt, ...) {
+  if (!file_exists(INP_POP)) return;
+  static long long lastp; long long now = (long long)time(0); if (now - lastp < 4) return; lastp = now;
+  char b[110]; va_list ap; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap);
+  char m[130]; snprintf(m, sizeof m, "Round2 test: %s", b); notify(m); sv_log("popup: %s", m);
+}
+static void inp_watch(void) { /* every 2 s, only with test pop-ups on: plugin loaded into a game / woke / slept */
+  if (!file_exists(INP_POP)) return;
+  static long long seen_m; static int seen_pid, was_armed = -1;
+  struct stat st;
+  if (!stat(INP_LAST, &st) && (long long)st.st_mtime != seen_m) {
+    seen_m = (long long)st.st_mtime; inp_t q;
+    if (!inp_read(&q) && q.pid != seen_pid) { seen_pid = q.pid; inp_pop("detector loaded in %s (asleep until a reset countdown)", q.title); }
+  }
+  int armed = file_exists(INP_DIR "/arm");
+  if (was_armed >= 0 && armed != was_armed) inp_pop(armed ? "detector AWAKE - watching the controller" : "detector asleep again");
+  was_armed = armed;
+}
 static int in_activity(char *dbg, size_t dn) { /* 1 = someone pressed/moved something since the last call, 0 = quiet, -1 = nothing readable */
   int readable = 0, act = 0; if (dbg) dbg[0] = 0;
   if (R2_NO_PAD) return inp_activity(dbg, dbg ? dn : 0);
@@ -2347,11 +2368,13 @@ static void look_input(const char *spec) { /* "/_input.<seconds>" read-only test
   if (!cd_on) { /* wake the plugin just for this test (it sleeps outside countdowns) */
     mkdir("/data/round2", 0777); mkdir(INP_DIR, 0777); char ab[24]; int an = snprintf(ab, sizeof ab, "%lld\n", (long long)time(0) + secs + 15);
     int afd = open(INP_DIR "/arm", O_WRONLY | O_CREAT | O_TRUNC, 0666); if (afd >= 0) { if (write(afd, ab, (size_t)an) != an) {} close(afd); }
-    sleep(3); /* the plugin looks for the arm file every 2 s */ } char dbg[600] = "", first[600] = ""; int changes = 0, reads = 0, unread = 0;
+    sleep(3); /* the plugin looks for the arm file every 2 s */ }
+  inp_pop("input test %d s - press buttons now", secs); char dbg[600] = "", first[600] = ""; int changes = 0, reads = 0, unread = 0;
   in_activity(first, sizeof first);
   for (int t = 0; t < secs * 4; t++) { usleep(250000); int a = in_activity(t == secs * 4 - 1 ? dbg : 0, sizeof dbg); if (a < 0) unread++; else { reads++; if (a) changes++; } }
   char v[120]; snprintf(v, sizeof v, "%d changes in %d s (%d readable samples, %d not readable)", changes, secs, reads, unread);
   if (!cd_on) unlink(INP_DIR "/arm");
+  inp_pop("input test done: %d changes, %d readable", changes, reads);
   look_kv("input/result", v); look_kv("input/first", first); look_kv("input/last", dbg);
   sv_log("input test: %s", v); sv_log_long("input test first: ", first); sv_log_long("input test last: ", dbg);
 }
@@ -2461,6 +2484,7 @@ static void inplug_status(void) {
     char k[40]; snprintf(k, sizeof k, "inplug/ini (%d lines)", n); look_kv(k, list[0] ? list : "(empty)");
   }
   look_kv("inplug/off", file_exists(INP_OFF) ? "OFF switch set" : "not set");
+  look_kv("inplug/popups", file_exists(INP_POP) ? "ON (test phase)" : "off");
   { static char cf[8192]; size_t cl = 0; const char *v = "unknown (no config.ini)"; if (!read_small("/data/GoldHEN/config.ini", cf, sizeof cf, &cl)) { char *q = strstr(cf, "PluginLoader_Enabled"); v = !q ? "not in config.ini" : strchr(q, '1') && strchr(q, '1') < strchr(q, '\n') ? "ON" : "OFF (switch on in the GoldHEN menu)"; } look_kv("inplug/goldhen loader", v); }
   { struct stat ast; char av[64] = "asleep (no arm file)"; static char ab[32]; size_t al = 0; if (!stat(INP_DIR "/arm", &ast) && !read_small(INP_DIR "/arm", ab, sizeof ab, &al)) snprintf(av, sizeof av, "awake until %lld (in %lld s)", atoll(ab), atoll(ab) - (long long)time(0)); look_kv("inplug/arm", av); }
   char last[200]; size_t ll = 0; if (!read_small(INP_LAST, last, sizeof last, &ll)) { char *nl = strchr(last, '\n'); if (nl) *nl = 0; look_kv("inplug/last", last); } else look_kv("inplug/last", "(no file yet)");
@@ -2474,9 +2498,15 @@ static void look_inplug(const char *spec) {
     int a = write_atomic(INP_OFF, "1", 1);
     int b = file_exists(GH_INI) ? ini_edit(NULL, msg, sizeof msg) : 0;
     sv_log("plugin round2_input switched OFF (%s; %s)", a ? "off file FAILED" : "off file set", b ? msg : (msg[0] ? msg : "no plugins.ini"));
-    look_kv("inplug/result", a ? "couldn't set the off switch" : "off - the plugin stops within 2 s; removed from plugins.ini for the next game start");
+    look_kv("inplug/result", a ? "couldn't set the off switch" : "off - the plugin stops within 2 s; removed from plugins.ini for the next game start"); inp_pop("detector switched OFF");
     if (msg[0]) look_kv("inplug/ini", msg);
     inplug_status(); return;
+  }
+  if (!strcmp(spec, "/_inplug.pop.on") || !strcmp(spec, "/_inplug.pop.off")) {
+    int on = spec[13] == 'o' && spec[14] == 'n';
+    if (on) { mkdir("/data/round2", 0777); mkdir(INP_DIR, 0777); write_atomic(INP_POP, "1", 1); notify("Round2 test: detector pop-ups ON"); }
+    else unlink(INP_POP);
+    sv_log("detector test pop-ups %s", on ? "ON" : "OFF"); look_kv("inplug/popups", on ? "ON" : "OFF"); return;
   }
   if (!strcmp(spec, "/_inplug.noaio")) {
     if (!file_exists(GH_INI)) { look_kv("inplug/error", "no plugins.ini"); return; }
@@ -2489,7 +2519,7 @@ static void look_inplug(const char *spec) {
     char hex[65]; long sz; if (plug_sha(hex, sizeof hex, &sz)) { look_kv("inplug/error", "plugin file not installed (or wrong size) - run /_inplug.get.<sha> first"); return; }
     if (ini_edit(t, msg, sizeof msg)) { look_kv("inplug/error", msg); return; }
     unlink(INP_OFF);
-    sv_log("plugin round2_input ON for [%s] (%s)", t, msg);
+    sv_log("plugin round2_input ON for [%s] (%s)", t, msg); inp_pop("detector switched on for %s - (re)open the game", t);
     look_kv("inplug/result", "on - starts with the next launch of that game (close and reopen it if it is open)");
     look_kv("inplug/ini", msg); inplug_status(); return;
   }
@@ -2523,7 +2553,7 @@ static void countdown_tick(const char *key) {
   long long now = (long long)time(0);
   /* 1.1.56: buttons pressed = the deadline moves to 2 min after the last press (pop-ups start over) */
   in_open(); int a = in_activity(0, 0);
-  if (a != cd_input && (a < 0 || cd_input < 0)) sv_log("countdown: controllers %s", a < 0 ? "NOT readable - timer only" : "readable - waiting for 2 min without play");
+  if (a != cd_input && (a < 0 || cd_input < 0)) { sv_log("countdown: controllers %s", a < 0 ? "NOT readable - timer only" : "readable - waiting for 2 min without play"); if (cd_input != -2 || a >= 0) inp_pop("%s", a < 0 ? "controller NOT readable - reset runs on its timer" : "controller readable - reset waits for 2 min without play"); }
   cd_input = a;
   if (a == 1) {
     static long long said; cd_last_in = now;
@@ -2531,6 +2561,7 @@ static void countdown_tick(const char *key) {
       if (!cd_play_from && now >= cd_deadline - 120) cd_play_from = now;
       cd_deadline = cd_last_in + 120; cd_mask = 0; cd_ok = 0; cd_save();
       if (now - said >= 60) { said = now; sv_log("countdown: buttons pressed - reset moved to 2 min after the last press"); } /* 1.1.57: silent */
+      { static long long ps; if (now - ps >= 20) { ps = now; inp_pop("controller in use - reset moved to 2 min after the last press"); } }
     }
   }
   long long play = cd_play_from ? now - cd_play_from : 0;
@@ -2539,7 +2570,7 @@ static void countdown_tick(const char *key) {
   long long left = cd_deadline - now;
   static const int mk[] = { 60, 30, 10 };
   static const char *msg[] = { "Round2: this PS4 resets in 1 minute - please save your game now.", "Round2: resetting in 30 seconds - save now.", "Round2: resetting in 10 seconds. Thanks for playing!" };
-  for (int i = 0; i < 3; i++) if (left <= mk[i] && !(cd_mask & (1 << i))) { cd_mask |= 1 << i; cd_save(); if (left > mk[i] - 8 && 0) notify(msg[i]); } /* 1.1.57: no pop-ups (owner 11:53pm: they break the guest experience) */
+  for (int i = 0; i < 3; i++) if (left <= mk[i] && !(cd_mask & (1 << i))) { cd_mask |= 1 << i; cd_save(); if (left > mk[i] - 8 && file_exists(INP_POP)) notify(msg[i]); } /* 1.1.57: no pop-ups (owner 11:53pm: they break the guest experience) */
   if (left <= 20 && !cd_ok) {
     char why[200] = ""; int r = reset_confirm(key, why, sizeof why);
     if (r == 1) { cd_ok = 1; sv_log("countdown: engine confirmed the room is clear (live SimplyBook check)"); }
@@ -3628,6 +3659,7 @@ int main(void) {
       if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
       r2_where("guard", 0);
       countdown_tick(key); /* 1.1.55: reset pop-ups + the engine's last check, every 2 s */
+      inp_watch(); /* 1.1.64: test pop-ups for the detector (only while switched on) */
       if (update_guard()) {
         notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
         if (read_key(key, sizeof key)) { report(key, status, sizeof status); write_status(status); } /* tell the engine now */
