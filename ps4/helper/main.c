@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.62"
+#define R2_VERSION "1.1.63"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2370,7 +2370,9 @@ static const char *look_key = "";
 static int read_small(const char *p, char *buf, size_t cap, size_t *len) { /* whole file or fail; buf gets a NUL */
   *len = 0; buf[0] = 0;
   int fd = open(p, O_RDONLY); if (fd < 0) return -1;
-  size_t n = 0; for (;;) { if (n >= cap - 1) { close(fd); return -2; } ssize_t r = read(fd, buf + n, cap - 1 - n); if (r < 0) { close(fd); return -1; } if (!r) break; n += (size_t)r; }
+  size_t n = 0; for (;;) {
+    if (n >= cap - 1) { char x; ssize_t r = read(fd, &x, 1); close(fd); if (r == 0) { buf[n] = 0; *len = n; return 0; } return r < 0 ? -1 : -2; } /* 1.1.63: full buffer is only "too big" if more data follows */
+    ssize_t r = read(fd, buf + n, cap - 1 - n); if (r < 0) { close(fd); return -1; } if (!r) break; n += (size_t)r; }
   close(fd); buf[n] = 0; *len = n; return 0;
 }
 static int write_atomic(const char *p, const char *d, size_t n) {
@@ -2404,7 +2406,8 @@ static int ini_edit(const char *sect, char *msg, size_t mn) {
   if (r == -1) { in[0] = 0; len = 0; }          /* no file yet: start one */
   if (len && !file_exists("/data/round2/plugins.ini.orig")) write_atomic("/data/round2/plugins.ini.orig", in, len);
   if (len) write_atomic("/data/round2/plugins.ini.prev", in, len);
-  size_t o = 0; int in_sect = 0, added = 0, removed = 0;
+  int noaio = sect && !strcmp(sect, "!noaio"); if (noaio) sect = NULL; /* 1.1.63: only comment out aio_fix lines (owner's OK), everything else as it was */
+  size_t o = 0; int in_sect = 0, added = 0, removed = 0, disabled = 0;
   char hdr[24] = ""; if (sect) snprintf(hdr, sizeof hdr, "[%s]", sect);
   char *p = in;
   while (*p) {
@@ -2413,7 +2416,9 @@ static int ini_edit(const char *sect, char *msg, size_t mn) {
     if (cl && line[cl - 1] == '\r') line[--cl] = 0;
     char *t = line; while (*t == ' ' || *t == '\t') t++;
     int ours = strstr(t, "round2_input.prx") != NULL && t[0] != ';' && t[0] != '#';
-    if (ours) { removed++; }
+    int aio = noaio && strstr(t, "aio_fix") != NULL && t[0] != ';' && t[0] != '#' && t[0] != '[';
+    if (aio) { if (o + ll + 3 >= sizeof out) { snprintf(msg, mn, "plugins.ini too long to rebuild - not touched"); return -1; } out[o++] = ';'; memcpy(out + o, p, ll); o += ll; out[o++] = '\n'; disabled++; }
+    else if (ours) { if (noaio) { if (o + ll + 2 >= sizeof out) return -1; memcpy(out + o, p, ll); o += ll; out[o++] = '\n'; } else removed++; }
     else {
       if (o + ll + 2 >= sizeof out) { snprintf(msg, mn, "plugins.ini too long to rebuild - not touched"); return -1; }
       memcpy(out + o, p, ll); o += ll; out[o++] = '\n';
@@ -2432,7 +2437,8 @@ static int ini_edit(const char *sect, char *msg, size_t mn) {
     o += (size_t)n; added = 1;
   }
   if (write_atomic(GH_INI, out, o)) { snprintf(msg, mn, "couldn't write plugins.ini"); return -1; }
-  snprintf(msg, mn, "plugins.ini: %d old line(s) of ours removed%s%s%s", removed, sect ? ", added under [" : "", sect ? sect : "", sect ? "]" : "");
+  if (noaio) snprintf(msg, mn, "plugins.ini: %d aio_fix line(s) switched off (backup in /data/round2/plugins.ini.prev)", disabled);
+  else snprintf(msg, mn, "plugins.ini: %d old line(s) of ours removed%s%s%s", removed, sect ? ", added under [" : "", sect ? sect : "", sect ? "]" : "");
   return 0;
 }
 static void inplug_status(void) {
@@ -2455,6 +2461,8 @@ static void inplug_status(void) {
     char k[40]; snprintf(k, sizeof k, "inplug/ini (%d lines)", n); look_kv(k, list[0] ? list : "(empty)");
   }
   look_kv("inplug/off", file_exists(INP_OFF) ? "OFF switch set" : "not set");
+  { static char cf[8192]; size_t cl = 0; const char *v = "unknown (no config.ini)"; if (!read_small("/data/GoldHEN/config.ini", cf, sizeof cf, &cl)) { char *q = strstr(cf, "PluginLoader_Enabled"); v = !q ? "not in config.ini" : strchr(q, '1') && strchr(q, '1') < strchr(q, '\n') ? "ON" : "OFF (switch on in the GoldHEN menu)"; } look_kv("inplug/goldhen loader", v); }
+  { struct stat ast; char av[64] = "asleep (no arm file)"; static char ab[32]; size_t al = 0; if (!stat(INP_DIR "/arm", &ast) && !read_small(INP_DIR "/arm", ab, sizeof ab, &al)) snprintf(av, sizeof av, "awake until %lld (in %lld s)", atoll(ab), atoll(ab) - (long long)time(0)); look_kv("inplug/arm", av); }
   char last[200]; size_t ll = 0; if (!read_small(INP_LAST, last, sizeof last, &ll)) { char *nl = strchr(last, '\n'); if (nl) *nl = 0; look_kv("inplug/last", last); } else look_kv("inplug/last", "(no file yet)");
   char w[160]; int a = inp_activity(w, sizeof w); char k2[24]; snprintf(k2, sizeof k2, "inplug/now (%d)", a); look_kv(k2, w);
 }
@@ -2469,6 +2477,11 @@ static void look_inplug(const char *spec) {
     look_kv("inplug/result", a ? "couldn't set the off switch" : "off - the plugin stops within 2 s; removed from plugins.ini for the next game start");
     if (msg[0]) look_kv("inplug/ini", msg);
     inplug_status(); return;
+  }
+  if (!strcmp(spec, "/_inplug.noaio")) {
+    if (!file_exists(GH_INI)) { look_kv("inplug/error", "no plugins.ini"); return; }
+    if (ini_edit("!noaio", msg, sizeof msg)) { look_kv("inplug/error", msg); return; }
+    sv_log("%s", msg); look_kv("inplug/result", msg); inplug_status(); return;
   }
   if (!strncmp(spec, "/_inplug.on.", 12)) {
     char t[16]; snprintf(t, sizeof t, "%.15s", spec + 12);
@@ -2503,7 +2516,7 @@ static void look_inplug(const char *spec) {
     sv_log("plugin round2_input installed (%zu bytes, sha %.12s)", len, want);
     look_kv("inplug/result", "installed (not switched on yet - use /_inplug.on.<game> )"); inplug_status(); return;
   }
-  look_kv("inplug/error", "use /_inplug.status, /_inplug.get.<sha256>, /_inplug.on.<CUSA12345|default>, /_inplug.off");
+  look_kv("inplug/error", "use /_inplug.status, /_inplug.get.<sha256>, /_inplug.on.<CUSA12345|default>, /_inplug.off, /_inplug.noaio");
 }
 static void countdown_tick(const char *key) {
   if (!cd_on || !key || !key[0]) return;
