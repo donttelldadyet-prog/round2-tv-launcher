@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.61"
+#define R2_VERSION "1.1.62"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2220,10 +2220,22 @@ static void reset_go(const char *lab) {
    closed or cleared). "/_reset.cancel" (staff "Stop reset", or the engine when it sees an extension) stops it. The countdown
    runs on the helper's own timer, so it keeps going while a game is open, and survives a helper restart (clean/countdown). */
 static int cd_mask; /* cd_on, cd_ok, cd_deadline, cd_lab: declared at the top (the report uses them) */
-static void cd_save(void) { if (cd_on) cl_wr("countdown", "%lld %d %s\n", cd_deadline, cd_mask, cd_lab); else unlink(CLND "/countdown"); }
+/* 1.1.62 (owner 18 Nov 6:01pm: no always-on detector): the round2_input plugin sleeps unless /data/round2/input/arm holds
+   a future time. Written while a countdown runs (until = deadline + 61 min, never more than 2 h ahead - the plugin ignores
+   anything further), deleted when it ends. A stale file runs out by itself. */
+static void cd_arm(void) {
+  if (!cd_on) { unlink("/data/round2/input/arm"); return; }
+  long long now = (long long)time(0), until = cd_deadline + 3660; if (until > now + 7000) until = now + 7000; if (until <= now) until = now + 60;
+  mkdir("/data/round2", 0777); mkdir("/data/round2/input", 0777);
+  char b[24]; int n = snprintf(b, sizeof b, "%lld\n", until); if (n <= 0 || n >= (int)sizeof b) return;
+  int fd = open("/data/round2/input/arm.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0666); if (fd < 0) return;
+  int w = (int)write(fd, b, (size_t)n); close(fd);
+  if (w != n || rename("/data/round2/input/arm.tmp", "/data/round2/input/arm")) unlink("/data/round2/input/arm.tmp");
+}
+static void cd_save(void) { if (cd_on) cl_wr("countdown", "%lld %d %s\n", cd_deadline, cd_mask, cd_lab); else unlink(CLND "/countdown"); cd_arm(); }
 static void cd_load(void) { char b[120] = ""; if (cl_rd("countdown", b, sizeof b)) return; long long d = 0; int m = 0; char l[48] = "";
   if (sscanf(b, "%lld %d %47s", &d, &m, l) >= 2 && d > (long long)time(0) - 60) { cd_on = 1; cd_deadline = d; cd_mask = m; snprintf(cd_lab, sizeof cd_lab, "%s", l); sv_log("countdown carries on after a restart: %lld s left", d - (long long)time(0)); }
-  else unlink(CLND "/countdown"); }
+  else unlink(CLND "/countdown"); cd_arm(); }
 static void cd_stop(const char *why, int hold, const char *popup) {
   char ts[24], line[300]; cl_stamp(ts, sizeof ts, (long long)time(0));
   snprintf(line, sizeof line, "%s reset %s: %s · %s", ts, cd_lab[0] ? cd_lab : "-", hold ? "HELD" : "NOT DONE", why); cl_hist(line);
@@ -2270,9 +2282,53 @@ static void in_open(void) {
     sv_log("input: profile %08x pad handle %d (get 0x%08x, open 0x%08x)", (uint32_t)u, h, (unsigned)h2, (unsigned)h);
   }
 }
+/* 1.1.62 (18 Nov 2026, owner: "do the controller detector again ... account for overflows, it must work perfectly"):
+   the helper NEVER touches the controller. The round2_input GoldHEN plugin runs INSIDE the game (hooks the game's own
+   scePadRead/ReadState, watch-only) and writes one line to /data/round2/input/last:
+   "r2in 1 <last_input_epoch> <now_epoch> <titleid> <pid> <reads> <active>". The helper only reads that file.
+   Unknown (-1) = no plugin file, file older than 20 s, file for another game than the open one, or off switch → the
+   countdown runs on its timer only (exactly as before - never less safe). */
+#define INP_DIR "/data/round2/input"
+#define INP_LAST INP_DIR "/last"
+#define INP_OFF INP_DIR "/off"
+typedef struct { long long last, now; char title[16]; int pid; unsigned reads, active; } inp_t;
+static long long inp_prev_last = -1;
+static int inp_read(inp_t *o) {
+  memset(o, 0, sizeof *o);
+  int fd = open(INP_LAST, O_RDONLY); if (fd < 0) return -1;
+  char line[200]; ssize_t n = read(fd, line, sizeof line - 1); close(fd);
+  if (n <= 0) return -1; line[n] = 0;
+  char t[16] = { 0 }; long long a = 0, b = 0; int pid = 0, v = 0; unsigned r = 0, ac = 0;
+  if (sscanf(line, "r2in %d %lld %lld %15s %d %u %u", &v, &a, &b, t, &pid, &r, &ac) != 7 || v != 1) return -1;
+  if (a < 0 || b <= 0) return -1;
+  o->last = a; o->now = b; snprintf(o->title, sizeof o->title, "%s", t); o->pid = pid; o->reads = r; o->active = ac;
+  return 0;
+}
+static int inp_activity(char *why, size_t wn) { /* 1 = new press/hold since the last call, 0 = quiet, -1 = not known */
+  inp_t s; long long now = (long long)time(0); char w[160] = "";
+  int res = -1;
+  if (file_exists(INP_OFF)) snprintf(w, sizeof w, "plugin switched off");
+  else if (inp_read(&s)) snprintf(w, sizeof w, "no plugin file (no game with the plugin open yet)");
+  else if (s.now < now - 20 || s.now > now + 20) snprintf(w, sizeof w, "plugin file %lld s old (game closed?)", now - s.now);
+  else {
+    char rt[32]; running_title(rt, sizeof rt);
+    if (!rt[0] || strcmp(rt, s.title)) snprintf(w, sizeof w, "plugin file is for %s, open now: %s", s.title, rt[0] ? rt : "nothing");
+    else {
+      res = 0;
+      if (inp_prev_last >= 0 && s.last > inp_prev_last) res = 1;
+      if (inp_prev_last < 0 && s.last > 0 && now - s.last <= 5) res = 1;
+      inp_prev_last = s.last;
+      if (s.last > 0) snprintf(w, sizeof w, "%s: last press %lld s ago (%u pad reads seen)", s.title, now - s.last, s.reads);
+      else snprintf(w, sizeof w, "%s: no press yet since the game opened (%u pad reads seen)", s.title, s.reads);
+    }
+  }
+  if (res < 0) inp_prev_last = -1;
+  if (why && wn) snprintf(why, wn, "%s", w);
+  return res;
+}
 static int in_activity(char *dbg, size_t dn) { /* 1 = someone pressed/moved something since the last call, 0 = quiet, -1 = nothing readable */
   int readable = 0, act = 0; if (dbg) dbg[0] = 0;
-  if (R2_NO_PAD) return -1;
+  if (R2_NO_PAD) return inp_activity(dbg, dbg ? dn : 0);
   for (int i = 0; i < 4; i++) {
     if (in_h[i] < 0) continue;
     unsigned char d[256]; memset(d, 0, sizeof d); int r = scePadReadState(in_h[i], d);
@@ -2286,14 +2342,168 @@ static int in_activity(char *dbg, size_t dn) { /* 1 = someone pressed/moved some
   return readable ? act : -1;
 }
 static void look_input(const char *spec) { /* "/_input.<seconds>" read-only test: press buttons during it */
-  if (R2_NO_PAD) { (void)spec; look_kv("input/result", "switched off in 1.1.58 (the test froze Max)"); return; }
   int secs = atoi_safe(spec + 8); if (secs < 5) secs = 5; if (secs > 60) secs = 60;
-  in_scan = 0; in_open(); char dbg[600] = "", first[600] = ""; int changes = 0, reads = 0, unread = 0;
+  in_scan = 0; in_open(); inp_prev_last = -1; /* 1.1.62: reads the plugin's file, never the controller */
+  if (!cd_on) { /* wake the plugin just for this test (it sleeps outside countdowns) */
+    mkdir("/data/round2", 0777); mkdir(INP_DIR, 0777); char ab[24]; int an = snprintf(ab, sizeof ab, "%lld\n", (long long)time(0) + secs + 15);
+    int afd = open(INP_DIR "/arm", O_WRONLY | O_CREAT | O_TRUNC, 0666); if (afd >= 0) { if (write(afd, ab, (size_t)an) != an) {} close(afd); }
+    sleep(3); /* the plugin looks for the arm file every 2 s */ } char dbg[600] = "", first[600] = ""; int changes = 0, reads = 0, unread = 0;
   in_activity(first, sizeof first);
   for (int t = 0; t < secs * 4; t++) { usleep(250000); int a = in_activity(t == secs * 4 - 1 ? dbg : 0, sizeof dbg); if (a < 0) unread++; else { reads++; if (a) changes++; } }
   char v[120]; snprintf(v, sizeof v, "%d changes in %d s (%d readable samples, %d not readable)", changes, secs, reads, unread);
+  if (!cd_on) unlink(INP_DIR "/arm");
   look_kv("input/result", v); look_kv("input/first", first); look_kv("input/last", dbg);
   sv_log("input test: %s", v); sv_log_long("input test first: ", first); sv_log_long("input test last: ", dbg);
+}
+/* 1.1.62: install / switch / check the round2_input plugin ("/_inplug.status", "/_inplug.get.<sha256>",
+   "/_inplug.on.<CUSA12345|default>", "/_inplug.off"). Safety: the file must match the SHA-256 given in the job AND the
+   engine's, size 1 KB-512 KB, PS4 program header; written to a temp file then renamed; plugins.ini is read whole (max 32 KB,
+   refused if bigger), backed up (first original kept for good), edited line by line keeping every other line as it was,
+   and written temp+rename. "off" = instant stop (off file) + our lines removed from plugins.ini. */
+#define GH_PLUG "/data/GoldHEN/plugins/round2_input.prx"
+#define GH_PLUG_LINE "/data/GoldHEN/plugins/round2_input.prx"
+#define GH_INI "/data/GoldHEN/plugins.ini"
+#define PLUG_MIN 1024
+#define PLUG_MAX (512 * 1024)
+#define INI_MAX (32 * 1024)
+static const char *look_key = "";
+static int read_small(const char *p, char *buf, size_t cap, size_t *len) { /* whole file or fail; buf gets a NUL */
+  *len = 0; buf[0] = 0;
+  int fd = open(p, O_RDONLY); if (fd < 0) return -1;
+  size_t n = 0; for (;;) { if (n >= cap - 1) { close(fd); return -2; } ssize_t r = read(fd, buf + n, cap - 1 - n); if (r < 0) { close(fd); return -1; } if (!r) break; n += (size_t)r; }
+  close(fd); buf[n] = 0; *len = n; return 0;
+}
+static int write_atomic(const char *p, const char *d, size_t n) {
+  char tmp[200]; snprintf(tmp, sizeof tmp, "%s.r2tmp", p);
+  int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (fd < 0) return -1;
+  size_t w = 0; while (w < n) { ssize_t r = write(fd, d + w, n - w); if (r <= 0) { close(fd); unlink(tmp); return -1; } w += (size_t)r; }
+  fsync(fd); close(fd);
+  if (rename(tmp, p)) { unlink(tmp); return -1; }
+  return 0;
+}
+static int plug_sha(char *hex, size_t hn, long *sz) { /* SHA-256 of the installed plugin */
+  hex[0] = 0; *sz = -1; struct stat st; if (stat(GH_PLUG, &st) || st.st_size < PLUG_MIN || st.st_size > PLUG_MAX) { if (!stat(GH_PLUG, &st)) *sz = (long)st.st_size; return -1; }
+  unsigned char *b = malloc((size_t)st.st_size + 1); if (!b) return -1;
+  size_t len = 0; int r = read_small(GH_PLUG, (char *)b, (size_t)st.st_size + 1, &len);
+  if (r) { free(b); return -1; }
+  unsigned char h[32]; mbedtls_sha256(b, len, h, 0); free(b); *sz = (long)len;
+  if (hn < 65) return -1; hexs(h, 32, hex); return 0;
+}
+static int ini_valid_title(const char *t) { /* "default" or CUSA/CUSX/PPSA-style 4 letters + 5 digits */
+  if (!strcmp(t, "default")) return 1;
+  if (strlen(t) != 9) return 0;
+  for (int i = 0; i < 4; i++) if (t[i] < 'A' || t[i] > 'Z') return 0;
+  for (int i = 4; i < 9; i++) if (t[i] < '0' || t[i] > '9') return 0;
+  return 1;
+}
+/* rebuild plugins.ini: drop every line that loads our plugin; if sect != NULL, add our line under [sect] (creating it) */
+static int ini_edit(const char *sect, char *msg, size_t mn) {
+  static char in[INI_MAX + 1], out[INI_MAX + 512];
+  size_t len = 0; int r = read_small(GH_INI, in, sizeof in, &len);
+  if (r == -2) { snprintf(msg, mn, "plugins.ini is bigger than 32 KB - not touched"); return -1; }
+  if (r == -1) { in[0] = 0; len = 0; }          /* no file yet: start one */
+  if (len && !file_exists("/data/round2/plugins.ini.orig")) write_atomic("/data/round2/plugins.ini.orig", in, len);
+  if (len) write_atomic("/data/round2/plugins.ini.prev", in, len);
+  size_t o = 0; int in_sect = 0, added = 0, removed = 0;
+  char hdr[24] = ""; if (sect) snprintf(hdr, sizeof hdr, "[%s]", sect);
+  char *p = in;
+  while (*p) {
+    char *e = strchr(p, '\n'); size_t ll = e ? (size_t)(e - p) : strlen(p);
+    char line[512]; size_t cl = ll < sizeof line - 1 ? ll : sizeof line - 1; memcpy(line, p, cl); line[cl] = 0;
+    if (cl && line[cl - 1] == '\r') line[--cl] = 0;
+    char *t = line; while (*t == ' ' || *t == '\t') t++;
+    int ours = strstr(t, "round2_input.prx") != NULL && t[0] != ';' && t[0] != '#';
+    if (ours) { removed++; }
+    else {
+      if (o + ll + 2 >= sizeof out) { snprintf(msg, mn, "plugins.ini too long to rebuild - not touched"); return -1; }
+      memcpy(out + o, p, ll); o += ll; out[o++] = '\n';
+    }
+    if (t[0] == '[') {
+      in_sect = sect && !strncmp(t, hdr, strlen(hdr));
+      if (in_sect && !added) {
+        int n = snprintf(out + o, sizeof out - o, "%s\n", GH_PLUG_LINE); if (n <= 0 || (size_t)n >= sizeof out - o) return -1; o += (size_t)n; added = 1;
+      }
+    }
+    p = e ? e + 1 : p + ll;
+  }
+  if (sect && !added) {
+    int n = snprintf(out + o, sizeof out - o, "%s%s\n%s\n", (o && out[o - 1] != '\n') ? "\n" : "", hdr, GH_PLUG_LINE);
+    if (n <= 0 || (size_t)n >= sizeof out - o) { snprintf(msg, mn, "no room to add the line"); return -1; }
+    o += (size_t)n; added = 1;
+  }
+  if (write_atomic(GH_INI, out, o)) { snprintf(msg, mn, "couldn't write plugins.ini"); return -1; }
+  snprintf(msg, mn, "plugins.ini: %d old line(s) of ours removed%s%s%s", removed, sect ? ", added under [" : "", sect ? sect : "", sect ? "]" : "");
+  return 0;
+}
+static void inplug_status(void) {
+  char hex[65], v[240]; long sz = -1;
+  int ok = !plug_sha(hex, sizeof hex, &sz);
+  snprintf(v, sizeof v, "%s%s%s (%ld bytes)", ok ? "installed, SHA-256 " : "not installed", ok ? hex : "", ok ? "" : "", sz);
+  look_kv("inplug/file", v);
+  static char ini[INI_MAX + 1]; size_t len = 0; int r = read_small(GH_INI, ini, sizeof ini, &len);
+  if (r) look_kv("inplug/ini", r == -2 ? "plugins.ini bigger than 32 KB" : "no plugins.ini");
+  else {
+    char cur[24] = "-", list[400] = ""; size_t ln = 0; int n = 0;
+    for (char *p = ini; *p; ) {
+      char *e = strchr(p, '\n'); size_t ll = e ? (size_t)(e - p) : strlen(p);
+      char line[256]; size_t cl = ll < sizeof line - 1 ? ll : sizeof line - 1; memcpy(line, p, cl); line[cl] = 0;
+      char *t = line; while (*t == ' ' || *t == '\t') t++;
+      if (t[0] == '[') { snprintf(cur, sizeof cur, "%.22s", t); char *x = strchr(cur, ']'); if (x) x[1] = 0; }
+      else if (t[0] && t[0] != ';' && t[0] != '#') { n++; if (ln < sizeof list - 1) { int w = snprintf(list + ln, sizeof list - ln, "%s%s %.60s", ln ? " | " : "", cur, t); if (w > 0) ln += (size_t)w < sizeof list - ln ? (size_t)w : sizeof list - ln - 1; } }
+      p = e ? e + 1 : p + ll;
+    }
+    char k[40]; snprintf(k, sizeof k, "inplug/ini (%d lines)", n); look_kv(k, list[0] ? list : "(empty)");
+  }
+  look_kv("inplug/off", file_exists(INP_OFF) ? "OFF switch set" : "not set");
+  char last[200]; size_t ll = 0; if (!read_small(INP_LAST, last, sizeof last, &ll)) { char *nl = strchr(last, '\n'); if (nl) *nl = 0; look_kv("inplug/last", last); } else look_kv("inplug/last", "(no file yet)");
+  char w[160]; int a = inp_activity(w, sizeof w); char k2[24]; snprintf(k2, sizeof k2, "inplug/now (%d)", a); look_kv(k2, w);
+}
+static void look_inplug(const char *spec) {
+  char msg[200] = "";
+  if (!strcmp(spec, "/_inplug.status")) { inplug_status(); return; }
+  if (!strcmp(spec, "/_inplug.off")) {
+    mkdir("/data/round2", 0777); mkdir(INP_DIR, 0777);
+    int a = write_atomic(INP_OFF, "1", 1);
+    int b = file_exists(GH_INI) ? ini_edit(NULL, msg, sizeof msg) : 0;
+    sv_log("plugin round2_input switched OFF (%s; %s)", a ? "off file FAILED" : "off file set", b ? msg : (msg[0] ? msg : "no plugins.ini"));
+    look_kv("inplug/result", a ? "couldn't set the off switch" : "off - the plugin stops within 2 s; removed from plugins.ini for the next game start");
+    if (msg[0]) look_kv("inplug/ini", msg);
+    inplug_status(); return;
+  }
+  if (!strncmp(spec, "/_inplug.on.", 12)) {
+    char t[16]; snprintf(t, sizeof t, "%.15s", spec + 12);
+    if (!ini_valid_title(t) || strlen(spec + 12) >= sizeof t) { look_kv("inplug/error", "use /_inplug.on.CUSA12345 or /_inplug.on.default"); return; }
+    char hex[65]; long sz; if (plug_sha(hex, sizeof hex, &sz)) { look_kv("inplug/error", "plugin file not installed (or wrong size) - run /_inplug.get.<sha> first"); return; }
+    if (ini_edit(t, msg, sizeof msg)) { look_kv("inplug/error", msg); return; }
+    unlink(INP_OFF);
+    sv_log("plugin round2_input ON for [%s] (%s)", t, msg);
+    look_kv("inplug/result", "on - starts with the next launch of that game (close and reopen it if it is open)");
+    look_kv("inplug/ini", msg); inplug_status(); return;
+  }
+  if (!strncmp(spec, "/_inplug.get.", 13)) {
+    const char *want = spec + 13;
+    if (strlen(want) != 64) { look_kv("inplug/error", "give the full 64-character SHA-256"); return; }
+    for (int i = 0; i < 64; i++) { char c = want[i]; if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) { look_kv("inplug/error", "SHA-256 must be lowercase hex"); return; } }
+    char hdr[200], err[160]; unsigned char *d = 0; size_t len = 0;
+    snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", look_key);
+    char req[120]; int n = snprintf(req, sizeof req, "{\"id\":\"%s\",\"f\":\"round2_input\"}", console_id);
+    int st = r2tls_fetch(ENGINE_HOST, "POST", "/ps4/plugin", hdr, req, n, &d, &len, PLUG_MAX + 1, err, sizeof err);
+    if (st != 200 || !d) snprintf(msg, sizeof msg, "download failed (%d %s)", st, err);
+    else if (len < PLUG_MIN || len > PLUG_MAX) snprintf(msg, sizeof msg, "download size %zu outside 1 KB-512 KB", len);
+    else if (memcmp(d, "\x4f\x15\x3d\x1d", 4)) snprintf(msg, sizeof msg, "not a PS4 plugin file (header)");
+    else {
+      unsigned char h[32]; char hx[65]; mbedtls_sha256(d, len, h, 0); hexs(h, 32, hx);
+      if (strcmp(hx, want)) snprintf(msg, sizeof msg, "file check failed: got %.12s, want %.12s", hx, want);
+      else { mkdir("/data/GoldHEN", 0777); mkdir("/data/GoldHEN/plugins", 0777);
+        if (write_atomic(GH_PLUG, (const char *)d, len)) snprintf(msg, sizeof msg, "couldn't save the plugin file");
+        else { char chk[65]; long sz2; if (plug_sha(chk, sizeof chk, &sz2) || strcmp(chk, want)) snprintf(msg, sizeof msg, "saved file doesn't read back the same"); } }
+    }
+    if (d) free(d);
+    if (msg[0]) { look_kv("inplug/error", msg); sv_log("plugin round2_input download: %s", msg); return; }
+    sv_log("plugin round2_input installed (%zu bytes, sha %.12s)", len, want);
+    look_kv("inplug/result", "installed (not switched on yet - use /_inplug.on.<game> )"); inplug_status(); return;
+  }
+  look_kv("inplug/error", "use /_inplug.status, /_inplug.get.<sha256>, /_inplug.on.<CUSA12345|default>, /_inplug.off");
 }
 static void countdown_tick(const char *key) {
   if (!cd_on || !key || !key[0]) return;
@@ -2341,7 +2551,7 @@ static void look_reset(const char *spec) {
   if (cd_on) { look_kv("reset/refused", "a countdown is already running"); return; }
   if (w >= 15) {
     cd_on = 1; cd_ok = 0; cd_mask = 0; cd_deadline = (long long)time(0) + w; snprintf(cd_lab, sizeof cd_lab, "%s", lab[0] ? lab : "-");
-    cd_last_in = 0; cd_play_from = 0; cd_input = -2; in_scan = 0;
+    cd_last_in = 0; cd_play_from = 0; cd_input = -2; in_scan = 0; inp_prev_last = -1;
     if (w < 60) cd_mask |= 1; if (w < 30) cd_mask |= 2; cd_save();
     char m[200]; int mins = (w + 30) / 60;
     snprintf(m, sizeof m, "Round2: your session has ended. This PS4 resets in %d minute%s - please save your game now. Need more time? Ask our staff.", mins ? mins : 1, mins == 1 ? "" : "s");
@@ -3159,6 +3369,7 @@ static void look_kill(const char *spec) {
 }
 
 static void do_look(const char *key, const char *cid, const char *body) {
+  look_key = key ? key : ""; /* 1.1.62: /_inplug.get downloads through the engine */
   Jn = 0;
   look_n = 0;
   jadd("{\"id\":\"%s\",\"cid\":", console_id); jstr(cid);
@@ -3192,6 +3403,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
     else if (!strncmp(t, "/_input.", 8)) look_input(t);
+    else if (!strncmp(t, "/_inplug.", 9)) look_inplug(t);
     else if (!strncmp(t, "/_cloud.", 8)) look_cloud(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
