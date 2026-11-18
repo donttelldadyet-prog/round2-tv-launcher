@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.66"
+#define R2_VERSION "1.1.67"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2475,6 +2475,8 @@ static int ini_edit(const char *sect, char *msg, size_t mn) {
 static void inplug_status(void) {
   char hex[65], v[240]; long sz = -1;
   int ok = !plug_sha(hex, sizeof hex, &sz);
+  { struct stat pm; if (ok && !stat(GH_PLUG, &pm) && (pm.st_mode & 0111) != 0111) chmod(GH_PLUG, 0755); /* 1.1.67: fix files saved by 1.1.62-66 */
+    char mv[60]; snprintf(mv, sizeof mv, "%o", stat(GH_PLUG, &pm) ? 0u : (unsigned)(pm.st_mode & 07777)); look_kv("inplug/file mode", mv); }
   snprintf(v, sizeof v, "%s%s%s (%ld bytes)", ok ? "installed, SHA-256 " : "not installed", ok ? hex : "", ok ? "" : "", sz);
   look_kv("inplug/file", v);
   static char ini[INI_MAX + 1]; size_t len = 0; int r = read_small(GH_INI, ini, sizeof ini, &len);
@@ -2591,6 +2593,7 @@ static void look_inplug(const char *spec) {
       if (strcmp(hx, want)) snprintf(msg, sizeof msg, "file check failed: got %.12s, want %.12s", hx, want);
       else { mkdir("/data/GoldHEN", 0777); mkdir("/data/GoldHEN/plugins", 0777);
         if (write_atomic(GH_PLUG, (const char *)d, len)) snprintf(msg, sizeof msg, "couldn't save the plugin file");
+        else if (chmod(GH_PLUG, 0755)) snprintf(msg, sizeof msg, "couldn't mark the plugin file runnable (errno %d)", errno); /* 1.1.67: rtld VOP_ACCESS needs exec */
         else { char chk[65]; long sz2; if (plug_sha(chk, sizeof chk, &sz2) || strcmp(chk, want)) snprintf(msg, sizeof msg, "saved file doesn't read back the same"); } }
     }
     if (d) free(d);
