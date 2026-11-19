@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.84"
+#define R2_VERSION "1.1.85"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1258,10 +1258,20 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
    Max's GT Sport -> User4's GT Sport, so he can see it on the TV). The receiving save keeps its own sce_sys (param.sfo with
    that profile's IDs, keystone) – only the game's files are replaced. Never into the main profile's protected save. The
    receiving save should be backed up first (look_sback). */
+/* 1.1.85 (owner 19 Nov 8:25pm: "test the new idea vs the earlier one"): PER-GAME PREFETCH. Before a game's parts are made and
+   filled, every part's manifest, label files and small data files come down in a few bundle requests and wait here in memory;
+   sv_get / sv_getm answer from here first. Cleared after each game. Off with "/_pf.off" (for the A/B test). */
+#define PF_MAX 512
+static struct { char *k; unsigned char *d; size_t l; } pf[PF_MAX]; static int pf_n; static size_t pf_bytes; static int pf_hits;
+static void pf_clear(void) { for (int i = 0; i < pf_n; i++) { free(pf[i].k); free(pf[i].d); } pf_n = 0; pf_bytes = 0; }
+static int pf_find(const char *k) { for (int i = 0; i < pf_n; i++) if (!strcmp(pf[i].k, k)) return i; return -1; }
+static void pf_add(const char *k, unsigned char *d, size_t l) { if (pf_n >= PF_MAX || pf_bytes + l > (24u << 20)) { free(d); return; } pf[pf_n].k = strdup(k); pf[pf_n].d = d; pf[pf_n].l = l; if (!pf[pf_n].k) { free(d); return; } pf_n++; pf_bytes += l; }
+static int pf_take(const char *k, unsigned char **data, size_t *len) { int i = pf_find(k); if (i < 0) return -1; *data = malloc(pf[i].l + 1); if (!*data) return -1; memcpy(*data, pf[i].d, pf[i].l); *len = pf[i].l; pf_hits++; return 0; }
 /* 1.1.81: the last manifest fetched is kept for 2 min - making a part and then filling it both read the same manifest.txt */
 static char mc_key[400]; static unsigned char *mc_data; static size_t mc_len; static long long mc_at;
 static int sv_get_raw(const char *key, const char *k, unsigned char **data, size_t *len, char *why, size_t wn);
 static int sv_get(const char *key, const char *k, unsigned char **data, size_t *len, char *why, size_t wn) {
+  if (!pf_take(k, data, len)) return 0; /* 1.1.85 */
   size_t kl = strlen(k); int ism = kl > 13 && !strcmp(k + kl - 13, "/manifest.txt");
   if (ism && mc_data && !strcmp(mc_key, k) && (long long)time(0) - mc_at < 120) { *data = malloc(mc_len + 1); if (!*data) return -1; memcpy(*data, mc_data, mc_len); *len = mc_len; return 0; }
   int r = sv_get_raw(key, k, data, len, why, wn);
@@ -1271,7 +1281,20 @@ static int sv_get(const char *key, const char *k, unsigned char **data, size_t *
 /* 1.1.81 (owner 19 Nov 7pm, Kaeden: 77% of making a save part was fetching its small label files one request at a time, ~0.3 s
    each): many cloud pieces in ONE request (/ps4/sgetm, engine reads them in parallel). Returns 0 (data[i] malloc'd, or 0 if
    that piece is missing), -2 = this engine doesn't know /ps4/sgetm yet (caller falls back to one by one), -1 = failed. */
+static int sv_getm_net(const char *key, const char **ks, int n, unsigned char **data, size_t *lens, char *why, size_t wn);
 static int sv_getm(const char *key, const char **ks, int n, unsigned char **data, size_t *lens, char *why, size_t wn) {
+  for (int i = 0; i < n; i++) { data[i] = 0; lens[i] = 0; }
+  if (n <= 0) return 0;
+  const char *miss[64]; int mi[64], nm = 0, nb = 0;
+  for (int i = 0; i < n; i++) { if (!pf_take(ks[i], &data[i], &lens[i])) continue; if (nm < 64) { miss[nm] = ks[i]; mi[nm] = i; nm++; } else nb = 1; }
+  if (!nm && !nb) return 0;
+  if (nb) { for (int i = 0; i < n; i++) { free(data[i]); data[i] = 0; } return sv_getm_net(key, ks, n, data, lens, why, wn); }
+  unsigned char *md[64]; size_t ml[64]; int r = sv_getm_net(key, miss, nm, md, ml, why, wn);
+  if (r) { for (int i = 0; i < n; i++) { free(data[i]); data[i] = 0; } return r; }
+  for (int j = 0; j < nm; j++) { data[mi[j]] = md[j]; lens[mi[j]] = ml[j]; }
+  return 0;
+}
+static int sv_getm_net(const char *key, const char **ks, int n, unsigned char **data, size_t *lens, char *why, size_t wn) {
   for (int i = 0; i < n; i++) { data[i] = 0; lens[i] = 0; }
   if (n <= 0) return 0;
   size_t bc = 16; for (int i = 0; i < n; i++) bc += strlen(ks[i]) * 2 + 4;
@@ -2339,6 +2362,33 @@ static void look_prepmember(const char *spec) {
    parts go to that member's folder ("/_memtag.<profile>.off" clears). "/_memload.<profile>.<id>.<slot>.<Name>" = every game in
    the member's index moved into <profile> (renamed <Name> unless it is the main profile, which keeps the room's name), then the
    profile is tagged to the member. Tags are cleared after a clean slate / reset / purge (the queued copies keep their tag). */
+static int pf_off(void) { struct stat st; return !stat("/data/round2/prefetch-off", &st); }
+/* fetch keys in bundles of up to 40 into the cache */
+static void pf_fetch(const char *key, char (*ks)[400], int n) {
+  for (int i = 0; i < n; i += 40) {
+    int m = n - i > 40 ? 40 : n - i; const char *kp[40]; unsigned char *d[40]; size_t l[40];
+    for (int j = 0; j < m; j++) kp[j] = ks[i + j];
+    if (sv_getm(key, kp, m, d, l, 0, 0)) return;
+    for (int j = 0; j < m; j++) if (d[j]) { if (pf_find(kp[j]) < 0) pf_add(kp[j], d[j], l[j]); else free(d[j]); }
+  }
+}
+static void pf_game(const char *key, char (*parts)[220], int np) {
+  pf_clear(); pf_hits = 0; if (pf_off() || np <= 0) return;
+  static char ks[PF_MAX][400]; int n = 0;
+  for (int i = 0; i < np && n < PF_MAX; i++) snprintf(ks[n++], 400, "%s/manifest.txt", parts[i]);
+  pf_fetch(key, ks, n);
+  /* labels + one-piece data files of every part, as long as it fits */
+  int n2 = 0; unsigned long long tot = 0;
+  for (int i = 0; i < np; i++) { int mi = pf_find(ks[i]); if (mi < 0) continue;
+    char *m = malloc(pf[mi].l + 1); if (!m) continue; memcpy(m, pf[mi].d, pf[mi].l); m[pf[mi].l] = 0;
+    for (char *ln = m, *nx; ln && *ln && n2 < PF_MAX - np; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
+      char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0; char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
+      unsigned long long sz = strtoull(t1, 0, 10); int pcs = atoi_safe(t2); if (pcs != 1 || strstr(ln, "..") || tot + sz > (6u << 20)) continue;
+      snprintf(ks[np + n2], 400, "%s/f/%s~0", parts[i], ln); n2++; tot += sz; }
+    free(m); }
+  pf_fetch(key, ks + np, n2);
+  sv_log("prefetch: %d parts, %d files (%llu KB) in %d bundle request(s)", np, n2, tot / 1024, (np + 39) / 40 + (n2 + 39) / 40);
+}
 static int mem_ok(const char *x) { if (!x[0] || strlen(x) > 24) return 0; for (const char *c = x; *c; c++) if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '-')) return 0; return 1; }
 static void look_memtag(const char *spec) {
   char u[16] = "", id[32] = "", sl[16] = "", op[120], v[120];
@@ -2349,6 +2399,7 @@ static void look_memtag(const char *spec) {
   look_kv("memtag/error", "bad spec");
 }
 static int memload_game(const char *key, const char *u, const char *t, char *why, size_t wn) {
+  pf_clear();
   static char ix[64 * 1024]; static char pn[64][64], pb[64][220], recv[64][32]; int np = 0;
   FILE *f = fopen(CLND "/memindex", "r"); if (!f) { snprintf(why, wn, "no member index"); return -1; }
   size_t il = fread(ix, 1, sizeof ix - 1, f); ix[il] = 0; fclose(f);
@@ -2359,6 +2410,7 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
   if (!sv_buf) { void *bb = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (bb == MAP_FAILED) { snprintf(why, wn, "no memory"); return -1; } sv_buf = bb; }
   int nr = sv_disk_parts(u, t, recv, 64);
   if (nr) { char rb[200]; int rn = 0; double tb0 = tm_now(); int gbr = sv_game_back(key, u, t, rb, sizeof rb, &rn); g_t_bk += tm_now() - tb0; if (gbr) { snprintf(why, wn, "backup of what was there failed - nothing written"); return -1; } }
+  { double tp0 = tm_now(); pf_game(key, pb, np); g_t_dl += tm_now() - tp0; } /* 1.1.85 */
   double tmk0 = tm_now(); int fails = 0;
   for (int i = 0; i < np; i++) { int have = 0; for (int j = 0; j < nr; j++) if (!strcmp(pn[i], recv[j])) have = 1;
     if (!have) { char w2[200] = ""; if (sv_make_part(key, u, t, pn[i], pb[i], w2, sizeof w2)) { fails++; sv_log("member load: making %s %s %s failed: %s", u, t, pn[i], w2); } } }
@@ -2367,7 +2419,7 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
   for (int i = 0; i < np; i++) { char rs[420]; snprintf(rs, sizeof rs, "/_srest.%s.%s.%s.%s", u, t, pn[i], pb[i]); if (look_srest(key, rs) != 0) fails++; }
   if (fails) { snprintf(why, wn, "%d of %d parts failed to load", fails, np); return -1; }
   for (int j = 0; j < nr; j++) { int keep = 0; for (int i = 0; i < np; i++) if (!strcmp(pn[i], recv[j])) keep = 1; if (!keep) { char res[300]; sv_del_part(u, t, recv[j], res, sizeof res); } }
-  sv_log("member load: user %s game %s: %d parts in", u, t, np);
+  sv_log("member load: user %s game %s: %d parts in (%d answered from the prefetch)", u, t, np, pf_hits); pf_clear();
   return 0;
 }
 static void look_memload(const char *key, const char *spec) {
@@ -3918,6 +3970,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_restoreall")) look_restoreall();
     else if (!strncmp(t, "/_prepmember.", 13)) look_prepmember(t);
     else if (!strncmp(t, "/_memtag.", 9)) look_memtag(t);
+    else if (!strcmp(t, "/_pf.off")) { put_file("/data/round2/prefetch-off", "1"); look_kv("pf/result", "prefetch OFF"); }
+    else if (!strcmp(t, "/_pf.on")) { unlink("/data/round2/prefetch-off"); look_kv("pf/result", "prefetch ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
