@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.96"
+#define R2_VERSION "1.1.97"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2482,7 +2482,8 @@ static void look_memload(const char *key, const char *spec) {
    keys memplay/loading | memplay/ready | memplay/waits | memplay/refused, value "<profile> <text>". */
 static void memplay_one(const char *key, const char *spec, int allow_main) {
   char id[32] = "", sl[16] = "", nm[40] = "", st[16] = "", want[64], v[200], ms[200];
-  if (sscanf(spec, "/_memplay.%31[a-z0-9-].%15[a-z0-9].%31[A-Za-z0-9_]", id, sl, nm) != 3 || !mem_ok(id) || !mem_ok(sl)) { look_kv("memplay/error", "bad spec"); return; }
+  char pos[4] = "";
+  if (sscanf(spec, "/_memplay.%31[a-z0-9-].%15[a-z0-9].%31[A-Za-z0-9_].%1[m1-4]", id, sl, nm, pos) < 3 || !mem_ok(id) || !mem_ok(sl)) { look_kv("memplay/error", "bad spec"); return; }
   cl_rd("state", st, sizeof st);
   if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("memplay/waits", "- the room is being reset first"); return; }
   snprintf(want, sizeof want, "%s/%s", id, sl);
@@ -2491,19 +2492,11 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
   for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
   for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
   char tag[16][64]; for (int i = 0; i < ns; i++) { char op[120]; tag[i][0] = 0; snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", sp[i]); FILE *f = fopen(op, "r"); if (f) { if (fgets(tag[i], 64, f)) tag[i][strcspn(tag[i], "\r\n")] = 0; fclose(f); } }
-  /* 1.1.96 (owner 20 Nov 1:14am – replaces 1.1.95's "first player into main"): every profile of the room belongs to the crew for
-     the session – slot "main" = the main profile, "p1".."p4" = Player 1..4 (spares in id order, as the reset names them). So a
-     guest's saves on ANY profile (also from before they joined) go to the crew at the clean slate, and the next Load puts each
-     profile's saves back into the same profile: "picked up where I left off". All the room's profiles are linked here. */
+  /* 1.1.97 (owner 20 Nov 1:19am): the profile comes from the batch – "m" = main, "1".."4" = the k-th ticked player goes to Player k
+     (only Aliff ticked -> Player 1). The whole room is linked to the crew in look_memplay. */
   (void)allow_main; (void)tag;
-  if (!strcmp(sl, "main")) pick = mainu;
-  else if (sl[0] == 'p' && sl[1] >= '1' && sl[1] <= '4' && !sl[2] && sl[1] - '0' <= ns) pick = sp[sl[1] - '1'];
-  if (pick) { /* link the whole room to this crew (the profiles that aren't linked to it yet) */
-    char op[120], tv[80], cur[64]; mkdir("/data/round2/prep", 0777);
-    for (int i = -1; i < ns && i < 4; i++) { uint32_t pu = i < 0 ? mainu : sp[i]; if (!pu) continue; char ps[8]; if (i < 0) snprintf(ps, sizeof ps, "main"); else snprintf(ps, sizeof ps, "p%d", i + 1);
-      snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", pu); snprintf(tv, sizeof tv, "%s/%s", id, ps); cur[0] = 0;
-      FILE *f = fopen(op, "r"); if (f) { if (fgets(cur, sizeof cur, f)) cur[strcspn(cur, "\r\n")] = 0; fclose(f); }
-      if (strcmp(cur, tv)) { put_file(op, tv); sv_log("member link: profile %08x -> %s", pu, tv); } } }
+  if (pos[0] == 'm') pick = mainu; else if (pos[0] >= '1' && pos[0] <= '4' && pos[0] - '0' <= ns) pick = sp[pos[0] - '1'];
+  else if (!strcmp(sl, "main")) pick = mainu;
   if (!pick) { look_kv("memplay/refused", "- this room has no profile for that slot: ask staff"); return; }
   char u[16]; snprintf(u, sizeof u, "%08x", pick);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
@@ -2526,8 +2519,8 @@ static void memplay_next(const char *key) {
   size_t n = fread(b, 1, sizeof b - 1, f); b[n] = 0; fclose(f);
   char *nl = strchr(b, '\n'); if (!b[0]) { unlink(MEMQ); return; }
   if (nl) { *nl = 0; snprintf(ln, sizeof ln, "%s", b); put_file(MEMQ, nl + 1); if (!nl[1]) unlink(MEMQ); } else { snprintf(ln, sizeof ln, "%s", b); unlink(MEMQ); }
-  char id[32], sl[16], nm[40], spec[160]; if (sscanf(ln, "%31s %15s %39s", id, sl, nm) != 3) return;
-  snprintf(spec, sizeof spec, "/_memplay.%s.%s.%s", id, sl, nm);
+  char id[32], sl[16], nm[40], ps[4] = "", spec[160]; if (sscanf(ln, "%31s %15s %39s %3s", id, sl, nm, ps) < 3) return;
+  snprintf(spec, sizeof spec, "/_memplay.%s.%s.%s%s%s", id, sl, nm, ps[0] ? "." : "", ps);
   int m0 = look_mute; look_mute = 1; look_last[0] = 0; memplay_one(key, spec, 0); look_mute = m0;
   sv_log("member play queue: %s %s -> %s", id, sl, look_last);
   if (!strncmp(look_last, "memplay/ready", 13) || !strncmp(look_last, "memplay/refused", 15) || !strncmp(look_last, "memplay/error", 13)) memplay_next(key); /* nothing started - go on */
@@ -2535,13 +2528,35 @@ static void memplay_next(const char *key) {
 static void look_memplay(const char *key, const char *spec) {
   char buf[200], *tok[12]; int nt = 0; snprintf(buf, sizeof buf, "%s", spec + 10);
   for (char *p = buf, *q; p && nt < 12; p = q) { q = strchr(p, '.'); if (q) *q++ = 0; tok[nt++] = p; }
-  if (nt < 3 || !(nt % 2)) { look_kv("memplay/error", "bad spec"); return; }
+  if (nt < 3 || !(nt % 2) || !mem_ok(tok[0])) { look_kv("memplay/error", "bad spec"); return; }
+  { char st[16] = ""; cl_rd("state", st, sizeof st); if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("memplay/waits", "- the room is being reset first"); return; } }
+  /* 1.1.97: positions – main -> main profile, the k-th ticked player -> Player k (spares in id order) */
+  char posv[6][2]; int k = 0, np = (nt - 1) / 2; char used[5][16]; memset(used, 0, sizeof used);
+  for (int i = 0; i < np; i++) { const char *sl = tok[1 + 2 * i];
+    if (!strcmp(sl, "main")) snprintf(posv[i], 2, "m"); else { snprintf(posv[i], 2, "%d", k + 1); if (k < 4) snprintf(used[k], 16, "%s", sl); k++; } }
+  /* link the whole room to the crew: main -> main, Player k -> the player loaded there, the others -> extra slots x<k> */
+  { RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+    uint32_t mainu = r2_main_user(), sp[16]; int ns = 0;
+    for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
+    for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
+    mkdir("/data/round2/prep", 0777);
+    for (int i = -1; i < ns && i < 4; i++) { uint32_t pu = i < 0 ? mainu : sp[i]; if (!pu) continue; char op[120], tv[80];
+      if (i < 0) snprintf(tv, sizeof tv, "%s/main", tok[0]); else if (used[i][0]) snprintf(tv, sizeof tv, "%s/%s", tok[0], used[i]); else snprintf(tv, sizeof tv, "%s/x%d", tok[0], i + 1);
+      snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", pu); put_file(op, tv); sv_log("member link: profile %08x -> %s", pu, tv); } }
   unlink(MEMQ);
-  if (nt > 3) { FILE *f = fopen(MEMQ, "w"); if (f) { for (int i = 3; i + 1 < nt; i += 2) fprintf(f, "%s %s %s\n", tok[0], tok[i], tok[i + 1]); fclose(f); } }
-  char one[160]; snprintf(one, sizeof one, "/_memplay.%s.%s.%s", tok[0], tok[1], tok[2]);
+  if (np > 1) { FILE *f = fopen(MEMQ, "w"); if (f) { for (int i = 1; i < np; i++) fprintf(f, "%s %s %s %s\n", tok[0], tok[1 + 2 * i], tok[2 + 2 * i], posv[i]); fclose(f); } }
+  char one[160]; snprintf(one, sizeof one, "/_memplay.%s.%s.%s.%s", tok[0], tok[1], tok[2], posv[0]);
   memplay_one(key, one, 1);
-  if (nt > 3 && !strncmp(look_last, "memplay/", 8)) {} /* look_last only filled when muted */
   { char st[16] = ""; cl_rd("state", st, sizeof st); if (strcmp(st, "running") && strcmp(st, "paused")) memplay_next(key); } /* first one didn't start a load: go on now */
+}
+/* 1.1.97 (owner 20 Nov 1:19am: switch trophy pop-ups off on every profile automatically): "/_regscan.<user>" lists every number the
+   PS4 keeps for that profile (registry, the profile's own block, read-only). Compare one profile before/after changing a
+   setting by hand to find where the setting lives. */
+static void look_regscan(const char *spec) {
+  char u[16] = "", k[48], v[48]; if (sscanf(spec, "/_regscan.%8[0-9a-f]", u) != 1) { look_kv("regscan/error", "bad spec"); return; }
+  long base = prof_slot_base((uint32_t)strtoul(u, 0, 16)); if (!base) { look_kv("regscan/error", "no such profile"); return; }
+  int n = 0; for (long off = 0; off < 0x10000 && n < 390; off++) { int x = 0; if (sceRegMgrGetInt(base + off, &x) == 0) { snprintf(k, sizeof k, "rs/%04lx", off); snprintf(v, sizeof v, "%d", x); look_kv(k, v); n++; } }
+  snprintf(v, sizeof v, "%d", n); look_kv("regscan/count", v);
 }
 static void look_copy(const char *spec) {
   char st[16] = ""; cl_rd("state", st, sizeof st);
@@ -4125,6 +4140,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_mi.on")) { unlink("/data/round2/mi-skip-off"); look_kv("mi/result", "member-index skip ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
     else if (!strncmp(t, "/_memplay.", 10)) look_memplay(key, t); /* 1.1.90 */
+    else if (!strncmp(t, "/_regscan.", 10)) look_regscan(t); /* 1.1.97 */
     /* 1.1.92: "/_padoff" removed - scePadDisconnectDevice hung the helper on Kaeden (1.1.91) */
     else if (!strcmp(t, "/_padoff.on")) { put_file("/data/round2/padoff-on", "1"); look_kv("padoff/auto", "on"); }
     else if (!strcmp(t, "/_padoff.off")) { unlink("/data/round2/padoff-on"); look_kv("padoff/auto", "off"); }
