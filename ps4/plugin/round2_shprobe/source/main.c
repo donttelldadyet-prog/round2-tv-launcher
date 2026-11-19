@@ -15,7 +15,7 @@
 attr_public const char *g_pluginName = "round2_shprobe";
 attr_public const char *g_pluginDesc = "Round2: read-only list of the system menu's user/controller functions";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000102;   /* 1.02: output where the menu can write (/user/data). 1.01 (20 Nov 5am): full signatures of the classes found by 1.00 */
+attr_public u32 g_pluginVersion = 0x00000103;   /* 1.03: every loaded assembly; enum values. 1.02:   /* 1.02: output where the menu can write (/user/data). 1.01 (20 Nov 5am): full signatures of the classes found by 1.00 */
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -39,6 +39,11 @@ extern const char *mono_field_get_name(void *);
 extern void *mono_field_get_type(void *);
 extern unsigned int mono_field_get_flags(void *);
 extern char *mono_type_get_name(void *);
+extern void mono_assembly_foreach(void (*)(void *, void *), void *);
+extern void *mono_class_vtable(void *, void *);
+extern void mono_field_static_get_value(void *, void *, void *);
+extern int mono_class_is_enum(void *);
+extern void *mono_image_get_name(void *);
 
 #define MAXOUT (900 * 1024)
 static int g_fd = -1, g_len = 0;
@@ -74,14 +79,22 @@ static void dump(const char *path) {
 static const char *TARGETS[] = { "LoginMgrUtil", "LoginMgrUtilInternal", "EventAppExternal", "TeamChatExternal", "PadManager", "PadInfo",
   "PageBase", "LogoutJob", "PSButtonLocker", "PSButtonLongLocker", "PSButtonDoubleLocker", "PSButtonLockAlertSuppressor", "PSButtonListener",
   "QuickMenuSelector", "LoginSeaquence", 0 };
+static const char *ENUMS[] = { "LogoutMethodType", "LockType", "DisconnectDeviceType", "ButtonType", "GamePadButtons", "SystemButtons", "Mode", "IdType", 0 };
+static const char *MORE[] = { "Locker", "MenuSuppressor", "DisposableObj", "LoginMgrProxy", "NativeCall", 0 };
+static int in_list(const char **L, const char *n) { for (int i = 0; n && L[i]; i++) if (!strcmp(n, L[i])) return 1; return 0; }
 static int is_target(const char *n) { for (int i = 0; n && TARGETS[i]; i++) if (!strcmp(n, TARGETS[i])) return 1; return 0; }
-static void sigs(const char *path) {   /* 1.01: every method (static or not, parameter types) + fields of the target classes */
-  void *dom = mono_get_root_domain(); void *as = dom ? mono_domain_assembly_open(dom, path) : 0; char b[700];
-  void *img = as ? mono_assembly_get_image(as) : 0; if (!img) { snprintf(b, sizeof b, "## %s: not open\n", path); wr(b); return; }
+static void sigs_img(void *img) {   /* 1.01: every method (static or not, parameter types) + fields of the target classes */
+  char b[700];
   int rows = mono_image_get_table_rows(img, 2);
   for (int i = 1; i < rows && g_len < MAXOUT; i++) {
     void *k = mono_class_get(img, 0x02000000u | (unsigned)(i + 1)); if (!k) continue;
-    const char *cn = mono_class_get_name(k); if (!is_target(cn)) continue;
+    const char *cn = mono_class_get_name(k); int en = in_list(ENUMS, cn) && mono_class_is_enum(k), more = in_list(MORE, cn);
+    if (en) { void *vt = mono_class_vtable(mono_get_root_domain(), k); void *nest = mono_class_get_nesting_type(k);
+      snprintf(b, sizeof b, "\n### ENUM %s.%s%s%s\n", mono_class_get_namespace(k), cn, nest ? "  nested in " : "", nest ? mono_class_get_name(nest) : ""); wr(b);
+      void *it2 = 0, *f2; while ((f2 = mono_class_get_fields(k, &it2))) { unsigned fl2 = mono_field_get_flags(f2); if (!(fl2 & 0x10)) continue; long long val = 0; if (vt) mono_field_static_get_value(vt, f2, &val);
+        snprintf(b, sizeof b, "  %s = %lld (0x%llx)\n", mono_field_get_name(f2), val, (unsigned long long)val); wr(b); }
+      continue; }
+    if (!is_target(cn) && !more) continue;
     void *nest = mono_class_get_nesting_type(k), *par = mono_class_get_parent(k);
     snprintf(b, sizeof b, "\n### CLASS %s.%s%s%s  (parent %s)\n", mono_class_get_namespace(k), cn, nest ? "  nested in " : "", nest ? mono_class_get_name(nest) : "", par ? mono_class_get_name(par) : "-"); wr(b);
     void *it = 0, *f; while ((f = mono_class_get_fields(k, &it))) { void *ft = mono_field_get_type(f); char *tn = ft ? mono_type_get_name(ft) : 0;
@@ -90,16 +103,17 @@ static void sigs(const char *path) {   /* 1.01: every method (static or not, par
       snprintf(b, sizeof b, "  %s%s\n", (fl & 0x10) ? "static " : "", fn ? fn : mono_method_get_name(m)); wr(b); }
   }
 }
+static void each_asm(void *as, void *ud) { (void)ud; void *img = mono_assembly_get_image(as); if (!img) return; const char *n = (const char *)mono_image_get_name(img); char b[200]; snprintf(b, sizeof b, "\n## ASSEMBLY %s\n", n ? n : "?"); wr(b); sigs_img(img); }
 static void *probe_thread(void *a) {
   (void)a; sleep(2);
-  static const char *outs[] = { "/user/data/round2/round2_shprobe.txt", "/data/round2/round2_shprobe.txt", "/user/data/GoldHEN/shprobe.txt", "/data/GoldHEN/shprobe.txt", "/system_tmp/shprobe.txt", 0 }; const char *out = 0;
+  static const char *outs[] = { "/user/data/round2/round2_shprobe3.txt", "/data/round2/round2_shprobe3.txt", "/user/data/GoldHEN/shprobe.txt", "/data/GoldHEN/shprobe.txt", "/system_tmp/shprobe.txt", 0 }; const char *out = 0;
   for (int i = 0; outs[i] && g_fd < 0; i++) { g_fd = open(outs[i], O_WRONLY | O_CREAT | O_TRUNC, 0666); out = outs[i]; } if (g_fd < 0) return 0;
   wr("round2_shprobe 1.01 - read-only signatures of SceShellUI user/controller/PS-button classes\n");
   mono_thread_attach(mono_get_root_domain());
-  sigs("/app0/psm/Application/app.exe"); sigs("/app0/psm/Application/platform.dll");
+  mono_assembly_foreach(each_asm, 0);
   const char *sb = sceKernelGetFsSandboxRandomWord(); char p[260];
   const char *libs[] = { "Sce.Vsh.ShellUI.Core.dll", "Sce.Vsh.UserService.dll", "Sce.Vsh.Orbis.UserService.dll", "Sce.PlayStation.Core.dll", "Sce.Vsh.SystemService.dll", "Sce.Vsh.Orbis.Pad.dll", 0 };
-  for (int i = 0; sb && libs[i]; i++) { snprintf(p, sizeof p, "/%s/common/lib/%s", sb, libs[i]); sigs(p); }
+  (void)sb; (void)p; (void)libs;
   wr("## end\n"); close(g_fd); g_fd = -1;
   char dn[80]; snprintf(dn, sizeof dn, "%s.done", out); int d = open(dn, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (d >= 0) { write(d, "1\n", 2); close(d); }
   return 0;
