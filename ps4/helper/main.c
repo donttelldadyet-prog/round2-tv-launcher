@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.110"
+#define R2_VERSION "1.1.111"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2685,7 +2685,50 @@ static void look_shmod(const char *key, const char *spec) {
   long r = r2_sdk(6, &a); snprintf(v, sizeof v, "%zu bytes, call %ld, result 0x%llx", len, r, (unsigned long long)a.res); look_kv("shmod/load", v); sv_log("shmod: %s into SceShellUI: %s", name, v);
   int done = 0; for (int i = 0; i < 30 && !(done = file_exists(don)); i++) sleep(1);
   struct stat ss; long sz = stat(out, &ss) ? -1 : (long)ss.st_size; snprintf(v, sizeof v, "%s, %ld bytes", done ? "finished" : "not finished in 30 s", sz); look_kv("shmod/result", v); sv_log("shmod: %s %s", name, v);
-  if (sz > 0) { size_t n = 0; char *b = read_all(out, &n, 1024 * 1024); if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/%s-%s.txt", name, console_id); int u2 = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shmod/upload", u2 ? "failed" : k); } }
+  if (sz > 0) { size_t n = 0; char *b = read_all(out, &n, 4 * 1024 * 1024); /* 1.1.111: was 1 MB - round2_sweep1 is 1.8 MB */ if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/%s-%s.txt", name, console_id); int u2 = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shmod/upload", u2 ? "failed" : k); } }
+}
+/* 1.1.111 (owner 20 Nov 6:01am, the one-time sweep of every PS4): "/_probeup.<name>" = upload an add-on's result file again
+   (/data/round2/<name>.txt + its breadcrumb <name>.step) WITHOUT loading the add-on again – e.g. after a cut upload or a menu
+   crash (the .step file says which step it died in). Read-only. */
+static void look_probeup(const char *key, const char *spec) {
+  char name[40] = "", p[120], k[160], v[120]; if (sscanf(spec, "/_probeup.%39[a-z0-9_]", name) != 1 || strncmp(name, "round2_", 7)) { look_kv("probeup/error", "bad name"); return; }
+  const char *ext[] = { "txt", "step", 0 };
+  for (int i = 0; ext[i]; i++) {
+    snprintf(p, sizeof p, "/data/round2/%s.%s", name, ext[i]); size_t n = 0; char *b = read_all(p, &n, 4 * 1024 * 1024);
+    if (!b) { snprintf(k, sizeof k, "probeup/%s", ext[i]); look_kv(k, "no such file"); continue; }
+    snprintf(k, sizeof k, "lib/probe/%s-%s.%s", name, console_id, ext[i]); int r = sv_put(key, k, (unsigned char *)b, n);
+    if (i == 1) { char st[100]; snprintf(st, sizeof st, "%.90s", b); for (char *q = st; *q; q++) if (*q == '\n') *q = ' '; look_kv("probeup/last-step", st); }
+    free(b); snprintf(v, sizeof v, "%zu bytes %s", n, r ? "upload FAILED" : k); snprintf(k, sizeof k, "probeup/%s", ext[i]); look_kv(k, v);
+  }
+}
+/* 1.1.111: "/_pwrreg" = READ-ONLY: the PS4's rest-mode / wake / Wi-Fi settings, by the registry numbers round2_sweep1 found inside
+   the system menu (Kaeden 13.50; each PS4's own sweep file confirms the numbers for its firmware – a wrong number just reads
+   nothing). Names as in Sony's registry list. Changes nothing. */
+static void look_pwrreg(void) {
+  static const struct { const char *n; long id; int bin; } R[] = {
+    { "SYSTEM_POWER_charge (USB power in rest)", 0x2820100, 0 }, { "SYSTEM_POWER_signin (stay connected to the internet)", 0x2820200, 0 },
+    { "SYSTEM_POWER_remote (turn on PS4 from network)", 0x2820300, 0 }, { "SYSTEM_POWER_controller_off", 0x2820400, 0 },
+    { "SYSTEM_POWER_auto_off_media", 0x2820500, 0 }, { "SYSTEM_POWER_auto_off_other", 0x2820600, 0 },
+    { "SYSTEM_POWER_auto_power_down", 0x2820700, 0 }, { "SYSTEM_POWER_suspend_to_ram (rest mode)", 0x2820800, 0 },
+    { "SYSTEM_POWER_standby_start", 0x2820900, 8 }, { "SYSTEM_POWER_power_history", 0x2820b00, 0 },
+    { "SYSTEM_POWER_spwakeup", 0x2820c00, 0 }, { "SYSTEM_POWER_shutdown_status", 0x2820e00, 0 },
+    { "SYSTEM_POWER_charge_minutes", 0x2828000, 0 }, { "SYSTEM_eapfunction", 0x2070000, 0 },
+    { "SYSTEM_SMR_HDD_eap_boot_from_mos", 0x2be0100, 0 }, { "SYSTEM_UPDATE_auto_download", 0x2800500, 0 },
+    { "SYSTEM_DOWNLOAD_autodl_featured", 0x2880100, 0 }, { "NP_patch_auto_dl", 0x19010000, 0 },
+    { "NET_COMMON_device (0 cable, 1 wifi)", 0x14190100, 0 }, { "NET_COMMON_net_flag", 0x14190600, 0 },
+    { "NET_COMMON_conf_type", 0x14190700, 0 }, { "NET_WIFI_freq_band (Wi-Fi band setting)", 0x141e0500, 0 },
+    { "NET_WIFI_IP_ip_config", 0x141e6001, 0 }, { "NET_WIFI_IP_leased_exp_tick", 0x141e600c, 8 },
+    { "NET_always_lan", 0x147a0000, 0 }, { "REMOTEPLAY_rp_enable", 0x41810000, 0 }, { "REMOTEPLAY_ap_flag", 0x41820000, 0 },
+    { 0, 0, 0 } };
+  char k[96], v[80];
+  for (int i = 0; R[i].n; i++) {
+    snprintf(k, sizeof k, "pwr/%08lx %s", R[i].id, R[i].n);
+    if (R[i].bin) { unsigned char b[8] = { 0 }; int r = sceRegMgrGetBin(R[i].id, b, 8); if (r) snprintf(v, sizeof v, "read error 0x%x", (unsigned)r);
+      else { unsigned long long x = 0; for (int j = 7; j >= 0; j--) x = (x << 8) | b[j]; snprintf(v, sizeof v, "bin %llu (0x%llx)", x, x); } }
+    else { int x = 0; int r = sceRegMgrGetInt(R[i].id, &x); if (r) snprintf(v, sizeof v, "read error 0x%x", (unsigned)r); else snprintf(v, sizeof v, "%d (0x%x)", x, (unsigned)x); }
+    look_kv(k, v);
+  }
+  snprintf(v, sizeof v, "%d", sceSystemStateMgrIsStandbyModeEnabled()); look_kv("pwr/IsStandbyModeEnabled", v);
 }
 static void look_rename(const char *spec) {
   char u[16] = "", nm[40] = "", v[160], have[40] = ""; if (sscanf(spec, "/_rename.%8[0-9a-f].%31[A-Za-z0-9_]", u, nm) != 2) { look_kv("rename/error", "bad spec"); return; }
@@ -4369,6 +4412,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_ghver")) look_ghver(); /* 1.1.103 */
     else if (!strcmp(t, "/_shprobe")) look_shprobe(key);
     else if (!strncmp(t, "/_shmod.", 8)) look_shmod(key, t); /* 1.1.109 */
+    else if (!strncmp(t, "/_probeup.", 10)) look_probeup(key, t); /* 1.1.111 */
+    else if (!strcmp(t, "/_pwrreg")) look_pwrreg(); /* 1.1.111 */
     else if (!strcmp(t, "/_renamesi.on")) { put_file("/data/round2/rename-signedin", "1"); look_kv("renamesi/result", "member loads now rename signed-in spares"); }
     else if (!strcmp(t, "/_renamesi.off")) { unlink("/data/round2/rename-signedin"); look_kv("renamesi/result", "signed-in spares keep their names"); }
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
