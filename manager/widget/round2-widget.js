@@ -18,8 +18,52 @@ const only = (par.match(/room:\s*([a-z]+)/) || [])[1];
 const view = /\btv\b/.test(par) ? 'tv' : /\bmsgs?\b|notif/.test(par) ? 'msgs' : /\btimes?\b/.test(par) ? 'times' : 'board';
 const big = fam === 'large' || fam === 'extraLarge';
 
+/* Round2's own pixel icons (the same ones as the booking page) – each room's character icon, plus TV, PS4 pad, bell, cake … */
+const PIX = {"tv":["..#.....#...","...#...#....","....#.#.....","############","#..........#","#...#......#","#...###....#","#...#####..#","#...###....#","#...#......#","#..........#","############"],"clock":["...######...","..#......#..",".#...#....#.","#....#.....#","#....#.....#","#....###...#","#.......#..#","#........#.#","#..........#",".#........#.","..#......#..","...######..."],"user":["....####....","...#....#...","...#....#...","...#....#...","....####....","............","..########..",".#........#.","#..........#","#..........#","#..........#","############"],"cake":[".....##.....","......#.....",".....##.....",".....##.....",".##########.",".#........#.",".#.##..##.#.",".##########.","#..........#","#.#.#..#.#.#","#..........#","############"],"cat":["............",".#.......#..",".##.....##..",".#.#####.#..",".#.......#..","#..#...#..#.","#.........#.","#....#....#.",".#..#.#..#..","..#.....#...","...#####....","............"],"mount":["............","............",".....#......","....#.#.....","...#...#.#..","..#.#.#.#.#.","..#..#..#..#",".#.........#",".#.........#","#...........","############","............"],"book":["............",".####..####.","#....##....#","#.##.##.##.#","#....##....#","#.##.##.##.#","#....##....#","#.##.##.##.#","#....##....#",".####..####.",".....##.....","............"],"boat":[".....#......",".....##.....",".....###....",".....####...",".....#####..",".....######.",".....#......","############",".##########.","..########..","............","#.##.##.##.#"],"car":["............","............","...######...","..#..#...#..",".#...#....#.","############","#..........#","#.##....##.#","############",".##......##.",".##......##.","............"],"saturn":["..............","..............",".....####.....","....######..##","...#########.#","...#######.##.","...#####..#...","...##...###...",".##..######...","#.#########...","##..######....",".....####.....","..............",".............."],"leaf":[".........###","......######","....#####..#","...####...#.","..####...#..","..###...#...",".###...#....",".##...#.....",".#.###......",".###........","#...........","............"],"moon":["....####....","..###.......",".##.........",".#..........","##..........","##..........","##..........","##.........#",".##.......##",".###.....##.","..########..","....####...."],"pad":["............","..########..",".#........#.","#..#....#..#","#.###..#.#.#","#..#....#..#","#..........#","#...####...#",".#.#....#.#.","..#......#..","............","............"],"bell":[".....##.....","....####....","...######...","...######...","..########..","..########..",".##########.","############","............",".....##.....","............","............"],"warn":[".....##.....","....####....","....#..#....","...##..##...","...##..##...","..###..###..","..###..###..",".##########.",".####..####.","#####..#####","############","............"],"check":["............","...........#","..........##",".........##.","#.......##..","##.....##...",".##...##....","..##.##.....","...###......","....#.......","............","............"],"sparkle":["......#.....","......#.....",".....###....","###########.",".....###....","......#.....","..#...#.....","..#.........",".###......#.","..#......###","..#.......#.","............"]};
+/* Round2's look (owner 20 Nov: "design it with Round2 design principles and main theme"): the save-slot screen of the website –
+   dark violet-black, the pixel font for labels (ROUND2, SLOT SELECT), the yellow segmented bar, square frames with the
+   bright corner brackets, each room's own colour and character icon. Press Start 2P isn't on iPhones, so labels are drawn
+   with this 5×7 pixel alphabet. */
+const PFONT = {"A":[".###.","#...#","#...#","#####","#...#","#...#","#...#"],"B":["####.","#...#","#...#","####.","#...#","#...#","####."],"C":[".####","#....","#....","#....","#....","#....",".####"],"D":["####.","#...#","#...#","#...#","#...#","#...#","####."],"E":["#####","#....","#....","####.","#....","#....","#####"],"F":["#####","#....","#....","####.","#....","#....","#...."],"G":[".####","#....","#....","#.###","#...#","#...#",".####"],"H":["#...#","#...#","#...#","#####","#...#","#...#","#...#"],"I":["#####","..#..","..#..","..#..","..#..","..#..","#####"],"J":["..###","...#.","...#.","...#.","...#.","#..#.",".##.."],"K":["#...#","#..#.","#.#..","##...","#.#..","#..#.","#...#"],"L":["#....","#....","#....","#....","#....","#....","#####"],"M":["#...#","##.##","#.#.#","#.#.#","#...#","#...#","#...#"],"N":["#...#","##..#","#.#.#","#..##","#...#","#...#","#...#"],"O":[".###.","#...#","#...#","#...#","#...#","#...#",".###."],"P":["####.","#...#","#...#","####.","#....","#....","#...."],"Q":[".###.","#...#","#...#","#...#","#.#.#","#..#.",".##.#"],"R":["####.","#...#","#...#","####.","#.#..","#..#.","#...#"],"S":[".####","#....","#....",".###.","....#","....#","####."],"T":["#####","..#..","..#..","..#..","..#..","..#..","..#.."],"U":["#...#","#...#","#...#","#...#","#...#","#...#",".###."],"V":["#...#","#...#","#...#","#...#","#...#",".#.#.","..#.."],"W":["#...#","#...#","#...#","#.#.#","#.#.#","##.##","#...#"],"X":["#...#","#...#",".#.#.","..#..",".#.#.","#...#","#...#"],"Y":["#...#","#...#",".#.#.","..#..","..#..","..#..","..#.."],"Z":["#####","....#","...#.","..#..",".#...","#....","#####"],"0":[".###.","#...#","#..##","#.#.#","##..#","#...#",".###."],"1":["..#..",".##..","..#..","..#..","..#..","..#..",".###."],"2":[".###.","#...#","....#","...#.","..#..",".#...","#####"],"3":["####.","....#","....#",".###.","....#","....#","####."],"4":["...#.","..##.",".#.#.","#..#.","#####","...#.","...#."],"5":["#####","#....","####.","....#","....#","#...#",".###."],"6":[".###.","#....","#....","####.","#...#","#...#",".###."],"7":["#####","....#","...#.","..#..",".#...",".#...",".#..."],"8":[".###.","#...#","#...#",".###.","#...#","#...#",".###."],"9":[".###.","#...#","#...#",".####","....#","....#",".###."]," ":[".....",".....",".....",".....",".....",".....","....."],"·":[".....",".....",".....","..#..",".....",".....","....."],":":[".....","..#..",".....",".....",".....","..#..","....."],"/":["....#","....#","...#.","..#..",".#...","#....","#...."],"-":[".....",".....",".....",".###.",".....",".....","....."],"&":[".##..","#..#.",".##..",".#...","#.#.#","#..#.",".##.#"]};
+function pixText(text, color, h) {   /* a pixel-font label as a picture, h points tall */
+  const T = String(text).toUpperCase().split('').filter((c) => PFONT[c]), s = 3, ctx = new DrawContext();
+  ctx.size = new Size(Math.max(1, T.length * 6 - 1) * s, 7 * s); ctx.opaque = false; ctx.respectScreenScale = true; ctx.setFillColor(color);
+  T.forEach((c, i) => PFONT[c].forEach((row, y) => { for (let x = 0; x < 5; x++) if (row[x] === '#') ctx.fillRect(new Rect((i * 6 + x) * s, y * s, s, s)); }));
+  return { img: ctx.getImage(), w: (Math.max(1, T.length * 6 - 1) / 7) * h, h };
+}
+function plabel(st, text, color, h) { const p = pixText(text, color, h), i = st.addImage(p.img); i.imageSize = new Size(p.w, p.h); return i; }
+function segBar(st, color, w, h) {   /* the yellow dashed strip next to SLOT SELECT */
+  const ctx = new DrawContext(), s = 2; ctx.size = new Size(w * s, h * s); ctx.opaque = false; ctx.respectScreenScale = true;
+  ctx.setFillColor(new Color(color.hex, 0.55)); for (let x = 0; x + 10 <= w * s; x += 14) ctx.fillRect(new Rect(x, 0, 10, h * s));
+  const i = st.addImage(ctx.getImage()); i.imageSize = new Size(w, h); return i;
+}
+/* a save-slot frame: tinted fill, thin room-colour edge, bright corner brackets top-left and bottom-right */
+function frameImg(room, w, h, strong) {
+  const s = 3, W = w * s, H = h * s, ctx = new DrawContext(), col = new Color(RC[room] || room); ctx.size = new Size(W, H); ctx.opaque = false; ctx.respectScreenScale = true;
+  ctx.setFillColor(mix(room, strong ? 0.3 : 0.13)); ctx.fillRect(new Rect(0, 0, W, H));
+  ctx.setStrokeColor(new Color(col.hex, strong ? 0.75 : 0.4)); ctx.setLineWidth(s); ctx.strokeRect(new Rect(s / 2, s / 2, W - s, H - s));
+  ctx.setFillColor(col); const L = 9 * s, T = 2 * s;
+  ctx.fillRect(new Rect(0, 0, L, T)); ctx.fillRect(new Rect(0, 0, T, L)); ctx.fillRect(new Rect(W - L, H - T, L, T)); ctx.fillRect(new Rect(W - T, H - L, T, L));
+  return ctx.getImage();
+}
+const RICON = { Vale: 'cat', Kaeden: 'leaf', Scarlett: 'saturn', Kai: 'mount', Bella: 'book', Atlas: 'boat', Max: 'car' };
+const PIXC = {};
+function pixImg(name, color) {
+  const k = name + (color ? color.hex : ''), P = PIX[name]; if (PIXC[k]) return PIXC[k]; if (!P) return null;
+  const s = 4, ctx = new DrawContext(); ctx.size = new Size(P[0].length * s, P.length * s); ctx.opaque = false; ctx.respectScreenScale = true; ctx.setFillColor(color || INK);
+  P.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === '#') ctx.fillRect(new Rect(x * s, y * s, s, s)); });
+  return (PIXC[k] = ctx.getImage());
+}
+function ico(st, name, color, sz) { const img = pixImg(name, color); if (!img) return; const i = st.addImage(img); i.imageSize = new Size(sz, sz); if (lock) i.tintColor = color; return i; }
+/* an icon + text on one line */
+function it(parent, icon, iconColor, text, sz, color, kind) { const l = line(parent); l.spacing = Math.max(3, sz * 0.35); ico(l, icon, iconColor, sz * 0.95); txt(l, text, sz, color, kind); return l; }
 function clk(ms) { const d = new Date(ms + 8 * 3600e3), h = d.getUTCHours(), m = d.getUTCMinutes(); return ((h + 11) % 12 + 1) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); }
-function fnt(sz, bold) { return bold ? Font.boldSystemFont(sz) : Font.systemFont(sz); }
+/* fonts (owner 20 Nov: "can the fonts be better"): rounded heavy for rooms and big numbers, monospaced for times and the
+   ROUND2 badge (digits line up, a little arcade), rounded medium for the rest */
+function fnt(sz, k) {
+  return k === 'time' ? Font.semiboldMonospacedSystemFont(sz) : k === 'head' ? Font.heavyMonospacedSystemFont(sz) : k === 'room' ? Font.heavyRoundedSystemFont(sz)
+    : k === 'big' ? Font.blackRoundedSystemFont(sz) : k ? Font.boldRoundedSystemFont(sz) : Font.mediumRoundedSystemFont(sz);
+}
 function txt(st, s, sz, color, bold) { const t = st.addText(String(s)); t.font = fnt(sz, bold); t.textColor = color || INK; t.lineLimit = 1; t.minimumScaleFactor = 0.6; return t; }
 function rc(r) { return new Color(RC[r] || '#cccccc'); }
 function line(parent) { const s = parent.addStack(); s.layoutHorizontally(); s.centerAlignContent(); s.spacing = 5; return s; }
@@ -60,68 +104,80 @@ function refreshAt(j) {
 
 /* ---------- pieces ---------- */
 function header(w, j, sz, label) {
-  const h = line(w);
-  txt(h, 'ROUND2', sz, ACC, true);
-  const c = j.counts || {}; txt(h, label || (c.in + ' in · ' + c.left + ' to come'), sz, INK); h.addSpacer();
-  txt(h, (j.offline ? 'offline · ' : '') + clk(j.now), sz - 2, j.offline ? WARN : MUTE);
+  const h = line(w); h.spacing = 5;
+  plabel(h, 'ROUND2', ACC, sz * 0.75);
+  const c = j.counts || {}; plabel(h, label || (c.in + ' IN · ' + c.left + ' TO COME'), INK, sz * 0.62);
+  segBar(h, ACC, fam === 'small' ? 14 : 40, sz * 0.55); h.addSpacer();
+  txt(h, (j.offline ? 'offline · ' : '') + clk(j.now), sz - 2, j.offline ? WARN : MUTE, 'time');
 }
 function warnLine(w, j, sz, n) {
   const L = j.warn || [];
-  if (!L.length) { txt(w, '✓ All TVs reporting', sz, OK); return; }
-  for (const x of L.slice(0, n || 1)) txt(w, '⚠︎ ' + x, sz, WARN);
+  if (!L.length) { it(w, 'check', OK, 'All TVs reporting', sz, OK); return; }
+  for (const x of L.slice(0, n || 1)) it(w, 'warn', WARN, x, sz, WARN, true);
 }
-function bar(parent, r, h) { const b = parent.addStack(); b.size = new Size(4, h); b.backgroundColor = rc(r.r); b.cornerRadius = 2; }
 /* ---------- colour boxes (owner 20 Nov: "box them into their colours – this layout isn't efficient") ----------
    Two columns of boxes tinted in each room's colour. Box widths come from the screen size (widgets don't say their own size). */
 function mix(hex, a) {   /* the room colour at a% over the dark background */
   const h = (RC[hex] || hex).replace('#', ''), bg = [11, 9, 20], c = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
   return new Color('#' + c.map((v, i) => Math.round(bg[i] + (v - bg[i]) * a).toString(16).padStart(2, '0')).join(''));
 }
+function widgetH() { const sw = Device.screenSize().width; return sw <= 360 ? 311 : sw <= 375 ? 345 : sw <= 393 ? 354 : sw <= 402 ? 366 : 382; }
 function widgetW() { const sw = Device.screenSize().width; return sw <= 360 ? 292 : sw <= 375 ? 329 : sw <= 393 ? 338 : sw <= 402 ? 345 : 364; }
 function tvTone(r) { return r.tv && (r.tv.quiet || (r.tv.off && r.st === 'in')) ? WARN : INK; }
 function box(parent, r, w, h, wide) {
   const s = stateOf(r), b = parent.addStack(); b.layoutVertically(); b.size = new Size(w, h); b.setPadding(5, 7, 5, 6); b.spacing = 1;
-  b.backgroundColor = mix(r.r, r.st === 'in' ? 0.34 : 0.16); b.cornerRadius = 9; b.borderColor = rc(r.r); b.borderWidth = r.st === 'in' ? 1.5 : 0;
-  const top = line(b); top.spacing = 4; txt(top, r.r, wide ? 13 : 11.5, rc(r.r), true); top.addSpacer(); txt(top, s.short, wide ? 11.5 : 10, r.st === 'in' ? INK : MUTE, r.st === 'in');
+  b.backgroundImage = frameImg(r.r, w, h, r.st === 'in');
+  const top = line(b); top.spacing = 4; ico(top, RICON[r.r], rc(r.r), wide ? 13 : 11); txt(top, r.r, wide ? 13.5 : 11.5, rc(r.r), 'room'); top.addSpacer(); txt(top, s.short.replace(/^till /, '→ '), wide ? 11.5 : 10, r.st === 'in' ? INK : MUTE, 'time');
   const tv = tvOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : '';
-  if (!wide) {   /* medium: one more line – the guest, then what's on */
-    const l = [names && s.who, ps ? '🎮 ' + ps : tv && '📺 ' + tv].filter(Boolean).join(' · ');
-    if (l) txt(b, l, 9.5, ps || !tv ? INK : tvTone(r));
+  if (!wide) {   /* medium: one more line – the game if the PS4 is on, else the TV, else the guest */
+    if (ps) it(b, 'pad', INK, (names && s.who ? s.who + ' · ' : '') + ps, 9.5, INK);
+    else if (tv && r.st === 'in') it(b, 'tv', tvTone(r), (names && s.who ? s.who + ' · ' : '') + tv, 9.5, tvTone(r));
+    else if (names && s.who) it(b, 'user', MUTE, s.who, 9.5, INK);
     b.addSpacer(); return;
   }
-  if (names && s.who) txt(b, s.who, 11, INK);
-  if (tv) txt(b, '📺 ' + tv, 10.5, tvTone(r));
-  if (ps) txt(b, '🎮 ' + ps, 10.5, INK);
-  if (wide) { const m = (r.msgs || [])[0]; if (m) txt(b, '🔔 ' + clk(m.at) + ' ' + msgName(m), 10, MUTE); const nl = nextLine(r); if (nl) txt(b, nl.replace(/^then /, '→ '), 10, MUTE); }
+  if (names && s.who) it(b, 'user', MUTE, s.who, 10.5, INK, true);
+  if (tv) it(b, 'tv', tvTone(r) === WARN ? WARN : MUTE, tv, 10, tvTone(r));
+  if (ps) it(b, 'pad', MUTE, ps, 10, INK);
+  const m = (r.msgs || [])[0]; if (m) it(b, /birthday|anniv|congrat/i.test(m.ti || '') ? 'cake' : 'bell', MUTE, clk(m.at) + ' ' + msgName(m), 9.5, MUTE);
+  const nl = nextLine(r); if (nl) it(b, 'clock', MUTE, nl.replace(/^then /, 'next '), 9.5, MUTE);
   b.addSpacer();
 }
+/* how many detail lines a big box will show – rows of busy rooms get the room, rows of two free rooms stay short */
+function boxLines(r) { const s = stateOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : ''; return (names && s.who ? 1 : 0) + (tvOf(r) ? 1 : 0) + (ps ? 1 : 0) + ((r.msgs || []).length ? 1 : 0) + (nextLine(r) ? 1 : 0); }
 function boxGrid(w, L, h, wide) {
-  const gap = 6, bw = Math.floor((widgetW() - 20 - gap) / 2);
+  const gap = 6, bw = Math.floor((widgetW() - 20 - gap) / 2), rows = [];
+  for (let i = 0; i < L.length; i += 2) rows.push(L.slice(i, i + 2));
+  let hs = rows.map(() => h);
+  if (wide) {   /* h = the space for all rows; share it out by how much each row has to say */
+    const n = rows.map((rw) => Math.max(...rw.map(boxLines))), quiet = n.filter((x) => !x).length, qh = Math.min(48, h / rows.length);
+    const need = n.map((x) => 26 + 14 * x), busy = need.filter((x, i) => n[i]).reduce((a, b) => a + b, 0), k = busy ? (h - quiet * qh) / busy : 0;
+    hs = n.map((x, i) => Math.floor(x ? need[i] * k : (busy ? qh : h / rows.length)));
+  }
   for (let i = 0; i < L.length; i += 2) {
-    const row = w.addStack(); row.layoutHorizontally(); row.spacing = gap;
+    const row = w.addStack(), rh = hs[i / 2]; row.layoutHorizontally(); row.spacing = gap; h = rh;
     box(row, L[i], bw, h, wide); if (L[i + 1]) box(row, L[i + 1], bw, h, wide); else { const e = row.addStack(); e.size = new Size(bw, h); }
     if (i + 2 < L.length) w.addSpacer(gap);
   }
 }
 /* tv row: Room · TV app (since) · PS4 game */
 function tvRow(parent, r, wide) {
-  const row = line(parent); bar(row, r, wide ? 20 : 16);
-  txt(row, r.r, wide ? 12 : 10.5, rc(r.r), true);
-  const t = tvOf(r) || '–'; txt(row, '📺 ' + t + (wide && r.tv && r.tv.at && !r.tv.off ? ' · since ' + clk(r.tv.at) : ''), wide ? 12 : 10.5, r.tv && (r.tv.off || r.tv.quiet) ? WARN : INK);
-  const p = ps4Of(r); if (p) txt(row, '🎮 ' + p, wide ? 12 : 10.5, r.ps4 && r.ps4.on ? INK : MUTE);
+  const sz = wide ? 12 : 10.5, row = line(parent); row.spacing = 4;
+  ico(row, RICON[r.r], rc(r.r), sz); const nm = row.addStack(); nm.size = new Size(sz * 5.2, 0); txt(nm, r.r, sz, rc(r.r), 'room');
+  ico(row, 'tv', tvTone(r) === WARN ? WARN : MUTE, sz * 0.9); txt(row, (tvOf(r) || '–') + (wide && r.tv && r.tv.at && !r.tv.off ? ' · ' + clk(r.tv.at) : ''), sz, tvTone(r));
+  const p = ps4Of(r); if (p) { row.addSpacer(4); ico(row, 'pad', MUTE, sz * 0.9); txt(row, p, sz, r.ps4 && r.ps4.on ? INK : MUTE); }
   row.addSpacer();
 }
 function timeRow(parent, at, room, what, sz) {
-  const row = line(parent); bar(row, { r: room }, sz + 6);
-  const tm = row.addStack(); tm.size = new Size(sz * 4.6, 0); txt(tm, clk(at), sz, INK, true);
-  txt(row, room, sz, rc(room), true); txt(row, what, sz, MUTE); row.addSpacer();
+  const row = line(parent); row.spacing = 4;
+  const tm = row.addStack(); tm.size = new Size(sz * 4.4, 0); txt(tm, clk(at), sz, INK, 'time');
+  ico(row, RICON[room], rc(room), sz); txt(row, room, sz, rc(room), 'room'); txt(row, what, sz, MUTE); row.addSpacer();
 }
 
 /* ---------- widgets ---------- */
 async function build() {
   const j = await load(), w = new ListWidget();
   w.url = CC + '?tab=' + (view === 'tv' ? 'tvs' : view === 'msgs' ? 'tonight' : 'insession');
-  if (j.error) { if (!lock) w.backgroundColor = BG; txt(w, 'Round2', 13, ACC, true); txt(w, j.error, 11, WARN).lineLimit = 3; return w; }
+  if (j.error) { if (!lock) w.backgroundColor = BG; txt(w, 'ROUND2', 13, ACC, 'head'); txt(w, j.error, 11, WARN).lineLimit = 3; return w; }
   w.refreshAfterDate = refreshAt(j);
   const c = j.counts || {}, rooms = (j.rooms || []).filter((r) => !only || r.r.toLowerCase() === only), open = rooms.filter((r) => r.st !== 'closed');
   const one = only && rooms[0], msgs = allMsgs(j).filter((m) => !only || m.r.toLowerCase() === only), ev = (j.events || []).filter((e) => !only || e.r.toLowerCase() === only);
@@ -164,44 +220,46 @@ async function build() {
 
   /* ----- home screen ----- */
   w.backgroundColor = BG; w.setPadding(12, 12, 12, 12);
+  { const g = new LinearGradient(); g.colors = [new Color('#15111f'), new Color('#0b0914')]; g.locations = [0, 1]; w.backgroundGradient = g; }
   const n = fam === 'small' ? 4 : fam === 'medium' ? 5 : 13;
 
   if (one) {   /* one room in detail, in its colour */
-    const s = stateOf(one), h = line(w); bar(h, one, 18); txt(h, one.r, big ? 18 : 15, rc(one.r), true); h.addSpacer(); txt(h, clk(j.now), 10, MUTE);
-    w.addSpacer(4); txt(w, s.big, big ? 15 : 13, s.c, true); if (names && s.who) txt(w, s.who, 11, MUTE);
-    if (fam !== 'small' || one.st === 'in') { if (tvOf(one)) txt(w, '📺 ' + tvOf(one) + (one.tv && one.tv.at && !one.tv.off && fam !== 'small' ? ' · since ' + clk(one.tv.at) : ''), 11, INK); if (ps4Of(one)) txt(w, '🎮 ' + ps4Of(one), 11, INK); }
+    w.backgroundColor = mix(one.r, one.st === 'in' ? 0.3 : 0.14);
+    const s = stateOf(one), h = line(w); ico(h, RICON[one.r], rc(one.r), big ? 20 : 16); txt(h, one.r, big ? 20 : 16, rc(one.r), 'room'); h.addSpacer(); txt(h, clk(j.now), 10, MUTE, 'time');
+    w.addSpacer(4); txt(w, s.big, big ? 16 : 13.5, s.c === MUTE ? INK : s.c, 'time'); if (names && s.who) it(w, 'user', MUTE, s.who, 11, INK, true);
+    if (fam !== 'small' || one.st === 'in') { if (tvOf(one)) it(w, 'tv', MUTE, tvOf(one) + (one.tv && one.tv.at && !one.tv.off && fam !== 'small' ? ' · since ' + clk(one.tv.at) : ''), 11, tvTone(one)); if (ps4Of(one)) it(w, 'pad', MUTE, ps4Of(one), 11, INK); }
     w.addSpacer();
-    for (const m of (one.msgs || []).slice(0, fam === 'small' ? 1 : 3)) txt(w, '🔔 ' + clk(m.at) + ' ' + msgName(m), 10.5, MUTE);
-    const nl = nextLine(one); if (nl) txt(w, nl, 10.5, MUTE);
+    for (const m of (one.msgs || []).slice(0, fam === 'small' ? 1 : 3)) it(w, /birthday|anniv|congrat/i.test(m.ti || '') ? 'cake' : 'bell', MUTE, clk(m.at) + ' ' + msgName(m), 10.5, MUTE);
+    const nl = nextLine(one); if (nl) it(w, 'clock', MUTE, nl.replace(/^then /, 'next '), 10.5, MUTE);
     return w;
   }
 
   if (view === 'msgs') {   /* TV messages coming up, every room, in time order */
-    header(w, j, fam === 'small' ? 10 : 12, fam === 'small' ? 'TV msgs' : 'TV messages coming up'); w.addSpacer(6);
+    header(w, j, fam === 'small' ? 10 : 12, fam === 'small' ? 'MSGS' : 'TV MESSAGES'); w.addSpacer(6);
     for (const m of msgs.slice(0, n)) { timeRow(w, m.at, m.r, msgName(m), fam === 'small' ? 10 : 11.5); w.addSpacer(3); }
     if (!msgs.length) txt(w, 'Nothing scheduled', 11, MUTE);
     w.addSpacer(); return w;
   }
   if (view === 'times') {   /* tonight's starts and ends still to come */
-    header(w, j, fam === 'small' ? 10 : 12, fam === 'small' ? 'Tonight' : c.in + ' in · ' + c.left + ' to come'); w.addSpacer(6);
+    header(w, j, fam === 'small' ? 10 : 12, 'TONIGHT'); w.addSpacer(6);
     for (const x of ev.slice(0, n)) { timeRow(w, x.at, x.r, evWhat(x), fam === 'small' ? 10 : 11.5); w.addSpacer(3); }
     if (!ev.length) txt(w, 'Nothing else tonight', 11, MUTE);
     w.addSpacer(); return w;
   }
   if (view === 'tv') {   /* what's on each TV and PS4 */
-    header(w, j, fam === 'small' ? 10 : 12, 'TVs & PS4s'); w.addSpacer(6);
+    header(w, j, fam === 'small' ? 10 : 12, 'TV & PS4'); w.addSpacer(6);
     for (const r of open) { tvRow(w, r, big); w.addSpacer(big ? 6 : 2); }
     w.addSpacer(); if (fam !== 'small') warnLine(w, j, 10); return w;
   }
 
   /* board (default) */
   if (fam === 'small') {   /* how busy, and the next two things that happen */
-    txt(w, 'ROUND2', 11, ACC, true); w.addSpacer(2);
-    const bg = line(w); bg.bottomAlignContent(); txt(bg, String(c.in), 34, INK, true); txt(bg, ' / ' + c.open + ' in', 13, MUTE);
-    txt(w, c.done + ' done · ' + c.left + ' to come', 11, MUTE); w.addSpacer();
+    const hd = line(w); hd.spacing = 4; plabel(hd, 'ROUND2', ACC, 8); segBar(hd, ACC, 40, 6); w.addSpacer(4);
+    const bg = line(w); bg.bottomAlignContent(); txt(bg, String(c.in), 36, INK, 'big'); txt(bg, ' / ' + c.open + ' in', 13, MUTE, true);
+    plabel(w, c.done + ' DONE · ' + c.left + ' TO COME', MUTE, 6); w.addSpacer();
     const e = j.nextEnd, s = j.nextStart;
-    for (const [lab, x] of [['Out', e], ['In', s]]) if (x) { const l = line(w); l.spacing = 3; txt(l, lab, 11, MUTE); txt(l, x.r, 11, rc(x.r), true); const d = l.addDate(new Date(x.at)); d.applyRelativeStyle(); d.font = fnt(11); d.textColor = INK; }
-    if ((j.warn || []).length) txt(w, '⚠︎ ' + j.warn[0], 10, WARN);
+    for (const [lab, x] of [['out', e], ['in', s]]) if (x) { const l = line(w); l.spacing = 3; ico(l, RICON[x.r], rc(x.r), 11); txt(l, x.r + ' ' + lab, 11, rc(x.r), 'room'); const d = l.addDate(new Date(x.at)); d.applyRelativeStyle(); d.font = fnt(11, 'time'); d.textColor = INK; }
+    if ((j.warn || []).length) it(w, 'warn', WARN, j.warn[0], 10, WARN);
     return w;
   }
   w.setPadding(10, 10, 10, 10);
@@ -212,7 +270,8 @@ async function build() {
     return w;
   }
   header(w, j, 12); w.addSpacer(6);
-  boxGrid(w, open, open.length > 4 ? 96 : 140, true);
+  /* large: the rows share what's left after the header and the warning line */
+  const warnH = (j.warn || []).length ? 30 : 0; boxGrid(w, open, widgetH() - 20 - 24 - warnH - 6 * (Math.ceil(open.length / 2) - 1), true);
   w.addSpacer(); warnLine(w, j, 10.5, 2);
   return w;
 }
