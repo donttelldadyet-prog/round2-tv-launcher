@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.111"
+#define R2_VERSION "1.1.112"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -4582,6 +4582,36 @@ static void wd_note(const char *fmt, ...) {
   fprintf(f, "%02d/%02d %02d:%02d:%02d watchdog: ", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec);
   va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fputc('\n', f); fclose(f);
 }
+/* 1.1.112 (owner 20 Nov 7:06am: "does the helper get busy on something like uploading reading or downloading and get stuck hence
+   unable to respond to network calls or reach the engine?" – yes: check-ins, reports, every job, uploads, save copies, clean slate
+   and wake jobs all run in ONE loop, so while a job runs the PS4 looked switched off). This thread does nothing while the loop
+   checks in normally. Once the loop hasn't checked in for 90 s it tells the engine "on, busy with <step> for N s" (/ps4/alive), at
+   most once a minute, with its own quiet request, and notes it in slow.log. Commands still wait for the loop. */
+static volatile double g_loop_mono; /* last time the loop reached its check-in */
+static char g_alive_key[128];
+static void *alive_thread(void *arg) {
+  (void)arg; double last_sent = 0, last_tick = mono_s(); int told = 0, sends = 0;
+  for (;;) {
+    sleep(20);
+    double now = mono_s();
+    if (now - last_tick > 60) { g_loop_mono = now; told = 0; } /* the PS4 was in rest: that's sleep, not busy */
+    last_tick = now;
+    if (!g_alive_key[0] || !g_loop_mono) continue;
+    double gap = now - g_loop_mono;
+    if (gap < 90) { if (told) wd_note("check-in thread: the loop is free again (%d busy check-ins sent)", sends); told = 0; sends = 0; continue; }
+    if (now - last_sent < 60) continue;
+    last_sent = now;
+    char st[48], hdr[220], req[300], body[200], err[120];
+    snprintf(st, sizeof st, "%s", r2_where_now());
+    for (char *q = st; *q; q++) if (*q == '"' || *q == '\\' || (unsigned char)*q < 32) *q = ' ';
+    snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", g_alive_key);
+    int n = snprintf(req, sizeof req, "{\"id\":\"%s\",\"v\":\"%s\",\"busy\":\"%s\",\"stepS\":%d,\"loopS\":%d}", console_id, R2_VERSION, st, (int)r2_where_age(), (int)gap);
+    int r = r2tls_request_quiet(ENGINE_HOST, "POST", "/ps4/alive", hdr, req, n, body, sizeof body, err, sizeof err);
+    sends++;
+    if (!told) { told = 1; wd_note("busy %d s in '%s' - check-in thread told the engine the PS4 is on (%d%s%s)", (int)gap, st, r, err[0] ? " " : "", err); }
+  }
+  return 0;
+}
 static void *watchdog(void *arg) {
   (void)arg; int cuts = 0, noted = 0; double last = mono_s();
   for (;;) {
@@ -4711,6 +4741,7 @@ int main(void) {
   r2_where_start(R2_VERSION); /* 1.1.26: slow.log gets "the run before was last in: <step>" */
   { pthread_t wt; if (pthread_create(&wt, 0, watchdog, 0) == 0) pthread_detach(wt); else wd_note("could not start"); } /* 1.1.42 */
   { pthread_t bt; if (pthread_create(&bt, 0, bpop_thread, 0) == 0) pthread_detach(bt); } /* 1.1.75 */
+  { pthread_t at; if (pthread_create(&at, 0, alive_thread, 0) == 0) pthread_detach(at); else wd_note("check-in thread could not start"); } /* 1.1.112 */
   bpop("Helper started - connecting to Round2...");
   update_guard();
   { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
@@ -4761,6 +4792,7 @@ int main(void) {
     if (g_awake_engine) { if ((long long)time(0) < g_awake_engine) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } else g_awake_engine = 0; }
     if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); } /* 1.1.33: act on auto-promote here, not only after a look job */
     r2_where("check-in", 1);
+    g_loop_mono = mono_s(); if (key[0] && !g_alive_key[0]) snprintf(g_alive_key, sizeof g_alive_key, "%s", key); /* 1.1.112 */
     { double t = tm_now(); int did = (key[0] || read_key(key, sizeof key)) && check_cmd(key); r2_timing(did ? "check-in + doing a job" : "check-in (nothing to do)", tm_now() - t); /* 1.1.71: split */
       if (!did && m % 3 == 0) bpop_key("hb", "Online - checked in (%.2f s), no jobs. %s%s", tm_now() - t, snap_on ? "Backup running. " : clean_on ? "Copy/clean running. " : "", g_awake_until > (long long)time(0) ? "Staying awake." : "");
       if (did) { report(key, status, sizeof status); write_status(status); } }

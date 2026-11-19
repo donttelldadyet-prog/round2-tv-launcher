@@ -61,7 +61,7 @@ static mbedtls_ssl_session r2_sess; static int r2_sess_ok; static char r2_sess_h
 volatile int r2tls_fd = -1;
 static double r2_mono(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 #define R2_SEND_S 20
-static int r2_connect(mbedtls_net_context *net, const char *host, const char *port) {
+static int r2_connect(mbedtls_net_context *net, const char *host, const char *port, int quiet) { /* 1.1.112: quiet = the check-in thread – leaves the main loop's step label alone */
   /* 1.1.16: remember the last good address of each host in /data/round2/addr-<host>.txt and use it when the name can't be
      looked up or comes back blocked (0.0.0.0) – so a bad blocker setting can't cut the helper off from the engine.
      1.1.26: the lookup itself is r2dns_lookup (our own question to the DNS servers, a few seconds at most) – getaddrinfo
@@ -70,11 +70,11 @@ static int r2_connect(mbedtls_net_context *net, const char *host, const char *po
   snprintf(cpath, sizeof cpath, "/data/round2/addr-%s.txt", host);
   for (char *c = cpath + 18; *c; c++) if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '.' || *c == '-' || *c == '/')) *c = '_';
   { FILE *cf = fopen(cpath, "r"); if (cf) { if (!fgets(cached, sizeof cached, cf)) cached[0] = 0; fclose(cf); cached[strcspn(cached, "\r\n")] = 0; } }
-  r2_where("lookup", 1);
+  if (!quiet) r2_where("lookup", 1);
   if (r2dns_lookup(host, found, sizeof found)) found[0] = 0;
   if (!found[0] && !cached[0]) return MBEDTLS_ERR_NET_UNKNOWN_HOST;
   int ret = MBEDTLS_ERR_NET_CONNECT_FAILED;
-  r2_where("connect", 1);
+  if (!quiet) r2_where("connect", 1);
   for (int k = 0; k < 2; k++) {
     const char *ip = k == 0 ? found : cached;
     if (!ip[0] || (k == 1 && !strcmp(found, cached))) continue;
@@ -105,8 +105,11 @@ static int r2_connect(mbedtls_net_context *net, const char *host, const char *po
   return ret;
 }
 
+/* 1.1.112 (owner 20 Nov 7:06am: "does the helper get busy … and get stuck hence unable to respond … or reach the engine?" – yes, it
+   is one loop): quiet = a request from the separate check-in thread while the loop is busy. It must not touch what the loop's
+   own request uses: the step label (watchdog + slow.log), the socket the watchdog may cut, the remembered TLS session, timings. */
 static int tls_go(const char *host, const char *method, const char *path, const char *headers, const char *body,
-                  size_t blen, char **rbuf, size_t *rlen, size_t max, char *err, size_t errlen) {
+                  size_t blen, char **rbuf, size_t *rlen, size_t max, char *err, size_t errlen, int quiet) {
   int ret, status = -1, offered = 0, hs_ok = 0;
   mbedtls_net_context net;
   mbedtls_ssl_context ssl;
@@ -131,10 +134,10 @@ static int tls_go(const char *host, const char *method, const char *path, const 
 
   double tg0 = r2_mono();
   if ((ret = mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &ent, (const unsigned char *)"round2", 6))) goto fail;
-  r2_timing("tls: rng seed", r2_mono() - tg0);
+  if (!quiet) r2_timing("tls: rng seed", r2_mono() - tg0);
   double tc0 = r2_mono();
-  if ((ret = r2_connect(&net, host, "443"))) goto fail;
-  r2_timing("tls: dns+connect", r2_mono() - tc0);
+  if ((ret = r2_connect(&net, host, "443", quiet))) goto fail;
+  if (!quiet) r2_timing("tls: dns+connect", r2_mono() - tc0);
   if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
                                          MBEDTLS_SSL_PRESET_DEFAULT))) goto fail;
   mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_REQUIRED);
@@ -143,10 +146,9 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   mbedtls_ssl_conf_read_timeout(&conf, 15000);
   if ((ret = mbedtls_ssl_setup(&ssl, &conf))) goto fail;
   if ((ret = mbedtls_ssl_set_hostname(&ssl, host))) goto fail;
-  if (r2_sess_ok && !strcmp(r2_sess_host, host) && !mbedtls_ssl_set_session(&ssl, &r2_sess)) offered = 1;
+  if (!quiet && r2_sess_ok && !strcmp(r2_sess_host, host) && !mbedtls_ssl_set_session(&ssl, &r2_sess)) offered = 1;
   mbedtls_ssl_set_bio(&ssl, &net, mbedtls_net_send, NULL, mbedtls_net_recv_timeout);
-  r2_where("handshake", 1);
-  r2tls_fd = net.fd;
+  if (!quiet) { r2_where("handshake", 1); r2tls_fd = net.fd; }
   double hs0 = r2_mono();
   int hs_done = 0;
   while ((ret = mbedtls_ssl_handshake(&ssl))) {
@@ -164,8 +166,8 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   }
 
   hs_ok = 1;
-  if (!hs_done) { hs_done = 1; r2_timing(offered ? "tls: handshake (session offered)" : "tls: handshake (full)", r2_mono() - hs0); }
-  { if (r2_sess_ok) mbedtls_ssl_session_free(&r2_sess); mbedtls_ssl_session_init(&r2_sess);
+  if (!hs_done && !quiet) { hs_done = 1; r2_timing(offered ? "tls: handshake (session offered)" : "tls: handshake (full)", r2_mono() - hs0); }
+  if (!quiet) { if (r2_sess_ok) mbedtls_ssl_session_free(&r2_sess); mbedtls_ssl_session_init(&r2_sess);
     r2_sess_ok = !mbedtls_ssl_get_session(&ssl, &r2_sess); if (r2_sess_ok) snprintf(r2_sess_host, sizeof r2_sess_host, "%s", host); }
   double rq0 = r2_mono();
   {
@@ -174,7 +176,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
                      "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: Round2PS4\r\nConnection: close\r\n%s"
                      "Content-Length: %zu\r\n\r\n",
                      method, path, host, headers ? headers : "", body ? blen : 0);
-    r2_where("send", 1);
+    if (!quiet) r2_where("send", 1);
     if ((ret = mbedtls_ssl_write(&ssl, (const unsigned char *)req, n)) < 0) goto fail;
     size_t sent = 0;
     while (body && sent < blen) {
@@ -189,7 +191,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
     char *resp = malloc(cap + 1);
     static unsigned char scratch[16384];
     r2tls_last_bytes = 0;
-    r2_where("read", 1);
+    if (!quiet) r2_where("read", 1);
     double lastp = r2_mono();
     for (;;) {
       if (resp && got == cap && cap < max) { size_t nc = cap * 2 > max ? max : cap * 2; char *x = realloc(resp, nc + 1); if (x) { resp = x; cap = nc; } }
@@ -210,8 +212,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
     *rbuf = resp;
     *rlen = got;
   }
-  r2_timing("tls: send+answer", r2_mono() - rq0);
-  r2_timing("tls: whole request", r2_mono() - tg0);
+  if (!quiet) { r2_timing("tls: send+answer", r2_mono() - rq0); r2_timing("tls: whole request", r2_mono() - tg0); }
   goto done;
 
 fail:
@@ -222,7 +223,7 @@ fail:
   }
 done:
   if (offered && !hs_ok) r2_sess_ok = 0; /* 1.1.71: a session that failed is not offered again */
-  r2tls_fd = -1;
+  if (!quiet) r2tls_fd = -1;
   mbedtls_ssl_close_notify(&ssl);
   mbedtls_net_free(&net);
   mbedtls_ssl_free(&ssl);
@@ -233,13 +234,22 @@ done:
 }
 
 
+/* 1.1.112: the same, for the check-in thread – no step label, no watchdog socket, no shared session, no net-fail note */
+int r2tls_request_quiet(const char *host, const char *method, const char *path, const char *headers, const char *body,
+                        size_t blen, char *out, size_t outlen, char *err, size_t errlen) {
+  char *r = 0; size_t n = 0;
+  if (out && outlen) out[0] = 0;
+  int st = tls_go(host, method, path, headers, body, blen, &r, &n, 16384, err, errlen, 1);
+  if (r) { char *b = strstr(r, "\r\n\r\n"); if (out && outlen) snprintf(out, outlen, "%s", b ? b + 4 : r); free(r); }
+  return st;
+}
 /* text replies (small): body copied into out as a string */
 int r2tls_request(const char *host, const char *method, const char *path, const char *headers, const char *body,
                   size_t blen, char *out, size_t outlen, char *err, size_t errlen) {
   char *r = 0;
   size_t n = 0;
   if (out && outlen) out[0] = 0;
-  int st = tls_go(host, method, path, headers, body, blen, &r, &n, 65536, err, errlen);
+  int st = tls_go(host, method, path, headers, body, blen, &r, &n, 65536, err, errlen, 0);
   r2_netnote(path, st, err);
   if (r) {
     char *b = strstr(r, "\r\n\r\n");
@@ -269,7 +279,7 @@ int r2tls_fetch(const char *host, const char *method, const char *path, const ch
   size_t n = 0;
   *data = 0;
   *len = 0;
-  int st = tls_go(host, method, path, headers, body, blen, &r, &n, max + 65536, err, errlen);
+  int st = tls_go(host, method, path, headers, body, blen, &r, &n, max + 65536, err, errlen, 0);
   if (!r) return st;
   char *b = 0;
   for (size_t i = 0; i + 3 < n; i++) if (!memcmp(r + i, "\r\n\r\n", 4)) { b = r + i + 4; break; }

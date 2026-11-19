@@ -7,6 +7,9 @@ int r2tls_request(const char *host, const char *method, const char *path, const 
 /* Binary download: *data = malloc'd body (chunked replies decoded), *len = its size, at most max bytes. Caller frees. */
 int r2tls_fetch(const char *host, const char *method, const char *path, const char *headers, const char *body, size_t blen,
                 unsigned char **data, size_t *len, size_t max, char *err, size_t errlen);
+/* 1.1.112: same as r2tls_request, for the separate check-in thread (leaves the loop's step label / watchdog socket / session alone) */
+int r2tls_request_quiet(const char *host, const char *method, const char *path, const char *headers, const char *body,
+                        size_t blen, char *out, size_t outlen, char *err, size_t errlen);
 int atoi_safe(const char *s);
 extern unsigned long long r2tls_last_bytes; /* bytes received by the last request */
 /* 1.1.26: name lookup with a time limit (tls/r2dns.c) + notes on which step the helper is in */
