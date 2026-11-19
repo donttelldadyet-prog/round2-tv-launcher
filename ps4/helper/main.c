@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.77"
+#define R2_VERSION "1.1.78"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -79,6 +79,7 @@ static int snap_covered(const char *u, const char *t, const char *nm, long long 
 static int clean_status(char *st, int *done, int *total, int *fails, int *parts);
 static long long snap_hb;
 static int snap_status(char *lab, char *stamp, char *st, int *done, int *total, int *fails, long long *by);
+static char *read_all(const char *p, size_t *n, size_t max);
 static void write_status(const char *line);      /* unix seconds; 0 = no hold */
 static unsigned char *sv_buf;        /* the save buffer */
 #define SV_PIECE (1u << 20)
@@ -1315,61 +1316,68 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { look_kv("restore/error", "no memory"); free(mt); return -1; } sv_buf = b; }
   char prepbase[256]; snprintf(prepbase, sizeof prepbase, "/data/round2/prep/%s/%s/%s", u, t, nm); mkdirs_for(prepbase);
   sv_log("restore start: cloud %s -> prep %s -> slot user %s game %s save %s", src, prepbase, u, t, nm);
-  int ok = sv_open(u, t, nm, 0, v, sizeof v), files = 0, fail = 0, skipped = 0;
+  /* 1.1.78 (owner 19 Nov 5:25pm: "what if the internet drops?"): TWO PHASES. 1) every file is downloaded to the PS4's own
+     storage (prep) and checked complete - the save is not touched yet, so a drop here leaves the profile exactly as it was.
+     2) only when ALL files are here: open the save, clear its old files, copy everything in (local, seconds). Before 1.1.78
+     the save was cleared first and filled file by file, so a drop halfway left a broken save. */
+  int ok = -1, files = 0, fail = 0, skipped = 0, nl = 0;
   unsigned long long bytes = 0; int wiped = 0;
-  if (ok == 0) {
-    wiped = sv_wipe_data(SV_MNT, ""); /* 1.1.35: clear the receiving save's old game files (keep sce_sys) so this replaces, not merges */
-    sv_log("restore cleared %d old file(s) from receiving save (kept sce_sys)", wiped);
-    for (char *ln = mt, *nx; ln && *ln; ln = nx) {
-      nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
-      char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0;
-      char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
-      unsigned long long sz = strtoull(t1, 0, 10); int pieces = atoi_safe(t2);
-      if (!strncmp(ln, "sce_sys/", 8) || strstr(ln, "..")) { skipped++; continue; } /* the receiving save keeps its own labels */
-      char out[512], tmp[520], k[700];
-      /* 1.1.7: download the whole file to the PS4's own storage first (the save has no room for a 2nd copy – 32 MB GT Sport
-         memory.dat failed at 3 MB), check it's complete, only then write it into the save in one go. */
-      snprintf(out, sizeof out, "%s/%s", SV_MNT, ln); snprintf(tmp, sizeof tmp, "%s/%s", prepbase, ln);
-      mkdirs_for(out); mkdirs_for(tmp);
-      int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0;
-      char why[160] = "";
-      if (bad) snprintf(why, sizeof why, "%s: can't create (errno %d)", ln, errno);
-      unsigned long long got = 0; double tdl0 = tm_now();
-      for (int pi = 0; !bad && pi < pieces; pi++) {
-        unsigned char *d = 0; size_t dl = 0;
-        char gw[130] = "";
-        snprintf(k, sizeof k, "%s/f/%s~%d", src, ln, pi);
-        if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { bad = 1; free(d); snprintf(why, sizeof why, "%s piece %d: %s", ln, pi, gw); break; }
-        ssize_t wr = write(fd, d, dl);
-        if (wr != (ssize_t)dl) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", ln, pi, wr, dl, errno); }
-        got += dl; free(d);
-      }
-      if (fd >= 0) { fsync(fd); close(fd); }
-      g_t_dl += tm_now() - tdl0; g_b_dl += got;
-      if (!bad && got != sz) { bad = 1; snprintf(why, sizeof why, "%s: got %llu of %llu bytes", ln, got, sz); }
-      if (bad) { unlink(tmp); fail++; sv_log("restore stage fail %s: %s", ln, why); if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); continue; }
-      double twr0 = tm_now();
-      { /* copy the complete staged file into the save */
-        int in = open(tmp, O_RDONLY), of = in >= 0 ? open(out, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
-        unsigned long long cp = 0; int cbad = in < 0 || of < 0, cerr = cbad ? errno : 0;
-        while (!cbad) { ssize_t x = read(in, sv_buf, SV_PIECE); if (x < 0) { cbad = 1; cerr = errno; break; } if (x == 0) break;
-          if (write(of, sv_buf, (size_t)x) != x) { cbad = 1; cerr = errno; break; } cp += (unsigned long long)x; }
-        if (of >= 0) { fsync(of); close(of); }
-        if (in >= 0) close(in);
-        if (cbad || cp != sz) { if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s: copy into save %llu of %llu (errno %d)", ln, cp, sz, cerr); sv_log("restore copy-into-save fail %s: %llu of %llu (errno %d)", ln, cp, sz, cerr); fail++; continue; } /* prep copy kept on /data/round2/prep */
-      }
-      g_t_wr += tm_now() - twr0;
-      files++; bytes += sz;
+  for (char *q = mt; *q; q++) if (*q == '\n') nl++;
+  char *mt0 = strdup(mt); /* the manifest as downloaded (mt is cut up below) */
+  char **fn = calloc((size_t)nl + 1, sizeof *fn); unsigned long long *fsz = calloc((size_t)nl + 1, sizeof *fsz); int nf = 0;
+  if (!fn || !fsz) { free(fn); free(fsz); free(mt); free(mt0); sv_rights_back(); look_kv("restore/error", "no memory"); return -1; }
+  for (char *ln = mt, *nx; ln && *ln; ln = nx) { /* phase 1: download */
+    nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
+    char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0;
+    char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
+    unsigned long long sz = strtoull(t1, 0, 10); int pieces = atoi_safe(t2);
+    if (!strncmp(ln, "sce_sys/", 8) || strstr(ln, "..")) { skipped++; continue; } /* the receiving save keeps its own labels */
+    char tmp[520], k[700]; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, ln); mkdirs_for(tmp);
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0; char why[160] = "";
+    if (bad) snprintf(why, sizeof why, "%s: can't create (errno %d)", ln, errno);
+    unsigned long long got = 0; double tdl0 = tm_now();
+    for (int pi = 0; !bad && pi < pieces; pi++) {
+      unsigned char *d = 0; size_t dl = 0; char gw[130] = "";
+      snprintf(k, sizeof k, "%s/f/%s~%d", src, ln, pi);
+      if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { bad = 1; free(d); snprintf(why, sizeof why, "%s piece %d: %s", ln, pi, gw); break; }
+      ssize_t wr = write(fd, d, dl);
+      if (wr != (ssize_t)dl) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", ln, pi, wr, dl, errno); }
+      got += dl; free(d);
     }
+    if (fd >= 0) { fsync(fd); close(fd); }
+    g_t_dl += tm_now() - tdl0; g_b_dl += got;
+    if (!bad && got != sz) { bad = 1; snprintf(why, sizeof why, "%s: got %llu of %llu bytes", ln, got, sz); }
+    if (bad) { unlink(tmp); fail++; sv_log("restore download fail %s: %s", ln, why); if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); break; }
+    fn[nf] = ln; fsz[nf] = sz; nf++;
+  }
+  if (fail) sv_log("restore: download incomplete for user %s game %s save %s - the save was NOT touched (%s)", u, t, nm, first_err);
+  else ok = sv_open(u, t, nm, 0, v, sizeof v);
+  if (!fail && ok == 0) { /* phase 2: everything is here - into the save */
+    double twr0 = tm_now();
+    wiped = sv_wipe_data(SV_MNT, ""); /* 1.1.35: clear the receiving save's old game files (keep sce_sys) so this replaces, not merges */
+    sv_log("restore: all %d file(s) downloaded and checked - cleared %d old file(s) from the receiving save (kept sce_sys)", nf, wiped);
+    for (int i = 0; i < nf; i++) {
+      char out[512], tmp[520]; snprintf(out, sizeof out, "%s/%s", SV_MNT, fn[i]); snprintf(tmp, sizeof tmp, "%s/%s", prepbase, fn[i]); mkdirs_for(out);
+      int in = open(tmp, O_RDONLY), of = in >= 0 ? open(out, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
+      unsigned long long cp = 0; int cbad = in < 0 || of < 0, cerr = cbad ? errno : 0;
+      while (!cbad) { ssize_t x = read(in, sv_buf, SV_PIECE); if (x < 0) { cbad = 1; cerr = errno; break; } if (x == 0) break;
+        if (write(of, sv_buf, (size_t)x) != x) { cbad = 1; cerr = errno; break; } cp += (unsigned long long)x; }
+      if (of >= 0) { fsync(of); close(of); }
+      if (in >= 0) close(in);
+      if (cbad || cp != fsz[i]) { if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s: copy into save %llu of %llu (errno %d)", fn[i], cp, fsz[i], cerr); sv_log("restore copy-into-save fail %s: %llu of %llu (errno %d)", fn[i], cp, fsz[i], cerr); fail++; continue; }
+      files++; bytes += fsz[i];
+    }
+    g_t_wr += tm_now() - twr0;
     int cr = sv_close();
-    { FILE *cf = fopen("/dev/null","r"); (void)cf; char pmf[300]; snprintf(pmf,sizeof pmf,"%s/manifest.txt",prepbase); FILE *pf=fopen(pmf,"w"); if(pf){ if(mt) fputs(mt,pf); fclose(pf);} char cfp[300]; snprintf(cfp,sizeof cfp,"%s/cloud.txt",prepbase); FILE *c3=fopen(cfp,"w"); if(c3){ fprintf(c3,"%s\n",src); fclose(c3);} }
+    { FILE *cf = fopen("/dev/null","r"); (void)cf; char pmf[300]; snprintf(pmf,sizeof pmf,"%s/manifest.txt",prepbase); FILE *pf=fopen(pmf,"w"); if(pf){ if(mt0) fputs(mt0,pf); fclose(pf);} char cfp[300]; snprintf(cfp,sizeof cfp,"%s/cloud.txt",prepbase); FILE *c3=fopen(cfp,"w"); if(c3){ fprintf(c3,"%s\n",src); fclose(c3);} }
     sv_log("restore done: user %s game %s save %s: %d files, %llu bytes, %d failed, %d kept, %d cleared%s%s", u, t, nm, files, bytes, fail, skipped, wiped, first_err[0]?", first problem: ":"", first_err);
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, %d kept (sce_sys), %d cleared, closed %d", files, bytes, fail, skipped, wiped, cr);
     { char kk[80]; snprintf(kk, sizeof kk, "restore/%s/result", nm); look_kv(kk, v); if (first_err[0]) { snprintf(kk, sizeof kk, "restore/%s/first-problem", nm); look_kv(kk, first_err); } }
     ok = fail ? -1 : 0;
-  } else { look_kv("restore/error", v); sv_log("restore FAILED to open: user %s game %s save %s: %s", u, t, nm, v); }
+  } else if (fail) { ok = -1; look_kv("restore/error", "download incomplete - the save was not touched"); if (first_err[0]) look_kv("restore/first-problem", first_err); }
+  else { look_kv("restore/error", v); sv_log("restore FAILED to open: user %s game %s save %s: %s", u, t, nm, v); }
   sv_rights_back();
-  free(mt);
+  free(mt); free(mt0); free(fn); free(fsz);
   return ok;
 }
 /* ---- 1.1.39 (owner 17 Nov "yes": when a member's game moves in, leftover parts from earlier players are backed up, then
@@ -2122,7 +2130,14 @@ static int lc_walk(const char *src, const char *dst, const char *rel, FILE *man,
 static int sv_local_copy(const char *u, const char *t, const char *nm, int *nf, unsigned long long *nb, char *why, size_t wn) {
   char dst[260], rv[200]; snprintf(dst, sizeof dst, "/data/round2/prep/%s/%s/%s", u, t, nm);
   if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { snprintf(why, wn, "no memory"); return -1; } sv_buf = b; }
+  /* 1.1.78 (owner 19 Nov 5:30pm: "unchanged files don't upload?"): keep the cloud batch's notes (uploaded.txt = the manifest
+     last sent, cloud.txt = where) when the copy is redone - wiping them made every unchanged save look new (Kaeden: 16 parts
+     sent again after a clean slate). */
+  size_t ul = 0, cl2 = 0; char up_p[300], cl_p[300]; snprintf(up_p, sizeof up_p, "%s/uploaded.txt", dst); snprintf(cl_p, sizeof cl_p, "%s/cloud.txt", dst);
+  char *upk = read_all(up_p, &ul, 256 * 1024), *clk = read_all(cl_p, &cl2, 4096);
   sv_wipe_data(dst, "x"); char mk[300]; snprintf(mk, sizeof mk, "%s/x", dst); mkdirs_for(mk);
+  if (upk) { FILE *f = fopen(up_p, "w"); if (f) { fwrite(upk, 1, ul, f); fclose(f); } free(upk); }
+  if (clk) { FILE *f = fopen(cl_p, "w"); if (f) { fwrite(clk, 1, cl2, f); fclose(f); } free(clk); }
   sv_rights_up(rv, sizeof rv);
   if (sv_open(u, t, nm, 1, why, wn)) { sv_rights_back(); return -1; }
   char mp[300]; snprintf(mp, sizeof mp, "%s/manifest.txt", dst); FILE *man = fopen(mp, "w");
@@ -2318,10 +2333,22 @@ static void reset_profiles(char *out, size_t on) {
   snprintf(out, on, "%d spares%s, %d renamed, %d deleted, order %s", keep, ns < 4 ? " SHORT" : "", ren, del, ord); /* 1.1.54: short - the report keeps 150 chars a line */
   sv_log("reset profiles: %s (%d problem(s))", out, bad);
 }
+/* 1.1.78 (owner 19 Nov 5:30pm: "can a clean slate disconnect controllers after it is done, so profiles refresh?"): after a
+   clean slate / reset / purge, every signed-in profile is signed out and the room's main profile signed back in, so the PS4
+   reloads each profile's save list fresh and whoever picks up a controller chooses a profile again. */
+static void refresh_profiles(void) {
+  UserIdList l; memset(&l, 0, sizeof l); uint32_t mainu = r2_main_user(); int out = 0;
+  if (!sceUserServiceGetLoginUserIdList(&l)) for (int i = 0; i < 4; i++) if (l.userId[i] != -1 && l.userId[i] != 0) { sceUserServiceLogout(l.userId[i]); out++; }
+  sleep(3);
+  int r = mainu ? sceUserServiceLogin((int32_t)mainu) : -1;
+  sv_log("profiles refreshed: %d signed out, main profile %08x signed back in (result 0x%08x)", out, mainu, (unsigned)r);
+  bpop("Profiles refreshed: %d signed out, main profile signed back in", out);
+}
 static void clean_finish(int done, int fails, int parts) {
   char rn[120] = "", kind[16] = "clean", lab[48] = "-", pr[200] = "", cb[48], t0s[24], t1s[24]; long long t0 = 0, cp = 0, cby = 0;
   cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kind, &t0, lab);
   if (!strcmp(kind, "reset")) { reset_profiles(pr, sizeof pr); cl_wr("profiles", "%s\n", pr); }
+  if (!strcmp(kind, "reset") || !strcmp(kind, "clean") || !strcmp(kind, "purge")) refresh_profiles(); /* 1.1.78 */
   cl_rd("copied", cb, sizeof cb); sscanf(cb, "%lld %lld", &cp, &cby);
   char eb[16]; cl_rd("errn", eb, sizeof eb); int en = atoi(eb);
   cl_stamp(t0s, sizeof t0s, t0 ? t0 : (long long)time(0)); cl_stamp(t1s, sizeof t1s, (long long)time(0));
@@ -2827,7 +2854,8 @@ static void clean_step(const char *key, int budget) {
         char stp[24] = "", ms[300], tb[48] = ""; sscanf(rm + 8, "%23s", stp);
         snprintf(ms, sizeof ms, "/_gmove.%s.%s.%s/%s/%s/_game/%s", u, t, console_id, u, t, stp);
         double d0 = g_t_dl, w0 = g_t_wr, b0 = g_t_bk, k0 = g_t_mk, g0 = tm_now(); unsigned long long by0 = g_b_dl;
-        look_mute = 1; int r = look_gmove(key, ms); look_mute = 0;
+        look_mute = 1; look_last[0] = 0; int r = look_gmove(key, ms); look_mute = 0;
+        if (r) { sv_log("restore test: user %s game %s NOT restored - %s", u, t, look_last[0] ? look_last : "see save.log"); cl_err("%s game %s not restored: %s", u, t, look_last[0] ? look_last : "?"); }
         double gt = tm_now() - g0;
         double tot = 0; cl_rd("rtime", tb, sizeof tb); tot = atof(tb) + gt; cl_wr("rtime", "%.1f\n", tot);
         if (r) fails++;
