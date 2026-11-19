@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.100"
+#define R2_VERSION "1.1.101"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -594,6 +594,9 @@ static int report(const char *key, char *status, size_t slen) {
   if (g_awake_engine) jadd(",\"awakeBook\":%lld", g_awake_engine - (long long)time(0));
   { char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; if (clean_status(cst, &cd, &ct, &cf, &cp)) { char rk[64] = ""; FILE *rf = fopen("/data/round2/clean/run", "r"); if (rf) { if (!fgets(rk, sizeof rk, rf)) rk[0] = 0; fclose(rf); } rk[strcspn(rk, " \n")] = 0;
     jadd(",\"clean\":{\"kind\":"); jstr(rk[0] ? rk : "clean"); jadd(",\"state\":"); jstr(cst); jadd(",\"done\":%d,\"total\":%d,\"fails\":%d,\"parts\":%d}", cd, ct, cf, cp); } }
+  { int left = 0, of = 0; char b[600] = "", nm[48] = ""; FILE *f = fopen("/data/round2/memq", "r"); if (f) { size_t n = fread(b, 1, sizeof b - 1, f); b[n] = 0; fclose(f); for (char *p = b; *p; p++) if (*p == '\n') left++; }
+    f = fopen("/data/round2/memqn", "r"); if (f) { if (fscanf(f, "%d %47s", &of, nm) < 1) of = 0; fclose(f); } for (char *c = nm; *c; c++) if (*c == '_') *c = ' ';
+    if (of > 0) { jadd(",\"memq\":{\"left\":%d,\"of\":%d,\"now\":", left, of); jstr(nm); jadd("}"); } } /* 1.1.101: players still waiting in a member load */
   cloud_report(); /* 1.1.52 */
   if (cd_on) { jadd(",\"countdown\":{\"left\":%lld,\"lab\":", cd_deadline - (long long)time(0)); jstr(cd_lab); jadd(",\"ok\":%d,\"input\":%d,\"play\":%lld}", cd_ok, cd_input, cd_play_from ? (long long)time(0) - cd_play_from : 0LL); } /* 1.1.55/56 */
   { char lab[24] = "", stp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
@@ -2482,6 +2485,22 @@ static void look_memload(const char *key, const char *spec) {
    yet gets the link + the name only (/_memtag). While a clean slate runs it answers "waits" – the engine tries again. Result
    keys memplay/loading | memplay/ready | memplay/waits | memplay/refused, value "<profile> <text>". */
 static int av_apply(const char *key, uint32_t uid, const char *id, const char *sl);
+/* 1.1.101 (owner 20 Nov 3:03am: "i logged in and the profile wasn't in order"): the profile screen lists the most recently signed-in
+   profile first (setting 0x0900, see /_uorder). The room's order is main, then Player 1-4 (spares by id) – put back after every
+   member load and checked once a minute (only re-dealt when it's out of order; logged). */
+static void keep_order(int force) {
+  (void)force;
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  uint32_t mainu = r2_main_user(), sp[16]; int ns = 0; if (!mainu) return;
+  for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
+  for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
+  if (ns > 4) ns = 4; if (!ns) return;
+  int ok = 1, prev, v = 0; long b = prof_slot_base(mainu); if (!b || sceRegMgrGetInt(b + 0x900, &v)) return; prev = v;
+  for (int i = 0; i < ns && ok; i++) { long bb = prof_slot_base(sp[i]); int vv = 0; if (!bb || sceRegMgrGetInt(bb + 0x900, &vv)) return; if (vv >= prev) ok = 0; prev = vv; }
+  if (ok) return;
+  char spec[200]; int n = snprintf(spec, sizeof spec, "/_uorder.%08x", mainu); for (int i = 0; i < ns; i++) n += snprintf(spec + n, sizeof spec - n, "-%08x", sp[i]);
+  int m0 = look_mute; look_mute = 1; look_last[0] = 0; look_uorder(spec); look_mute = m0; sv_log("profile order put back (main, Player 1-%d): %s", ns, look_last);
+}
 static void memplay_one(const char *key, const char *spec, int allow_main) {
   char id[32] = "", sl[16] = "", nm[40] = "", st[16] = "", want[64], v[200], ms[200];
   char pos[4] = "";
@@ -2585,9 +2604,10 @@ static void memplay_next(const char *key) {
   if (nl) { *nl = 0; snprintf(ln, sizeof ln, "%s", b); put_file(MEMQ, nl + 1); if (!nl[1]) unlink(MEMQ); } else { snprintf(ln, sizeof ln, "%s", b); unlink(MEMQ); }
   char id[32], sl[16], nm[40], ps[4] = "", spec[160]; if (sscanf(ln, "%31s %15s %39s %3s", id, sl, nm, ps) < 3) return;
   snprintf(spec, sizeof spec, "/_memplay.%s.%s.%s%s%s", id, sl, nm, ps[0] ? "." : "", ps);
+  { int of = 0; char x[48]; FILE *qf = fopen("/data/round2/memqn", "r"); if (qf) { if (fscanf(qf, "%d %47s", &of, x) < 1) of = 0; fclose(qf); } qf = fopen("/data/round2/memqn", "w"); if (qf) { fprintf(qf, "%d %s\n", of, nm); fclose(qf); } }
   int m0 = look_mute; look_mute = 1; look_last[0] = 0; memplay_one(key, spec, 0); look_mute = m0;
   sv_log("member play queue: %s %s -> %s", id, sl, look_last);
-  if (!strncmp(look_last, "memplay/ready", 13) || !strncmp(look_last, "memplay/refused", 15) || !strncmp(look_last, "memplay/error", 13)) memplay_next(key); /* nothing started - go on */
+  if (!strncmp(look_last, "memplay/ready", 13) || !strncmp(look_last, "memplay/refused", 15) || !strncmp(look_last, "memplay/error", 13)) { if (file_exists(MEMQ)) memplay_next(key); else { unlink("/data/round2/memqn"); keep_order(1); } } /* nothing started - go on */
 }
 static void look_memplay(const char *key, const char *spec) {
   char buf[200], *tok[12]; int nt = 0; snprintf(buf, sizeof buf, "%s", spec + 10);
@@ -2608,6 +2628,7 @@ static void look_memplay(const char *key, const char *spec) {
       if (i < 0) snprintf(tv, sizeof tv, "%s/main", tok[0]); else if (used[i][0]) snprintf(tv, sizeof tv, "%s/%s", tok[0], used[i]); else snprintf(tv, sizeof tv, "%s/x%d", tok[0], i + 1);
       snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", pu); put_file(op, tv); sv_log("member link: profile %08x -> %s", pu, tv); } }
   unlink(MEMQ);
+  { FILE *qf = fopen("/data/round2/memqn", "w"); if (qf) { fprintf(qf, "%d %s\n", np, tok[2]); fclose(qf); } } /* 1.1.101 */
   if (np > 1) { FILE *f = fopen(MEMQ, "w"); if (f) { for (int i = 1; i < np; i++) fprintf(f, "%s %s %s %s\n", tok[0], tok[1 + 2 * i], tok[2 + 2 * i], posv[i]); fclose(f); } }
   char one[160]; snprintf(one, sizeof one, "/_memplay.%s.%s.%s.%s", tok[0], tok[1], tok[2], posv[0]);
   memplay_one(key, one, 1);
@@ -3334,6 +3355,7 @@ static void clean_step(const char *key, int budget) {
     if (copyonly) sv_log("copy only: user %s game %s: internal copy %s (nothing removed)", u, t, br ? "FAILED" : "ok");
     else sv_log("clean slate: user %s game %s: internal copy %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
     cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
+    { static long long lr; char rk2[16] = ""; cl_rd("run", rk2, sizeof rk2); if (!strncmp(rk2, "prep", 4) && time(0) - lr >= 4) { char s3[400]; lr = time(0); report(key, s3, sizeof s3); } } /* 1.1.101: the tile's bar follows each game */
     bpop_key("clprog", "%s: %d of %d games done, %d failed", copyonly ? "Internal copy" : "Clean slate", done, total, fails); /* 1.1.76 */
   }
   fclose(td);
@@ -3343,6 +3365,8 @@ static void clean_step(const char *key, int budget) {
       if (!strcmp(kd, "prep")) { for (char *c = lb; *c; c++) if (*c == '_') *c = ' ';
         sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "Member %s is READY: %d games loaded, %d failed, in %.0f s", lb, done - fails, fails, atof(tb)); }
       if (!strcmp(kd, "prep") && file_exists(MEMQ)) memplay_next(key); /* 1.1.94: next ticked player */
+      if (!strcmp(kd, "prep") && !file_exists(MEMQ)) { unlink("/data/round2/memqn"); keep_order(1); } /* 1.1.101: batch finished – profiles back in order */
+      if (!strcmp(kd, "prep")) { char s4[400]; report(key, s4, sizeof s4); } /* tell the tile at once (next player started, or all ready) */
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
       bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } } }
   if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
@@ -4538,6 +4562,7 @@ int main(void) {
       if (!did && m % 3 == 0) bpop_key("hb", "Online - checked in (%.2f s), no jobs. %s%s", tm_now() - t, snap_on ? "Backup running. " : clean_on ? "Copy/clean running. " : "", g_awake_until > (long long)time(0) ? "Staying awake." : "");
       if (did) { report(key, status, sizeof status); write_status(status); } }
     if (key[0] && (m == 2 || (m && m % 30 == 0))) { r2_where("tile", 1); tile_check(key, 0); } /* 1.1.87: Round2 tile updates */
+    if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
     else if (key[0] && file_exists(PREPD "/cloud_on")) { r2_where("cloud", 1); cloud_step(key, 20); } /* 1.1.52: background cloud batch, off by default */

@@ -1,4 +1,6 @@
-/* 0.06 (owner 20 Nov 2:33am: "can the ps4 tile when launched also show a similar theme, also needs loading bars or something
+/* 0.07 (owner 20 Nov 3:03am): no character picture (names went behind the QR code) – text column 130-1070, QR card on the
+   right at 1250; the title wraps; the bar label says which player is loading ("player 2 of 3").
+   0.06 (owner 20 Nov 2:33am: "can the ps4 tile when launched also show a similar theme, also needs loading bars or something
    responsive to have feedback to guests"): the room's colour + character (like the member page and the TV home screen), a glow, a
    moving progress bar (n of m games, or a sliding bar while it waits), animated dots and a pulsing frame round the QR code.
    The screen is composed once into BASE when something changes; each frame copies it and draws only the moving parts.
@@ -38,7 +40,7 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.06"
+#define TILE_V "0.07"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
 std::stringstream debugLogStream;
@@ -50,7 +52,7 @@ static Color BG = { 6, 5, 10 }, CARD = { 20, 17, 31 }, INK = { 244, 241, 251 }, 
 static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
 static char g_title[80] = "", g_room[32] = "", g_url[200] = "", g_line[200] = "Connecting to Round2...", g_line2[200] = "", g_status[24] = "wait", g_err[64] = "";
 static volatile int g_dirty = 2;
-static char g_color[8] = "", g_rname[32] = "", g_done[12] = "", g_total[12] = "";   /* 0.06 */
+static char g_color[8] = "", g_rname[32] = "", g_done[12] = "", g_total[12] = "", g_pk[8] = "", g_pn[8] = "", g_pnow[32] = "";   /* 0.06/0.07 */
 static unsigned char *g_art = 0; static int g_aw = 0, g_ah = 0; static char g_artroom[32] = "";
 static char g_id[40] = "";
 
@@ -103,7 +105,8 @@ static void *poller(void *) {
     if (n > 0) {
       char room[32], u[200], l[200], l2[200], st[24], ti[80];
       char co[8], rn[32], dn[12], tt[12]; jget(buf, "color", co, sizeof co); jget(buf, "rname", rn, sizeof rn); jget(buf, "done", dn, sizeof dn); jget(buf, "total", tt, sizeof tt);
-      if (strcmp(co, g_color) || strcmp(rn, g_rname) || strcmp(dn, g_done) || strcmp(tt, g_total)) { strcpy(g_color, co); strcpy(g_rname, rn); strcpy(g_done, dn); strcpy(g_total, tt); g_dirty = 2; }
+      char pk[8], pn[8], pw[32]; jget(buf, "pk", pk, sizeof pk); jget(buf, "pn", pn, sizeof pn); jget(buf, "pnow", pw, sizeof pw);
+      if (strcmp(co, g_color) || strcmp(rn, g_rname) || strcmp(dn, g_done) || strcmp(tt, g_total) || strcmp(pk, g_pk) || strcmp(pn, g_pn) || strcmp(pw, g_pnow)) { strcpy(g_color, co); strcpy(g_rname, rn); strcpy(g_done, dn); strcpy(g_total, tt); strcpy(g_pk, pk); strcpy(g_pn, pn); strcpy(g_pnow, pw); g_dirty = 2; }
       jget(buf, "title", ti, sizeof ti); jget(buf, "room", room, sizeof room); jget(buf, "url", u, sizeof u); jget(buf, "line", l, sizeof l); jget(buf, "line2", l2, sizeof l2); jget(buf, "status", st, sizeof st);
       if (strcmp(room, g_room) || strcmp(u, g_url) || strcmp(l, g_line) || strcmp(l2, g_line2) || strcmp(st, g_status) || strcmp(ti, g_title) || g_err[0]) {
         strcpy(g_title, ti); strcpy(g_room, room); strcpy(g_url, u); strcpy(g_line, l); strcpy(g_line2, l2); strcpy(g_status, st); g_err[0] = 0; g_dirty = 2; }
@@ -112,13 +115,6 @@ static void *poller(void *) {
       if (strcmp(g_status, "off") || strcmp(e, g_err)) { strcpy(g_status, "off"); strcpy(g_line, "Cannot reach Round2 right now - trying again..."); g_line2[0] = 0; strcpy(g_err, e); g_dirty = 2; }
     }
     pthread_mutex_unlock(&mx);
-    if (net_ok && g_room[0] && strcmp(g_room, g_artroom)) {   /* 0.06: the room's character, once per room */
-      static char *ab = 0; if (!ab) ab = (char *)malloc(2 * 1024 * 1024);
-      snprintf(url, sizeof url, "https://" ENGINE_HOST "/ps4/tileart?room=%s", g_room); int an = ab ? http_get(url, ab, 2 * 1024 * 1024) : -1;
-      if (an <= 0 && ab) { snprintf(url, sizeof url, "http://" ENGINE_HOST "/ps4/tileart?room=%s", g_room); an = http_get(url, ab, 2 * 1024 * 1024); }
-      int w = 0, h = 0, c = 0; unsigned char *px = an > 0 ? stbi_load_from_memory((unsigned char *)ab, an, &w, &h, &c, 4) : 0;
-      pthread_mutex_lock(&mx); if (px) { free(g_art); g_art = px; g_aw = w; g_ah = h; g_dirty = 2; } snprintf(g_artroom, sizeof g_artroom, "%s", g_room); pthread_mutex_unlock(&mx);
-    }
     sceKernelSleep(strcmp(g_status, "loading") && strcmp(g_status, "reset") ? 20 : 8);   /* faster while something is moving */
   }
   return 0;
@@ -208,35 +204,28 @@ int main() {
 
   uint32_t *BASE = (uint32_t *)malloc(W * H * 4);
   int frame = 0, busy = 0, done = 0, total = 0; char st[24] = "wait"; Color AC = GOLD; float shown = 0;
-  const int BX = 130, BY = 890, BW = 760, BH = 22;          /* progress bar */
-  const int QX = 930, QY = 250, QS = 460;                    /* QR card */
+  const int BX = 130, BY = 900, BW = 940, BH = 22;          /* progress bar */
+  const int QX = 1270, QY = 230, QS = 480;                   /* QR card (0.07: right, clear of the text) */
+  char pkk[8] = "", pnn[8] = "", pnw[32] = "";
   for (;;) {
     if (g_dirty > 0 && BASE) {
       char room[32], url[200], line[200], line2[200], err[64], ti[80], co[8], rn[32];
       pthread_mutex_lock(&mx); strcpy(ti, g_title); strcpy(room, g_room); strcpy(url, g_url); strcpy(line, g_line); strcpy(line2, g_line2); strcpy(st, g_status); strcpy(err, g_err);
-      strcpy(co, g_color); strcpy(rn, g_rname); done = atoi(g_done); total = atoi(g_total); g_dirty--;
-      unsigned char *art = g_art; int aw = g_aw, ah = g_ah;
+      strcpy(co, g_color); strcpy(rn, g_rname); done = atoi(g_done); total = atoi(g_total); strcpy(pkk, g_pk); strcpy(pnn, g_pn); strcpy(pnw, g_pnow); g_dirty--;
+      pthread_mutex_unlock(&mx);
       FB = BASE; AC = hexc(co, GOLD); busy = !strcmp(st, "loading") || !strcmp(st, "reset");
-      /* background + the room-colour glow from the top right */
-      for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
+      for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {   /* background + the room-colour glow from the top right */
         int dx = x - 1650, dy = y + 150; float d = (float)(dx * dx + dy * dy) / (1350.f * 1350.f); float g = d < 1 ? (1 - d) * (1 - d) * 0.34f : 0;
         int r = BG.r + (int)((AC.r - BG.r) * g), gg = BG.g + (int)((AC.g - BG.g) * g), b = BG.b + (int)((AC.b - BG.b) * g);
         BASE[y * W + x] = 0xFF000000u | (r << 16) | (gg << 8) | b; }
-      /* the room's character on the right, fading out to the left and the bottom */
-      if (art && aw > 0) { const int th = 860, tw = aw * th / ah, ox = W - tw + 30, oy = H - th;
-        for (int y = 0; y < th; y++) { int sy = y * ah / th; float fy = y > th * 0.7f ? 1 - (y - th * 0.7f) / (th * 0.3f) : 1;
-          for (int x = 0; x < tw; x++) { int sx = x * aw / tw; const unsigned char *p = art + (sy * aw + sx) * 4; float fx = x < tw * 0.3f ? x / (tw * 0.3f) : 1;
-            Color c = { p[0], p[1], p[2] }; blend(ox + x, oy + y, c, (int)(p[3] * fx * fy)); } }
-        pthread_mutex_unlock(&mx);
-      } else pthread_mutex_unlock(&mx);
       rect(0, 0, W, 12, AC);
       logo(130, 90, WHITE);
       text(fPixS, "MEMBERS", 136, 318, AC);
       char up[32]; snprintf(up, sizeof up, "%s", rn[0] ? rn : room); for (char *c = up; *c; c++) if (*c >= 'a' && *c <= 'z') *c -= 32;
       if (up[0]) text(fPix, up, 130, 410, AC);
-      text(fBig, ti[0] ? ti : busy ? "Please wait" : "Scan to log in", 130, 530, !strcmp(st, "done") ? GREEN : INK);
-      int y = wrap(fMid, line, 130, 610, 760, 58, busy ? AC : INK);
-      if (line2[0]) wrap(fSmall, line2, 130, y + 20, 760, 44, DIM);
+      int y = wrap(fBig, ti[0] ? ti : busy ? "Please wait" : "Scan to log in", 130, 520, 940, 84, !strcmp(st, "done") ? GREEN : INK);
+      y = wrap(fMid, line, 130, y + 10, 940, 56, busy ? AC : INK);
+      if (line2[0]) wrap(fSmall, line2, 130, y + 14, 940, 44, DIM);
       if (err[0]) text(fTiny, err, 130, 1050, DIM);
       { char vv[48]; snprintf(vv, sizeof vv, "tile " TILE_V "  id %s", g_idsrc); text(fTiny, vv, 1640, 1060, DIM); }
       rect(QX - 20, QY - 20, QS + 40, QS + 40, CARD); rect(QX - 20, QY - 20, QS + 40, 6, AC);
@@ -249,11 +238,11 @@ int main() {
     /* each frame: the composed screen, then the moving parts */
     FB = scene->Buf(); if (BASE) memcpy(FB, BASE, W * H * 4);
     if (busy) {
-      char lab[48]; int lx;
+      char lab[96]; int lx;
       if (total > 0) { float want = (float)done / total; shown += (want - shown) * 0.06f; if (shown > want) shown = want;
         int fw = BW * shown; if (fw < 26) fw = 26; rect(BX, BY, fw, BH, AC);
         int sx = (frame * 9) % (fw + 160) - 160; for (int x = sx; x < sx + 160; x++) if (x >= 0 && x < fw) { int a = 90 - abs(x - sx - 80) * 90 / 80; for (int j = 0; j < BH; j++) blend(BX + x, BY + j, WHITE, a); }
-        snprintf(lab, sizeof lab, "%d of %d games  -  %d%%", done, total, done * 100 / total); }
+        if (pnn[0] && atoi(pnn) > 1) snprintf(lab, sizeof lab, "%s (player %s of %s)  -  %d of %d games", pnw, pkk, pnn, done, total); else snprintf(lab, sizeof lab, "%d of %d games  -  %d%%", done, total, done * 100 / total); }
       else { int span = BW - 220, p = (frame * 7) % (2 * span), x = p < span ? p : 2 * span - p; rect(BX + x, BY, 220, BH, AC); snprintf(lab, sizeof lab, "Getting ready"); }
       lx = text(fSmall, lab, BX, BY + 70, INK);
       char dots[8]; int n = (frame / 20) % 4; for (int i = 0; i < n; i++) dots[i] = '.'; dots[n] = 0; text(fSmall, dots, lx + 4, BY + 70, AC);
