@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.94"
+#define R2_VERSION "1.1.95"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2480,7 +2480,7 @@ static void look_memload(const char *key, const char *spec) {
    /_memload (renames it <Name>, links it, loads every game the player has in the cloud); a player with nothing in the cloud
    yet gets the link + the name only (/_memtag). While a clean slate runs it answers "waits" – the engine tries again. Result
    keys memplay/loading | memplay/ready | memplay/waits | memplay/refused, value "<profile> <text>". */
-static void memplay_one(const char *key, const char *spec) {
+static void memplay_one(const char *key, const char *spec, int allow_main) {
   char id[32] = "", sl[16] = "", nm[40] = "", st[16] = "", want[64], v[200], ms[200];
   if (sscanf(spec, "/_memplay.%31[a-z0-9-].%15[a-z0-9].%31[A-Za-z0-9_]", id, sl, nm) != 3 || !mem_ok(id) || !mem_ok(sl)) { look_kv("memplay/error", "bad spec"); return; }
   cl_rd("state", st, sizeof st);
@@ -2491,6 +2491,10 @@ static void memplay_one(const char *key, const char *spec) {
   for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
   for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
   char tag[16][64]; for (int i = 0; i < ns; i++) { char op[120]; tag[i][0] = 0; snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", sp[i]); FILE *f = fopen(op, "r"); if (f) { if (fgets(tag[i], 64, f)) tag[i][strcspn(tag[i], "\r\n")] = 0; fclose(f); } }
+  /* 1.1.95 (owner 20 Nov 1:06am): the FIRST ticked player goes into the MAIN profile (guests mostly just play on it – no switching
+     user; the main keeps the room's name, GT Sport on Max is never touched); the others into spares. */
+  if (allow_main && mainu) { char op[120], mt[64] = ""; snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", mainu); FILE *f = fopen(op, "r"); if (f) { if (fgets(mt, sizeof mt, f)) mt[strcspn(mt, "\r\n")] = 0; fclose(f); }
+    if (!mt[0] || !strcmp(mt, want)) pick = mainu; }
   for (int i = 0; i < ns && !pick; i++) if (!strcmp(tag[i], want)) pick = sp[i];
   for (int i = 0; i < ns && !pick; i++) if (!tag[i][0] && !user_signed_in(sp[i])) pick = sp[i];
   if (!pick) { look_kv("memplay/refused", "- every spare profile is signed in or taken: ask staff"); return; }
@@ -2498,13 +2502,13 @@ static void memplay_one(const char *key, const char *spec) {
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
   snprintf(ms, sizeof ms, "/_memload.%s.%s.%s.%s", u, id, sl, nm);
   look_mute = 1; look_last[0] = 0; look_memload(key, ms); look_mute = 0;
-  if (!strncmp(look_last, "memload/started", 15)) { snprintf(v, sizeof v, "%s %s", u, look_last + 17); sv_log("member play: %s/%s '%s' -> profile %s, loading", id, sl, shown, u); look_kv("memplay/loading", v); return; }
+  if (!strncmp(look_last, "memload/started", 15)) { snprintf(v, sizeof v, "%s%s %s", pick == mainu ? "main " : "", u, look_last + 17); sv_log("member play: %s/%s '%s' -> profile %s, loading", id, sl, shown, u); look_kv("memplay/loading", v); return; }
   /* nothing in the cloud yet (a new member) – link + name only */
   snprintf(ms, sizeof ms, "/_memtag.%s.%s.%s", u, id, sl); look_mute = 1; look_memtag(ms); look_mute = 0;
-  int r = user_signed_in(pick) ? -1 : sceUserServiceSetUserName((int32_t)pick, shown);
+  int r = (pick == mainu || user_signed_in(pick)) ? -1 : sceUserServiceSetUserName((int32_t)pick, shown); /* 1.1.95: the main keeps the room name */
   sv_log("member play: %s/%s '%s' -> profile %s, linked (no saves in the cloud yet; rename 0x%08x)", id, sl, shown, u, (unsigned)r);
-  bpop("%s: profile ready - sign in as %s", shown, shown);
-  snprintf(v, sizeof v, "%s new member - profile linked and named", u); look_kv("memplay/ready", v);
+  if (pick == mainu) bpop("%s: ready on the main profile - just play", shown); else bpop("%s: profile ready - sign in as %s", shown, shown);
+  snprintf(v, sizeof v, "%s%s new member - profile linked%s", pick == mainu ? "main " : "", u, pick == mainu ? "" : " and named"); look_kv("memplay/ready", v);
 }
 /* 1.1.94 (owner 20 Nov 12:53am: tick several crew players and load them at once): "/_memplay.<member>.<slot>.<Name>[.<slot>.<Name>…]"
    (up to 4). The first player starts now; the others wait in /data/round2/memq and start one after another when the load
@@ -2517,7 +2521,7 @@ static void memplay_next(const char *key) {
   if (nl) { *nl = 0; snprintf(ln, sizeof ln, "%s", b); put_file(MEMQ, nl + 1); if (!nl[1]) unlink(MEMQ); } else { snprintf(ln, sizeof ln, "%s", b); unlink(MEMQ); }
   char id[32], sl[16], nm[40], spec[160]; if (sscanf(ln, "%31s %15s %39s", id, sl, nm) != 3) return;
   snprintf(spec, sizeof spec, "/_memplay.%s.%s.%s", id, sl, nm);
-  int m0 = look_mute; look_mute = 1; look_last[0] = 0; memplay_one(key, spec); look_mute = m0;
+  int m0 = look_mute; look_mute = 1; look_last[0] = 0; memplay_one(key, spec, 0); look_mute = m0;
   sv_log("member play queue: %s %s -> %s", id, sl, look_last);
   if (!strncmp(look_last, "memplay/ready", 13) || !strncmp(look_last, "memplay/refused", 15) || !strncmp(look_last, "memplay/error", 13)) memplay_next(key); /* nothing started - go on */
 }
@@ -2528,7 +2532,7 @@ static void look_memplay(const char *key, const char *spec) {
   unlink(MEMQ);
   if (nt > 3) { FILE *f = fopen(MEMQ, "w"); if (f) { for (int i = 3; i + 1 < nt; i += 2) fprintf(f, "%s %s %s\n", tok[0], tok[i], tok[i + 1]); fclose(f); } }
   char one[160]; snprintf(one, sizeof one, "/_memplay.%s.%s.%s", tok[0], tok[1], tok[2]);
-  memplay_one(key, one);
+  memplay_one(key, one, 1);
   if (nt > 3 && !strncmp(look_last, "memplay/", 8)) {} /* look_last only filled when muted */
   { char st[16] = ""; cl_rd("state", st, sizeof st); if (strcmp(st, "running") && strcmp(st, "paused")) memplay_next(key); } /* first one didn't start a load: go on now */
 }
@@ -4445,6 +4449,8 @@ int main(void) {
       if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
       r2_where("guard", 0);
       countdown_tick(key); /* 1.1.55: reset pop-ups + the engine's last check, every 2 s */
+      if (t % 3 == 2 && key[0]) { char rt2[32]; running_title(rt2, sizeof rt2); /* 1.1.95 (owner: 20-30 s from "Load" to the PS4 starting): while the */
+        if (!strcmp(rt2, "RTWO00001") && check_cmd(key)) { report(key, status, sizeof status); write_status(status); } } /* Round2 tile is open, look for jobs every 6 s */
       inp_watch(); /* 1.1.64: test pop-ups for the detector (only while switched on) */
       double tug = tm_now(); int ug = update_guard(); r2_timing("update guard (every 2 s)", tm_now() - tug);
       if (ug) {
