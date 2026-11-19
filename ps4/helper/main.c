@@ -1369,7 +1369,7 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     }
     g_t_wr += tm_now() - twr0;
     int cr = sv_close();
-    { FILE *cf = fopen("/dev/null","r"); (void)cf; char pmf[300]; snprintf(pmf,sizeof pmf,"%s/manifest.txt",prepbase); FILE *pf=fopen(pmf,"w"); if(pf){ if(mt0) fputs(mt0,pf); fclose(pf);} char cfp[300]; snprintf(cfp,sizeof cfp,"%s/cloud.txt",prepbase); FILE *c3=fopen(cfp,"w"); if(c3){ fprintf(c3,"%s\n",src); fclose(c3);} }
+    { FILE *cf = fopen("/dev/null","r"); (void)cf; char pmf[300]; snprintf(pmf,sizeof pmf,"%s/cloud-manifest.txt",prepbase); /* 1.1.78: NOT manifest.txt - that is the internal copy's fingerprint list (cloud batch) */ FILE *pf=fopen(pmf,"w"); if(pf){ if(mt0) fputs(mt0,pf); fclose(pf);} char cfp[300]; snprintf(cfp,sizeof cfp,"%s/cloud.txt",prepbase); FILE *c3=fopen(cfp,"w"); if(c3){ fprintf(c3,"%s\n",src); fclose(c3);} }
     sv_log("restore done: user %s game %s save %s: %d files, %llu bytes, %d failed, %d kept, %d cleared%s%s", u, t, nm, files, bytes, fail, skipped, wiped, first_err[0]?", first problem: ":"", first_err);
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, %d kept (sce_sys), %d cleared, closed %d", files, bytes, fail, skipped, wiped, cr);
     { char kk[80]; snprintf(kk, sizeof kk, "restore/%s/result", nm); look_kv(kk, v); if (first_err[0]) { snprintf(kk, sizeof kk, "restore/%s/first-problem", nm); look_kv(kk, first_err); } }
