@@ -1,0 +1,65 @@
+# Round2 inside the PS4 system menu (SceShellUI) – findings, tools, how to redo them per firmware
+
+Owner, 20 Nov 2026 5:27am: *"add everything you found to accessible logs, because we might need to redo all these steps on 9.00
+and 11.00 … rebuilding on the firmware it was built and probed for is better"*. **Rule: nothing found on Kaeden (13.50) is assumed
+to work on a 9.00 or 11.00 room. Each firmware gets its own probe run, its own results file and its own add-on test.**
+
+## Why we went into the menu
+- The helper's own `sceUserServiceLogout` signs a profile out but leaves the controller stuck (freeze; recovery = hold PS 10 s).
+  The PS menu's **Log Out** works because the *menu* does it and re-links the controllers.
+- Owner wants, around a member load: the PS button locked, no profile picker popping up when a controller is switched on, an unlock
+  combo (L2+R2+L3+R3), and afterwards everyone logged out properly so players pick their own (renamed) profiles.
+
+## How code gets into the menu (proven on Kaeden 13.50, GoldHEN 2.4b18.x)
+1. GoldHEN's own SDK call: indirect syscall 0 → 500, cmd 6 = load a module into a running process (`struct {char process_name[32];
+   char prx_path[100]; uint64 res;}`). Use the GoldHEN way (helper `r2_osyscall`): libc `syscall()` gave -256.
+   cmd 0 (version) answers -256 on Kaeden – ignore it; cmd 4 (process info) works ("pid 87 name 'Payload'").
+2. **The menu can only load from GoldHEN's own plugin folder**: `/user/data/GoldHEN/plugins/<name>.prx`.
+   /data/… = 0x80020002 (not found), /user/data/round2/… = 0x8002000d (no permission), /system_tmp = 0x80020023.
+3. **The menu writes only under /user/data/…** (it can't see /data). Add-ons log to /user/data/round2/<name>.txt (= /data/round2/…).
+4. **A module path loads once per menu start** – loading the same path again returns the old module without running it. So every
+   add-on build gets a new name (round2_shprobe2, round2_shprobe3, round2_shell1, …).
+5. Delivery without helper updates: add-ons live on branch **ps4-shell** of this repo (`<name>.prx` + `<name>.json {v, sha256, size}`);
+   the engine serves them at `/ps4/prx?name=` (key); helper **1.1.110+** `look /_shmod.<name>` downloads, saves to the GoldHEN plugin
+   folder (chmod 0777), loads it into SceShellUI, waits ≤30 s for `<name>.txt.done`, uploads the log to R2
+   `saves/lib/probe/<name>-<console>.txt`. Refused while a game is open (if the menu restarts, the game would close).
+6. `.prx` files are SELF (starts 4F 15 3D 1D), not bare ELF.
+7. Helper switches: max ~4–5 per PS4 start (Kaeden's helper hung on the ~8th switch at 4:10am; a restart cleared it).
+
+## The probe (read-only) – `ps4/plugin/round2_shprobe` (GoldHEN plugin SDK + libmonosgen)
+The menu's C# program is encrypted on disk (`/system_ex/app/NPXS20001/psm/Application/app.exe.sprx` 16.5 MB + `Sce.Vsh.*.dll.sprx`),
+so names are read from the running menu with Mono reflection. Nothing is called or changed.
+- 1.00 (round2_shprobe via `/_shprobe`): keyword list (logout/login/signin/user/pad/controller/PS button/quick menu …).
+  Kaeden result: R2 `saves/lib/probe/shprobe-73378b38f36f345372e93e1fd488bbea.txt` (app.exe = 11,634 types).
+- 1.01/1.02 (round2_shprobe2): full signatures of the target classes. R2 `…/round2_shprobe2-73378b38….txt` (72 KB).
+- 1.03 (round2_shprobe3): every loaded assembly (mono_assembly_foreach) + enum values. R2 `…/round2_shprobe3-73378b38….txt` (177 KB).
+
+### Kaeden 13.50 results (re-check on every firmware!)
+| Purpose | Function (assembly app.exe unless noted) |
+|---|---|
+| Pause / bring back the profile picker | `Sce.Vsh.ShellUI.LoginMgrUtil` static `SuspendLoginScreen()`, `ResumeLoginScreen()`, `IsSuspendedLoginScreen()` → bool |
+| Log everyone out (menu's way) | `LoginMgrUtil` static `LogoutAll(LoginMgrProxy.LogoutMethodType)` |
+| Log one user out | `LoginMgrUtil` static `Logout(int user, LogoutMethodType, int, int, LogoutParam)`, `LogoutSync(int, type, int)`, `SilentLogout(int, type)` |
+| LogoutMethodType (platform.dll) | Unknown −1, ChangingPowerState 0, NotUse 1, MultipleSignin 2, …, **LogoutFromPsImposeMenu 10**, **LogoutFromPowerMenuOnFunctionArea 11**, ByLoginDialog 12, **LogoutFromPsImposeMenuV400 13**, … Other 15 |
+| Power menu items | `TopMenu.SystemAreaPowerDialog/PageBase` `SelectedLogoutSystem()`, `SelectedSwitchUser()`, `SelectedEnterStandby()` (instance) |
+| Switch user / controllers | `LoginMgrUtil.LaunchSwitchUser(int)`, `DisconnectDevice(long)`; `LoginMgrUtilInternal` `StartSwitchUser(int)`, `DisconnectAllDevice(int)`, `ArbitrarilyDisconnectDevice(long)`, `SetForegroundUser(int,bool,bool,bool,bool)`, `GetLoginUserIdList` |
+| PS / Share button lock | `PadInternal.Locker(LockType lock, LockType uiMask)` – unlock = `DisposableObj.Dispose()`; subclasses `PSButtonLocker()`, `PSButtonLongLocker()`, `PSButtonDoubleLocker()`; also `EventApp.EventAppExternal.LockShareAndPSButton()` / `TeamChat.TeamChatExternal.LockPSButton()` (instance) |
+| LockType (platform.dll) | None 0, PSButton 1, PSButtonLong 2, PSButtonDouble 4, ShareButton 8, ShareButtonLong 16, ShareButtonDouble 32, All 0xffffffff |
+| Controller buttons (for the unlock combo) | `PadInternal.PadManager` static `get_Instance()`, field `m_padInfo` (List<PadInfo>, `_items`/`_size`); `PadInfo.m_curGeneralButtons` = `Sce.PlayStation.Core.Input.GamePadButtons` (L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000) |
+| Other | `PadManager.ForceIntercept(bool)`, `EmulatePSButton()`, `IsControllerConnected()`; `QuickMenu.MenuSuppressor()` (quick menu off while it lives) |
+
+## The add-on – `ps4/plugin/round2_shell` (round2_shell1 = 1.00, built 20 Nov 5:23am, NOT yet run)
+- On load: 60-s self-test (picker paused + PS/Share locked, L2+R2+L3+R3 held 1 s unlocks), then WATCH: during a member load
+  (/data/round2/memqn or clean run "prep" running) picker paused + PS/Share locked (max 10 min, combo unlocks); released at the end.
+  Log-out of everyone (type 13) after a load only if /data/round2/shell-logout exists. Newer add-on → older stops (shell.gen).
+- Runs on its own thread; every menu call goes through mono_runtime_invoke with an exception slot (errors logged, not thrown).
+  Not done (yet): memory patching such as HEN's `CheckRunningOnMainThread` → ret. If the menu refuses calls from our thread,
+  that's the next step.
+
+## Redo on another firmware (9.00 = Max/Atlas, 11.00 = the other rooms) – checklist
+1. Helper ≥ 1.1.110 on that PS4 (count the switches since its last restart).
+2. No game open, staff at the TV. `look /_ghver` → GoldHEN SDK present?
+3. `look /_shmod.round2_shprobe3` (if that name already ran since this PS4 started, publish a copy under a new name first).
+4. Read R2 `saves/lib/probe/round2_shprobe3-<console>.txt`; compare every row of the table above. Write a new table for that
+   firmware here – don't overwrite Kaeden's.
+5. Only then load the add-on (a build made/checked for that firmware), with the owner watching.
