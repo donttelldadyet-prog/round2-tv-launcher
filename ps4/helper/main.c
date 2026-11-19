@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.90"
+#define R2_VERSION "1.1.91"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2619,8 +2619,31 @@ static void reset_profiles(char *out, size_t on) {
 /* 1.1.78 (owner 19 Nov 5:30pm: "can a clean slate disconnect controllers after it is done, so profiles refresh?"): after a
    clean slate / reset / purge, every signed-in profile is signed out and the room's main profile signed back in, so the PS4
    reloads each profile's save list fresh and whoever picks up a controller chooses a profile again. */
+/* 1.1.91 (owner 20 Nov 12:23am: after the clean slate signed everyone out and the main profile back in, the controller was
+   "frozen" – still tied to a signed-out user, and the PS button only reopened the last app): switch the controllers OFF, like
+   holding the PS button 10 s / Quick Menu > Turn Off Device. Next press of the PS button = the normal "who's using this
+   controller" screen. Looked up by name in libScePad (scePadDisconnectDevice); "/_padoff" tests it now; refresh_profiles does
+   it before signing everyone out once /data/round2/padoff-on exists (switched on after the test). */
+static int pad_off(char *out, size_t on) {
+  static int (*pinit)(void), (*gh)(int32_t, int32_t, int32_t), (*po)(int32_t, int32_t, int32_t, const void *), (*pc)(int32_t), (*dis)(int32_t); static int looked, pm, inited;
+  if (!looked) { looked = 1; pm = sceKernelLoadStartModule("/system/common/lib/libScePad.sprx", 0, 0, 0, 0, 0);
+    if (pm > 0) { sceKernelDlsym(pm, "scePadInit", (void **)&pinit); sceKernelDlsym(pm, "scePadGetHandle", (void **)&gh); sceKernelDlsym(pm, "scePadOpen", (void **)&po);
+      sceKernelDlsym(pm, "scePadClose", (void **)&pc); sceKernelDlsym(pm, "scePadDisconnectDevice", (void **)&dis); } }
+  if (!dis) { snprintf(out, on, "no disconnect function (pad module 0x%08x)", (unsigned)pm); return -1; }
+  if (!inited && pinit) { inited = 1; pinit(); }
+  UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l);
+  int n = 0, ok = 0; size_t w = 0; out[0] = 0;
+  for (int i = 0; i < 4; i++) { if (l.userId[i] == -1 || !l.userId[i]) continue; n++;
+    int h = gh ? gh(l.userId[i], 0, 0) : -1, opened = 0; if (h < 0 && po) { h = po(l.userId[i], 0, 0, 0); opened = h >= 0; }
+    int r = h >= 0 ? dis(h) : h; if (h >= 0 && !r) ok++; if (opened && pc) pc(h);
+    if (w < on) w += snprintf(out + w, on - w, "%s%08x h%d r0x%08x", w ? ", " : "", (unsigned)l.userId[i], h, (unsigned)r); }
+  if (!n) snprintf(out, on, "nobody signed in");
+  sv_log("controllers off: %d of %d (%s)", ok, n, out); return ok;
+}
+static void look_padoff(void) { char r[240]; int ok = pad_off(r, sizeof r); look_kv(ok > 0 ? "padoff/result" : "padoff/error", r); }
 static void refresh_profiles(void) {
   UserIdList l; memset(&l, 0, sizeof l); uint32_t mainu = r2_main_user(); int out = 0;
+  if (file_exists("/data/round2/padoff-on")) { char pr[240]; pad_off(pr, sizeof pr); sleep(1); } /* 1.1.91 */
   if (!sceUserServiceGetLoginUserIdList(&l)) for (int i = 0; i < 4; i++) if (l.userId[i] != -1 && l.userId[i] != 0) { sceUserServiceLogout(l.userId[i]); out++; }
   sleep(3);
   int r = mainu ? sceUserServiceLogin((int32_t)mainu) : -1;
@@ -4060,6 +4083,9 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_mi.on")) { unlink("/data/round2/mi-skip-off"); look_kv("mi/result", "member-index skip ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
     else if (!strncmp(t, "/_memplay.", 10)) look_memplay(key, t); /* 1.1.90 */
+    else if (!strcmp(t, "/_padoff")) look_padoff(); /* 1.1.91 */
+    else if (!strcmp(t, "/_padoff.on")) { put_file("/data/round2/padoff-on", "1"); look_kv("padoff/auto", "on"); }
+    else if (!strcmp(t, "/_padoff.off")) { unlink("/data/round2/padoff-on"); look_kv("padoff/auto", "off"); }
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
     else if (!strncmp(t, "/_input.", 8)) look_input(t);
