@@ -7,6 +7,8 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 2.00 (20 Nov 7:50am): finds the loaded app.exe like round2_sweep2 did on all 6 PS4s; a "calling: X" breadcrumb line BEFORE every
+//   call into the menu (pwrprobe1 crash lesson). The calls it uses exist identically on 9.00 / 11.00 / 13.50 (sweep 20 Nov).
 // 1.00 = SELF-TEST + WATCH:
 //   self-test (once, on load): picker paused + PS/Share locked for 60 s (or until L2+R2+L3+R3 held 1 s), then everything back.
 //   watch: while the Round2 helper is loading member saves (/data/round2/memqn exists or the clean job is a running "prep"):
@@ -25,11 +27,11 @@
 #include <sys/stat.h>
 
 #define R2SH_VER "1.00"
-#define R2SH_NAME "round2_shell1"
+#define R2SH_NAME "round2_shell2"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000100;
+attr_public u32 g_pluginVersion = 0x00000200;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -62,16 +64,23 @@ static int exists_(const char *p) { struct stat st; return !stat(p, &st); }
 static void put_(const char *p, const char *s) { int fd = open(p, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (fd >= 0) { write(fd, s, strlen(s)); close(fd); } }
 
 static void *g_dom, *g_img, *mSuspend, *mResume, *mIsSusp, *mLogoutAll, *cLocker, *mLockerCtor, *mDispose, *mPadInst, *fPadInfo, *fButtons;
+static int g_quiet_calls; /* 2.00: the button reads every few 100 ms don't get a breadcrumb line each */
 static int inv(const char *what, void *m, void *obj, void **args, void **ret) {   /* 0 = ok; the menu's own error is logged, never thrown */
+  if (!g_quiet_calls) lg("calling: %s", what);   /* 2.00 (20 Nov, after the pwrprobe1 crash): breadcrumb BEFORE every call into the menu */
   void *exc = 0; void *r = m ? mono_runtime_invoke(m, obj, args, &exc) : 0; if (ret) *ret = r;
   if (!m) { lg("%s: function not found", what); return -1; }
   if (exc) { void *e2 = 0; void *s = mono_object_to_string(exc, &e2); char *u = s && !e2 ? mono_string_to_utf8(s) : 0; lg("%s: the menu said no: %.300s", what, u ? u : "(exception)"); return -1; }
   return 0;
 }
+extern void mono_assembly_foreach(void (*)(void *, void *), void *);
+extern void *mono_image_get_name(void *);
+static void find_app(void *as, void *ud) { (void)ud; if (g_img) return; void *im = mono_assembly_get_image(as); const char *n = im ? (const char *)mono_image_get_name(im) : 0; if (n && !strcmp(n, "app")) g_img = im; }
 static int resolve(void) {
   g_dom = mono_get_root_domain(); if (!g_dom) { lg("no menu runtime"); return -1; }
   mono_thread_attach(g_dom);
-  void *as = mono_domain_assembly_open(g_dom, "/app0/psm/Application/app.exe"); g_img = as ? mono_assembly_get_image(as) : 0; if (!g_img) { lg("app.exe not open"); return -1; }
+  /* 2.00: find the ALREADY LOADED app.exe the way round2_sweep2 did on all 6 PS4s (mono_assembly_foreach, image name "app") –
+     instead of asking Mono to open a path (could load a second copy) */
+  mono_assembly_foreach(find_app, 0); if (!g_img) { lg("app.exe not found among the loaded assemblies"); return -1; }
   void *cl = mono_class_from_name(g_img, "Sce.Vsh.ShellUI", "LoginMgrUtil");
   if (cl) { mSuspend = mono_class_get_method_from_name(cl, "SuspendLoginScreen", 0); mResume = mono_class_get_method_from_name(cl, "ResumeLoginScreen", 0);
     mIsSusp = mono_class_get_method_from_name(cl, "IsSuspendedLoginScreen", 0); mLogoutAll = mono_class_get_method_from_name(cl, "LogoutAll", 1); }
@@ -86,7 +95,7 @@ extern void *mono_object_unbox(void *);
 static int suspended(void) { void *r = 0; if (inv("is-suspended", mIsSusp, 0, 0, &r) || !r) return -1; return *(unsigned char *)mono_object_unbox(r) ? 1 : 0; }
 /* buttons held on any connected controller (OR of all), -1 if they can't be read */
 static int held_buttons(void) {
-  if (!mPadInst || !fPadInfo || !fButtons) return -1; void *pmi = 0; if (inv("pads", mPadInst, 0, 0, &pmi) || !pmi) return -1;
+  if (!mPadInst || !fPadInfo || !fButtons) return -1; void *pmi = 0; g_quiet_calls = 1; int bad = inv("pads", mPadInst, 0, 0, &pmi); g_quiet_calls = 0; if (bad || !pmi) return -1;
   void *list = 0; mono_field_get_value(pmi, fPadInfo, &list); if (!list) return -1;
   void *lc = mono_object_get_class(list); void *fi = mono_class_get_field_from_name(lc, "_items"), *fs = mono_class_get_field_from_name(lc, "_size"); if (!fi || !fs) return -1;
   void *arr = 0; int size = 0; mono_field_get_value(list, fi, &arr); mono_field_get_value(list, fs, &size); if (!arr || size < 0 || size > 8) return -1;
