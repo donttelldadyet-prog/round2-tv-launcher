@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.76"
+#define R2_VERSION "1.1.77"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1290,6 +1290,8 @@ static int sv_wipe_data(const char *dir, const char *rel) {
   closedir(d);
   return n;
 }
+/* 1.1.77 (owner 19 Nov 5:17pm: how long does a member's download take?): seconds spent per step of a move, summed. */
+static double g_t_dl, g_t_wr, g_t_bk, g_t_mk; static unsigned long long g_b_dl;
 static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<title>.<save>.<backup path>" */
   char v[220], u[16] = "", t[16] = "", nm[48] = "", src[200];
   { /* 1.1.36: save names can contain dots (Cat Quest II "save-file1.dat", PS Vue "localstorage.aes"), so the name ends where the
@@ -1332,7 +1334,7 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
       int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0;
       char why[160] = "";
       if (bad) snprintf(why, sizeof why, "%s: can't create (errno %d)", ln, errno);
-      unsigned long long got = 0;
+      unsigned long long got = 0; double tdl0 = tm_now();
       for (int pi = 0; !bad && pi < pieces; pi++) {
         unsigned char *d = 0; size_t dl = 0;
         char gw[130] = "";
@@ -1343,8 +1345,10 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
         got += dl; free(d);
       }
       if (fd >= 0) { fsync(fd); close(fd); }
+      g_t_dl += tm_now() - tdl0; g_b_dl += got;
       if (!bad && got != sz) { bad = 1; snprintf(why, sizeof why, "%s: got %llu of %llu bytes", ln, got, sz); }
       if (bad) { unlink(tmp); fail++; sv_log("restore stage fail %s: %s", ln, why); if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); continue; }
+      double twr0 = tm_now();
       { /* copy the complete staged file into the save */
         int in = open(tmp, O_RDONLY), of = in >= 0 ? open(out, O_WRONLY | O_CREAT | O_TRUNC, 0666) : -1;
         unsigned long long cp = 0; int cbad = in < 0 || of < 0, cerr = cbad ? errno : 0;
@@ -1354,6 +1358,7 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
         if (in >= 0) close(in);
         if (cbad || cp != sz) { if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s: copy into save %llu of %llu (errno %d)", ln, cp, sz, cerr); sv_log("restore copy-into-save fail %s: %llu of %llu (errno %d)", ln, cp, sz, cerr); fail++; continue; } /* prep copy kept on /data/round2/prep */
       }
+      g_t_wr += tm_now() - twr0;
       files++; bytes += sz;
     }
     int cr = sv_close();
@@ -1562,8 +1567,10 @@ static int look_gmove(const char *key, const char *spec) {
     if (stat(dp, &dst)) { look_kv("move/refused", "profile has no save list yet - open any game once on it"); look_kv("move/missing", missing);
       sv_log("move REFUSED (nothing written): user %s game %s: parts [%s] need making but this profile has no save list yet", u, t, missing); return -1; } }
   char rb[200]; int rn = 0;
-  if (sv_game_back(key, u, t, rb, sizeof rb, &rn)) { look_kv("move/refused", "backup of this profile failed - nothing written"); return -1; }
+  { double tb0 = tm_now(); int gbr = sv_game_back(key, u, t, rb, sizeof rb, &rn); g_t_bk += tm_now() - tb0;
+    if (gbr) { look_kv("move/refused", "backup of this profile failed - nothing written"); return -1; } }
   look_kv("move/backup", rb);
+  double tmk0 = tm_now();
   if (nmiss) { /* 1.1.45: make the member's parts this profile doesn't have; if one can't be made, undo the ones made and stop */
     static char made[64][32]; int nmade = 0, mfail = 0; char why[200] = "";
     for (int i = 0; i < ns && !mfail; i++) { int f = 0; for (int j = 0; j < nr; j++) if (!strcmp(srcp[i], recv[j])) f = 1; if (f) continue;
@@ -1574,6 +1581,7 @@ static int look_gmove(const char *key, const char *spec) {
       sv_log("move FAILED: user %s game %s: making a part failed (%s); %d made part(s) removed again, nothing moved", u, t, why, nmade); return -1; }
     snprintf(v, sizeof v, "%d part(s) made", nmade); look_kv("move/made", v);
   }
+  g_t_mk += tm_now() - tmk0;
   int rf = 0;
   for (int i = 0; i < ns; i++) { char rs[400]; snprintf(rs, sizeof rs, "/_srest.%s.%s.%s.%s/%s", u, t, srcp[i], src, srcp[i]); if (look_srest(key, rs) != 0) rf++; }
   if (rf) { snprintf(v, sizeof v, "%d of %d parts failed - leftovers kept; this profile's backup: %s", rf, ns, rb); look_kv("move/result", v);
@@ -2166,6 +2174,32 @@ static int clean_status(char *st, int *done, int *total, int *fails, int *parts)
    profile, and NOTHING else - no removal, no profile changes, no sign-outs. Runs as the clean slate job (report "clean", kind
    "copy", /_clean.stop), ~45 s a minute, paused while a game is open. Each part ends up in /data/round2/prep/<user>/<game>/<part>/
    with manifest.txt (path, size, SHA-256) and is queued for the cloud batch (pending.txt). */
+/* 1.1.77 (owner 19 Nov 5:17pm, Kaeden test bench): "/_restoreall" = the "walk-in member" download test. Every game in this PS4's
+   restore point is moved back into the profile it came from, straight from the cloud (/_gmove: back up what the profile has,
+   make missing save parts, download each file, write it in), one game at a time as a background job (report "clean", kind
+   "restore", /_clean.stop). Each game is timed: download / into profile / making parts / backing up first - in save.log
+   ("restore test: ...") and the pop-ups. Homebrew settings and PS Vue are skipped. */
+static void look_restoreall(void) {
+  char st[16] = "", lab[24] = "", stamp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
+  cl_rd("state", st, sizeof st);
+  if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("restoreall/refused", "a clean slate / copy is already running"); return; }
+  if (!snap_status(lab, stamp, sst, &dn, &tt, &fl, &by) || strcmp(sst, "done")) { look_kv("restoreall/refused", "no finished restore point on this PS4"); return; }
+  FILE *ix = fopen(SNAPD "/index", "r"); if (!ix) { look_kv("restoreall/error", "no restore point list"); return; }
+  mkdir(CLND, 0777);
+  FILE *td = fopen(CLND "/todo", "w"); if (!td) { fclose(ix); look_kv("restoreall/error", "can't write the list"); return; }
+  char ln[200], u[16], t[16], nm[48], pu[16] = "", pt[16] = ""; int f, fl2, ng = 0; unsigned long long b;
+  while (fgets(ln, sizeof ln, ix)) {
+    if (sscanf(ln, "%15s %15s %47s %d %llu %d", u, t, nm, &f, &b, &fl2) != 6 || fl2 || r2_homebrew(t) || !strcmp(t, VUE_ID)) continue;
+    if (!strcmp(u, pu) && !strcmp(t, pt)) continue;
+    fprintf(td, "%s %s\n", u, t); ng++; snprintf(pu, sizeof pu, "%s", u); snprintf(pt, sizeof pt, "%s", t);
+  }
+  fclose(ix); fclose(td);
+  cl_begin("restore", lab);
+  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("rtime", "0\n"); cl_wr("mode", "restore %s\n", stamp);
+  cl_wr("state", ng ? "running\n" : "done\n"); clean_on = ng > 0;
+  sv_log("restore test started: %d games from restore point %s (%s)", ng, lab, stamp);
+  char v[80]; snprintf(v, sizeof v, "%d games from restore point %s", ng, lab); look_kv("restoreall/started", v);
+}
 static void look_copy(const char *spec) {
   char st[16] = ""; cl_rd("state", st, sizeof st);
   if (strcmp(spec, "/_copy.all")) { look_kv("copy/error", "bad spec (use /_copy.all)"); return; }
@@ -2788,6 +2822,24 @@ static void clean_step(const char *key, int budget) {
     char u[16] = "", t[16] = ""; if (sscanf(line, "%15s %15s", u, t) != 2) { pos++; continue; }
     if (sv_game_open()) { cl_wr("state", "paused\n"); sv_log("clean slate paused: a game is open"); break; }
     sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer();
+    { char rm[48] = ""; cl_rd("mode", rm, sizeof rm);
+      if (!strncmp(rm, "restore ", 8)) { /* 1.1.77: "/_restoreall" - each game moved back in from the restore point, timed */
+        char stp[24] = "", ms[300], tb[48] = ""; sscanf(rm + 8, "%23s", stp);
+        snprintf(ms, sizeof ms, "/_gmove.%s.%s.%s/%s/%s/_game/%s", u, t, console_id, u, t, stp);
+        double d0 = g_t_dl, w0 = g_t_wr, b0 = g_t_bk, k0 = g_t_mk, g0 = tm_now(); unsigned long long by0 = g_b_dl;
+        look_mute = 1; int r = look_gmove(key, ms); look_mute = 0;
+        double gt = tm_now() - g0;
+        double tot = 0; cl_rd("rtime", tb, sizeof tb); tot = atof(tb) + gt; cl_wr("rtime", "%.1f\n", tot);
+        if (r) fails++;
+        done++; pos++;
+        sv_log("restore test: user %s game %s %s in %.1f s (download %.1f s %llu KB, into profile %.1f s, making parts %.1f s, backing up the profile first %.1f s)",
+               u, t, r ? "FAILED" : "ok", gt, g_t_dl - d0, (g_b_dl - by0) / 1024, g_t_wr - w0, g_t_mk - k0, g_t_bk - b0);
+        bpop_key("clprog", "Download test: %d of %d games, %d failed. Last: %s %.1f s (download %.1f s, into profile %.1f s). Total so far %.0f s",
+                 done, total, fails, t, gt, g_t_dl - d0, g_t_wr - w0, tot);
+        FILE *ix = fopen(CLND "/index", "a"); if (ix) { fprintf(ix, "%s %s restore %s %.1f s dl %.1f wr %.1f mk %.1f bk %.1f\n", u, t, r ? "FAILED" : "ok", gt, g_t_dl - d0, g_t_wr - w0, g_t_mk - k0, g_t_bk - b0); fclose(ix); }
+        cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
+        continue;
+      } }
     /* 1.1.51: INTERNAL FIRST - every part copied to /data/round2/prep with fingerprints + queued for the cloud batch;
        only if every part of the game copied cleanly are the parts removed. No upload here (owner 7:43pm). */
     char base[200] = "internal"; static char nm[64][32]; int n = sv_disk_parts(u, t, nm, 64), br = 0, nf = 0, cov = 0; unsigned long long nb = 0;
@@ -2817,7 +2869,10 @@ static void clean_step(const char *key, int budget) {
     bpop_key("clprog", "%s: %d of %d games done, %d failed", copyonly ? "Internal copy" : "Clean slate", done, total, fails); /* 1.1.76 */
   }
   fclose(td);
-  if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); clean_finish(done, fails, parts); }
+  if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); clean_finish(done, fails, parts);
+    { char rm[48] = "", tb[48] = ""; cl_rd("mode", rm, sizeof rm); if (!strncmp(rm, "restore ", 8)) { cl_rd("rtime", tb, sizeof tb);
+      sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
+      bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } } }
   if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
 }
 /* ---- 1.1.52 LAUNCH PURGE (owner 17 Nov 8:05pm: "clear all saves IF restore point succeeded"). "/_purge.<label>" = clean slate of
@@ -3616,6 +3671,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_clean.", 8)) look_clean(t);
     else if (!strncmp(t, "/_copy.", 7)) look_copy(t);
     else if (!strcmp(t, "/_copycheck")) look_copycheck();
+    else if (!strcmp(t, "/_restoreall")) look_restoreall();
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
     else if (!strncmp(t, "/_input.", 8)) look_input(t);
