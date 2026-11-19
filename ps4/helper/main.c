@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.107"
+#define R2_VERSION "1.1.108"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -51,6 +51,7 @@ static int file_exists(const char *p);
 static void put_file(const char *p, const char *txt);
 static void tile_ver(char *v, size_t n); static int tile_check(const char *key, int force); /* 1.1.87 */
 static int may_rename(uint32_t uid); /* 1.1.100 */
+static int cl_rd(const char *f, char *b, size_t n); /* 1.1.108 */
 static int r2_homebrew(const char *t);
 static void sw_game_name(const char *t, char *out, size_t n); static void pname(const char *u, char *o, size_t n); /* 1.1.102 plain pop-ups */
 static int g_own;
@@ -2314,6 +2315,26 @@ static int sw_scan(const char *t, int copy, const char *key, int *ok, int *bad, 
   return n;
 }
 static void pname(const char *u, char *o, size_t n) { o[0] = 0; sceUserServiceGetUserName((int32_t)strtoul(u, 0, 16), o, n); if (!o[0]) snprintf(o, n, "profile %s", u); }
+/* 1.1.108 (owner 20 Nov 3:48am: a controller switched on during a load brings up the profile picker – "would clash"): every 2 s
+   while a member load runs (clean slate kind "prep", or players waiting in the queue), anyone who signs in gets a PS4 message
+   "Hang on – saves are still loading (player k of n)...". The load itself carries on (it's safe with profiles signed in; a game
+   started meanwhile pauses it until closed). */
+static void load_watch(void) {
+  static uint32_t seen[4]; static int on = 0;
+  char st[16] = "", rk[16] = ""; int busy = 0; cl_rd("state", st, sizeof st); cl_rd("run", rk, sizeof rk);
+  if ((!strcmp(st, "running") || !strcmp(st, "paused")) && !strncmp(rk, "prep", 4)) busy = 1; if (file_exists("/data/round2/memq")) busy = 1;
+  UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l);
+  if (!busy) { on = 0; return; }
+  if (!on) { on = 1; for (int i = 0; i < 4; i++) seen[i] = (uint32_t)l.userId[i]; return; } /* who was already signed in when the load started */
+  for (int i = 0; i < 4; i++) { uint32_t u = (uint32_t)l.userId[i]; if (u == 0xffffffffu || !u) continue; int old = 0; for (int j = 0; j < 4; j++) if (seen[j] == u) old = 1; if (old) continue;
+    char nm[40] = ""; sceUserServiceGetUserName((int32_t)u, nm, sizeof nm); int of = 0, left = 0; char x[48] = ""; FILE *f = fopen("/data/round2/memqn", "r"); if (f) { if (fscanf(f, "%d %47s", &of, x) < 1) of = 0; fclose(f); }
+    f = fopen("/data/round2/memq", "r"); if (f) { int c; while ((c = fgetc(f)) != EOF) if (c == '\n') left++; fclose(f); }
+    char msg[200]; if (of > 1) snprintf(msg, sizeof msg, "Hang on %s - saves are still loading (player %d of %d). Please don't start a game yet.", nm, of - left, of);
+    else snprintf(msg, sizeof msg, "Hang on %s - your saves are still loading. Please don't start a game yet.", nm);
+    notify(msg); sv_log("load watch: %08x '%s' signed in during a member load - told to wait", u, nm);
+    for (int j = 0; j < 4; j++) if (seen[j] == 0xffffffffu || !seen[j]) { seen[j] = u; break; } }
+  for (int j = 0; j < 4; j++) { int still = 0; for (int i = 0; i < 4; i++) if ((uint32_t)l.userId[i] == seen[j]) still = 1; if (!still) seen[j] = 0xffffffffu; } /* signed out = may be told again */
+}
 static char sw_title[16]; static int sw_dirty; static long long sw_next; static char sw_name[64];
 static void sw_game_name(const char *t, char *out, size_t n) {
   static uint8_t b[65536]; char p[160]; snprintf(p, sizeof p, "/user/app/%s/app.pkg", t); int len = sfo_from_pkg(p, b, sizeof b);
@@ -4687,6 +4708,7 @@ int main(void) {
       if (file_exists(APP "/stop")) step_aside(); /* the starter asked (roll-back) */
       r2_where("guard", 0);
       countdown_tick(key); /* 1.1.55: reset pop-ups + the engine's last check, every 2 s */
+      load_watch(); /* 1.1.108: someone signs in during a member load -> "hang on" */
       if (t % 3 == 2 && key[0]) { char rt2[32]; running_title(rt2, sizeof rt2); /* 1.1.95 (owner: 20-30 s from "Load" to the PS4 starting): while the */
         if (!strcmp(rt2, "RTWO00001") && check_cmd(key)) { report(key, status, sizeof status); write_status(status); } } /* Round2 tile is open, look for jobs every 6 s */
       inp_watch(); /* 1.1.64: test pop-ups for the detector (only while switched on) */
