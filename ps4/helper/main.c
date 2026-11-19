@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.72"
+#define R2_VERSION "1.1.73"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -3686,7 +3686,8 @@ int main(void) {
     if (of) { if (fgets(ob, sizeof ob, of) && atoi_safe(ob) == (int)getpid()) g_own = 1; fclose(of); } }
   if (lk >= 0 && !got) { if (g_own) _exit(0); for (;;) sleep(3600); } /* another helper runs: stay out of the way (returning = exiting, see step_aside) */
   g_lock = lk;
-  put_file(APP "/hello", R2_VERSION); /* the starter keeps a new version once it says hello */
+  /* 1.1.73: "hello" (the starter keeps a new version once it says it) moved to after the first report – so a version that
+     crashes in its first secure connection is rolled back by the starter instead of kept. */
   signal(SIGPIPE, SIG_IGN); /* a dropped connection must never stop the helper */
   /* 1.1.13 (16 Nov, Kai): only real "stop" signals step aside. The PS4 sends SIGCONT (19) every time it WAKES from rest –
      catching it made the helper step aside on each wake, and the starter's relaunch often came before BinLoader was up, so
@@ -3725,11 +3726,13 @@ int main(void) {
       if (!read_key(key, sizeof key)) {
         write_status("no key – put the PS4 key in /data/round2/key.txt");
         if (!warned++) notify("Round2 helper: key missing (/data/round2/key.txt)");
+        if (m == 0) put_file(APP "/hello", R2_VERSION); /* 1.1.73 */
       } else {
         if (m == 0) sleep(10);
         int st = report(key, status, sizeof status);
         for (int i = 0; m == 0 && st != 200 && i < 6; i++) { sleep(8); st = report(key, status, sizeof status); }
         write_status(status);
+        if (m == 0) put_file(APP "/hello", R2_VERSION); /* 1.1.73 */
         if (m == 0) {
           char msg[200];
           snprintf(msg, sizeof msg, "Round2 helper %s: %s", R2_VERSION, st == 200 ? "connected" : "can't reach Round2 (will retry)");
