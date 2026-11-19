@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.85"
+#define R2_VERSION "1.1.86"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1426,7 +1426,23 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0; char why[160] = "";
     if (bad) snprintf(why, sizeof why, "%s: can't create (errno %d)", fn[i], errno);
     unsigned long long got = 0;
-    for (int pi = 0; !bad && pi < fpc[i]; pi++) {
+    /* 1.1.86 (owner 19 Nov 8:39pm): a big file's 1 MB pieces in bundles of up to 6 ("/_bb.off" = one by one, for the A/B test) */
+    struct stat bbst; int bb = bundles_ok && stat("/data/round2/bigbundle-off", &bbst);
+    for (int pi = 0; bb && !bad && pi < fpc[i]; ) {
+      int m = fpc[i] - pi > 6 ? 6 : fpc[i] - pi; static char pk[6][700]; const char *pkp[6]; unsigned char *pd[6]; size_t pl[6]; char gw[130] = "";
+      for (int j = 0; j < m; j++) { snprintf(pk[j], sizeof pk[j], "%s/f/%s~%d", src, fn[i], pi + j); pkp[j] = pk[j]; }
+      int gr = sv_getm(key, pkp, m, pd, pl, gw, sizeof gw);
+      if (gr == -2) { bb = 0; break; }
+      if (gr) { bad = 1; snprintf(why, sizeof why, "%s pieces %d-%d: %s", fn[i], pi, pi + m - 1, gw); break; }
+      for (int j = 0; j < m; j++) {
+        if (!bad && !pd[j]) { bad = 1; snprintf(why, sizeof why, "%s piece %d missing in the cloud", fn[i], pi + j); }
+        if (!bad) { ssize_t wr = write(fd, pd[j], pl[j]); if (wr != (ssize_t)pl[j]) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", fn[i], pi + j, wr, pl[j], errno); } else got += pl[j]; }
+        free(pd[j]);
+      }
+      pi += m;
+      if (pi >= fpc[i]) { fpc[i] = -2; break; }
+    }
+    for (int pi = 0; fpc[i] > 0 && !bad && pi < fpc[i]; pi++) {
       unsigned char *d = 0; size_t dl = 0; char gw[130] = "";
       snprintf(k, sizeof k, "%s/f/%s~%d", src, fn[i], pi);
       if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { bad = 1; free(d); snprintf(why, sizeof why, "%s piece %d: %s", fn[i], pi, gw); break; }
@@ -3233,16 +3249,35 @@ static void cloud_report(void) {
   jadd(",\"cloud\":{\"on\":%d,\"waiting\":%d,\"up\":%d,\"same\":%d,\"fails\":%d,\"mb\":%lld}", file_exists(PREPD "/cloud_on"), cloud_waiting(), up, same, fl, by / 1048576);
 }
 /* 0 = in the cloud (sent now, or *same = already there); -1 = try again later; -2 = nothing to send (no internal copy) */
-/* 1.1.84: the member's index (members/<id>/<slot>/index.txt = "<game> <part> <cloud folder>" per line, newest wins) */
-static int mem_index_put(const char *key, const char *mtag, const char *t, const char *nm, const char *base) {
+/* 1.1.84: the member's index (members/<id>/<slot>/index.txt = "<game> <part> <cloud folder> [<data fingerprint>]" per line,
+   newest wins). 1.1.86: kept in memory for 10 min (one fetch per batch, not per part). */
+static char mi_tag[64]; static unsigned char *mi_txt; static size_t mi_len; static long long mi_at;
+static const unsigned char *mi_get(const char *key, const char *mtag, size_t *len) {
+  if (mi_txt && !strcmp(mi_tag, mtag) && (long long)time(0) - mi_at < 600) { *len = mi_len; return mi_txt; }
+  free(mi_txt); mi_txt = 0; mi_len = 0;
+  char k[200]; snprintf(k, sizeof k, "members/%s/index.txt", mtag); unsigned char *d = 0; size_t l = 0;
+  if (sv_get_raw(key, k, &d, &l, 0, 0)) { free(d); d = malloc(1); l = 0; } /* missing = new member */
+  mi_txt = d; mi_len = l; snprintf(mi_tag, sizeof mi_tag, "%s", mtag); mi_at = (long long)time(0); *len = l; return mi_txt;
+}
+/* 1.1.86: fingerprint of a part's DATA (manifest lines outside sce_sys/ - those labels differ per profile) */
+static void data_sha(const char *man, size_t mn, char *hex) {
+  mbedtls_sha256_context h; mbedtls_sha256_init(&h); mbedtls_sha256_starts(&h, 0);
+  for (const char *ln = man, *e = man + mn; ln < e; ) { const char *nx = memchr(ln, '\n', (size_t)(e - ln)); size_t l = nx ? (size_t)(nx - ln) : (size_t)(e - ln);
+    if (l && strncmp(ln, "sce_sys/", 8)) { mbedtls_sha256_update(&h, (const unsigned char *)ln, l); mbedtls_sha256_update(&h, (const unsigned char *)"\n", 1); }
+    ln += l + 1; }
+  unsigned char hs[32]; mbedtls_sha256_finish(&h, hs); mbedtls_sha256_free(&h); hexs(hs, 32, hex);
+}
+static int mem_index_put(const char *key, const char *mtag, const char *t, const char *nm, const char *base, const char *dsha) {
   char k[200]; snprintf(k, sizeof k, "members/%s/index.txt", mtag);
-  unsigned char *old = 0; size_t ol = 0; sv_get_raw(key, k, &old, &ol, 0, 0); /* missing = new member */
+  size_t ol = 0; const unsigned char *old0 = mi_get(key, mtag, &ol); unsigned char *old = 0; if (ol) { old = malloc(ol); if (old) memcpy(old, old0, ol); }
   size_t cap = ol + 600; char *nw = malloc(cap); if (!nw) { free(old); return -1; } size_t n = 0;
   if (old) { char *b = malloc(ol + 1); if (b) { memcpy(b, old, ol); b[ol] = 0;
       for (char *ln = b, *nx; ln && *ln; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a1[16] = "", a2[64] = ""; if (sscanf(ln, "%15s %63s", a1, a2) == 2 && !strcmp(a1, t) && !strcmp(a2, nm)) continue; if (*ln) n += (size_t)snprintf(nw + n, cap - n, "%s\n", ln); }
       free(b); } free(old); }
-  n += (size_t)snprintf(nw + n, cap - n, "%s %s %s\n", t, nm, base);
-  int r = sv_put(key, k, (const unsigned char *)nw, n); free(nw); return r;
+  n += (size_t)snprintf(nw + n, cap - n, "%s %s %s %s\n", t, nm, base, dsha ? dsha : "-");
+  int r = sv_put(key, k, (const unsigned char *)nw, n);
+  if (!r) { free(mi_txt); mi_txt = (unsigned char *)nw; mi_len = n; snprintf(mi_tag, sizeof mi_tag, "%s", mtag); mi_at = (long long)time(0); } else free(nw);
+  return r;
 }
 static int cloud_part_m(const char *key, const char *u, const char *t, const char *nm, const char *mtag, int *same, unsigned long long *sent, char *why, size_t wn);
 static int cloud_part(const char *key, const char *u, const char *t, const char *nm, int *same, unsigned long long *sent, char *why, size_t wn) { return cloud_part_m(key, u, t, nm, "", same, sent, why, wn); }
@@ -3255,7 +3290,18 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
   { char cp[320], cb[220] = ""; snprintf(cp, sizeof cp, "%s/cloud.txt", d); FILE *cf = fopen(cp, "r"); if (cf) { if (!fgets(cb, sizeof cb, cf)) cb[0] = 0; fclose(cf); }
     char want[120]; if (mtag[0]) snprintf(want, sizeof want, "members/%s/", mtag); else snprintf(want, sizeof want, "%s/", console_id);
     int same_dest = !strncmp(cb, want, strlen(want)); /* 1.1.84: unchanged AND already in the same place (same member) */
-    if (upl && un == mn && !memcmp(upl, man, mn) && same_dest) { free(man); free(upl); *same = 1; return 0; } }
+    if (upl && un == mn && !memcmp(upl, man, mn) && same_dest) {
+      if (mtag[0]) { /* 1.1.86: make sure the member's index carries this part's data fingerprint (older entries don't) */
+        char ds[65]; data_sha(man, mn, ds); size_t il = 0; const unsigned char *ix = mi_get(key, mtag, &il); int has = 0;
+        char *b = malloc(il + 1); if (b) { memcpy(b, ix, il); b[il] = 0; for (char *ln = b, *nx; ln && *ln && !has; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a1[16], a2[64], a3[220], a4[70]; if (sscanf(ln, "%15s %63s %219s %69s", a1, a2, a3, a4) == 4 && !strcmp(a1, t) && !strcmp(a2, nm) && !strcmp(a4, ds)) has = 1; } free(b); }
+        cb[strcspn(cb, "\r\n")] = 0; if (!has && cb[0]) mem_index_put(key, mtag, t, nm, cb, ds); }
+      free(man); free(upl); *same = 1; return 0; }
+    struct stat mist; if (mtag[0] && stat("/data/round2/mi-skip-off", &mist)) { /* 1.1.86: the member already has exactly this data (loaded into another profile) -> nothing to send */
+      char ds[65]; data_sha(man, mn, ds); size_t il = 0; const unsigned char *ix = mi_get(key, mtag, &il);
+      char *b = malloc(il + 1); if (b) { memcpy(b, ix, il); b[il] = 0; int hit = 0;
+        for (char *ln = b, *nx; ln && *ln && !hit; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a1[16], a2[64], a3[220], a4[70]; if (sscanf(ln, "%15s %63s %219s %69s", a1, a2, a3, a4) == 4 && !strcmp(a1, t) && !strcmp(a2, nm) && !strcmp(a4, ds)) hit = 1; }
+        free(b);
+        if (hit) { snprintf(p, sizeof p, "%s/uploaded.txt", d); FILE *uf = fopen(p, "w"); if (uf) { fwrite(man, 1, mn, uf); fclose(uf); } free(man); free(upl); *same = 1; sv_log("cloud batch: %s %s %s already in member %s's folder - not sent", u, t, nm, mtag); return 0; } } } }
   free(upl);
   if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { free(man); snprintf(why, wn, "no memory"); return -1; } sv_buf = b; }
   char base[220]; if (mtag[0]) snprintf(base, sizeof base, "members/%s/%s/%s/%lld", mtag, t, nm, (long long)time(0)); else snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
@@ -3293,7 +3339,8 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
   snprintf(p, sizeof p, "%s/manifest.txt", d); size_t n2 = 0; char *m2 = read_all(p, &n2, 256 * 1024);
   snprintf(p, sizeof p, "%s/uploaded.txt", d); FILE *f = fopen(p, "w"); if (f && m2) fwrite(m2, 1, n2, f); if (f) { fflush(f); fsync(fileno(f)); fclose(f); } free(m2);
   snprintf(p, sizeof p, "%s/cloud.txt", d); put_file(p, base);
-  if (mtag[0] && mem_index_put(key, mtag, t, nm, base)) { snprintf(why, wn, "member index not updated"); return -1; }
+  if (mtag[0]) { char ds[65]; size_t m3n = 0; char mp3[320]; snprintf(mp3, sizeof mp3, "%s/manifest.txt", d); char *m3 = read_all(mp3, &m3n, 256 * 1024); if (m3) data_sha(m3, m3n, ds); else snprintf(ds, sizeof ds, "-"); free(m3);
+    if (mem_index_put(key, mtag, t, nm, base, ds)) { snprintf(why, wn, "member index not updated"); return -1; } }
   sv_log("cloud batch: sent %s %s %s: %d files, %llu bytes -> %s", u, t, nm, nfiles, *sent, base);
   return 0;
 }
@@ -3972,6 +4019,10 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_memtag.", 9)) look_memtag(t);
     else if (!strcmp(t, "/_pf.off")) { put_file("/data/round2/prefetch-off", "1"); look_kv("pf/result", "prefetch OFF"); }
     else if (!strcmp(t, "/_pf.on")) { unlink("/data/round2/prefetch-off"); look_kv("pf/result", "prefetch ON"); }
+    else if (!strcmp(t, "/_bb.off")) { put_file("/data/round2/bigbundle-off", "1"); look_kv("bb/result", "big-file bundles OFF"); }
+    else if (!strcmp(t, "/_bb.on")) { unlink("/data/round2/bigbundle-off"); look_kv("bb/result", "big-file bundles ON"); }
+    else if (!strcmp(t, "/_mi.off")) { put_file("/data/round2/mi-skip-off", "1"); look_kv("mi/result", "member-index skip OFF"); }
+    else if (!strcmp(t, "/_mi.on")) { unlink("/data/round2/mi-skip-off"); look_kv("mi/result", "member-index skip ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
