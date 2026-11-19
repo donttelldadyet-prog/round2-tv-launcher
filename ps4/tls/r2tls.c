@@ -42,6 +42,8 @@ int mbedtls_hardware_poll(void *data, unsigned char *output, size_t len, size_t 
 }
 
 unsigned long long r2tls_last_bytes = 0;
+/* 1.1.69 (19 Nov, speed-up step 1): timings of each request's parts, kept in memory by the helper (weak = no-op elsewhere) */
+__attribute__((weak)) void r2_timing(const char *name, double secs) { (void)name; (void)secs; }
 static mbedtls_x509_crt cacert;
 static int ca_ready = 0;
 
@@ -124,8 +126,12 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   mbedtls_entropy_init(&ent);
   mbedtls_ctr_drbg_init(&drbg);
 
+  double tg0 = r2_mono();
   if ((ret = mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &ent, (const unsigned char *)"round2", 6))) goto fail;
+  r2_timing("tls: rng seed", r2_mono() - tg0);
+  double tc0 = r2_mono();
   if ((ret = r2_connect(&net, host, "443"))) goto fail;
+  r2_timing("tls: dns+connect", r2_mono() - tc0);
   if ((ret = mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
                                          MBEDTLS_SSL_PRESET_DEFAULT))) goto fail;
   mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_REQUIRED);
@@ -138,6 +144,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   r2_where("handshake", 1);
   r2tls_fd = net.fd;
   double hs0 = r2_mono();
+  int hs_done = 0;
   while ((ret = mbedtls_ssl_handshake(&ssl))) {
     if ((ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) && r2_mono() - hs0 > R2_STALL_S) { snprintf(err, errlen, "handshake stalled %d s", R2_STALL_S); goto done; }
     if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
@@ -152,6 +159,8 @@ static int tls_go(const char *host, const char *method, const char *path, const 
     }
   }
 
+  if (!hs_done) { hs_done = 1; r2_timing("tls: handshake", r2_mono() - hs0); }
+  double rq0 = r2_mono();
   {
     char req[1024];
     int n = snprintf(req, sizeof req,
@@ -194,6 +203,8 @@ static int tls_go(const char *host, const char *method, const char *path, const 
     *rbuf = resp;
     *rlen = got;
   }
+  r2_timing("tls: send+answer", r2_mono() - rq0);
+  r2_timing("tls: whole request", r2_mono() - tg0);
   goto done;
 
 fail:

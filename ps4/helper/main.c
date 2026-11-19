@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.68"
+#define R2_VERSION "1.1.69"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -54,6 +54,20 @@ int sceSystemServicePowerTick(void);
 int sceShellCoreUtilResetAutoPowerDownTimer(void);
 static long long g_awake_until;
 static long long g_awake_engine; /* 1.1.68: booking hold from the engine ("aw") */
+/* 1.1.69 (owner 19 Nov, speed-up step 1 "measure first"): how long each step really takes, IN MEMORY only (no disk writes):
+   count, average, worst, last. Sent with every report as "tm" and readable any time with /_timing. Fixed table, bounded. */
+#define TM_MAX 24
+static struct { const char *name; unsigned n; double sum, max, last; } g_tm[TM_MAX];
+static long long g_tm_since;
+void r2_timing(const char *name, double secs) {
+  if (!name || secs < 0 || secs > 86400) return;
+  int i = 0; for (; i < TM_MAX && g_tm[i].name; i++) if (!strcmp(g_tm[i].name, name)) break;
+  if (i == TM_MAX) return;
+  if (!g_tm[i].name) g_tm[i].name = name; /* names are string constants */
+  g_tm[i].n++; g_tm[i].sum += secs; g_tm[i].last = secs; if (secs > g_tm[i].max) g_tm[i].max = secs;
+  if (!g_tm_since) g_tm_since = (long long)time(0);
+}
+static double tm_now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 /* 1.1.41 (owner 17 Nov: back up every save on every PS4 = the "pre day 0" restore point, and prove each PS4 can do it):
    a background job, see "SNAPSHOT" further down. */
 #define SNAPD "/data/round2/snap"
@@ -487,6 +501,7 @@ static void add_tail(const char *name, const char *path, int lines) {
 }
 static uint64_t games_sent_hash;
 static int report(const char *key, char *status, size_t slen) {
+  double t_rep0 = tm_now(); /* 1.1.69 */
   char run[32];
   running_title(run, sizeof run);
   Jn = 0;
@@ -518,11 +533,12 @@ static int report(const char *key, char *status, size_t slen) {
   sceKernelGetCpuTemperature(&c);
   sceKernelGetSocSensorTemperature(0, &s);
   jadd(",\"temp\":{\"cpu\":%d,\"soc\":%d},\"psClock\":%lld", c, s, (long long)time(0));
-  jadd(",\"sony\":%s,\"running\":", sony_blocked() ? "\"blocked\"" : "\"OPEN\"");
+  { double t = tm_now(); int sb = sony_blocked(); r2_timing("report: sony check", tm_now() - t);
+    jadd(",\"sony\":%s,\"running\":", sb ? "\"blocked\"" : "\"OPEN\""); }
   jstr(run);
   add_users();
   add_wifi();
-  add_storage();
+  { double t = tm_now(); add_storage(); r2_timing("report: disk + folders", tm_now() - t); }
   jadd(",\"updGuard\":{\"blocked\":%d,\"lastMB\":%d,\"agoS\":%lld,\"discUpd\":%d}", upd_blocked, upd_last_mb,
        upd_last ? (long long)(time(0) - upd_last) : -1LL, disc_pup);
   { char bv[16] = "", rb[200] = "";
@@ -549,10 +565,18 @@ static int report(const char *key, char *status, size_t slen) {
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
   jadd("}");
   char *g = 0;
+  double tgj = tm_now();
   uint64_t gh = games_json(&g);
+  r2_timing("report: games list", tm_now() - tgj);
   if (gh != games_sent_hash) jadd(",\"games\":%s", g);
   free(g);
+  if (g_tm_since) { /* 1.1.69: timings so far - name: [count, average ms, worst ms, last ms] */
+    jadd(",\"tm\":{\"since\":%lld", g_tm_since);
+    for (int i = 0; i < TM_MAX && g_tm[i].name; i++) jadd(",\"%s\":[%u,%.0f,%.0f,%.0f]", g_tm[i].name, g_tm[i].n, g_tm[i].sum / g_tm[i].n * 1000, g_tm[i].max * 1000, g_tm[i].last * 1000);
+    jadd("}");
+  }
   jadd("}");
+  r2_timing("report: build (before sending)", tm_now() - t_rep0);
 
   char hdr[200], body[512], err[200];
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
@@ -563,6 +587,7 @@ static int report(const char *key, char *status, size_t slen) {
     if (g_own && !file_exists(OWNOK)) put_file(OWNOK, R2_VERSION); /* tells the helper that started us: all good */
   }
   snprintf(status, slen, "%d %s %.200s", st, err, body);
+  r2_timing("report: total", tm_now() - t_rep0);
   return st;
 }
 
@@ -3506,6 +3531,10 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_input.", 8)) look_input(t);
     else if (!strncmp(t, "/_inplug.", 9)) look_inplug(t);
     else if (!strncmp(t, "/_klog.", 7)) look_klog(t);
+    else if (!strcmp(t, "/_timing")) { /* 1.1.69: name = count / avg / worst / last (ms) - keys start with tail/ so 300 chars survive */
+      char k[64], v[120]; snprintf(v, sizeof v, "since %lld (%lld s ago)", g_tm_since, g_tm_since ? (long long)time(0) - g_tm_since : 0); look_kv("tail/timing since", v);
+      for (int i = 0; i < TM_MAX && g_tm[i].name; i++) { snprintf(k, sizeof k, "tail/t %s", g_tm[i].name); snprintf(v, sizeof v, "%u x, avg %.0f ms, worst %.0f ms, last %.0f ms", g_tm[i].n, g_tm[i].sum / g_tm[i].n * 1000, g_tm[i].max * 1000, g_tm[i].last * 1000); look_kv(k, v); }
+    }
     else if (!strncmp(t, "/_cloud.", 8)) look_cloud(t);
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_reboot")) look_reboot();
@@ -3682,6 +3711,7 @@ int main(void) {
   cd_load(); /* 1.1.55: carry on a reset countdown */
   for (unsigned long m = 0;; m++) {
     char run[32];
+    double t_hk = tm_now(); /* 1.1.69: the once-a-minute housekeeping below */
     set_dns_servers(); /* 1.1.26: our own name lookups ask the PS4's DNS servers first */
     r2_where("title", 0);
     running_title(run, sizeof run);
@@ -3690,6 +3720,7 @@ int main(void) {
     r2_where("loop", 0);
     FILE *a = fopen("/data/round2/alive", "w"); /* for the starter (later) */
     if (a) { fprintf(a, "%lu\n", m); fclose(a); }
+    r2_timing("minute housekeeping", tm_now() - t_hk);
     if (m % REPORT_EVERY == 0) { /* 1.0.5: first report ~10 s after start (was 1 min), retried while the network settles */
       if (!read_key(key, sizeof key)) {
         write_status("no key – put the PS4 key in /data/round2/key.txt");
@@ -3719,7 +3750,8 @@ int main(void) {
     if (g_awake_engine) { if ((long long)time(0) < g_awake_engine) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } else g_awake_engine = 0; }
     if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); } /* 1.1.33: act on auto-promote here, not only after a look job */
     r2_where("check-in", 1);
-    if ((key[0] || read_key(key, sizeof key)) && check_cmd(key)) { report(key, status, sizeof status); write_status(status); }
+    { double t = tm_now(); int did = (key[0] || read_key(key, sizeof key)) && check_cmd(key); r2_timing("check-in (every min)", tm_now() - t);
+      if (did) { report(key, status, sizeof status); write_status(status); } }
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
     else if (key[0] && file_exists(PREPD "/cloud_on")) { r2_where("cloud", 1); cloud_step(key, 20); } /* 1.1.52: background cloud batch, off by default */
@@ -3728,7 +3760,8 @@ int main(void) {
       r2_where("guard", 0);
       countdown_tick(key); /* 1.1.55: reset pop-ups + the engine's last check, every 2 s */
       inp_watch(); /* 1.1.64: test pop-ups for the detector (only while switched on) */
-      if (update_guard()) {
+      double tug = tm_now(); int ug = update_guard(); r2_timing("update guard (every 2 s)", tm_now() - tug);
+      if (ug) {
         notify("Round2 stopped a PS4 system update. Please don't accept update prompts.");
         if (read_key(key, sizeof key)) { report(key, status, sizeof status); write_status(status); } /* tell the engine now */
       }
