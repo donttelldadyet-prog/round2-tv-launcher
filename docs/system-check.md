@@ -111,3 +111,8 @@ run 8 times in one afternoon (before and after each PS4 helper change) and the d
   first when the day has already passed 4,000 SimplyBook requests.
 - A new step is only part of the light check once its name is added to `LIGHT_OK` in `manager/index.html` – and only if it
   asks SimplyBook nothing.
+
+## Phone widgets (20 Nov 2026)
+Light + Full: `Phone widgets: the widget summary answers with its key and refuses a wrong one` – gets the widget key (staff
+`widgetkey`), asks `GET /w?k=…` (must answer 7 rooms, copy of tonight ≤ 25 min old) and checks a wrong key gets 403. The copy is
+refreshed by the main timer's 10-minute tick (`widgetSnap`, no extra SimplyBook reads); TVs' check-ins by the side timer (`wtv`).

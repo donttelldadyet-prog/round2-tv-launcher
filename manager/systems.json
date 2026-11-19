@@ -342,6 +342,13 @@
           "code": "round2-tv-launcher · webos/service/round2d.sh, app/…/HomeWatch.java, manager/index.html"
         },
         {
+          "name": "iPhone widgets (home screen + lock screen)",
+          "status": "test",
+          "what": "Built 20 Nov (owner: 'useful iOS lock screen and home screen widgets'). Run in the free Scriptable app; control centre › Tests & systems › Phone alerts & widgets copies the script with this shop's widget key. Small: rooms in use, next in/out with a live countdown. Medium: every room (in till / cleaning till / next / free). Large: each room with guest, next guest and turnover, plus warnings. Lock screen: inline line by the clock (next out / next in), rectangular (3 lines), circular (rooms in use). Warning when a room with guests (or due within 45 min) has a TV not reporting 20 min. Parameter nonames / room:Kai. No SimplyBook requests: the engine keeps a copy of the 10-minute calendar read; one storage call per widget refresh.",
+          "runs": "Scriptable on the iPhone → engine GET /w?k=… (copy of tonight from the main timer, TVs from the side timer)",
+          "code": "round2-tv-launcher · manager/widget/round2-widget.js, manager/index.html (wgCard, System check step 'Phone widgets'); round2sg-home worker · widgetApi / widgetSnap / widgetkey"
+        },
+        {
           "name": "PC toolkit finds each TV by itself (connect kai)",
           "status": "test",
           "what": "Built 15 Nov (owner: 'connect kai should read the IP the homescreen app reports'). Android TVs on app 1.0.286+ send their shop-network address with every 5-minute check-in; the TVs page shows it ('ADB 192.168.88.x:5555') and round2tv.ps1 connect <room> uses it first, falling back to the address typed in Theme manager › Rooms › Advanced. The PC asks once for the TV messages key and keeps it in its round2-tv folder. LG TVs don't use ADB.",

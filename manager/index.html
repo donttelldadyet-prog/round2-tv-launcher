@@ -1014,6 +1014,22 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <p class="sub">Get a notification on this phone when something happens, like a new booking. Each phone chooses its own alerts.</p>
     <div id="alBox"></div>
     <div class="card" id="alDeliv" style="margin-top:12px" hidden></div>
+    <!-- iPhone widgets (owner, 20 Nov): run in the free Scriptable app; the script carries this shop's widget key -->
+    <div class="card" id="wgCard" style="margin-top:16px">
+      <h2 style="margin:0 0 6px">iPhone widgets</h2>
+      <p class="hint" style="margin:0 0 10px">Rooms at a glance on your <b>home screen</b> and <b>lock screen</b>: who's in and till when, cleaning, who's next and the turnover, how many are left tonight, and a warning when a room's TV stops reporting. Updates every few minutes (iPhone decides exactly when). Tap a widget to open the control centre.</p>
+      <ol class="hint" style="margin:0 0 10px;padding-left:18px;line-height:1.6">
+        <li>Install <b>Scriptable</b> from the App Store (free).</li>
+        <li>Press <b>Copy widget script</b> below.</li>
+        <li>In Scriptable tap <b>+</b>, paste, then tap the title and name it <b>Round2</b>. Tap ▶ once to see it.</li>
+        <li><b>Home screen:</b> hold an empty spot → <b>Edit → Add widget → Scriptable</b> → pick small, medium or large → tap the new widget → Script: <b>Round2</b>.</li>
+        <li><b>Lock screen:</b> hold the lock screen → <b>Customize → Lock Screen</b> → tap the widget row (or the line above the clock) → <b>Scriptable</b> → tap it → Script: <b>Round2</b>.</li>
+        <li>Optional, on any widget: <b>Parameter</b> <code>nonames</code> hides guest names; <code>room:Kai</code> shows just one room.</li>
+      </ol>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="wgCopy">Copy widget script</button><button class="btn" type="button" id="wgReset">New key (old widgets stop)</button></div>
+      <p class="hint" id="wgMsg" style="margin:8px 0 0"></p>
+      <textarea id="wgTxt" readonly hidden style="width:100%;height:120px;margin-top:8px;font:11px ui-monospace,monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2)"></textarea>
+    </div>
   </section>
 
   <section id="tab-planned" hidden>
@@ -3487,7 +3503,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var LIGHT = false, sb0 = null;
     function autoQ() { return LIGHT ? { action: 'auto', lite: '1' } : { action: 'auto' }; }   /* lite: counters only, no SimplyBook */
     var LIGHT_OK = ['Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
-      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'PS4 clean slate after each session', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
+      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'PS4 clean slate after each session', 'Phone widgets', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
     function step(name, fn) {
       if (LIGHT && !LIGHT_OK.some(function (p) { return name.indexOf(p) === 0; })) return Promise.resolve();
       var r = { name: name, st: 'run', note: '' }; rows.push(r); draw();
@@ -3638,6 +3654,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           var f = (j.fails || []).filter(function (x) { return x.t > j.now - 86400e3; });
           warnIf(f.length, f.length + ' outside request' + (f.length === 1 ? ' was' : 's were') + ' refused in the last 24 hours (“too many in one run”): ' + f.slice(-3).map(function (x) { return (x.who || '?') + ' → ' + x.host; }).join(', '));
           return 'Most requests in one run, last 24 h: ' + out.join(' · ') + ' (limit 50 each)';
+        }); }); })
+      /* iPhone widgets (20 Nov): the key works, a wrong key is refused, the board copy is fresh */
+      .then(function () { return step('Phone widgets: the widget summary answers with its key and refuses a wrong one', function () {
+        return gm({ action: 'widgetkey' }).then(function (k) {
+          must(k.ok && k.key && k.url, 'No widget key: ' + (k.error || 'older engine?'));
+          return Promise.all([fetch(k.url + '?k=' + encodeURIComponent(k.key)).then(function (r) { return r.json(); }), fetch(k.url + '?k=wrongwrongwrongwrong').then(function (r) { return r.status; })]);
+        }).then(function (x) {
+          var j = x[0];
+          must(j.ok && j.rooms && j.rooms.length === 7, 'The widget summary didn’t answer properly: ' + (j.error || JSON.stringify(j).slice(0, 80)));
+          must(x[1] === 403, 'A wrong widget key wasn’t refused (' + x[1] + ').');
+          must(j.age <= 25, 'The widget’s copy of tonight is ' + j.age + ' min old – the 10-minute timer tick isn’t updating it.');
+          return j.counts.in + ' in, ' + j.counts.left + ' to come · copy ' + j.age + ' min old' + (j.warn.length ? ' · warnings: ' + j.warn.join('; ') : '');
         }); }); })
       /* SimplyBook's shared servers allow about 5,000 API requests a day (owner, 2 Nov: "is that too intensive?"). The engine
          counts every request it makes (bookings page, alerts, timer, screens); this run itself adds a few hundred. */
@@ -4449,7 +4477,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors'], ['bookstats', 'Booking page']],
-    sys: [['alerts', 'Phone alert setup'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
+    sys: [['alerts', 'Phone alerts & widgets'], ['syscheck', 'System check'], ['testbench', 'Test bench'], ['systems', 'All systems'], ['planned', 'Planned'], ['keys', 'Keys']],
     help: [['help', 'How it works'], ['tvhelp', 'On the TV'], ['stuck', 'If a TV is stuck']]
   };
   var AREAS = {   /* name on the section bar, icon, what it's for (Home page) */
@@ -5177,6 +5205,31 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       }).catch(function () { pollTimer = setTimeout(poll, 15000); });
     }());
   }
+
+  /* ---------- iPhone widgets (20 Nov): the Scriptable script with this shop's widget key filled in ---------- */
+  (function () {
+    var GM = 'https://round2-book.donttelldadyet.workers.dev/gm';
+    function staff() { return ls('r2.guestStaff') || ''; }
+    function msg(t, bad) { var m = document.getElementById('wgMsg'); m.textContent = t; m.style.color = bad ? 'var(--warn)' : ''; }
+    function make(reset) {
+      if (!staff()) { msg('Add your staff code first (Tests & systems › Keys).', true); return; }
+      msg(reset ? 'Making a new key…' : 'Getting the script…');
+      Promise.all([
+        fetch(GM, { method: 'POST', body: new URLSearchParams({ action: 'widgetkey', staff: staff(), reset: reset ? '1' : '' }) }).then(function (r) { return r.json(); }),
+        fetch('widget/round2-widget.js?v=' + Date.now()).then(function (r) { return r.text(); })
+      ]).then(function (x) {
+        var j = x[0]; if (!j || !j.ok) { msg((j && j.error) || 'No answer from the engine.', true); return; }
+        var code = x[1].replace("'__KEY__'", JSON.stringify(j.key)).replace("'__URL__'", JSON.stringify(j.url)), ta = document.getElementById('wgTxt');
+        ta.value = code; ta.hidden = false;
+        var done = function () { msg((reset ? 'New key made – widgets with the old script now say "Key changed". ' : '') + 'Copied ✓ Now paste it into Scriptable (steps above).'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, function () { ta.select(); msg('Select all in the box below and copy it.'); });
+        else { ta.select(); msg('Select all in the box below and copy it.'); }
+      }).catch(function () { msg('Couldn’t reach the engine – try again.', true); });
+    }
+    var c = document.getElementById('wgCopy'), r = document.getElementById('wgReset');
+    if (c) c.onclick = function () { make(false); };
+    if (r) r.onclick = function () { if (confirm('Make a new widget key? Widgets on every phone stop until they get the script again.')) make(true); };
+  })();
 
   /* ---------- start ---------- */
   (function () {   /* a tapped alert opens staff.round2.sg/?tab=insession, or messages an open window */
