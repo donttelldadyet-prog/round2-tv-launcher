@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.99"
+#define R2_VERSION "1.1.100"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -49,6 +49,7 @@ static void dns_file_sha(const char *path, char out[16]);
 static int file_exists(const char *p);
 static void put_file(const char *p, const char *txt);
 static void tile_ver(char *v, size_t n); static int tile_check(const char *key, int force); /* 1.1.87 */
+static int may_rename(uint32_t uid); /* 1.1.100 */
 static int g_own;
 /* 1.1.31: keep a woken PS4 on (power tick) + the 1 MB save buffer, declared early so report() and step_aside() can use them. */
 int sceSystemServicePowerTick(void);
@@ -2367,7 +2368,7 @@ static void look_prepmember(const char *spec) {
   fclose(ix); fclose(td);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
   if (tmain) sv_log("member prep: %s is the main profile - keeps the room's name", tu);
-  else if (user_signed_in(tid)) sv_log("member prep: profile %s is signed in - name left as it is", tu);
+  else if (!may_rename(tid)) sv_log("member prep: profile %s is signed in - name left as it is", tu);
   else { int r = sceUserServiceSetUserName((int32_t)tid, shown); sv_log("member prep: profile %s renamed to '%s' (0x%08x)", tu, shown, (unsigned)r); }
   cl_begin("prep", nm);
   cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("rtime", "0\n"); cl_wr("mode", "restore %s %s\n", stamp, su);
@@ -2464,7 +2465,7 @@ static void look_memload(const char *key, const char *spec) {
     free(b); }
   fclose(td); free(ix);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
-  if (uid != r2_main_user() && !user_signed_in(uid)) sceUserServiceSetUserName((int32_t)uid, shown);
+  if (may_rename(uid)) { int rr = sceUserServiceSetUserName((int32_t)uid, shown); if (user_signed_in(uid)) sv_log("member load: signed-in profile %08x renamed to '%s' (0x%08x)", uid, shown, (unsigned)rr); } /* 1.1.100 */
   { char op[120], tv[80]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); snprintf(tv, sizeof tv, "%s/%s", id, sl); mkdir("/data/round2/prep", 0777); put_file(op, tv); }
   char lab[48]; snprintf(lab, sizeof lab, "%s", nm);
   cl_begin("prep", lab);
@@ -2507,7 +2508,7 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
   if (!strncmp(look_last, "memload/started", 15)) { snprintf(v, sizeof v, "%s%s %s", pick == mainu ? "main " : "", u, look_last + 17); sv_log("member play: %s/%s '%s' -> profile %s, loading", id, sl, shown, u); look_kv("memplay/loading", v); return; }
   /* nothing in the cloud yet (a new member) – link + name only */
   snprintf(ms, sizeof ms, "/_memtag.%s.%s.%s", u, id, sl); look_mute = 1; look_memtag(ms); look_mute = 0;
-  int r = (pick == mainu || user_signed_in(pick)) ? -1 : sceUserServiceSetUserName((int32_t)pick, shown); /* the main keeps the room name */
+  int r = (pick == mainu || !may_rename(pick)) ? -1 : sceUserServiceSetUserName((int32_t)pick, shown); /* the main keeps the room name */
   sv_log("member play: %s/%s '%s' -> profile %s, linked (no saves in the cloud yet; rename 0x%08x)", id, sl, shown, u, (unsigned)r);
   if (pick == mainu) bpop("%s: ready on the main profile - just play", shown); else bpop("%s: profile ready - sign in as %s", shown, shown);
   snprintf(v, sizeof v, "%s%s new member - profile linked%s", pick == mainu ? "main " : "", u, pick == mainu ? "" : " and named"); look_kv("memplay/ready", v);
@@ -2517,6 +2518,18 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
    to the cloud as lib/av/NNNN.xavatar (+ lib/av/index.txt "NNNN<tab>file name", names in sorted order) so the member page can
    show them. When a member picks one the engine unzips it into members/<id>/<slot>/avatar.bin ("R2AV <n>\n" then per file
    "<name> <length>\n<bytes>"); av_apply puts those files on the profile at Load (signed-out spare only, never the main). */
+/* 1.1.100 (owner 20 Nov 2:43am: "the profile doesn't update to the correct names"): Player 1/2 were SIGNED IN, and we never
+   renamed a signed-in profile (only our own safety rule, never tested). "/_rename.<user>.<Name>" renames even a signed-in spare
+   and reads the name back. Once /data/round2/rename-signedin exists ("/_renamesi.on"), member loads rename signed-in spares too. */
+static int ren_si(void) { struct stat st; return !stat("/data/round2/rename-signedin", &st); }
+static int may_rename(uint32_t uid) { return uid != r2_main_user() && (!user_signed_in(uid) || ren_si()); }
+static void look_rename(const char *spec) {
+  char u[16] = "", nm[40] = "", v[160], have[40] = ""; if (sscanf(spec, "/_rename.%8[0-9a-f].%31[A-Za-z0-9_]", u, nm) != 2) { look_kv("rename/error", "bad spec"); return; }
+  uint32_t uid = (uint32_t)strtoul(u, 0, 16); if (uid == r2_main_user()) { look_kv("rename/refused", "never the main profile"); return; }
+  for (char *c = nm; *c; c++) if (*c == '_') *c = ' ';
+  int si = user_signed_in(uid), r = sceUserServiceSetUserName((int32_t)uid, nm); sceUserServiceGetUserName((int32_t)uid, have, sizeof have);
+  snprintf(v, sizeof v, "%s: rc 0x%08x, name now '%s'", si ? "signed in" : "signed out", (unsigned)r, have); sv_log("rename test %08x -> '%s': %s", uid, nm, v); look_kv("rename/result", v);
+}
 static int av_cmp(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
 static void look_avlib(const char *key, const char *spec) {
   int from = 1; sscanf(spec, "/_avlib.%d", &from); if (from < 1) from = 1;
@@ -4175,6 +4188,9 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_avcopy.", 9)) look_avcopy(t, 0);
     else if (!strncmp(t, "/_avreset.", 10)) look_avcopy(t, 1);
     else if (!strncmp(t, "/_avlib", 7)) look_avlib(key, t);
+    else if (!strncmp(t, "/_rename.", 9)) look_rename(t); /* 1.1.100 */
+    else if (!strcmp(t, "/_renamesi.on")) { put_file("/data/round2/rename-signedin", "1"); look_kv("renamesi/result", "member loads now rename signed-in spares"); }
+    else if (!strcmp(t, "/_renamesi.off")) { unlink("/data/round2/rename-signedin"); look_kv("renamesi/result", "signed-in spares keep their names"); }
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
     else if (!strncmp(t, "/_uorder.", 9)) look_uorder(t);
     else if (!strncmp(t, "/_clean.", 8)) look_clean(t);
