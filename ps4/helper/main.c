@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.95"
+#define R2_VERSION "1.1.96"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2491,13 +2491,20 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
   for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
   for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
   char tag[16][64]; for (int i = 0; i < ns; i++) { char op[120]; tag[i][0] = 0; snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", sp[i]); FILE *f = fopen(op, "r"); if (f) { if (fgets(tag[i], 64, f)) tag[i][strcspn(tag[i], "\r\n")] = 0; fclose(f); } }
-  /* 1.1.95 (owner 20 Nov 1:06am): the FIRST ticked player goes into the MAIN profile (guests mostly just play on it – no switching
-     user; the main keeps the room's name, GT Sport on Max is never touched); the others into spares. */
-  if (allow_main && mainu) { char op[120], mt[64] = ""; snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", mainu); FILE *f = fopen(op, "r"); if (f) { if (fgets(mt, sizeof mt, f)) mt[strcspn(mt, "\r\n")] = 0; fclose(f); }
-    if (!mt[0] || !strcmp(mt, want)) pick = mainu; }
-  for (int i = 0; i < ns && !pick; i++) if (!strcmp(tag[i], want)) pick = sp[i];
-  for (int i = 0; i < ns && !pick; i++) if (!tag[i][0] && !user_signed_in(sp[i])) pick = sp[i];
-  if (!pick) { look_kv("memplay/refused", "- every spare profile is signed in or taken: ask staff"); return; }
+  /* 1.1.96 (owner 20 Nov 1:14am – replaces 1.1.95's "first player into main"): every profile of the room belongs to the crew for
+     the session – slot "main" = the main profile, "p1".."p4" = Player 1..4 (spares in id order, as the reset names them). So a
+     guest's saves on ANY profile (also from before they joined) go to the crew at the clean slate, and the next Load puts each
+     profile's saves back into the same profile: "picked up where I left off". All the room's profiles are linked here. */
+  (void)allow_main; (void)tag;
+  if (!strcmp(sl, "main")) pick = mainu;
+  else if (sl[0] == 'p' && sl[1] >= '1' && sl[1] <= '4' && !sl[2] && sl[1] - '0' <= ns) pick = sp[sl[1] - '1'];
+  if (pick) { /* link the whole room to this crew (the profiles that aren't linked to it yet) */
+    char op[120], tv[80], cur[64]; mkdir("/data/round2/prep", 0777);
+    for (int i = -1; i < ns && i < 4; i++) { uint32_t pu = i < 0 ? mainu : sp[i]; if (!pu) continue; char ps[8]; if (i < 0) snprintf(ps, sizeof ps, "main"); else snprintf(ps, sizeof ps, "p%d", i + 1);
+      snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", pu); snprintf(tv, sizeof tv, "%s/%s", id, ps); cur[0] = 0;
+      FILE *f = fopen(op, "r"); if (f) { if (fgets(cur, sizeof cur, f)) cur[strcspn(cur, "\r\n")] = 0; fclose(f); }
+      if (strcmp(cur, tv)) { put_file(op, tv); sv_log("member link: profile %08x -> %s", pu, tv); } } }
+  if (!pick) { look_kv("memplay/refused", "- this room has no profile for that slot: ask staff"); return; }
   char u[16]; snprintf(u, sizeof u, "%08x", pick);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
   snprintf(ms, sizeof ms, "/_memload.%s.%s.%s.%s", u, id, sl, nm);
@@ -2505,7 +2512,7 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
   if (!strncmp(look_last, "memload/started", 15)) { snprintf(v, sizeof v, "%s%s %s", pick == mainu ? "main " : "", u, look_last + 17); sv_log("member play: %s/%s '%s' -> profile %s, loading", id, sl, shown, u); look_kv("memplay/loading", v); return; }
   /* nothing in the cloud yet (a new member) – link + name only */
   snprintf(ms, sizeof ms, "/_memtag.%s.%s.%s", u, id, sl); look_mute = 1; look_memtag(ms); look_mute = 0;
-  int r = (pick == mainu || user_signed_in(pick)) ? -1 : sceUserServiceSetUserName((int32_t)pick, shown); /* 1.1.95: the main keeps the room name */
+  int r = (pick == mainu || user_signed_in(pick)) ? -1 : sceUserServiceSetUserName((int32_t)pick, shown); /* the main keeps the room name */
   sv_log("member play: %s/%s '%s' -> profile %s, linked (no saves in the cloud yet; rename 0x%08x)", id, sl, shown, u, (unsigned)r);
   if (pick == mainu) bpop("%s: ready on the main profile - just play", shown); else bpop("%s: profile ready - sign in as %s", shown, shown);
   snprintf(v, sizeof v, "%s%s new member - profile linked%s", pick == mainu ? "main " : "", u, pick == mainu ? "" : " and named"); look_kv("memplay/ready", v);
