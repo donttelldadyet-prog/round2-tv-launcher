@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.73"
+#define R2_VERSION "1.1.74"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2124,6 +2124,57 @@ static int clean_status(char *st, int *done, int *total, int *fails, int *parts)
   char b[100]; if (cl_rd("state", b, sizeof b)) return 0; snprintf(st, 16, "%s", b);
   cl_rd("stat", b, sizeof b); sscanf(b, "%d %d %d %d", done, total, fails, parts); return 1;
 }
+/* 1.1.74 (owner 19 Nov 4:22pm, Kaeden test bench): "/_copy.all" = the clean slate's INTERNAL COPY step for every game of every
+   profile, and NOTHING else - no removal, no profile changes, no sign-outs. Runs as the clean slate job (report "clean", kind
+   "copy", /_clean.stop), ~45 s a minute, paused while a game is open. Each part ends up in /data/round2/prep/<user>/<game>/<part>/
+   with manifest.txt (path, size, SHA-256) and is queued for the cloud batch (pending.txt). */
+static void look_copy(const char *spec) {
+  char st[16] = ""; cl_rd("state", st, sizeof st);
+  if (strcmp(spec, "/_copy.all")) { look_kv("copy/error", "bad spec (use /_copy.all)"); return; }
+  if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("copy/refused", "a clean slate / copy is already running"); return; }
+  mkdir(CLND, 0777); mkdir("/data/round2/prep", 0777);
+  FILE *td = fopen(CLND "/todo", "w"); if (!td) { look_kv("copy/error", "can't write the list"); return; }
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  int ng = 0, nu = 0;
+  for (int i = 0; i < 16; i++) {
+    if (L.userId[i] == -1 || !L.userId[i]) continue;
+    char u[9]; snprintf(u, sizeof u, "%08x", (uint32_t)L.userId[i]); nu++;
+    char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f; static char nm[64][32];
+    while (g && (f = readdir(g))) {
+      if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name)) continue;
+      if (!sv_disk_parts(u, f->d_name, nm, 64)) continue;
+      fprintf(td, "%s %s\n", u, f->d_name); ng++;
+    }
+    if (g) closedir(g);
+  }
+  fclose(td);
+  cl_begin("copy", "");
+  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("mode", "copy\n"); cl_wr("state", ng ? "running\n" : "done\n");
+  clean_on = ng > 0;
+  sv_log("copy only started: %d profile(s), %d game(s) - nothing will be removed", nu, ng);
+  char v[80]; snprintf(v, sizeof v, "%d games on %d profiles (copy only)", ng, nu); look_kv("copy/started", v);
+}
+/* 1.1.74: "/_copycheck" - does the internal copy match the restore point in the cloud? For every part in the restore point's
+   list (snapshot index: files + bytes as uploaded) compare with the internal copy's manifest (files + bytes). Each mismatch
+   is written to save.log. */
+static void look_copycheck(void) {
+  FILE *ix = fopen(SNAPD "/index", "r"); if (!ix) { look_kv("copycheck/error", "no restore point on this PS4"); return; }
+  char ln[200], u[16], t[16], nm[48]; int f, fl, same = 0, diff = 0, missing = 0, skipped = 0; unsigned long long by;
+  while (fgets(ln, sizeof ln, ix)) {
+    if (sscanf(ln, "%15s %15s %47s %d %llu %d", u, t, nm, &f, &by, &fl) != 6) continue;
+    if (fl || f <= 0) { skipped++; continue; }
+    char mp[300]; snprintf(mp, sizeof mp, "/data/round2/prep/%s/%s/%s/manifest.txt", u, t, nm);
+    FILE *m = fopen(mp, "r"); if (!m) { missing++; sv_log("copy check: %s %s %s in the restore point but NO internal copy", u, t, nm); continue; }
+    char ml[600]; int mf = 0; unsigned long long mb = 0;
+    while (fgets(ml, sizeof ml, m)) { char *a = strchr(ml, '\t'); if (!a) continue; mf++; mb += strtoull(a + 1, 0, 10); }
+    fclose(m);
+    if (mf == f && mb == by) same++;
+    else { diff++; sv_log("copy check: %s %s %s DIFFERS - restore point %d files %llu bytes, internal %d files %llu bytes", u, t, nm, f, by, mf, mb); }
+  }
+  fclose(ix);
+  char v[160]; snprintf(v, sizeof v, "%d same, %d different, %d with no internal copy, %d not in the restore point (failed/empty)", same, diff, missing, skipped);
+  look_kv("copycheck/result", v); sv_log("copy check: %s", v);
+}
 static void look_clean(const char *spec) {
   char st[16] = ""; cl_rd("state", st, sizeof st);
   if (!strcmp(spec, "/_clean.stop")) { if (!strcmp(st, "running") || !strcmp(st, "paused")) { cl_wr("state", "stopped\n"); clean_on = 0; sv_log("clean slate stopped by staff"); look_kv("clean/result", "stopped"); } else look_kv("clean/result", "nothing running"); return; }
@@ -2711,7 +2762,8 @@ static void clean_step(const char *key, int budget) {
     if (!br) sv_log("clean slate: user %s game %s: %d part(s): %d copied internally (%d files, %llu bytes), %d already in the restore point", u, t, n, n - cov, nf, nb, cov);
     if (cov) snprintf(base, sizeof base, "internal+restore-point(%d)", cov);
     int gone = 0, left = 0;
-    if (br == 0) {
+    int copyonly = !strcmp(md, "copy"); /* 1.1.74: "/_copy" = internal copy ONLY - nothing is ever removed */
+    if (br == 0 && !copyonly) {
       for (int i = 0; i < n; i++) { char res[300]; if (sv_del_part(u, t, nm[i], res, sizeof res)) left++; else gone++;
         if (copied[i]) { char mf[300]; snprintf(mf, sizeof mf, "/data/round2/prep/%s/%s/%s/manifest.txt", u, t, nm[i]); if (!file_exists(mf)) { sv_log("clean slate: WARNING internal copy of %s %s %s is MISSING after removal", u, t, nm[i]); cl_err("%s game %s part %s: internal copy missing after removal", u, t, nm[i]); } } }
       if (left) cl_err("%s game %s: %d part(s) could not be removed (still on the PS4)", u, t, left);
@@ -2721,7 +2773,8 @@ static void clean_step(const char *key, int budget) {
     if (br != 0 || left) fails++;
     parts += gone; done++; pos++;
     FILE *ix = fopen(CLND "/index", "a"); if (ix) { fprintf(ix, "%s %s backup %s removed %d left %d %s\n", u, t, br ? "FAILED" : "ok", gone, left, base); fclose(ix); }
-    sv_log("clean slate: user %s game %s: internal copy %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
+    if (copyonly) sv_log("copy only: user %s game %s: internal copy %s (nothing removed)", u, t, br ? "FAILED" : "ok");
+    else sv_log("clean slate: user %s game %s: internal copy %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
     cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
   }
   fclose(td);
@@ -3056,6 +3109,8 @@ static void look_keepawake(const char *spec) {
   int mins = -1;
   if (sscanf(spec, "/_keepawake.%d", &mins) != 1 || mins < 0 || mins > 600) { look_kv("keepawake/error", "bad spec (0-600 min)"); return; }
   g_awake_until = mins ? (long long)time(0) + mins * 60 : 0;
+  /* 1.1.74: kept in a file so a helper update/restart doesn't drop it (Kaeden 19 Nov: slept after each update) */
+  if (g_awake_until) { char b[24]; snprintf(b, sizeof b, "%lld", g_awake_until); put_file("/data/round2/keepawake.txt", b); } else unlink("/data/round2/keepawake.txt");
   if (mins) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); }
   char v[32]; snprintf(v, sizeof v, mins ? "holding %d min" : "hold cleared", mins);
   look_kv("keepawake/result", v);
@@ -3517,6 +3572,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
     else if (!strncmp(t, "/_uorder.", 9)) look_uorder(t);
     else if (!strncmp(t, "/_clean.", 8)) look_clean(t);
+    else if (!strncmp(t, "/_copy.", 7)) look_copy(t);
+    else if (!strcmp(t, "/_copycheck")) look_copycheck();
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
     else if (!strncmp(t, "/_input.", 8)) look_input(t);
@@ -3710,6 +3767,7 @@ int main(void) {
   { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
   { char st[16] = ""; cl_rd("state", st, sizeof st); clean_on = !strcmp(st, "running") || !strcmp(st, "paused"); } /* 1.1.50: carry on a clean slate */
   cd_load(); /* 1.1.55: carry on a reset countdown */
+  { FILE *ka = fopen("/data/round2/keepawake.txt", "r"); char b[24] = ""; if (ka) { if (fgets(b, sizeof b, ka)) { long long u = atoll(b); if (u > (long long)time(0)) g_awake_until = u; } fclose(ka); } } /* 1.1.74 */
   for (unsigned long m = 0;; m++) {
     char run[32];
     double t_hk = tm_now(); /* 1.1.69: the once-a-minute housekeeping below */
