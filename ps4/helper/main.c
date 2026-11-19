@@ -35,11 +35,12 @@
 #include "mbedtls/md.h"
 
 #include "r2tls.h"
+#include "shprobe_prx.h" /* 1.1.103 */
 #include <ps4/kernel.h>
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.102"
+#define R2_VERSION "1.1.103"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2605,6 +2606,27 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
    and reads the name back. Once /data/round2/rename-signedin exists ("/_renamesi.on"), member loads rename signed-in spares too. */
 static int ren_si(void) { struct stat st; return !stat("/data/round2/rename-signedin", &st); }
 static int may_rename(uint32_t uid) { return uid != r2_main_user() && (!user_signed_in(uid) || ren_si()); }
+/* 1.1.103 (owner 20 Nov 3:50am: "probe the sceShellui and make logs using the helper"): GoldHEN's own SDK call (syscall 500,
+   cmd 6 = load a module into a running process) puts round2_shprobe.prx into SceShellUI. The probe only LISTS the names of the
+   menu's user / controller / PS-button / log-in-out functions into /data/round2/shprobe.txt – nothing is called or changed.
+   Refused while a game is open (if the menu restarts, a guest's game would close). "/_ghver" = is GoldHEN's SDK call there. */
+struct r2_prx_load { char process_name[32]; char prx_path[100]; uint64_t res; } __attribute__((packed));
+static long r2_sdk(uint64_t cmd, void *data) { return syscall(500, cmd, data); }
+static void look_ghver(void) { char v[80]; long r = r2_sdk(0, 0); snprintf(v, sizeof v, "%ld (0x%lx)", r, (unsigned long)r); look_kv("gh/sdk-version", v); }
+static void look_shprobe(const char *key) {
+  if (sv_game_open()) { look_kv("shprobe/refused", "a game is open - close it first"); return; }
+  long ver = r2_sdk(0, 0); char v[200]; snprintf(v, sizeof v, "%ld", ver); look_kv("shprobe/sdk", v);
+  if (ver <= 0) { look_kv("shprobe/refused", "GoldHEN's SDK call is not there on this PS4"); return; }
+  mkdir("/data/round2", 0777); unlink("/data/round2/shprobe.txt"); unlink("/data/round2/shprobe.txt.done");
+  FILE *f = fopen("/data/round2/r2shprobe.prx", "wb"); if (!f || fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f) != r2_shprobe_prx_len) { if (f) fclose(f); look_kv("shprobe/error", "could not write the probe"); return; } fclose(f);
+  struct r2_prx_load a; memset(&a, 0, sizeof a); snprintf(a.process_name, sizeof a.process_name, "SceShellUI"); snprintf(a.prx_path, sizeof a.prx_path, "/data/round2/r2shprobe.prx");
+  sv_log("shprobe: loading the read-only probe into SceShellUI (GoldHEN SDK %ld)", ver);
+  long r = r2_sdk(6, &a); snprintf(v, sizeof v, "call %ld, module handle 0x%llx", r, (unsigned long long)a.res); look_kv("shprobe/load", v); sv_log("shprobe: %s", v);
+  int done = 0; for (int i = 0; i < 30 && !(done = file_exists("/data/round2/shprobe.txt.done")); i++) sleep(1);
+  struct stat st; long sz = stat("/data/round2/shprobe.txt", &st) ? -1 : (long)st.st_size;
+  snprintf(v, sizeof v, "%s, %ld bytes", done ? "finished" : "not finished in 30 s", sz); look_kv("shprobe/result", v); sv_log("shprobe: %s", v);
+  if (sz > 0) { size_t n = 0; char *b = read_all("/data/round2/shprobe.txt", &n, 1024 * 1024); if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/shprobe-%s.txt", console_id); int u = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shprobe/upload", u ? "failed" : k); } }
+}
 static void look_rename(const char *spec) {
   char u[16] = "", nm[40] = "", v[160], have[40] = ""; if (sscanf(spec, "/_rename.%8[0-9a-f].%31[A-Za-z0-9_]", u, nm) != 2) { look_kv("rename/error", "bad spec"); return; }
   uint32_t uid = (uint32_t)strtoul(u, 0, 16); if (uid == r2_main_user()) { look_kv("rename/refused", "never the main profile"); return; }
@@ -4284,6 +4306,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_avreset.", 10)) look_avcopy(t, 1);
     else if (!strncmp(t, "/_avlib", 7)) look_avlib(key, t);
     else if (!strncmp(t, "/_rename.", 9)) look_rename(t); /* 1.1.100 */
+    else if (!strcmp(t, "/_ghver")) look_ghver(); /* 1.1.103 */
+    else if (!strcmp(t, "/_shprobe")) look_shprobe(key);
     else if (!strcmp(t, "/_renamesi.on")) { put_file("/data/round2/rename-signedin", "1"); look_kv("renamesi/result", "member loads now rename signed-in spares"); }
     else if (!strcmp(t, "/_renamesi.off")) { unlink("/data/round2/rename-signedin"); look_kv("renamesi/result", "signed-in spares keep their names"); }
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
