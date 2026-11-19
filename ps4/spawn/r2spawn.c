@@ -46,7 +46,8 @@ pid_t r2_spawn_own(const char *name, const uint8_t *elf, size_t n, char *why, si
   intptr_t pt_patch = 0;
   unsigned long prison, rootdir, jaildir;
   r2_slog("---- own-program start of %s (%u bytes), firmware 0x%x, from program %d", name, (unsigned)n, fw, (int)getpid());
-  if (fw != 0x9000000 && fw != 0x11000000) { snprintf(why, wn, "firmware 0x%x not on Round2's list (9.00 / 11.00)", fw); r2_slog("%s", why); return -1; }
+  /* 1.1.83 (owner 19 Nov: "Kaeden is the test bench - build on, don't omit"): 13.50 added (Kaeden); the SDK has its offsets */
+  if (fw != 0x9000000 && fw != 0x11000000 && fw != 0x13500000) { snprintf(why, wn, "firmware 0x%x not on Round2's list (9.00 / 11.00 / 13.50)", fw); r2_slog("%s", why); return -1; }
   /* same pattern elfldr uses for 7.00–14.00; not found = already allowed (e.g. by GoldHEN) -> nothing is written */
   pt_patch = kernel_find_pattern(KERNEL_ADDRESS_IMAGE_BASE, KERNEL_IMAGE_SIZE, "48b8361000007e020000????????????????????????0f84190200004c8b");
   r2_slog("ptrace check: %s", pt_patch ? "found - will be switched off (until restart)" : "pattern not found - left alone");

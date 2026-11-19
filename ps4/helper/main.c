@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.82"
+#define R2_VERSION "1.1.83"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2304,7 +2304,7 @@ static void look_prepmember(const char *spec) {
   char tu[16] = "", su[16] = "", nm[40] = "", st[16] = "", lab[24] = "", stamp[24] = "", sst[16] = "", v[160]; int dn = 0, tt = 0, fl = 0; long long by = 0;
   if (sscanf(spec, "/_prepmember.%8[0-9a-f].%8[0-9a-f].%31[A-Za-z0-9_]", tu, su, nm) != 3) { look_kv("prep/error", "bad spec"); return; }
   uint32_t tid = (uint32_t)strtoul(tu, 0, 16);
-  if (tid == r2_main_user()) { look_kv("prep/refused", "not the main profile"); return; }
+  int tmain = tid == r2_main_user(); /* 1.1.83 (owner 19 Nov 7:38pm): members' saves go into the main profile too - it keeps the room's name */
   if (!prof_slot_base(tid)) { look_kv("prep/refused", "no such target profile"); return; }
   cl_rd("state", st, sizeof st);
   if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("prep/refused", "a clean slate / copy is already running"); return; }
@@ -2319,7 +2319,8 @@ static void look_prepmember(const char *spec) {
   }
   fclose(ix); fclose(td);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
-  if (user_signed_in(tid)) sv_log("member prep: profile %s is signed in - name left as it is", tu);
+  if (tmain) sv_log("member prep: %s is the main profile - keeps the room's name", tu);
+  else if (user_signed_in(tid)) sv_log("member prep: profile %s is signed in - name left as it is", tu);
   else { int r = sceUserServiceSetUserName((int32_t)tid, shown); sv_log("member prep: profile %s renamed to '%s' (0x%08x)", tu, shown, (unsigned)r); }
   cl_begin("prep", nm);
   cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("rtime", "0\n"); cl_wr("mode", "restore %s %s\n", stamp, su);
@@ -4045,7 +4046,7 @@ int main(void) {
           snprintf(msg, sizeof msg, "Round2 helper %s: %s", R2_VERSION, st == 200 ? "connected" : "can't reach Round2 (will retry)");
           notify(msg);
         }
-        if (m == 0 && st == 200 && !g_own && (fw_major() == 9 || fw_major() == 0x11)) { /* 1.1.32: become our own program so later updates don't pile up sleeping copies.
+        if (m == 0 && st == 200 && !g_own && (fw_major() == 9 || fw_major() == 0x11 || fw_major() == 0x13)) { /* 1.1.83: + 13.50 (Kaeden) */ /* 1.1.32: become our own program so later updates don't pile up sleeping copies.
              9.00 since 1.1.32; 11.00 (sdk 0x11) since 1.1.60 - proven on Bella 18 Nov 3:03-3:15am: own switch, own->own update
              (1.1.58->1.1.59, old program gone), rest + wake by PS button (same program carried on).
              Gated: at most one attempt per hour (marker file), never while a game is open (1.1.60), and a failed attempt just
