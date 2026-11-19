@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.80"
+#define R2_VERSION "1.1.81"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1258,7 +1258,48 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
    Max's GT Sport -> User4's GT Sport, so he can see it on the TV). The receiving save keeps its own sce_sys (param.sfo with
    that profile's IDs, keystone) – only the game's files are replaced. Never into the main profile's protected save. The
    receiving save should be backed up first (look_sback). */
+/* 1.1.81: the last manifest fetched is kept for 2 min - making a part and then filling it both read the same manifest.txt */
+static char mc_key[400]; static unsigned char *mc_data; static size_t mc_len; static long long mc_at;
+static int sv_get_raw(const char *key, const char *k, unsigned char **data, size_t *len, char *why, size_t wn);
 static int sv_get(const char *key, const char *k, unsigned char **data, size_t *len, char *why, size_t wn) {
+  size_t kl = strlen(k); int ism = kl > 13 && !strcmp(k + kl - 13, "/manifest.txt");
+  if (ism && mc_data && !strcmp(mc_key, k) && (long long)time(0) - mc_at < 120) { *data = malloc(mc_len + 1); if (!*data) return -1; memcpy(*data, mc_data, mc_len); *len = mc_len; return 0; }
+  int r = sv_get_raw(key, k, data, len, why, wn);
+  if (!r && ism && *len < 256 * 1024 && kl < sizeof mc_key) { free(mc_data); mc_data = malloc(*len + 1); if (mc_data) { memcpy(mc_data, *data, *len); mc_len = *len; snprintf(mc_key, sizeof mc_key, "%s", k); mc_at = (long long)time(0); } }
+  return r;
+}
+/* 1.1.81 (owner 19 Nov 7pm, Kaeden: 77% of making a save part was fetching its small label files one request at a time, ~0.3 s
+   each): many cloud pieces in ONE request (/ps4/sgetm, engine reads them in parallel). Returns 0 (data[i] malloc'd, or 0 if
+   that piece is missing), -2 = this engine doesn't know /ps4/sgetm yet (caller falls back to one by one), -1 = failed. */
+static int sv_getm(const char *key, const char **ks, int n, unsigned char **data, size_t *lens, char *why, size_t wn) {
+  for (int i = 0; i < n; i++) { data[i] = 0; lens[i] = 0; }
+  if (n <= 0) return 0;
+  size_t bc = 16; for (int i = 0; i < n; i++) bc += strlen(ks[i]) * 2 + 4;
+  char *body = malloc(bc); if (!body) return -1;
+  size_t bn = 0; bn += (size_t)snprintf(body + bn, bc - bn, "{\"k\":[");
+  for (int i = 0; i < n; i++) { body[bn++] = i ? ',' : '"'; if (i) body[bn++] = '"';
+    for (const char *c = ks[i]; *c; c++) { if (*c == '"' || *c == '\\') body[bn++] = '\\'; body[bn++] = *c; } body[bn++] = '"'; }
+  bn += (size_t)snprintf(body + bn, bc - bn, "]}");
+  char hdr[200], err[120]; snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  unsigned char *d = 0; size_t dl = 0; int st = -1;
+  for (int a = 0; a < 3; a++) { d = 0; dl = 0; err[0] = 0; st = r2tls_fetch(ENGINE_HOST, "POST", "/ps4/sgetm", hdr, body, bn, &d, &dl, 12u << 20, err, sizeof err); if (st == 200 || st == 404) break; free(d); d = 0; sleep(2); }
+  free(body);
+  if (st == 404) { free(d); return -2; }
+  if (st != 200 || !d) { free(d); if (why) snprintf(why, wn, "bundle download %d %s", st, err); return -1; }
+  size_t p = 0; int cnt = -1;
+  if (dl < 6 || memcmp(d, "R2M ", 4)) { free(d); if (why) snprintf(why, wn, "bundle: bad answer"); return -1; }
+  cnt = atoi_safe((const char *)d + 4); while (p < dl && d[p] != '\n') p++; p++;
+  if (cnt != n) { free(d); if (why) snprintf(why, wn, "bundle: %d of %d", cnt, n); return -1; }
+  for (int i = 0; i < n; i++) {
+    char lb[24]; int q = 0; while (p < dl && d[p] != '\n' && q < 23) lb[q++] = (char)d[p++]; lb[q] = 0; p++;
+    long long L = atoll(lb); if (L < 0) continue;
+    if ((size_t)L > dl - p) { for (int j = 0; j <= i; j++) { free(data[j]); data[j] = 0; } free(d); if (why) snprintf(why, wn, "bundle: cut short"); return -1; }
+    data[i] = malloc((size_t)L + 1); if (!data[i]) { for (int j = 0; j < i; j++) { free(data[j]); data[j] = 0; } free(d); return -1; }
+    memcpy(data[i], d + p, (size_t)L); lens[i] = (size_t)L; p += (size_t)L;
+  }
+  free(d); return 0;
+}
+static int sv_get_raw(const char *key, const char *k, unsigned char **data, size_t *len, char *why, size_t wn) {
   char path[900], hdr[200], err[120];
   int m = snprintf(path, sizeof path, "/ps4/sget?k=");
   url_enc(path + m, sizeof path - m, k);
@@ -1326,30 +1367,56 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   char *mt0 = strdup(mt); /* the manifest as downloaded (mt is cut up below) */
   char **fn = calloc((size_t)nl + 1, sizeof *fn); unsigned long long *fsz = calloc((size_t)nl + 1, sizeof *fsz); int nf = 0;
   if (!fn || !fsz) { free(fn); free(fsz); free(mt); free(mt0); sv_rights_back(); look_kv("restore/error", "no memory"); return -1; }
-  for (char *ln = mt, *nx; ln && *ln; ln = nx) { /* phase 1: download */
+  int *fpc = calloc((size_t)nl + 1, sizeof *fpc);
+  for (char *ln = mt, *nx; ln && *ln && fpc; ln = nx) { /* list the files */
     nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
     char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0;
     char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
-    unsigned long long sz = strtoull(t1, 0, 10); int pieces = atoi_safe(t2);
     if (!strncmp(ln, "sce_sys/", 8) || strstr(ln, "..")) { skipped++; continue; } /* the receiving save keeps its own labels */
-    char tmp[520], k[700]; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, ln); mkdirs_for(tmp);
+    fn[nf] = ln; fsz[nf] = strtoull(t1, 0, 10); fpc[nf] = atoi_safe(t2); nf++;
+  }
+  if (!fpc) { fail++; snprintf(first_err, sizeof first_err, "no memory"); }
+  /* phase 1: download. 1.1.81: one-piece files go in bundles (up to 32 files / 6 MB a request), big files piece by piece */
+  int bundles_ok = 1; double tdl0 = tm_now();
+  for (int i = 0; i < nf && !fail; ) {
+    if (fpc[i] != 1 || !bundles_ok) { i++; continue; }
+    static char bk[32][700]; const char *bkp[32]; int bi[32], nb = 0; unsigned long long bsz = 0;
+    for (int j = i; j < nf && nb < 32; j++) { if (fpc[j] != 1) continue; if (nb && bsz + fsz[j] > (6u << 20)) break;
+      snprintf(bk[nb], sizeof bk[nb], "%s/f/%s~0", src, fn[j]); bkp[nb] = bk[nb]; bi[nb] = j; bsz += fsz[j]; nb++; }
+    static unsigned char *bd[32]; static size_t bl[32]; char gw[130] = "";
+    int gr = sv_getm(key, bkp, nb, bd, bl, gw, sizeof gw);
+    if (gr == -2) { bundles_ok = 0; continue; } /* old engine: piece by piece below */
+    if (gr) { fail++; snprintf(first_err, sizeof first_err, "%s", gw); break; }
+    for (int q = 0; q < nb; q++) {
+      int j = bi[q]; char tmp[520]; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, fn[j]); mkdirs_for(tmp);
+      if (!fail && (!bd[q] || bl[q] != fsz[j])) { fail++; snprintf(first_err, sizeof first_err, "%s: got %zu of %llu bytes", fn[j], bd[q] ? bl[q] : 0, fsz[j]); }
+      if (!fail) { int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666); ssize_t w = fd >= 0 ? write(fd, bd[q], bl[q]) : -1; if (fd >= 0) { fsync(fd); close(fd); }
+        if (w != (ssize_t)bl[q]) { fail++; snprintf(first_err, sizeof first_err, "%s: write %zd of %zu (errno %d)", fn[j], w, bl[q], errno); unlink(tmp); } else { g_b_dl += bl[q]; fpc[j] = -1; } }
+      free(bd[q]); bd[q] = 0;
+    }
+    i = bi[nb - 1] + 1;
+  }
+  for (int i = 0; i < nf && !fail; i++) { /* the rest (big files, or no bundles): piece by piece */
+    if (fpc[i] < 0) continue;
+    char tmp[520], k[700]; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, fn[i]); mkdirs_for(tmp);
     int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666), bad = fd < 0; char why[160] = "";
-    if (bad) snprintf(why, sizeof why, "%s: can't create (errno %d)", ln, errno);
-    unsigned long long got = 0; double tdl0 = tm_now();
-    for (int pi = 0; !bad && pi < pieces; pi++) {
+    if (bad) snprintf(why, sizeof why, "%s: can't create (errno %d)", fn[i], errno);
+    unsigned long long got = 0;
+    for (int pi = 0; !bad && pi < fpc[i]; pi++) {
       unsigned char *d = 0; size_t dl = 0; char gw[130] = "";
-      snprintf(k, sizeof k, "%s/f/%s~%d", src, ln, pi);
-      if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { bad = 1; free(d); snprintf(why, sizeof why, "%s piece %d: %s", ln, pi, gw); break; }
+      snprintf(k, sizeof k, "%s/f/%s~%d", src, fn[i], pi);
+      if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { bad = 1; free(d); snprintf(why, sizeof why, "%s piece %d: %s", fn[i], pi, gw); break; }
       ssize_t wr = write(fd, d, dl);
-      if (wr != (ssize_t)dl) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", ln, pi, wr, dl, errno); }
+      if (wr != (ssize_t)dl) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", fn[i], pi, wr, dl, errno); }
       got += dl; free(d);
     }
     if (fd >= 0) { fsync(fd); close(fd); }
-    g_t_dl += tm_now() - tdl0; g_b_dl += got;
-    if (!bad && got != sz) { bad = 1; snprintf(why, sizeof why, "%s: got %llu of %llu bytes", ln, got, sz); }
-    if (bad) { unlink(tmp); fail++; sv_log("restore download fail %s: %s", ln, why); if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); break; }
-    fn[nf] = ln; fsz[nf] = sz; nf++;
+    g_b_dl += got;
+    if (!bad && got != fsz[i]) { bad = 1; snprintf(why, sizeof why, "%s: got %llu of %llu bytes", fn[i], got, fsz[i]); }
+    if (bad) { unlink(tmp); fail++; sv_log("restore download fail %s: %s", fn[i], why); if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); break; }
   }
+  g_t_dl += tm_now() - tdl0;
+  free(fpc);
   if (fail) sv_log("restore: download incomplete for user %s game %s save %s - the save was NOT touched (%s)", u, t, nm, first_err);
   else ok = sv_open(u, t, nm, 0, v, sizeof v);
   if (!fail && ok == 0) { /* phase 2: everything is here - into the save */
@@ -1927,13 +1994,19 @@ static int sv_make_part_do(const char *key, const char *u, const char *t, const 
   if (sv_get(key, mk, &man, &ml, gw, sizeof gw) || !ml) { free(man); snprintf(why, wn, "source not found (%s)", gw); return -1; }
   static char mt[16384]; size_t mc = ml < sizeof mt - 1 ? ml : sizeof mt - 1; memcpy(mt, man, mc); mt[mc] = 0; free(man);
   static char sysn[16][64]; static unsigned char *sysd[16]; static size_t sysl[16]; int ns = 0, sfoi = -1;
-  for (char *ln = mt, *nx; ln && *ln && ns < 16; ln = nx) {
-    nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
-    char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1 = 0;
-    if (strncmp(ln, "sce_sys/", 8) || strchr(ln + 8, '/') || strlen(ln) > 60) continue;
-    char k[400]; snprintf(k, sizeof k, "%s/f/%s~0", src, ln); unsigned char *d = 0; size_t dl = 0;
-    if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { free(d); for (int i = 0; i < ns; i++) free(sysd[i]); snprintf(why, wn, "%s: %s", ln, gw); return -1; }
-    snprintf(sysn[ns], 64, "%s", ln + 8); sysd[ns] = d; sysl[ns] = dl; if (!strcmp(ln + 8, "param.sfo")) sfoi = ns; ns++;
+  { /* 1.1.81: all label files in one request (fallback: one by one) */
+    static char lk[16][400]; const char *kp2[16]; int nk = 0;
+    for (char *ln = mt, *nx; ln && *ln && nk < 16; ln = nx) {
+      nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
+      char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1 = 0;
+      if (strncmp(ln, "sce_sys/", 8) || strchr(ln + 8, '/') || strlen(ln) > 60) continue;
+      snprintf(lk[nk], sizeof lk[nk], "%s/f/%s~0", src, ln); snprintf(sysn[nk], 64, "%s", ln + 8); kp2[nk] = lk[nk]; nk++;
+    }
+    int gr = sv_getm(key, kp2, nk, sysd, sysl, gw, sizeof gw);
+    if (gr == -2) { gr = 0; for (int i = 0; i < nk && !gr; i++) if (sv_get(key, lk[i], &sysd[i], &sysl[i], gw, sizeof gw)) gr = -1; }
+    if (!gr) for (int i = 0; i < nk; i++) if (!sysd[i]) { gr = -1; snprintf(gw, sizeof gw, "%s missing in the cloud", sysn[i]); }
+    if (gr) { for (int i = 0; i < nk; i++) { free(sysd[i]); sysd[i] = 0; } snprintf(why, wn, "labels: %s", gw); return -1; }
+    ns = nk; for (int i = 0; i < ns; i++) if (!strcmp(sysn[i], "param.sfo")) sfoi = i;
   }
   #define MK_FAIL(...) do { snprintf(why, wn, __VA_ARGS__); for (int i_ = 0; i_ < ns; i_++) free(sysd[i_]); sv_log("make part FAILED: user %s game %s part %s: %s", u, t, nm, why); return -1; } while (0)
   if (sfoi < 0) MK_FAIL("source has no param.sfo");
