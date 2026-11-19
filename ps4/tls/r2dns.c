@@ -101,7 +101,7 @@ int r2dns_lookup_own(const char *host, char *out, size_t outn) { /* only the PS4
 
 /* ---- "where am I" notes: which step the helper is in, and a line in slow.log for any step that took over a minute ----
    So the next standstill names its own cause instead of leaving us guessing (16 Nov: three theories in one evening). */
-static char w_name[48] = "start"; static long long w_wall; static double w_mono;
+static char w_name[48] = "start"; static long long w_wall; static double w_mono; static int w_save, w_written;
 static double mono_now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec + ts.tv_nsec / 1e9; }
 static void stamp(char *b, size_t n, long long t) { time_t x = (time_t)t + 8 * 3600; struct tm tm; gmtime_r(&x, &tm); snprintf(b, n, "%02d/%02d %02d:%02d:%02d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec); }
 void r2_where(const char *name, int save) {
@@ -111,7 +111,14 @@ void r2_where(const char *name, int save) {
     if (f) { char s[24]; stamp(s, sizeof s, w_wall); fprintf(f, "%s step '%s' took %lld s (running clock %ld s)\n", s, w_name, wall - w_wall, (long)(mono - w_mono)); fclose(f); }
   }
   snprintf(w_name, sizeof w_name, "%s", name); w_wall = wall; w_mono = mono;
-  if (save) { FILE *f = fopen("/data/round2/where.txt", "w"); if (f) { char s[24]; stamp(s, sizeof s, wall); fprintf(f, "%s %s\n", s, name); fclose(f); } }
+  /* 1.1.71 (slimming): where.txt is no longer written at every step (~8,600 disk writes a day). The watchdog writes it once a
+     step has lasted 10 s (the only case it is needed for: a freeze), and on the way out (watchdog restart, stop signal). */
+  w_save = save; w_written = 0;
+}
+void r2_where_flush(double min_age) {
+  if (!w_save || w_written || !w_mono || mono_now() - w_mono < min_age) return;
+  w_written = 1;
+  FILE *f = fopen("/data/round2/where.txt", "w"); if (f) { char s[24]; stamp(s, sizeof s, w_wall); fprintf(f, "%s %s\n", s, w_name); fclose(f); }
 }
 double r2_where_age(void) { return w_mono ? mono_now() - w_mono : 0; }   /* 1.1.42: for the watchdog */
 /* 1.1.70 (Bella 19 Nov): the running clock does NOT stand still in rest mode (Bella 44261 s, Atlas 23491 s, Kaeden 810 s after

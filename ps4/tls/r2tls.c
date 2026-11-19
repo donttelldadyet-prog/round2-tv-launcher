@@ -46,6 +46,9 @@ unsigned long long r2tls_last_bytes = 0;
 __attribute__((weak)) void r2_timing(const char *name, double secs) { (void)name; (void)secs; }
 static mbedtls_x509_crt cacert;
 static int ca_ready = 0;
+/* 1.1.71 (speed-up): remember the last TLS session and offer it next time – the engine (Cloudflare) can then skip the
+   expensive key exchange + certificate check (a "resumed" handshake). If it declines, a normal handshake happens. */
+static mbedtls_ssl_session r2_sess; static int r2_sess_ok; static char r2_sess_host[96];
 
 /* 1.1.15 (16 Nov): every network step has a time limit. Bella (16 Nov morning) and Max (2:12pm update) had a helper that
    was alive but stuck – most likely a connect or send that never came back on weak Wi-Fi. Reads already stop after 15 s
@@ -104,7 +107,7 @@ static int r2_connect(mbedtls_net_context *net, const char *host, const char *po
 
 static int tls_go(const char *host, const char *method, const char *path, const char *headers, const char *body,
                   size_t blen, char **rbuf, size_t *rlen, size_t max, char *err, size_t errlen) {
-  int ret, status = -1;
+  int ret, status = -1, offered = 0, hs_ok = 0;
   mbedtls_net_context net;
   mbedtls_ssl_context ssl;
   mbedtls_ssl_config conf;
@@ -140,6 +143,7 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   mbedtls_ssl_conf_read_timeout(&conf, 15000);
   if ((ret = mbedtls_ssl_setup(&ssl, &conf))) goto fail;
   if ((ret = mbedtls_ssl_set_hostname(&ssl, host))) goto fail;
+  if (r2_sess_ok && !strcmp(r2_sess_host, host) && !mbedtls_ssl_set_session(&ssl, &r2_sess)) offered = 1;
   mbedtls_ssl_set_bio(&ssl, &net, mbedtls_net_send, NULL, mbedtls_net_recv_timeout);
   r2_where("handshake", 1);
   r2tls_fd = net.fd;
@@ -159,7 +163,10 @@ static int tls_go(const char *host, const char *method, const char *path, const 
     }
   }
 
-  if (!hs_done) { hs_done = 1; r2_timing("tls: handshake", r2_mono() - hs0); }
+  hs_ok = 1;
+  if (!hs_done) { hs_done = 1; r2_timing(offered ? "tls: handshake (session offered)" : "tls: handshake (full)", r2_mono() - hs0); }
+  { if (r2_sess_ok) mbedtls_ssl_session_free(&r2_sess); mbedtls_ssl_session_init(&r2_sess);
+    r2_sess_ok = !mbedtls_ssl_get_session(&ssl, &r2_sess); if (r2_sess_ok) snprintf(r2_sess_host, sizeof r2_sess_host, "%s", host); }
   double rq0 = r2_mono();
   {
     char req[1024];
@@ -214,6 +221,7 @@ fail:
     snprintf(err, errlen, "-0x%04x %s", -ret, eb);
   }
 done:
+  if (offered && !hs_ok) r2_sess_ok = 0; /* 1.1.71: a session that failed is not offered again */
   r2tls_fd = -1;
   mbedtls_ssl_close_notify(&ssl);
   mbedtls_net_free(&net);

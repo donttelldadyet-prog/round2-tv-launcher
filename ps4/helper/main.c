@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.70"
+#define R2_VERSION "1.1.71"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -3430,18 +3430,9 @@ static void do_dns(const char *key, const char *cid, const char *body) {
 /* 1.1.18 (owner 16 Nov "1" = try the own-program route): "/_own" starts the small test payload built into this helper
    (own/main.c: writes /data/round2/own-test.txt for 3 minutes, then ends) as its OWN PS4 program – see spawn/r2spawn.c.
    "/_kill.<pid>" stops it again – only the program number that "/_own" started. Steps are in /data/round2/own-spawn.log. */
-extern const unsigned char r2_own_elf[]; extern const unsigned int r2_own_elf_len;
 #define OWNPID "/data/round2/own-pid.txt"
-static void look_own(void) {
-  char run[32], why[160] = "", v[64];
-  running_title(run, sizeof run);
-  if (run[0] && strcmp(run, VUE_ID)) { look_kv("own/result", "refused: a game is open"); return; }
-  unlink("/data/round2/own-test.txt");
-  pid_t pid = r2_spawn_own("round2-own", r2_own_elf, r2_own_elf_len, why, sizeof why);
-  snprintf(v, sizeof v, "%d", (int)getpid()); look_kv("own/helper-program", v);
-  look_kv("own/result", why);
-  if (pid > 0) { snprintf(v, sizeof v, "%d", (int)pid); look_kv("own/program", v); put_file(OWNPID, v); }
-}
+/* 1.1.71 (slimming): the 16 Nov own-program TEST payload is no longer carried (74 KB) – own-program mode is proven and used. */
+static void look_own(void) { look_kv("own/result", "removed in 1.1.71 (the test payload is no longer built in)"); }
 /* 1.1.19 "/_selfown": this helper starts a copy of itself (app/current.elf) as its OWN program and hands over to it.
    Safety: the copy must send a report to the engine within 3 minutes (it then writes own-ok) – otherwise this (old) helper
    stops it, and the starter brings back a normal helper within seconds. A crash of the copy frees the lock -> same thing. */
@@ -3614,7 +3605,9 @@ static void write_status(const char *line) {
   fclose(f);
 }
 
+void r2_where_flush(double min_age);
 static void on_sig(int sig) {
+  r2_where_flush(0); /* 1.1.71 */
   FILE *f = fopen("/data/round2/helper-stopped.txt", "a");
   if (f) {
     time_t t = time(0) + 8 * 3600;
@@ -3655,7 +3648,7 @@ static int wake_login_main(void) {
    program restarts (the starter brings a fresh one); in GoldHEN's shared program it can only note it (exiting there would
    take the blocker down too). Every action is written to slow.log. */
 extern volatile int r2tls_fd;
-double r2_where_age(void); const char *r2_where_now(void); void r2_where_shift(double secs);
+double r2_where_age(void); const char *r2_where_now(void); void r2_where_shift(double secs); void r2_where_flush(double min_age);
 static void wd_note(const char *fmt, ...) {
   FILE *f = fopen("/data/round2/slow.log", "a"); if (!f) return;
   time_t x = time(0) + 8 * 3600; struct tm tm; gmtime_r(&x, &tm);
@@ -3672,12 +3665,13 @@ static void *watchdog(void *arg) {
        relaunch failed right after the wake the room went silent while the PS4 was on. */
     { double t = mono_s(), slept = t - last - 15; last = t;
       if (slept > 30) { r2_where_shift(slept); cuts = 0; noted = 0; wd_note("woke from rest after about %d s - not counted as stuck", (int)slept); } }
+    r2_where_flush(10); /* 1.1.71: where.txt only for a step that lasts */
     double age = r2_where_age(); const char *st = r2_where_now();
     if (age < 300) { cuts = 0; noted = 0; continue; }
     int net = !strcmp(st, "read") || !strcmp(st, "send") || !strcmp(st, "connect") || !strcmp(st, "handshake") || !strcmp(st, "lookup");
     int fd = r2tls_fd;
     if (net && fd >= 0 && cuts < 3) { shutdown(fd, SHUT_RDWR); cuts++; wd_note("stuck %d s in '%s' - cut the connection (%d)", (int)age, st, cuts); continue; }
-    if (age >= 1200 && g_own && !sv_mounted) { wd_note("stuck %d s in '%s' - restarting the helper", (int)age, st); _exit(3); }
+    if (age >= 1200 && g_own && !sv_mounted) { wd_note("stuck %d s in '%s' - restarting the helper", (int)age, st); r2_where_flush(0); _exit(3); }
     if (!noted && age >= 600) { noted = 1; wd_note("stuck %d s in '%s'%s", (int)age, st, g_own ? "" : " (shared program: can't restart itself)"); }
   }
   return 0;
@@ -3756,7 +3750,7 @@ int main(void) {
     if (g_awake_engine) { if ((long long)time(0) < g_awake_engine) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } else g_awake_engine = 0; }
     if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); } /* 1.1.33: act on auto-promote here, not only after a look job */
     r2_where("check-in", 1);
-    { double t = tm_now(); int did = (key[0] || read_key(key, sizeof key)) && check_cmd(key); r2_timing("check-in (every min)", tm_now() - t);
+    { double t = tm_now(); int did = (key[0] || read_key(key, sizeof key)) && check_cmd(key); r2_timing(did ? "check-in + doing a job" : "check-in (nothing to do)", tm_now() - t); /* 1.1.71: split */
       if (did) { report(key, status, sizeof status); write_status(status); } }
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
