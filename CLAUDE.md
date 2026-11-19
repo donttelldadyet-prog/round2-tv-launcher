@@ -13,3 +13,7 @@
 - The booking engine lives in the other repo: round2sg-home `worker/round2-book.js` (deployed to Cloudflare `round2-book`).
 - **Kaeden is under renovation (since ~30 Oct 2026, open-ended).** Its long "room blocked" note in SimplyBook stays – don't
   remove it or "fix" Kaeden having no free slots. Its TV should still run and report in like the others, ready for reopening.
+- **Exploratory PS4 work (owner, 20 Nov 2026): log everything** – every probe result, crash and each room's PS4 quirks go into
+  HANDOFF + docs (ps4-shellui.md / ps4-network-and-wake.md). Probe ALL PS4s in a one-time sweep (owner turns each on), never one
+  per firmware by assumption. Menu add-ons: read-only probe first, guarded so they cannot abort the menu (round2_pwrprobe1 crashed
+  Kaeden 20 Nov 5:50am), with a breadcrumb file per step.
