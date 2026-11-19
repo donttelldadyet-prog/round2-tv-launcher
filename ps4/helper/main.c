@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.92"
+#define R2_VERSION "1.1.93"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1430,21 +1430,22 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     unsigned long long got = 0;
     /* 1.1.86 (owner 19 Nov 8:39pm): a big file's 1 MB pieces in bundles of up to 6 ("/_bb.off" = one by one, for the A/B test) */
     struct stat bbst; int bb = bundles_ok && stat("/data/round2/bigbundle-off", &bbst);
+    int pdone = 0; /* 1.1.93: pieces already written - the one-by-one loop carries on from here */
     for (int pi = 0; bb && !bad && pi < fpc[i]; ) {
       int m = fpc[i] - pi > 6 ? 6 : fpc[i] - pi; static char pk[6][700]; const char *pkp[6]; unsigned char *pd[6]; size_t pl[6]; char gw[130] = "";
       for (int j = 0; j < m; j++) { snprintf(pk[j], sizeof pk[j], "%s/f/%s~%d", src, fn[i], pi + j); pkp[j] = pk[j]; }
       int gr = sv_getm(key, pkp, m, pd, pl, gw, sizeof gw);
       if (gr == -2) { bb = 0; break; }
-      if (gr) { bad = 1; snprintf(why, sizeof why, "%s pieces %d-%d: %s", fn[i], pi, pi + m - 1, gw); break; }
+      if (gr) { sv_log("restore: %s pieces %d-%d bundle failed (%s) - carrying on one piece at a time", fn[i], pi, pi + m - 1, gw); bb = 0; break; } /* 1.1.93: was a hard fail (Kaeden 20 Nov 12:46am: "bundle: cut short" -> Vampire Survivors half loaded = "corrupted") */
       for (int j = 0; j < m; j++) {
         if (!bad && !pd[j]) { bad = 1; snprintf(why, sizeof why, "%s piece %d missing in the cloud", fn[i], pi + j); }
         if (!bad) { ssize_t wr = write(fd, pd[j], pl[j]); if (wr != (ssize_t)pl[j]) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", fn[i], pi + j, wr, pl[j], errno); } else got += pl[j]; }
         free(pd[j]);
       }
-      pi += m;
+      pi += m; if (!bad) pdone = pi;
       if (pi >= fpc[i]) { fpc[i] = -2; break; }
     }
-    for (int pi = 0; fpc[i] > 0 && !bad && pi < fpc[i]; pi++) {
+    for (int pi = pdone; fpc[i] > 0 && !bad && pi < fpc[i]; pi++) {
       unsigned char *d = 0; size_t dl = 0; char gw[130] = "";
       snprintf(k, sizeof k, "%s/f/%s~%d", src, fn[i], pi);
       if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { bad = 1; free(d); snprintf(why, sizeof why, "%s piece %d: %s", fn[i], pi, gw); break; }
@@ -2430,12 +2431,19 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
   if (nr) { char rb[200]; int rn = 0; double tb0 = tm_now(); int gbr = sv_game_back(key, u, t, rb, sizeof rb, &rn); g_t_bk += tm_now() - tb0; if (gbr) { snprintf(why, wn, "backup of what was there failed - nothing written"); return -1; } }
   { double tp0 = tm_now(); pf_game(key, pb, np); g_t_dl += tm_now() - tp0; } /* 1.1.85 */
   double tmk0 = tm_now(); int fails = 0;
+  int made[64] = { 0 };
   for (int i = 0; i < np; i++) { int have = 0; for (int j = 0; j < nr; j++) if (!strcmp(pn[i], recv[j])) have = 1;
-    if (!have) { char w2[200] = ""; if (sv_make_part(key, u, t, pn[i], pb[i], w2, sizeof w2)) { fails++; sv_log("member load: making %s %s %s failed: %s", u, t, pn[i], w2); } } }
+    if (!have) { char w2[200] = ""; if (sv_make_part(key, u, t, pn[i], pb[i], w2, sizeof w2)) { fails++; sv_log("member load: making %s %s %s failed: %s", u, t, pn[i], w2); } else made[i] = 1; } }
   g_t_mk += tm_now() - tmk0;
   if (fails) { snprintf(why, wn, "%d part(s) could not be made", fails); return -1; }
-  for (int i = 0; i < np; i++) { char rs[420]; snprintf(rs, sizeof rs, "/_srest.%s.%s.%s.%s", u, t, pn[i], pb[i]); if (look_srest(key, rs) != 0) fails++; }
-  if (fails) { snprintf(why, wn, "%d of %d parts failed to load", fails, np); return -1; }
+  int okp[64] = { 0 };
+  for (int pass = 0; pass < 2; pass++) { fails = 0; /* 1.1.93: a part that fails gets one more try */
+    for (int i = 0; i < np; i++) { if (okp[i]) continue; char rs[420]; snprintf(rs, sizeof rs, "/_srest.%s.%s.%s.%s", u, t, pn[i], pb[i]); if (look_srest(key, rs) != 0) fails++; else okp[i] = 1; }
+    if (!fails) break; if (!pass) sv_log("member load: %s %s - %d part(s) failed, trying once more", u, t, fails); }
+  if (fails) { /* 1.1.93: never leave a game half loaded (the game calls that "corrupted"): take back the parts made in this run */
+    int back = 0; for (int i = 0; i < np; i++) if (made[i]) { char res[300]; if (!sv_del_part(u, t, pn[i], res, sizeof res)) back++; }
+    sv_log("member load: %s %s NOT loaded - %d of %d parts failed; %d new part(s) taken back so the game starts clean (the member's cloud save is untouched)", u, t, fails, np, back);
+    snprintf(why, wn, "%d of %d parts failed to load (game left clean)", fails, np); return -1; }
   for (int j = 0; j < nr; j++) { int keep = 0; for (int i = 0; i < np; i++) if (!strcmp(pn[i], recv[j])) keep = 1; if (!keep) { char res[300]; sv_del_part(u, t, recv[j], res, sizeof res); } }
   sv_log("member load: user %s game %s: %d parts in (%d answered from the prefetch)", u, t, np, pf_hits); pf_clear();
   return 0;
