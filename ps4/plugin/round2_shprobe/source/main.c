@@ -15,7 +15,7 @@
 attr_public const char *g_pluginName = "round2_shprobe";
 attr_public const char *g_pluginDesc = "Round2: read-only list of the system menu's user/controller functions";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000101;   /* 1.01 (20 Nov 5am): full signatures of the classes found by 1.00 */
+attr_public u32 g_pluginVersion = 0x00000102;   /* 1.02: output where the menu can write (/user/data). 1.01 (20 Nov 5am): full signatures of the classes found by 1.00 */
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -92,7 +92,7 @@ static void sigs(const char *path) {   /* 1.01: every method (static or not, par
 }
 static void *probe_thread(void *a) {
   (void)a; sleep(2);
-  static const char *outs[] = { "/data/round2/round2_shprobe.txt", "/user/data/round2/shprobe.txt", "/user/data/GoldHEN/shprobe.txt", "/data/GoldHEN/shprobe.txt", "/system_tmp/shprobe.txt", 0 }; const char *out = 0;
+  static const char *outs[] = { "/user/data/round2/round2_shprobe.txt", "/data/round2/round2_shprobe.txt", "/user/data/GoldHEN/shprobe.txt", "/data/GoldHEN/shprobe.txt", "/system_tmp/shprobe.txt", 0 }; const char *out = 0;
   for (int i = 0; outs[i] && g_fd < 0; i++) { g_fd = open(outs[i], O_WRONLY | O_CREAT | O_TRUNC, 0666); out = outs[i]; } if (g_fd < 0) return 0;
   wr("round2_shprobe 1.01 - read-only signatures of SceShellUI user/controller/PS-button classes\n");
   mono_thread_attach(mono_get_root_domain());
