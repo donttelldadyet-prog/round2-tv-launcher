@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.101"
+#define R2_VERSION "1.1.102"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -50,6 +50,8 @@ static int file_exists(const char *p);
 static void put_file(const char *p, const char *txt);
 static void tile_ver(char *v, size_t n); static int tile_check(const char *key, int force); /* 1.1.87 */
 static int may_rename(uint32_t uid); /* 1.1.100 */
+static int r2_homebrew(const char *t);
+static void sw_game_name(const char *t, char *out, size_t n); static void pname(const char *u, char *o, size_t n); /* 1.1.102 plain pop-ups */
 static int g_own;
 /* 1.1.31: keep a woken PS4 on (power tick) + the 1 MB save buffer, declared early so report() and step_aside() can use them. */
 int sceSystemServicePowerTick(void);
@@ -1178,7 +1180,7 @@ static void sv_log(const char *fmt, ...) {
   time_t t = time(0) + 8 * 3600; struct tm tm; gmtime_r(&t, &tm);
   fprintf(f, "%02d/%02d %02d:%02d:%02d ", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec);
   va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fputc('\n', f); fclose(f);
-  if (bpop_enabled()) { char b[200]; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap); bpop_key(!strncmp(b, "backup ", 7) || !strncmp(b, "cloud batch: sent", 17) || !strncmp(b, "copy only: ", 11) ? "bk" : "", "%s", b); } /* 1.1.75; 1.1.76 per-part lines share one slot */
+  if (bpop_enabled() && file_exists("/data/round2/popups-tech")) { char b[200]; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap); bpop_key(!strncmp(b, "backup ", 7) || !strncmp(b, "cloud batch: sent", 17) || !strncmp(b, "copy only: ", 11) ? "bk" : "", "%s", b); } /* 1.1.75; 1.1.76 per-part lines share one slot */
 }
 /* 1.1.34: the internal "prep/batch" copy (middle layer of slot -> internal prep -> cloud). sv_up_dir writes each file here
    as it reads it; set to "" when no prep copy is wanted. */
@@ -2277,8 +2279,68 @@ static int sv_local_copy(const char *u, const char *t, const char *nm, int *nf, 
   char mt[64] = ""; { char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); FILE *of = fopen(op, "r"); if (of) { if (!fgets(mt, sizeof mt, of)) mt[0] = 0; fclose(of); mt[strcspn(mt, "\r\n ")] = 0; } }
   if (r2_protected(t)) mt[0] = 0;
   FILE *q = fopen("/data/round2/prep/pending.txt", "a"); if (q) { if (mt[0]) fprintf(q, "%s %s %s %lld m=%s\n", u, t, nm, (long long)time(0), mt); else fprintf(q, "%s %s %s %lld\n", u, t, nm, (long long)time(0)); fclose(q); }
+  { char ip[200], sp2[200]; struct stat ss; snprintf(ip, sizeof ip, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm); snprintf(sp2, sizeof sp2, "%s/sdimg.mt", dst);
+    if (!stat(ip, &ss)) { FILE *f = fopen(sp2, "w"); if (f) { fprintf(f, "%lld %lld\n", (long long)ss.st_mtime, (long long)ss.st_size); fclose(f); } } } /* 1.1.102: what the save looked like when copied */
   return 0;
 }
+/* ---- 1.1.102 SAVE WHEN THE GAME CLOSES (owner 20 Nov 3:15am: "every 15 min the game checks the saves fingerprint to the internal
+   stores fingerprint to see if a transfer needs to happen after game is closed ... after 1 fingerprint sees a difference the
+   fingerprint can stop and just prepare to move after close"). While a game runs, every 15 min: is any of its save files
+   (/user/home/<user>/savedata/<game>/sdimg_<part>: time + size) different from when we last copied it (prep/.../sdimg.mt)? The
+   first difference = "changed", no more checks. When the game closes (not during a clean slate - that copies everything
+   anyway): each changed part -> internal copy (sv_local_copy: manifest + fingerprints, queued for the cloud batch, which sends
+   it to the member's crew folder if the profile is linked, only files that changed). Never PS Vue, protected house saves
+   (GT Sport on Max), homebrew, the Round2 tile. Saves are never read while the game is open (it may be half-way through
+   writing). */
+static int sw_part_changed(const char *u, const char *t, const char *nm) {
+  char ip[200], mp[200], b[64] = ""; struct stat ss; snprintf(ip, sizeof ip, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm); if (stat(ip, &ss)) return 0;
+  snprintf(mp, sizeof mp, "/data/round2/prep/%s/%s/%s/sdimg.mt", u, t, nm); FILE *f = fopen(mp, "r"); if (!f) return 1;
+  if (!fgets(b, sizeof b, f)) b[0] = 0; fclose(f); long long m = 0, z = 0; sscanf(b, "%lld %lld", &m, &z);
+  return m != (long long)ss.st_mtime || z != (long long)ss.st_size;
+}
+/* calls fn for every (user, part) of game t that changed; returns how many */
+static int sw_scan(const char *t, int copy, const char *key, int *ok, int *bad, char *who, size_t wn) {
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L); int n = 0; if (who) who[0] = 0;
+  for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; char u[16], d[160]; snprintf(u, sizeof u, "%08x", (uint32_t)L.userId[i]);
+    snprintf(d, sizeof d, "/user/home/%s/savedata/%s", u, t); DIR *x = opendir(d); if (!x) continue; struct dirent *e; char parts[16][48]; int np = 0;
+    while ((e = readdir(x)) && np < 16) if (!strncmp(e->d_name, "sdimg_", 6) && strlen(e->d_name) < 54) snprintf(parts[np++], 48, "%s", e->d_name + 6);
+    closedir(x);
+    int mine = 0;
+    for (int k = 0; k < np; k++) if (sw_part_changed(u, t, parts[k])) { n++; mine++;
+      if (copy) { int nf = 0; unsigned long long nb = 0; char why[200] = ""; if (sv_local_copy(u, t, parts[k], &nf, &nb, why, sizeof why)) { (*bad)++; sv_log("save watch: %s %s %s NOT copied: %s", u, t, parts[k], why); } else { (*ok)++; sv_log("save watch: %s %s %s copied to the PS4 (%d files, %llu bytes) - queued for the cloud", u, t, parts[k], nf, nb); } } }
+    if (mine && who) { char nm[40] = ""; sceUserServiceGetUserName(L.userId[i], nm, sizeof nm); size_t l = strlen(who); if (l < wn - 1) snprintf(who + l, wn - l, "%s%s", l ? ", " : "", nm); }
+  }
+  return n;
+}
+static void pname(const char *u, char *o, size_t n) { o[0] = 0; sceUserServiceGetUserName((int32_t)strtoul(u, 0, 16), o, n); if (!o[0]) snprintf(o, n, "profile %s", u); }
+static char sw_title[16]; static int sw_dirty; static long long sw_next; static char sw_name[64];
+static void sw_game_name(const char *t, char *out, size_t n) {
+  static uint8_t b[65536]; char p[160]; snprintf(p, sizeof p, "/user/app/%s/app.pkg", t); int len = sfo_from_pkg(p, b, sizeof b);
+  out[0] = 0; if (len > 0) sfo_get(b, len, "TITLE", out, n); if (!out[0]) snprintf(out, n, "%s", t);
+  for (char *c = out; *c; c++) if ((unsigned char)*c >= 128) *c = ' ';
+}
+static void sw_close(const char *key) { /* the watched game is no longer running: copy what changed */
+  char t[16]; snprintf(t, sizeof t, "%s", sw_title); sw_title[0] = 0;
+  if (clean_on || snap_on) { sv_log("save watch: %s closed during a clean slate/backup - that job copies it", t); return; }
+  sleep(3); /* let the PS4 finish closing the save files */
+  char who[120]; int ok = 0, bad = 0;
+  bpop_key("sw", "%s closed - checking for new progress...", sw_name);
+  int n = sw_scan(t, 1, key, &ok, &bad, who, sizeof who);
+  sv_log("save watch: %s closed - %d changed part(s): %d copied, %d failed (%s)", t, n, ok, bad, who[0] ? who : "nobody");
+  if (n) bpop_key("sw", "%s: %s's progress is saved on this PS4%s", sw_name, who, bad ? " (some parts failed - staff will check)" : file_exists("/data/round2/prep/cloud_on") ? " - sending it to the Round2 cloud next" : "");
+  else bpop_key("sw", "%s closed - no new progress to save", sw_name);
+}
+static void sw_tick(const char *key) {
+  char rt[32]; running_title(rt, sizeof rt); long long now = (long long)time(0);
+  int game = rt[0] && strcmp(rt, VUE_ID) && strcmp(rt, "RTWO00001") && !r2_homebrew(rt) && !r2_protected(rt);
+  if (sw_title[0] && (!game || strcmp(rt, sw_title))) sw_close(key); /* closed, or another game took its place (the tile doesn't count) */
+  if (!game) return;
+  if (!sw_title[0]) { snprintf(sw_title, sizeof sw_title, "%s", rt); sw_dirty = 0; sw_next = now + 900; sw_game_name(rt, sw_name, sizeof sw_name);
+    sv_log("save watch: %s (%s) started - checking its saves every 15 min", rt, sw_name); bpop_key("sw", "%s started - your progress is saved to Round2 when you close the game", sw_name); }
+  else if (!sw_dirty && now >= sw_next) { sw_next = now + 900; char who[120]; int ok = 0, bad = 0;
+    if (sw_scan(rt, 0, key, &ok, &bad, who, sizeof who)) { sw_dirty = 1; sv_log("save watch: %s saves changed (%s) - copy when it closes", rt, who); bpop_key("sw", "%s: new progress for %s - it will be saved when the game is closed", sw_name, who); } }
+}
+
 /* ---- 1.1.50 CLEAN SLATE (owner 17 Nov 7:33pm: test a full clean slate on Kai before the 9pm guest, main profile included).
    "/_clean.<user>-<user>-..." lists every game of those profiles into /data/round2/clean/todo; a background job (like the
    snapshot: ~45 s a minute, paused while a game is open, carries on after restart/update) then, game by game: whole-game
@@ -2468,7 +2530,7 @@ static void look_memload(const char *key, const char *spec) {
     free(b); }
   fclose(td); free(ix);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
-  if (may_rename(uid)) { int rr = sceUserServiceSetUserName((int32_t)uid, shown); if (user_signed_in(uid)) sv_log("member load: signed-in profile %08x renamed to '%s' (0x%08x)", uid, shown, (unsigned)rr); } /* 1.1.100 */
+  if (may_rename(uid)) { bpop_key("ren", "Naming the profile '%s'", shown); int rr = sceUserServiceSetUserName((int32_t)uid, shown); if (user_signed_in(uid)) sv_log("member load: signed-in profile %08x renamed to '%s' (0x%08x)", uid, shown, (unsigned)rr); } /* 1.1.100 */
   { char op[120], tv[80]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); snprintf(tv, sizeof tv, "%s/%s", id, sl); mkdir("/data/round2/prep", 0777); put_file(op, tv); }
   char lab[48]; snprintf(lab, sizeof lab, "%s", nm);
   cl_begin("prep", lab);
@@ -2499,6 +2561,7 @@ static void keep_order(int force) {
   for (int i = 0; i < ns && ok; i++) { long bb = prof_slot_base(sp[i]); int vv = 0; if (!bb || sceRegMgrGetInt(bb + 0x900, &vv)) return; if (vv >= prev) ok = 0; prev = vv; }
   if (ok) return;
   char spec[200]; int n = snprintf(spec, sizeof spec, "/_uorder.%08x", mainu); for (int i = 0; i < ns; i++) n += snprintf(spec + n, sizeof spec - n, "-%08x", sp[i]);
+  bpop_key("ord", "Putting the profiles back in order: main profile first, then Player 1-%d", ns);
   int m0 = look_mute; look_mute = 1; look_last[0] = 0; look_uorder(spec); look_mute = m0; sv_log("profile order put back (main, Player 1-%d): %s", ns, look_last);
 }
 static void memplay_one(const char *key, const char *spec, int allow_main) {
@@ -2579,6 +2642,7 @@ static int av_apply(const char *key, uint32_t uid, const char *id, const char *s
   if (sv_get_raw(key, k, &data, &len, why, sizeof why)) { sv_log("avatar: %s/%s has no picture yet (%s)", id, sl, why); free(data); return 0; }
   if (user_signed_in(uid)) { sv_log("avatar: %08x is signed in - picture not changed", uid); free(data); return -1; }
   int nf = 0; if (len < 8 || memcmp(data, "R2AV ", 5) || (nf = atoi((char *)data + 5)) < 1 || nf > 20) { sv_log("avatar: %s bad bundle", k); free(data); return -1; }
+  { char pn[40]; sceUserServiceGetUserName((int32_t)uid, pn, sizeof pn); bpop_key("av", "Putting the chosen picture on profile '%s'", pn); }
   char td[120], rv[200]; av_dir(uid, td, sizeof td); sv_rights_up(rv, sizeof rv); mkdir(td, 0777); av_keep(uid, td);
   { DIR *x = opendir(td); struct dirent *e; while (x && (e = readdir(x))) if (av_name(e->d_name)) { char p[300]; snprintf(p, sizeof p, "%s/%s", td, e->d_name); unlink(p); } if (x) closedir(x); }
   size_t o = (size_t)((unsigned char *)memchr(data, '\n', len) - data) + 1; int cp = 0, bad = 0;
@@ -2748,7 +2812,7 @@ static void reset_profiles(char *out, size_t on) {
     char want[16], have[64] = ""; snprintf(want, sizeof want, "Player %d", i + 1);
     if (user_signed_in(sp[i])) { sceUserServiceLogout((int32_t)sp[i]); sleep(3); if (user_signed_in(sp[i])) { bad++; cl_err("spare %08x would not sign out", sp[i]); } }
     sceUserServiceGetUserName((int32_t)sp[i], have, sizeof have);
-    if (strcmp(have, want)) { int r = sceUserServiceSetUserName((int32_t)sp[i], want); if (r == 0) ren++; else { bad++; cl_err("spare %08x '%s' not renamed to %s (0x%08x)", sp[i], have, want, (unsigned)r); } }
+    if (strcmp(have, want)) { bpop_key("ren", "Room reset: renaming '%s' back to '%s'", have, want); int r = sceUserServiceSetUserName((int32_t)sp[i], want); if (r == 0) ren++; else { bad++; cl_err("spare %08x '%s' not renamed to %s (0x%08x)", sp[i], have, want, (unsigned)r); } }
     snprintf(s1, sizeof s1, "/_avreset.%08x", sp[i]); look_mute = 1; look_last[0] = 0; look_avcopy(s1, 1); look_mute = 0;
     if (!strncmp(look_last, "avatar/result", 13)) pic++; else { bad++; cl_err("spare %08x picture not reset: %s", sp[i], look_last); }
   }
@@ -3302,12 +3366,14 @@ static void clean_step(const char *key, int budget) {
     { char rm[48] = ""; cl_rd("mode", rm, sizeof rm);
       if (!strncmp(rm, "memload ", 8)) { /* 1.1.84: member load, game by game */
         double d0 = g_t_dl, w0 = g_t_wr, k0 = g_t_mk, g0 = tm_now(); char why[200] = "", tb[48] = "";
+        char gn[64], pn[40]; sw_game_name(t, gn, sizeof gn); pname(u, pn, sizeof pn);
+        bpop_key("clprog", "Cloud -> PS4: downloading %s for %s (%d of %d)...", gn, pn, done + 1, total);
         int r = memload_game(key, u, t, why, sizeof why); double gt = tm_now() - g0;
+        if (r) bpop_key("clprog", "%s could not be loaded for %s - staff will check", gn, pn); else bpop_key("clprog", "PS4 -> profile: %s is in %s's profile (%d of %d)", gn, pn, done + 1, total);
         double tot = 0; cl_rd("rtime", tb, sizeof tb); tot = atof(tb) + gt; cl_wr("rtime", "%.1f\n", tot);
         if (r) { fails++; cl_err("%s game %s not loaded: %s", u, t, why); }
         done++; pos++;
         sv_log("restore test: user %s game %s %s in %.1f s (download %.1f s, into profile %.1f s, making parts %.1f s)%s%s", u, t, r ? "FAILED" : "ok", gt, g_t_dl - d0, g_t_wr - w0, g_t_mk - k0, r ? " - " : "", r ? why : "");
-        bpop_key("clprog", "Loading member: %d of %d games, %d failed. Last: %s %.1f s", done, total, fails, t, gt);
         cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
         continue;
       }
@@ -3334,6 +3400,7 @@ static void clean_step(const char *key, int budget) {
     char base[200] = "internal"; static char nm[64][32]; int n = sv_disk_parts(u, t, nm, 64), br = 0, nf = 0, cov = 0; unsigned long long nb = 0;
     static char copied[64]; memset(copied, 0, sizeof copied);
     char md[40] = ""; long long pst = 0; cl_rd("mode", md, sizeof md); int purge = !strncmp(md, "purge ", 6); if (purge) pst = atoll(md + 6);
+    { char gn[64], pn[40]; sw_game_name(t, gn, sizeof gn); pname(u, pn, sizeof pn); bpop_key("clprog", "Profile -> PS4: copying %s's %s save to this PS4 (%d of %d)...", pn, gn, done + 1, total); }
     for (int i = 0; i < n && !br; i++) { char why[160] = ""; int f1 = 0; unsigned long long b1 = 0;
       if (purge && snap_covered(u, t, nm[i], pst)) { cov++; continue; } /* 1.1.52: already safe in the restore point, unchanged since */
       if (sv_local_copy(u, t, nm[i], &f1, &b1, why, sizeof why)) { br = -1; sv_log("clean slate: internal copy FAILED %s %s %s: %s", u, t, nm[i], why); cl_err("%s game %s: internal copy failed (%s) - game LEFT on the PS4", u, t, why); } else { nf += f1; nb += b1; copied[i] = 1; } }
@@ -3356,19 +3423,22 @@ static void clean_step(const char *key, int budget) {
     else sv_log("clean slate: user %s game %s: internal copy %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
     cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
     { static long long lr; char rk2[16] = ""; cl_rd("run", rk2, sizeof rk2); if (!strncmp(rk2, "prep", 4) && time(0) - lr >= 4) { char s3[400]; lr = time(0); report(key, s3, sizeof s3); } } /* 1.1.101: the tile's bar follows each game */
-    bpop_key("clprog", "%s: %d of %d games done, %d failed", copyonly ? "Internal copy" : "Clean slate", done, total, fails); /* 1.1.76 */
+    { char gn[64], pn[40]; sw_game_name(t, gn, sizeof gn); pname(u, pn, sizeof pn);
+      if (br) bpop_key("clprog", "%s: %s's save could NOT be copied - left on the profile (%d of %d)", gn, pn, done, total);
+      else if (copyonly) bpop_key("clprog", "%s: %s's save is safe on this PS4 (%d of %d)", gn, pn, done, total);
+      else bpop_key("clprog", "%s: saved to this PS4, then cleared from %s's profile (%d of %d)", gn, pn, done, total); } /* 1.1.102 plain words */
   }
   fclose(td);
   if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); clean_finish(done, fails, parts);
     { char rm[48] = "", tb[48] = ""; cl_rd("mode", rm, sizeof rm); if (!strncmp(rm, "restore ", 8) || !strncmp(rm, "memload ", 8)) { cl_rd("rtime", tb, sizeof tb);
       char rn[120] = "", kd[16] = "", lb[48] = ""; long long t0 = 0; cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kd, &t0, lb);
       if (!strcmp(kd, "prep")) { for (char *c = lb; *c; c++) if (*c == '_') *c = ' ';
-        sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "Member %s is READY: %d games loaded, %d failed, in %.0f s", lb, done - fails, fails, atof(tb)); }
+        sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "%s is READY: %d game%s loaded%s (%.0f s)", lb, done - fails, done - fails == 1 ? "" : "s", fails ? " - some failed, staff will check" : "", atof(tb)); }
       if (!strcmp(kd, "prep") && file_exists(MEMQ)) memplay_next(key); /* 1.1.94: next ticked player */
       if (!strcmp(kd, "prep") && !file_exists(MEMQ)) { unlink("/data/round2/memqn"); keep_order(1); } /* 1.1.101: batch finished – profiles back in order */
       if (!strcmp(kd, "prep")) { char s4[400]; report(key, s4, sizeof s4); } /* tell the tile at once (next player started, or all ready) */
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
-      bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } } }
+      if (strcmp(kd, "prep")) bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } } }
   if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
 }
 /* ---- 1.1.52 LAUNCH PURGE (owner 17 Nov 8:05pm: "clear all saves IF restore point succeeded"). "/_purge.<label>" = clean slate of
@@ -3544,6 +3614,7 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
   if (mtag[0]) { char ds[65]; size_t m3n = 0; char mp3[320]; snprintf(mp3, sizeof mp3, "%s/manifest.txt", d); char *m3 = read_all(mp3, &m3n, 256 * 1024); if (m3) data_sha(m3, m3n, ds); else snprintf(ds, sizeof ds, "-"); free(m3);
     if (mem_index_put(key, mtag, t, nm, base, ds)) { snprintf(why, wn, "member index not updated"); return -1; } }
   sv_log("cloud batch: sent %s %s %s: %d files, %llu bytes -> %s", u, t, nm, nfiles, *sent, base);
+  { char gn[64], pn[40]; sw_game_name(t, gn, sizeof gn); pname(u, pn, sizeof pn); bpop_key("cprog", "PS4 -> Round2 cloud: %s (%s) uploaded%s", gn, pn, strncmp(base, "members/", 8) ? "" : " to the crew's account"); }
   return 0;
 }
 static void cloud_step(const char *key, int budget) {
@@ -4251,6 +4322,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_rest")) look_rest();
     else if (!strcmp(t, "/_bpop.on")) { put_file(BPOP_FLAG, "1"); bp_on = 1; bp_chk = time(0); look_kv("bpop/result", "verbose pop-ups ON"); bpop("Verbose pop-ups ON - I will tell you what I am doing"); }
     else if (!strcmp(t, "/_bpop.off")) { unlink(BPOP_FLAG); bp_on = 0; look_kv("bpop/result", "verbose pop-ups off"); }
+    else if (!strcmp(t, "/_bpop.tech")) { put_file("/data/round2/popups-tech", "1"); look_kv("bpop/result", "technical log lines shown as pop-ups too"); } /* 1.1.102 */
+    else if (!strcmp(t, "/_bpop.plain")) { unlink("/data/round2/popups-tech"); look_kv("bpop/result", "plain pop-ups only"); }
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
     else if (!strncmp(t, "/_wake.", 7)) look_wake(t);
@@ -4563,6 +4636,7 @@ int main(void) {
       if (did) { report(key, status, sizeof status); write_status(status); } }
     if (key[0] && (m == 2 || (m && m % 30 == 0))) { r2_where("tile", 1); tile_check(key, 0); } /* 1.1.87: Round2 tile updates */
     if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
+    if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
     else if (key[0] && file_exists(PREPD "/cloud_on")) { r2_where("cloud", 1); cloud_step(key, 20); } /* 1.1.52: background cloud batch, off by default */
