@@ -1,6 +1,6 @@
 # Package metadata.
 TITLE       := Round2
-VERSION     := 0.01
+VERSION     := 0.02
 TITLE_ID    := RTWO00001
 CONTENT_ID  := IV0000-RTWO00001_00-ROUND2MEMBERS000
 
@@ -8,7 +8,7 @@ CONTENT_ID  := IV0000-RTWO00001_00-ROUND2MEMBERS000
 LIBS        := -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceFreeType -lSceNet -lSceSsl -lSceHttp
 
 # Additional compile flags.
-EXTRAFLAGS  := -DGRAPHICS_USES_FONT -I$(OO_PS4_TOOLCHAIN)/samples/_common
+EXTRAFLAGS  := -DGRAPHICS_USES_FONT
 
 # Asset and module directories.
 ASSETS 		:= $(wildcard assets/**/*)
@@ -19,7 +19,7 @@ LIBMODULES  := $(wildcard sce_module/*)
 # Root vars
 TOOLCHAIN   := $(OO_PS4_TOOLCHAIN)
 PROJDIR     := $(shell basename $(CURDIR))
-COMMONDIR   := $(TOOLCHAIN)/samples/_common
+COMMONDIR   := $(CURDIR)/no-common
 INTDIR      := $(PROJDIR)/x64/Debug
 
 # Define objects to build

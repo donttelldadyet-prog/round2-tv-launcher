@@ -1,12 +1,16 @@
-/* Round2 tile (PS4 app, fPKG) – v0.1, 19 Nov 2026 (owner: "the tile just opens the page, shows progress, and keeps guests
-   from interrupting save prep").
-   What it does now: asks the engine every 20 s what this PS4 is doing (GET /ps4/tile?id=<this PS4's id>) and shows
-     - a QR code to the member page for this room (book.round2.sg/m?room=<room>) – members log in on their phone,
-     - the room's state in plain words: ready / the room is being reset / a member's saves are loading (n of m games) –
-       "please don't start a game yet" while saves load.
-   Coming next (part 2): pick who's playing, PIN on the PS4 number keypad, "your save is on Karen" hints, pictures.
-   Built with the OpenOrbis toolchain (samples/_common Scene2D + FreeType); QR codes by Project Nayuki's qrcodegen (MIT).
-   Fonts: Chakra Petch + Press Start 2P (SIL OFL, in assets/fonts). */
+/* Round2 tile (PS4 app, fPKG RTWO00001) – owner 19 Nov 2026: "the tile just opens the page, shows progress, and keeps guests
+   from interrupting save prep".
+   0.02 (owner 11:25pm, after testing 0.01 on Kaeden: text hard to read, "can't reach Round2", use our logo):
+     - own text drawing (FreeType glyphs alpha-blended onto the screen; the sample's drawer showed hollow letters) and solid
+       colours (the sample wrote half-transparent pixels, which made the screen look purple),
+     - the Round2 logo (white) + MEMBERS, also on the home-screen icon,
+     - engine call: HTTPS with the PS4's certificate checks off (its certificate list is old), then plain HTTP if that fails;
+       the error code shows small at the bottom so a failure can be traced.
+   What it shows: a QR code to the member page for this room (book.round2.sg/m?room=<room>) and the room's state in plain
+   words – ready / being reset (n of m) / a member's saves loading (n of m, "please don't start a game yet").
+   Coming next: pick who's playing, PIN on the PS4 number keypad, "your save is on Karen" hints, pictures, self-update.
+   Built with the OpenOrbis toolchain (Scene2D from its samples, GPL-3.0) + FreeType; QR codes by Project Nayuki's qrcodegen
+   (MIT). Fonts: Chakra Petch + Press Start 2P (SIL OFL, in assets/fonts). */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -21,46 +25,51 @@
 
 #include "graphics.h"
 #include "log.h"
+#include "logo.h"
 extern "C" {
 #include "qrcodegen.h"
 }
 
 #define W 1920
 #define H 1080
-#define ENGINE "https://round2-book.donttelldadyet.workers.dev"
+#define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
 std::stringstream debugLogStream;
 
-static Color BG = { 6, 5, 10 }, CARD = { 11, 9, 20 }, INK = { 244, 241, 251 }, DIM = { 167, 159, 189 }, GOLD = { 245, 196, 0 },
+static Color BG = { 6, 5, 10 }, CARD = { 20, 17, 31 }, INK = { 244, 241, 251 }, DIM = { 167, 159, 189 }, GOLD = { 245, 196, 0 },
              WHITE = { 255, 255, 255 }, BLACK = { 0, 0, 0 }, RED = { 255, 122, 122 }, GREEN = { 125, 255, 168 };
 
 /* ---- what the engine said last (shared with the poll thread) ---- */
 static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
-static char g_room[32] = "", g_url[200] = "", g_line[200] = "Connecting to Round2...", g_line2[200] = "", g_status[24] = "wait";
+static char g_room[32] = "", g_url[200] = "", g_line[200] = "Connecting to Round2...", g_line2[200] = "", g_status[24] = "wait", g_err[64] = "";
 static volatile int g_dirty = 2;
 static char g_id[40] = "";
 
-static int net_ok = 0, httpCtx = 0;
-static int skipSsl(int, unsigned int, void *const[], int, void *) { return 0; }   /* the PS4's own certificate list is old; the engine answers only status text */
+/* ---- network ---- */
+static int net_ok = 0, httpCtx = 0, net_err = 0;
 static void net_init(void) {
-  if (sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_NET) < 0) return;
-  if (sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_HTTP) < 0) return;
-  if (sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_SSL) < 0) return;
+  int r;
+  if ((r = sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_NET)) < 0) { net_err = r; return; }
+  if ((r = sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_HTTP)) < 0) { net_err = r; return; }
+  if ((r = sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_SSL)) < 0) { net_err = r; return; }
   sceNetInit();
-  int mem = sceNetPoolCreate("r2tile", 64 * 1024, 0); if (mem < 0) return;
-  int ssl = sceSslInit(256 * 1024); if (ssl < 0) return;
-  httpCtx = sceHttpInit(mem, ssl, 256 * 1024); if (httpCtx < 0) return;
+  int mem = sceNetPoolCreate("r2tile", 64 * 1024, 0); if (mem < 0) { net_err = mem; return; }
+  int ssl = sceSslInit(256 * 1024); if (ssl < 0) { net_err = ssl; return; }
+  httpCtx = sceHttpInit(mem, ssl, 256 * 1024); if (httpCtx < 0) { net_err = httpCtx; return; }
   net_ok = 1;
 }
+/* returns bytes read, or a negative PS4 error code */
 static int http_get(const char *url, char *out, int max) {
-  int tpl = 0, conn = 0, req = 0, n = 0, code = 0;
-  tpl = sceHttpCreateTemplate(httpCtx, "Round2Tile/0.1 (PLAYSTATION 4)", ORBIS_HTTP_VERSION_1_1, 1); if (tpl < 0) return -1;
-  sceHttpsSetSslCallback(tpl, skipSsl, NULL);
-  conn = sceHttpCreateConnectionWithURL(tpl, url, 1); if (conn < 0) { n = -1; goto done; }
-  req = sceHttpCreateRequestWithURL(conn, ORBIS_METHOD_GET, url, 0); if (req < 0) { n = -1; goto done; }
-  if (sceHttpSendRequest(req, NULL, 0) < 0 || sceHttpGetStatusCode(req, &code) < 0 || code != 200) { n = -1; goto done; }
-  while (n < max - 1) { int r = sceHttpReadData(req, out + n, max - 1 - n); if (r <= 0) break; n += r; }
-  out[n < 0 ? 0 : n] = 0;
+  int tpl = 0, conn = 0, req = 0, n = 0, r = 0; int32_t code = 0;
+  tpl = sceHttpCreateTemplate(httpCtx, "Round2Tile/0.02 (PLAYSTATION 4)", ORBIS_HTTP_VERSION_1_1, 1); if (tpl < 0) return tpl;
+  if (!strncmp(url, "https", 5)) sceHttpsDisableOption(tpl, 0x3F);   /* server / name / date / known-CA checks off: old CA list on the PS4 */
+  conn = sceHttpCreateConnectionWithURL(tpl, url, 1); if (conn < 0) { n = conn; goto done; }
+  req = sceHttpCreateRequestWithURL(conn, ORBIS_METHOD_GET, url, 0); if (req < 0) { n = req; goto done; }
+  if ((r = sceHttpSendRequest(req, NULL, 0)) < 0) { n = r; goto done; }
+  if ((r = sceHttpGetStatusCode(req, &code)) < 0) { n = r; goto done; }
+  if (code != 200) { n = -1000 - code; goto done; }
+  while (n < max - 1) { int k = sceHttpReadData(req, out + n, max - 1 - n); if (k <= 0) break; n += k; }
+  out[n] = 0;
 done:
   if (req > 0) sceHttpDeleteRequest(req);
   if (conn > 0) sceHttpDeleteConnection(conn);
@@ -76,75 +85,112 @@ static void jget(const char *j, const char *k, char *out, int n) {
 static void *poller(void *) {
   static char buf[4096], url[200];
   for (;;) {
-    snprintf(url, sizeof url, ENGINE "/ps4/tile?id=%s", g_id);
-    int n = net_ok ? http_get(url, buf, sizeof buf) : -1;
+    int n = -1, n1 = 0;
+    if (net_ok) {
+      snprintf(url, sizeof url, "https://" ENGINE_HOST "/ps4/tile?id=%s", g_id); n = n1 = http_get(url, buf, sizeof buf);
+      if (n <= 0) { snprintf(url, sizeof url, "http://" ENGINE_HOST "/ps4/tile?id=%s", g_id); n = http_get(url, buf, sizeof buf); }
+    }
     pthread_mutex_lock(&mx);
     if (n > 0) {
       char room[32], u[200], l[200], l2[200], st[24];
       jget(buf, "room", room, sizeof room); jget(buf, "url", u, sizeof u); jget(buf, "line", l, sizeof l); jget(buf, "line2", l2, sizeof l2); jget(buf, "status", st, sizeof st);
-      if (strcmp(room, g_room) || strcmp(u, g_url) || strcmp(l, g_line) || strcmp(l2, g_line2) || strcmp(st, g_status)) {
-        strcpy(g_room, room); strcpy(g_url, u); strcpy(g_line, l); strcpy(g_line2, l2); strcpy(g_status, st); g_dirty = 2; }
-    } else if (strcmp(g_status, "off")) { strcpy(g_status, "off"); strcpy(g_line, "Cannot reach Round2 right now - trying again..."); g_line2[0] = 0; g_dirty = 2; }
+      if (strcmp(room, g_room) || strcmp(u, g_url) || strcmp(l, g_line) || strcmp(l2, g_line2) || strcmp(st, g_status) || g_err[0]) {
+        strcpy(g_room, room); strcpy(g_url, u); strcpy(g_line, l); strcpy(g_line2, l2); strcpy(g_status, st); g_err[0] = 0; g_dirty = 2; }
+    } else {
+      char e[64]; if (!net_ok) snprintf(e, sizeof e, "network start 0x%08x", (unsigned)net_err); else snprintf(e, sizeof e, "https 0x%08x  http 0x%08x", (unsigned)n1, (unsigned)n);
+      if (strcmp(g_status, "off") || strcmp(e, g_err)) { strcpy(g_status, "off"); strcpy(g_line, "Cannot reach Round2 right now - trying again..."); g_line2[0] = 0; strcpy(g_err, e); g_dirty = 2; }
+    }
     pthread_mutex_unlock(&mx);
     sceKernelSleep(strcmp(g_status, "loading") && strcmp(g_status, "reset") ? 20 : 8);   /* faster while something is moving */
   }
   return 0;
 }
 
+/* ---- drawing straight into the frame buffer (alpha-blended) ---- */
+static uint32_t *FB;
+static inline void blend(int x, int y, Color c, int a) {
+  if (x < 0 || y < 0 || x >= W || y >= H || a <= 0) return;
+  uint32_t *p = FB + y * W + x;
+  if (a >= 255) { *p = 0xFF000000u | (c.r << 16) | (c.g << 8) | c.b; return; }
+  uint32_t o = *p; int r = (o >> 16) & 255, g = (o >> 8) & 255, b = o & 255;
+  r += (c.r - r) * a / 255; g += (c.g - g) * a / 255; b += (c.b - b) * a / 255;
+  *p = 0xFF000000u | (r << 16) | (g << 8) | b;
+}
+static void rect(int x, int y, int w, int h, Color c) { for (int j = y; j < y + h; j++) for (int i = x; i < x + w; i++) blend(i, j, c, 255); }
+/* one line of text; y = baseline; returns the x after it (draw = 0: just measure) */
+static int text(FT_Face f, const char *s, int x, int y, Color c, int draw = 1) {
+  for (; *s; s++) {
+    unsigned ch = (unsigned char)*s; if (ch >= 128) ch = '?';
+    if (FT_Load_Glyph(f, FT_Get_Char_Index(f, ch), FT_LOAD_DEFAULT) || FT_Render_Glyph(f->glyph, ft_render_mode_normal)) continue;
+    FT_GlyphSlot g = f->glyph; FT_Bitmap *b = &g->bitmap;
+    if (draw) for (int r = 0; r < (int)b->rows; r++) for (int k = 0; k < (int)b->width; k++)
+      blend(x + g->bitmap_left + k, y - g->bitmap_top + r, c, ((unsigned char *)b->buffer)[r * b->pitch + k]);
+    x += g->advance.x >> 6;
+  }
+  return x;
+}
+/* word wrap to a pixel width */
+static int wrap(FT_Face f, const char *s, int x, int y, int maxw, int lh, Color c) {
+  char line[256] = "", word[128]; const char *p = s;
+  while (*p) {
+    int n = 0; while (p[n] && p[n] != ' ' && n < 127) n++; snprintf(word, sizeof word, "%.*s", n, p); p += n; while (*p == ' ') p++;
+    char test[256]; snprintf(test, sizeof test, "%s%s%s", line, line[0] ? " " : "", word);
+    if (line[0] && text(f, test, 0, 0, c, 0) > maxw) { text(f, line, x, y, c); y += lh; snprintf(line, sizeof line, "%s", word); }
+    else snprintf(line, sizeof line, "%s", test);
+  }
+  if (line[0]) { text(f, line, x, y, c); y += lh; }
+  return y;
+}
+static void logo(int x, int y, Color c) { for (int j = 0; j < LOGO_H; j++) for (int i = 0; i < LOGO_W; i++) blend(x + i, y + j, c, LOGO_A[j * LOGO_W + i]); }
+static void draw_qr(const char *t, int x, int y, int size) {
+  static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX];
+  if (!t[0] || !qrcodegen_encodeText(t, tmp, qr, qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true)) return;
+  int q = qrcodegen_getSize(qr), cell = size / (q + 8), off = (size - cell * q) / 2;
+  rect(x, y, size, size, WHITE);
+  for (int r = 0; r < q; r++) for (int c = 0; c < q; c++) if (qrcodegen_getModule(qr, c, r)) rect(x + off + c * cell, y + off + r * cell, cell, cell, BLACK);
+}
 /* the PS4's 16-byte id – the same one the Round2 helper reports. Not in the toolchain's libkernel list, so looked up by name. */
 static int open_ps_id(uint8_t *id) {
-  int h = sceKernelLoadStartModule("libkernel.sprx", 0, NULL, 0, NULL, NULL); if (h <= 0) h = 0x2001;
+  int h = sceKernelLoadStartModule("libkernel.sprx", 0, NULL, 0, NULL, NULL);
   int (*fn)(uint8_t *) = NULL;
-  if (sceKernelDlsym(h, "sceKernelGetOpenPsId", (void **)&fn) || !fn) { h = 0x2001; if (sceKernelDlsym(h, "sceKernelGetOpenPsId", (void **)&fn) || !fn) return -1; }
+  if (h <= 0 || sceKernelDlsym(h, "sceKernelGetOpenPsId", (void **)&fn) || !fn) { h = 0x2001; fn = NULL; if (sceKernelDlsym(h, "sceKernelGetOpenPsId", (void **)&fn) || !fn) return -1; }
   return fn(id);
-}
-/* simple word wrap: about `cols` characters a line */
-static void draw_wrap(Scene2D *s, const char *txt, FT_Face f, int x, int y, int cols, int lh, Color bg, Color fg) {
-  char line[256]; const char *p = txt;
-  while (*p) {
-    int n = (int)strlen(p); if (n > cols) { n = cols; while (n > 0 && p[n] != ' ') n--; if (!n) n = cols; }
-    snprintf(line, sizeof line, "%.*s", n, p); s->DrawText(line, f, x, y, bg, fg); y += lh; p += n; while (*p == ' ') p++;
-  }
-}
-static void draw_qr(Scene2D *s, const char *text, int x, int y, int size) {
-  static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX];
-  if (!text[0] || !qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true)) return;
-  int q = qrcodegen_getSize(qr), cell = size / (q + 8), off = (size - cell * q) / 2;
-  s->DrawRectangle(x, y, size, size, WHITE);
-  for (int r = 0; r < q; r++) for (int c = 0; c < q; c++) if (qrcodegen_getModule(qr, c, r)) s->DrawRectangle(x + off + c * cell, y + off + r * cell, cell, cell, BLACK);
 }
 
 int main() {
   setvbuf(stdout, NULL, _IONBF, 0);
   auto scene = new Scene2D(W, H, 4);
   if (!scene->Init(0xC000000, 2)) for (;;) sceKernelSleep(1);
-  FT_Face fPix, fBig, fMid, fSmall;
-  scene->InitFont(&fPix, "/app0/assets/fonts/PressStart2P-Regular.ttf", 44);
-  scene->InitFont(&fBig, "/app0/assets/fonts/ChakraPetch-SemiBold.ttf", 64);
-  scene->InitFont(&fMid, "/app0/assets/fonts/ChakraPetch-Regular.ttf", 44);
-  scene->InitFont(&fSmall, "/app0/assets/fonts/ChakraPetch-Regular.ttf", 32);
+  FT_Face fBig, fMid, fSmall, fTiny;
+  scene->InitFont(&fBig, "/app0/assets/fonts/ChakraPetch-SemiBold.ttf", 72);
+  scene->InitFont(&fMid, "/app0/assets/fonts/ChakraPetch-Regular.ttf", 46);
+  scene->InitFont(&fSmall, "/app0/assets/fonts/ChakraPetch-SemiBold.ttf", 34);
+  scene->InitFont(&fTiny, "/app0/assets/fonts/ChakraPetch-Regular.ttf", 24);
 
-  { uint8_t id[16] = { 0 }; if (!open_ps_id(id)) for (int i = 0; i < 16; i++) sprintf(g_id + i * 2, "%02x", id[i]); }
+  { uint8_t id[16] = { 0 }; if (!open_ps_id(id)) for (int i = 0; i < 16; i++) sprintf(g_id + i * 2, "%02x", id[i]); else strcpy(g_err, "no PS4 id"); }
   net_init();
   pthread_t th; pthread_create(&th, NULL, poller, NULL);
 
   int frame = 0;
   for (;;) {
     if (g_dirty > 0) {
-      char room[32], url[200], line[200], line2[200], st[24];
-      pthread_mutex_lock(&mx); strcpy(room, g_room); strcpy(url, g_url); strcpy(line, g_line); strcpy(line2, g_line2); strcpy(st, g_status); g_dirty--; pthread_mutex_unlock(&mx);
-      scene->FrameBufferFill(BG);
-      scene->DrawRectangle(0, 0, W, 10, GOLD);
-      scene->DrawText((char *)"ROUND2", fPix, 140, 200, BG, GOLD);
+      char room[32], url[200], line[200], line2[200], st[24], err[64];
+      pthread_mutex_lock(&mx); strcpy(room, g_room); strcpy(url, g_url); strcpy(line, g_line); strcpy(line2, g_line2); strcpy(st, g_status); strcpy(err, g_err); g_dirty--; pthread_mutex_unlock(&mx);
+      FB = scene->Buf();
+      rect(0, 0, W, H, BG);
+      rect(0, 0, W, 12, GOLD);
+      logo(130, 130, WHITE);
       char head[64]; snprintf(head, sizeof head, "MEMBERS%s%s", room[0] ? "  -  " : "", room); for (char *c = head; *c; c++) if (*c >= 'a' && *c <= 'z') *c -= 32;
-      scene->DrawText(head, fSmall, 142, 260, BG, DIM);
+      text(fSmall, head, 150, 360, GOLD);
       int busy = !strcmp(st, "loading") || !strcmp(st, "reset");
-      scene->DrawRectangle(140, 330, 900, 4, busy ? GOLD : (strcmp(st, "off") ? GREEN : RED));
-      scene->DrawText((char *)(busy ? "Please wait" : "Scan to log in"), fBig, 140, 450, BG, INK);
-      draw_wrap(scene, line, fMid, 140, 560, 40, 62, BG, busy ? GOLD : INK);
-      if (line2[0]) draw_wrap(scene, line2, fSmall, 140, 820, 56, 46, BG, DIM);
-      scene->DrawText((char *)"Members: open your phone camera and scan the code.", fSmall, 140, 980, BG, DIM);
-      if (url[0]) { scene->DrawRectangle(1160, 170, 640, 640, CARD); draw_qr(scene, url, 1180, 190, 600); scene->DrawText((char *)"book.round2.sg/m", fSmall, 1330, 880, BG, DIM); }
+      rect(150, 400, 900, 5, busy ? GOLD : (strcmp(st, "off") ? GREEN : RED));
+      text(fBig, busy ? "Please wait" : "Scan to log in", 150, 510, INK);
+      int y = wrap(fMid, line, 150, 600, 900, 62, busy ? GOLD : INK);
+      if (line2[0]) wrap(fSmall, line2, 150, y + 30, 900, 46, DIM);
+      text(fSmall, "Open your phone camera and scan the code.", 150, 990, DIM);
+      if (err[0]) text(fTiny, err, 150, 1050, DIM);
+      if (url[0]) { rect(1150, 150, 660, 660, CARD); draw_qr(url, 1180, 180, 600); text(fSmall, "book.round2.sg/m", 1330, 870, DIM); }
+      else { rect(1150, 150, 660, 660, CARD); text(fSmall, "QR code appears when", 1270, 460, DIM); text(fSmall, "Round2 answers", 1320, 510, DIM); }
     }
     scene->SubmitFlip(frame); scene->FrameWait(frame); scene->FrameBufferSwap(); frame++;
   }
