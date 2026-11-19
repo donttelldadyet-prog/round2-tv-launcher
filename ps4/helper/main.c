@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.103"
+#define R2_VERSION "1.1.104"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2611,17 +2611,21 @@ static int may_rename(uint32_t uid) { return uid != r2_main_user() && (!user_sig
    menu's user / controller / PS-button / log-in-out functions into /data/round2/shprobe.txt – nothing is called or changed.
    Refused while a game is open (if the menu restarts, a guest's game would close). "/_ghver" = is GoldHEN's SDK call there. */
 struct r2_prx_load { char process_name[32]; char prx_path[100]; uint64_t res; } __attribute__((packed));
-static long r2_sdk(uint64_t cmd, void *data) { return syscall(500, cmd, data); }
+/* 1.1.104: GoldHEN's own way in (indirect syscall 0 -> 500, carry flag = error), as in GoldHEN_Plugins_SDK Syscall.c – libc's
+   syscall() answered -256 on Kaeden */
+__asm__(".intel_syntax noprefix\n.global r2_osyscall\nr2_osyscall:\n  mov rax, 0\n  mov r10, rcx\n  syscall\n  jb 1f\n  ret\n1:\n  neg rax\n  ret\n.att_syntax prefix\n");
+long r2_osyscall(long num, ...);
+static long r2_sdk(uint64_t cmd, void *data) { return r2_osyscall(500, cmd, data); }
 static void look_ghver(void) { char v[80]; long r = r2_sdk(0, 0); snprintf(v, sizeof v, "%ld (0x%lx)", r, (unsigned long)r); look_kv("gh/sdk-version", v); }
 static void look_shprobe(const char *key) {
   if (sv_game_open()) { look_kv("shprobe/refused", "a game is open - close it first"); return; }
   long ver = r2_sdk(0, 0); char v[200]; snprintf(v, sizeof v, "%ld", ver); look_kv("shprobe/sdk", v);
-  if (ver <= 0) { look_kv("shprobe/refused", "GoldHEN's SDK call is not there on this PS4"); return; }
+  if (ver < 0) { look_kv("shprobe/refused", "GoldHEN's SDK call is not there on this PS4"); return; }
   mkdir("/data/round2", 0777); unlink("/data/round2/shprobe.txt"); unlink("/data/round2/shprobe.txt.done");
   FILE *f = fopen("/data/round2/r2shprobe.prx", "wb"); if (!f || fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f) != r2_shprobe_prx_len) { if (f) fclose(f); look_kv("shprobe/error", "could not write the probe"); return; } fclose(f);
   struct r2_prx_load a; memset(&a, 0, sizeof a); snprintf(a.process_name, sizeof a.process_name, "SceShellUI"); snprintf(a.prx_path, sizeof a.prx_path, "/data/round2/r2shprobe.prx");
   sv_log("shprobe: loading the read-only probe into SceShellUI (GoldHEN SDK %ld)", ver);
-  long r = r2_sdk(6, &a); snprintf(v, sizeof v, "call %ld, module handle 0x%llx", r, (unsigned long long)a.res); look_kv("shprobe/load", v); sv_log("shprobe: %s", v);
+  long r = r2_sdk(6, &a); snprintf(v, sizeof v, "call %ld, result 0x%llx", r, (unsigned long long)a.res); look_kv("shprobe/load", v); sv_log("shprobe: %s", v);
   int done = 0; for (int i = 0; i < 30 && !(done = file_exists("/data/round2/shprobe.txt.done")); i++) sleep(1);
   struct stat st; long sz = stat("/data/round2/shprobe.txt", &st) ? -1 : (long)st.st_size;
   snprintf(v, sizeof v, "%s, %ld bytes", done ? "finished" : "not finished in 30 s", sz); look_kv("shprobe/result", v); sv_log("shprobe: %s", v);
