@@ -20,11 +20,11 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#define R2NAME "round2_sweep1"
+#define R2NAME "round2_sweep2"
 attr_public const char *g_pluginName = R2NAME;
 attr_public const char *g_pluginDesc = "Round2: read-only list of the system menu's rest-mode / wake / network-in-rest functions";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000100;   /* sweep 1.00 = pwrprobe 1.00 + crash guards + breadcrumbs + logout/controller words */
+attr_public u32 g_pluginVersion = 0x00000200;   /* sweep 1.00 = pwrprobe 1.00 + crash guards + breadcrumbs + logout/controller words */
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -51,7 +51,7 @@ extern void mono_assembly_foreach(void (*)(void *, void *), void *);
 extern int mono_class_is_enum(void *);
 extern void *mono_image_get_name(void *);
 
-#define MAXOUT (1800 * 1024)
+#define MAXOUT (3800 * 1024)   /* sweep2: was 1.8 MB, Kaeden 13.50 needed more (app.exe cut) */
 static int g_fd = -1, g_len = 0;
 static void wr(const char *s) { int n = (int)strlen(s); if (g_fd < 0 || g_len + n > MAXOUT) return; write(g_fd, s, n); g_len += n; }
 static void step(const char *a, const char *b2) {   /* breadcrumb: the step about to run (a crashed program keeps what it wrote) */
@@ -189,7 +189,7 @@ static void *probe_thread(void *a) {
   (void)a; sleep(2);
   static const char *outs[] = { "/user/data/round2/" R2NAME ".txt", "/data/round2/" R2NAME ".txt", 0 }; const char *out = 0;
   for (int i = 0; outs[i] && g_fd < 0; i++) { g_fd = open(outs[i], O_WRONLY | O_CREAT | O_TRUNC, 0666); out = outs[i]; } if (g_fd < 0) return 0;
-  wr(R2NAME " 1.00 - read-only sweep: rest mode / wake / network-in-rest / log-in / controller names in SceShellUI\n");
+  wr(R2NAME " 2.00 - read-only sweep: rest mode / wake / network-in-rest / log-in / controller names in SceShellUI\n");
   step("attach", 0); mono_thread_attach(mono_get_root_domain());
   mono_assembly_foreach(each_asm, 0);
   char b[200]; snprintf(b, sizeof b, "\n## end: %d classes, %d methods, %d enums, %d registry constants, %d system functions, %d bytes%s\n", n_cls, n_meth, n_enum, n_reg, n_pinv, g_len, g_len >= MAXOUT - 200 ? " (CUT at the size limit)" : ""); g_len = 0; wr(b);
