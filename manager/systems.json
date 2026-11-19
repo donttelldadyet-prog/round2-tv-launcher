@@ -154,6 +154,11 @@
           "name": "PS4 helper – speed-up and slimming (to do, owner 19 Nov)",
           "status": "planned",
           "what": "Score 19 Nov: starter 8/10, controller detector 9/10, helper 5/10. In order: 1) timing logs first (how long check-ins, handshakes and the 15-min report really take on a PS4). 2) Slim the helper 2.4 → ~1.6 MB: only the 2–3 certificates our engine needs (not ~140), drop a leftover test program, compiler settings for unused code; free ~620 KB of memory that big buffers hold all the time; stop ~8,000 diagnostic disk writes a day; the 15-min report skips what hasn't changed. 3) Fast encryption (the PS4's AES/maths instructions) – Kaeden first. 4) Keep one connection to the engine open instead of a new secure connection every minute (fewer stalls, commands in seconds instead of up to 60 s). Detector: sleep 5 s instead of 1 s while asleep. Blockers: only live room PS4s to test on (use Kaeden's idle PS4 as the test bench), helper updates capped at 5 switches per PS4 start, the starter can only be changed by FTP at each PS4, no profiler on the PS4, Cloudflare free-plan limits."
+        },
+        {
+          "name": "PS4 stays on before and during bookings (keep-awake)",
+          "status": "build",
+          "what": "Owner 19 Nov 2:10pm: a PS4 that is on stays awake from 2 hours before a booking until 15 min after the guest end (time for the auto reset). If the next booking is more than 2 hours away, or there is none left, the PS4 follows its own power-save settings, so a long gap is not spent switched on. Back-to-back bookings less than 2 hours apart keep it on. Live 19 Nov 2:12pm (engine only; PS4s on helper 1.1.68+). Next: the shop wakes a sleeping PS4 15 min before its booking (works on Kai, Vale, Max, Scarlett, Kaeden; Bella and Atlas need a LAN cable or staff)."
         }
       ]
     },
