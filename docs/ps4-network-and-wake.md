@@ -11,7 +11,7 @@ Only what the logs show is written as fact; everything else is marked as a guess
 | Kaeden (test bench) | CUH-1000A | 13.50 | round2, ch 6 (main router 2.4 GHz) | |
 | Scarlett | CUH-1006A, Liteon | 11.00 | round2, ch 6 | |
 | Max / Vale | Hon Hai / AzureWave | 9.00 / 11.00 | round2, ch 36 (5 GHz) | |
-| Kai | Hon Hai | 11.00 | round2, ch 36 via the lobby mesh unit | |
+| Kai | Hon Hai | 9.00 | round2, ch 36 via the lobby mesh unit | |
 Router: TP-Link HB611 (Singtel EasyMesh), main unit 192.168.88.1 upstairs, second unit in the lobby (2.4 GHz wireless link to the main).
 round2-ps4 = extra SSID on the main unit, its own subnet 192.168.120.x (devices on round2 / 192.168.88.x can't reach it).
 
