@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.106"
+#define R2_VERSION "1.1.107"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2623,11 +2623,15 @@ static void look_shprobe(const char *key) {
   if (sv_game_open()) { look_kv("shprobe/refused", "a game is open - close it first"); return; }
   long ver = r2_sdk(0, 0); char v[200]; snprintf(v, sizeof v, "%ld", ver); look_kv("shprobe/sdk", v);
   /* 1.1.106: 1.1.105 got 0x80020002 (file not found) for /data/... – the menu sees the disk differently. Try the real paths too. */
-  static const char *outs[] = { "/data/round2/shprobe.txt", "/user/data/round2/shprobe.txt", "/system_tmp/shprobe.txt", 0 };
+  /* 1.1.107: 1.1.106 got /data = not found, /user/data = no permission, /system_tmp = 0x80020023 -> files readable by everyone
+     (chmod 0777) and also in GoldHEN's own plugin folder, which GoldHEN itself loads from */
+  static const char *outs[] = { "/data/round2/shprobe.txt", "/user/data/round2/shprobe.txt", "/user/data/GoldHEN/shprobe.txt", "/data/GoldHEN/shprobe.txt", "/system_tmp/shprobe.txt", 0 };
   for (int i = 0; outs[i]; i++) { char d[80]; unlink(outs[i]); snprintf(d, sizeof d, "%s.done", outs[i]); unlink(d); }
-  static const char *prx[] = { "/data/round2/r2shprobe.prx", "/user/data/round2/r2shprobe.prx", "/system_tmp/r2shprobe.prx", 0 };
+  static const char *prx[] = { "/user/data/GoldHEN/plugins/r2shprobe.prx", "/data/GoldHEN/plugins/r2shprobe.prx", "/user/data/round2/r2shprobe.prx", "/system_tmp/r2shprobe.prx", 0 };
   { FILE *f = fopen("/data/round2/r2shprobe.prx", "wb"); if (!f || fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f) != r2_shprobe_prx_len) { if (f) fclose(f); look_kv("shprobe/error", "could not write the probe"); return; } fclose(f); }
   { FILE *f = fopen("/system_tmp/r2shprobe.prx", "wb"); if (f) { fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f); fclose(f); } }
+  { mkdir("/data/GoldHEN/plugins", 0777); FILE *f = fopen("/data/GoldHEN/plugins/r2shprobe.prx", "wb"); if (f) { fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f); fclose(f); } }
+  chmod("/data/round2", 0777); chmod("/data/round2/r2shprobe.prx", 0777); chmod("/data/GoldHEN/plugins/r2shprobe.prx", 0777); chmod("/system_tmp/r2shprobe.prx", 0777);
   char res[200] = ""; int loaded = 0;
   for (int i = 0; prx[i] && !loaded; i++) {
     struct r2_prx_load a; memset(&a, 0, sizeof a); snprintf(a.process_name, sizeof a.process_name, "SceShellUI"); snprintf(a.prx_path, sizeof a.prx_path, "%s", prx[i]);

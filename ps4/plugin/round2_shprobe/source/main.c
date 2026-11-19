@@ -64,7 +64,7 @@ static void dump(const char *path) {
 }
 static void *probe_thread(void *a) {
   (void)a; sleep(2);
-  static const char *outs[] = { "/data/round2/shprobe.txt", "/user/data/round2/shprobe.txt", "/system_tmp/shprobe.txt", 0 }; const char *out = 0;
+  static const char *outs[] = { "/data/round2/shprobe.txt", "/user/data/round2/shprobe.txt", "/user/data/GoldHEN/shprobe.txt", "/data/GoldHEN/shprobe.txt", "/system_tmp/shprobe.txt", 0 }; const char *out = 0;
   for (int i = 0; outs[i] && g_fd < 0; i++) { g_fd = open(outs[i], O_WRONLY | O_CREAT | O_TRUNC, 0666); out = outs[i]; } if (g_fd < 0) return 0;
   wr("round2_shprobe 1.00 - read-only list of SceShellUI user/controller code\n");
   mono_thread_attach(mono_get_root_domain());
