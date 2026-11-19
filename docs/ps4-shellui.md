@@ -56,7 +56,7 @@ so names are read from the running menu with Mono reflection. Nothing is called 
   Not done (yet): memory patching such as HEN's `CheckRunningOnMainThread` → ret. If the menu refuses calls from our thread,
   that's the next step.
 
-## Redo on another firmware (9.00 = Max/Atlas, 11.00 = the other rooms) – checklist
+## Redo on another firmware (9.00 = Max, Kai, Atlas; 11.00 = Scarlett, Vale, Bella) – checklist
 1. Helper ≥ 1.1.110 on that PS4 (count the switches since its last restart).
 2. No game open, staff at the TV. `look /_ghver` → GoldHEN SDK present?
 3. `look /_shmod.round2_shprobe3` (if that name already ran since this PS4 started, publish a copy under a new name first).
