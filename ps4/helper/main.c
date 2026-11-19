@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.86"
+#define R2_VERSION "1.1.87"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -48,6 +48,7 @@
 static void dns_file_sha(const char *path, char out[16]);
 static int file_exists(const char *p);
 static void put_file(const char *p, const char *txt);
+static void tile_ver(char *v, size_t n); static int tile_check(const char *key, int force); /* 1.1.87 */
 static int g_own;
 /* 1.1.31: keep a woken PS4 on (power tick) + the 1 MB save buffer, declared early so report() and step_aside() can use them. */
 int sceSystemServicePowerTick(void);
@@ -586,6 +587,7 @@ static int report(const char *key, char *status, size_t slen) {
   { char dh[16]; dns_file_sha("/data/nanodns/nanodns.ini", dh); /* 1.1.16: which blocker settings this PS4 has (first 12 of SHA-256) */
     jadd(",\"dns\":{\"sha\":\"%s\",\"prev\":%d}", dh, file_exists("/data/nanodns/nanodns.ini.prev")); }
   jadd(",\"pid\":%d,\"own\":%d", (int)getpid(), g_own);
+  { char tv[24]; tile_ver(tv, sizeof tv); jadd(",\"tile\":\"%s\"", tv); } /* 1.1.87 */
   jadd(",\"up\":%lld", g_up);
   if (g_awake_until) jadd(",\"awakeHold\":%lld", g_awake_until - (long long)time(0));
   if (g_awake_engine) jadd(",\"awakeBook\":%lld", g_awake_engine - (long long)time(0));
@@ -4015,6 +4017,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_copy.", 7)) look_copy(t);
     else if (!strcmp(t, "/_copycheck")) look_copycheck();
     else if (!strcmp(t, "/_restoreall")) look_restoreall();
+    else if (!strcmp(t, "/_tile.now")) tile_check(key, 1); /* 1.1.87 */
     else if (!strncmp(t, "/_prepmember.", 13)) look_prepmember(t);
     else if (!strncmp(t, "/_memtag.", 9)) look_memtag(t);
     else if (!strcmp(t, "/_pf.off")) { put_file("/data/round2/prefetch-off", "1"); look_kv("pf/result", "prefetch OFF"); }
@@ -4186,6 +4189,67 @@ static void *watchdog(void *arg) {
   }
   return 0;
 }
+/* 1.1.87 (owner 19 Nov 11:30pm: "teach the helper to update the Round2 tile – I don't want to go back and forth"): the ROUND2
+   TILE (fPKG RTWO00001) installs and updates itself through the helper. Every 30 min (and 2 min after start, and on the staff
+   look "/_tile.now"): ask the engine which tile version is out (GET /ps4/tileinfo); if this PS4 doesn't have it yet, download
+   it (POST /ps4/tilepkg, size + SHA-256 checked) to /data/pkg/round2-tile.pkg and hand it to the PS4's own background
+   installer (BGFT, the same one GoldHEN's Package Installer and "Internal PKG Installer" use). Never while a game or the tile
+   itself is open, never during a clean slate / backup. If the installer refuses, the file stays in /data/pkg so staff can
+   install it with Debug Settings > Package Installer (hdd), and the same version isn't tried again until the next restart.
+   /data/round2/tile.ver = the version installed; the report carries it ("tile"). */
+#define TILE_PKG "/data/pkg/round2-tile.pkg"
+static char tile_tried[24];
+typedef struct { void *heap; size_t heapSize; } BgftInit;
+typedef struct { int32_t userId; int32_t entitlementType; const char *id; const char *contentUrl; const char *contentExUrl; const char *contentName;
+  const char *iconPath; const char *skuId; int32_t option; const char *playgoScenarioId; const char *releaseDate; const char *packageType;
+  const char *packageSubType; uint32_t packageSize; } BgftParam;
+typedef struct { BgftParam params; uint32_t slot; } BgftParamEx;
+static int tile_install(char *why, size_t wn) {
+  static int (*bInit)(BgftInit *), (*bReg)(BgftParamEx *, int *), (*bStart)(int); static int looked, inited, mh; static void *heap;
+  if (!looked) { looked = 1; mh = sceKernelLoadStartModule("/system/common/lib/libSceBgft.sprx", 0, 0, 0, 0, 0);
+    if (mh > 0) { sceKernelDlsym(mh, "sceBgftServiceIntInit", (void **)&bInit); sceKernelDlsym(mh, "sceBgftServiceIntDownloadRegisterTaskByStorageEx", (void **)&bReg); sceKernelDlsym(mh, "sceBgftServiceDownloadStartTask", (void **)&bStart); } }
+  if (!bInit || !bReg || !bStart) { snprintf(why, wn, "the PS4 installer isn't reachable from the helper (module 0x%08x)", (unsigned)mh); return -1; }
+  if (!inited) { if (!heap) heap = calloc(1, 1 << 20); BgftInit ip = { heap, 1 << 20 }; int r = bInit(&ip); if (r) { snprintf(why, wn, "installer start 0x%08x", (unsigned)r); return -1; } inited = 1; }
+  BgftParamEx p; memset(&p, 0, sizeof p);
+  p.params.entitlementType = 5; p.params.id = ""; p.params.contentUrl = "/user" TILE_PKG; p.params.contentName = "Round2"; p.params.iconPath = "";
+  p.params.playgoScenarioId = "0"; p.params.option = 0x10000; p.slot = 0;
+  int task = -1, r = bReg(&p, &task); if (r) { snprintf(why, wn, "installer said 0x%08x", (unsigned)r); return -1; }
+  r = bStart(task); if (r) { snprintf(why, wn, "install start 0x%08x (task %d)", (unsigned)r, task); return -1; }
+  snprintf(why, wn, "install started (task %d)", task); return 0;
+}
+static void tile_ver(char *v, size_t n) { v[0] = 0; FILE *f = fopen("/data/round2/tile.ver", "r"); if (f) { if (fgets(v, (int)n, f)) v[strcspn(v, "\r\n")] = 0; fclose(f); } }
+static int tile_check(const char *key, int force) {
+  char run[32], have[24], v[24], sha[80], sz[24], hdr[200], err[160], why[200] = ""; running_title(run, sizeof run);
+  if (snap_on || clean_on) return 0;
+  if (run[0] && strcmp(run, VUE_ID)) { if (force) look_kv("tile/waits", run); return 0; }   /* a game – or the tile itself – is open */
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
+  unsigned char *d = 0; size_t len = 0; int st = r2tls_fetch(ENGINE_HOST, "GET", "/ps4/tileinfo", hdr, "", 0, &d, &len, 4096, err, sizeof err);
+  if (st != 200 || !d) { free(d); if (force) { snprintf(why, sizeof why, "engine %d %s", st, err); look_kv("tile/error", why); } return 0; }
+  { char *b = malloc(len + 1); if (!b) { free(d); return 0; } memcpy(b, d, len); b[len] = 0; jget(b, "v", v, sizeof v); jget(b, "sha", sha, sizeof sha); jget(b, "size", sz, sizeof sz); free(b); free(d); d = 0; }
+  tile_ver(have, sizeof have);
+  if (!v[0] || strlen(sha) != 64) { if (force) look_kv("tile/result", "no tile release yet"); return 0; }
+  if (!force && (!strcmp(v, have) || !strcmp(v, tile_tried))) return 0;
+  snprintf(tile_tried, sizeof tile_tried, "%s", v);
+  bpop_key("tile", "Round2 tile %s: downloading...", v);
+  int n = snprintf(err, sizeof err, "{\"id\":\"%s\",\"v\":\"%s\"}", console_id, v);
+  char body[160]; snprintf(body, sizeof body, "%.*s", n, err);
+  st = r2tls_fetch(ENGINE_HOST, "POST", "/ps4/tilepkg", hdr, body, strlen(body), &d, &len, 32 * 1024 * 1024, err, sizeof err);
+  unsigned char h[32]; char hx[65];
+  if (st != 200 || !d) snprintf(why, sizeof why, "download failed (%d %s)", st, err);
+  else if (len != (size_t)atoi_safe(sz)) snprintf(why, sizeof why, "download size %zu, expected %s", len, sz);
+  else { mbedtls_sha256(d, len, h, 0); for (int i = 0; i < 32; i++) sprintf(hx + i * 2, "%02x", h[i]); if (strcasecmp(hx, sha)) snprintf(why, sizeof why, "file check failed (SHA-256)"); }
+  if (!why[0]) { mkdir("/data/pkg", 0777); FILE *f = fopen(TILE_PKG ".tmp", "wb"); if (!f || fwrite(d, 1, len, f) != len) snprintf(why, sizeof why, "couldn't save it"); if (f) { fflush(f); fsync(fileno(f)); fclose(f); }
+    if (!why[0] && rename(TILE_PKG ".tmp", TILE_PKG)) snprintf(why, sizeof why, "couldn't save it (rename)"); }
+  free(d);
+  if (why[0]) { unlink(TILE_PKG ".tmp"); sv_log("tile %s: %s", v, why); bpop_key("tile", "Round2 tile %s not updated: %s", v, why); if (force) look_kv("tile/error", why); return 0; }
+  int r = tile_install(why, sizeof why);
+  sv_log("tile %s (had '%s'): %s", v, have, why);
+  if (!r) { put_file("/data/round2/tile.ver", v); notify("Round2 tile updated - open it from the home screen."); }
+  else notify("New Round2 tile ready: Settings > Debug Settings > Package Installer (hdd) to install it.");
+  bpop_key("tile", "Round2 tile %s: %s", v, why);
+  if (force) look_kv(r ? "tile/error" : "tile/result", why);
+  return 1;
+}
 int main(void) {
   mkdir("/data/round2", 0777);
   mkdir(APP, 0777);
@@ -4270,6 +4334,7 @@ int main(void) {
     { double t = tm_now(); int did = (key[0] || read_key(key, sizeof key)) && check_cmd(key); r2_timing(did ? "check-in + doing a job" : "check-in (nothing to do)", tm_now() - t); /* 1.1.71: split */
       if (!did && m % 3 == 0) bpop_key("hb", "Online - checked in (%.2f s), no jobs. %s%s", tm_now() - t, snap_on ? "Backup running. " : clean_on ? "Copy/clean running. " : "", g_awake_until > (long long)time(0) ? "Staying awake." : "");
       if (did) { report(key, status, sizeof status); write_status(status); } }
+    if (key[0] && (m == 2 || (m && m % 30 == 0))) { r2_where("tile", 1); tile_check(key, 0); } /* 1.1.87: Round2 tile updates */
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
     else if (key[0] && file_exists(PREPD "/cloud_on")) { r2_where("cloud", 1); cloud_step(key, 20); } /* 1.1.52: background cloud batch, off by default */
