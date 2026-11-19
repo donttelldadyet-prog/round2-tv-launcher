@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.83"
+#define R2_VERSION "1.1.84"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1342,6 +1342,7 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     if (sscanf(spec, "/_srest.%8[0-9a-f].%9[A-Z0-9].%299[^|]", u, t, rest) != 3) { look_kv("restore/error", "bad spec"); return -1; }
     char *cut = 0;
     for (char *q = rest; (q = strchr(q, '.')); q++) { int h = 0; while (h < 32 && ((q[1 + h] >= '0' && q[1 + h] <= '9') || (q[1 + h] >= 'a' && q[1 + h] <= 'f'))) h++; if (h == 32 && q[33] == '/') cut = q; }
+    if (!cut) { char *mp = strstr(rest, ".members/"); if (mp) cut = mp; } /* 1.1.84: a member's folder */
     if (!cut || cut == rest || cut - rest > 47) { look_kv("restore/error", "bad spec"); return -1; }
     *cut = 0; snprintf(nm, sizeof nm, "%s", rest); snprintf(src, sizeof src, "%s", cut + 1);
   }
@@ -2225,7 +2226,11 @@ static int sv_local_copy(const char *u, const char *t, const char *nm, int *nf, 
   if (man) { fflush(man); fsync(fileno(man)); fclose(man); }
   sv_close(); sv_rights_back();
   if (r || !*nf) { snprintf(why, wn, "internal copy incomplete (%d files)", *nf); return -1; }
-  FILE *q = fopen("/data/round2/prep/pending.txt", "a"); if (q) { fprintf(q, "%s %s %s %lld\n", u, t, nm, (long long)time(0)); fclose(q); }
+  /* 1.1.84 STAGE 2: if a member owns this profile (/_memtag or /_memload), the cloud batch sends this part to THEIR folder.
+     GT Sport (protected titles) is never a member's save (owner 19 Nov 7:47pm: a free-for-all house save). */
+  char mt[64] = ""; { char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); FILE *of = fopen(op, "r"); if (of) { if (!fgets(mt, sizeof mt, of)) mt[0] = 0; fclose(of); mt[strcspn(mt, "\r\n ")] = 0; } }
+  if (r2_protected(t)) mt[0] = 0;
+  FILE *q = fopen("/data/round2/prep/pending.txt", "a"); if (q) { if (mt[0]) fprintf(q, "%s %s %s %lld m=%s\n", u, t, nm, (long long)time(0), mt); else fprintf(q, "%s %s %s %lld\n", u, t, nm, (long long)time(0)); fclose(q); }
   return 0;
 }
 /* ---- 1.1.50 CLEAN SLATE (owner 17 Nov 7:33pm: test a full clean slate on Kai before the 9pm guest, main profile included).
@@ -2328,6 +2333,68 @@ static void look_prepmember(const char *spec) {
   sv_log("member prep started: '%s' into profile %s from %s's saves in restore point %s: %d games", shown, tu, su, lab, ng);
   bpop("Preparing member %s: %d games into their profile...", shown, ng);
   snprintf(v, sizeof v, "%d games for %s into profile %s", ng, shown, tu); look_kv("prep/started", v);
+}
+/* ---- 1.1.84 STAGE 2: member saves live in the member's own cloud folder (members/<id>/<slot>/...), not a PS4 profile's.
+   "/_memtag.<profile>.<id>.<slot>" = this profile now belongs to member <id> (slot main / p1..p4): from the next clean slate its
+   parts go to that member's folder ("/_memtag.<profile>.off" clears). "/_memload.<profile>.<id>.<slot>.<Name>" = every game in
+   the member's index moved into <profile> (renamed <Name> unless it is the main profile, which keeps the room's name), then the
+   profile is tagged to the member. Tags are cleared after a clean slate / reset / purge (the queued copies keep their tag). */
+static int mem_ok(const char *x) { if (!x[0] || strlen(x) > 24) return 0; for (const char *c = x; *c; c++) if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '-')) return 0; return 1; }
+static void look_memtag(const char *spec) {
+  char u[16] = "", id[32] = "", sl[16] = "", op[120], v[120];
+  if (sscanf(spec, "/_memtag.%8[0-9a-f].%31[a-z0-9-].%15[a-z0-9]", u, id, sl) == 3 && mem_ok(id) && mem_ok(sl)) {
+    snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); mkdir("/data/round2/prep", 0777);
+    snprintf(v, sizeof v, "%s/%s", id, sl); put_file(op, v); sv_log("member tag: profile %s -> member %s", u, v); look_kv("memtag/result", v); bpop("Profile now belongs to member %s", v); return; }
+  if (sscanf(spec, "/_memtag.%8[0-9a-f].off", u) == 1) { snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); unlink(op); sv_log("member tag: profile %s cleared", u); look_kv("memtag/result", "cleared"); return; }
+  look_kv("memtag/error", "bad spec");
+}
+static int memload_game(const char *key, const char *u, const char *t, char *why, size_t wn) {
+  static char ix[64 * 1024]; static char pn[64][64], pb[64][220], recv[64][32]; int np = 0;
+  FILE *f = fopen(CLND "/memindex", "r"); if (!f) { snprintf(why, wn, "no member index"); return -1; }
+  size_t il = fread(ix, 1, sizeof ix - 1, f); ix[il] = 0; fclose(f);
+  for (char *ln = ix, *nx; ln && *ln && np < 64; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a[16], b[64], c[220]; if (sscanf(ln, "%15s %63s %219s", a, b, c) == 3 && !strcmp(a, t) && !strstr(c, "..")) { snprintf(pn[np], 64, "%s", b); snprintf(pb[np], 220, "%s", c); np++; } }
+  if (!np) { snprintf(why, wn, "member has no parts for this game"); return -1; }
+  if (r2_protected(t)) { snprintf(why, wn, "house save - never a member's"); return -1; }
+  if (!game_installed(t)) { snprintf(why, wn, "game not installed in this room"); return -1; }
+  if (!sv_buf) { void *bb = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (bb == MAP_FAILED) { snprintf(why, wn, "no memory"); return -1; } sv_buf = bb; }
+  int nr = sv_disk_parts(u, t, recv, 64);
+  if (nr) { char rb[200]; int rn = 0; double tb0 = tm_now(); int gbr = sv_game_back(key, u, t, rb, sizeof rb, &rn); g_t_bk += tm_now() - tb0; if (gbr) { snprintf(why, wn, "backup of what was there failed - nothing written"); return -1; } }
+  double tmk0 = tm_now(); int fails = 0;
+  for (int i = 0; i < np; i++) { int have = 0; for (int j = 0; j < nr; j++) if (!strcmp(pn[i], recv[j])) have = 1;
+    if (!have) { char w2[200] = ""; if (sv_make_part(key, u, t, pn[i], pb[i], w2, sizeof w2)) { fails++; sv_log("member load: making %s %s %s failed: %s", u, t, pn[i], w2); } } }
+  g_t_mk += tm_now() - tmk0;
+  if (fails) { snprintf(why, wn, "%d part(s) could not be made", fails); return -1; }
+  for (int i = 0; i < np; i++) { char rs[420]; snprintf(rs, sizeof rs, "/_srest.%s.%s.%s.%s", u, t, pn[i], pb[i]); if (look_srest(key, rs) != 0) fails++; }
+  if (fails) { snprintf(why, wn, "%d of %d parts failed to load", fails, np); return -1; }
+  for (int j = 0; j < nr; j++) { int keep = 0; for (int i = 0; i < np; i++) if (!strcmp(pn[i], recv[j])) keep = 1; if (!keep) { char res[300]; sv_del_part(u, t, recv[j], res, sizeof res); } }
+  sv_log("member load: user %s game %s: %d parts in", u, t, np);
+  return 0;
+}
+static void look_memload(const char *key, const char *spec) {
+  char u[16] = "", id[32] = "", sl[16] = "", nm[40] = "", st[16] = "", k[200], v[160];
+  if (sscanf(spec, "/_memload.%8[0-9a-f].%31[a-z0-9-].%15[a-z0-9].%31[A-Za-z0-9_]", u, id, sl, nm) != 4 || !mem_ok(id) || !mem_ok(sl)) { look_kv("memload/error", "bad spec"); return; }
+  uint32_t uid = (uint32_t)strtoul(u, 0, 16); if (!prof_slot_base(uid)) { look_kv("memload/refused", "no such profile"); return; }
+  cl_rd("state", st, sizeof st); if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("memload/refused", "a clean slate / copy is already running"); return; }
+  snprintf(k, sizeof k, "members/%s/%s/index.txt", id, sl); unsigned char *ix = 0; size_t il = 0; char gw[130] = "";
+  if (sv_get_raw(key, k, &ix, &il, gw, sizeof gw) || !il) { free(ix); look_kv("memload/refused", "member has no saves in the cloud yet"); return; }
+  mkdir(CLND, 0777); { FILE *f = fopen(CLND "/memindex", "w"); if (!f) { free(ix); look_kv("memload/error", "can't write"); return; } fwrite(ix, 1, il, f); fclose(f); }
+  FILE *td = fopen(CLND "/todo", "w"); if (!td) { free(ix); look_kv("memload/error", "can't write the list"); return; }
+  int ng = 0; char seen[64][16]; int ns = 0;
+  char *b = malloc(il + 1); if (b) { memcpy(b, ix, il); b[il] = 0;
+    for (char *ln = b, *nx; ln && *ln; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a[16]; if (sscanf(ln, "%15s", a) != 1 || r2_protected(a) || r2_homebrew(a)) continue;
+      int dup = 0; for (int i = 0; i < ns; i++) if (!strcmp(seen[i], a)) dup = 1; if (dup || ns >= 64) continue; snprintf(seen[ns++], 16, "%s", a); fprintf(td, "%s %s\n", u, a); ng++; }
+    free(b); }
+  fclose(td); free(ix);
+  char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
+  if (uid != r2_main_user() && !user_signed_in(uid)) sceUserServiceSetUserName((int32_t)uid, shown);
+  { char op[120], tv[80]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); snprintf(tv, sizeof tv, "%s/%s", id, sl); mkdir("/data/round2/prep", 0777); put_file(op, tv); }
+  char lab[48]; snprintf(lab, sizeof lab, "%s", nm);
+  cl_begin("prep", lab);
+  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("rtime", "0\n"); cl_wr("mode", "memload %s %s\n", id, sl);
+  cl_wr("state", ng ? "running\n" : "done\n"); clean_on = ng > 0;
+  sv_log("member load started: %s/%s into profile %s ('%s'): %d games", id, sl, u, shown, ng);
+  bpop("Loading member %s: %d games...", shown, ng);
+  snprintf(v, sizeof v, "%d games of %s/%s into %s", ng, id, sl, u); look_kv("memload/started", v);
 }
 static void look_copy(const char *spec) {
   char st[16] = ""; cl_rd("state", st, sizeof st);
@@ -2462,7 +2529,10 @@ static void clean_finish(int done, int fails, int parts) {
   char rn[120] = "", kind[16] = "clean", lab[48] = "-", pr[200] = "", cb[48], t0s[24], t1s[24]; long long t0 = 0, cp = 0, cby = 0;
   cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kind, &t0, lab);
   if (!strcmp(kind, "reset")) { reset_profiles(pr, sizeof pr); cl_wr("profiles", "%s\n", pr); }
-  if (!strcmp(kind, "reset") || !strcmp(kind, "clean") || !strcmp(kind, "purge")) refresh_profiles(); /* 1.1.78 */
+  if (!strcmp(kind, "reset") || !strcmp(kind, "clean") || !strcmp(kind, "purge")) { refresh_profiles(); /* 1.1.78 */
+    DIR *pd = opendir("/data/round2/prep"); struct dirent *pe; int nt = 0; /* 1.1.84: profiles no longer belong to a member (their queued copies keep the tag) */
+    while (pd && (pe = readdir(pd))) if (!strncmp(pe->d_name, "owner_", 6)) { char op[200]; snprintf(op, sizeof op, "/data/round2/prep/%s", pe->d_name); if (!unlink(op)) nt++; }
+    if (pd) closedir(pd); if (nt) sv_log("member tags cleared: %d profile(s)", nt); }
   cl_rd("copied", cb, sizeof cb); sscanf(cb, "%lld %lld", &cp, &cby);
   char eb[16]; cl_rd("errn", eb, sizeof eb); int en = atoi(eb);
   cl_stamp(t0s, sizeof t0s, t0 ? t0 : (long long)time(0)); cl_stamp(t1s, sizeof t1s, (long long)time(0));
@@ -2964,6 +3034,17 @@ static void clean_step(const char *key, int budget) {
     if (sv_game_open()) { cl_wr("state", "paused\n"); sv_log("clean slate paused: a game is open"); break; }
     sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer();
     { char rm[48] = ""; cl_rd("mode", rm, sizeof rm);
+      if (!strncmp(rm, "memload ", 8)) { /* 1.1.84: member load, game by game */
+        double d0 = g_t_dl, w0 = g_t_wr, k0 = g_t_mk, g0 = tm_now(); char why[200] = "", tb[48] = "";
+        int r = memload_game(key, u, t, why, sizeof why); double gt = tm_now() - g0;
+        double tot = 0; cl_rd("rtime", tb, sizeof tb); tot = atof(tb) + gt; cl_wr("rtime", "%.1f\n", tot);
+        if (r) { fails++; cl_err("%s game %s not loaded: %s", u, t, why); }
+        done++; pos++;
+        sv_log("restore test: user %s game %s %s in %.1f s (download %.1f s, into profile %.1f s, making parts %.1f s)%s%s", u, t, r ? "FAILED" : "ok", gt, g_t_dl - d0, g_t_wr - w0, g_t_mk - k0, r ? " - " : "", r ? why : "");
+        bpop_key("clprog", "Loading member: %d of %d games, %d failed. Last: %s %.1f s", done, total, fails, t, gt);
+        cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
+        continue;
+      }
       if (!strncmp(rm, "restore ", 8)) { /* 1.1.77: "/_restoreall" - each game moved back in from the restore point, timed */
         char stp[24] = "", su[16] = "", ms[300], tb[48] = ""; sscanf(rm + 8, "%23s %15s", stp, su); /* 1.1.82: su = source profile (member prep) */
         snprintf(ms, sizeof ms, "/_gmove.%s.%s.%s/%s/%s/_game/%s", u, t, console_id, su[0] ? su : u, t, stp);
@@ -3012,7 +3093,7 @@ static void clean_step(const char *key, int budget) {
   }
   fclose(td);
   if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); clean_finish(done, fails, parts);
-    { char rm[48] = "", tb[48] = ""; cl_rd("mode", rm, sizeof rm); if (!strncmp(rm, "restore ", 8)) { cl_rd("rtime", tb, sizeof tb);
+    { char rm[48] = "", tb[48] = ""; cl_rd("mode", rm, sizeof rm); if (!strncmp(rm, "restore ", 8) || !strncmp(rm, "memload ", 8)) { cl_rd("rtime", tb, sizeof tb);
       char rn[120] = "", kd[16] = "", lb[48] = ""; long long t0 = 0; cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kd, &t0, lb);
       if (!strcmp(kd, "prep")) { for (char *c = lb; *c; c++) if (*c == '_') *c = ' ';
         sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "Member %s is READY: %d games loaded, %d failed, in %.0f s", lb, done - fails, fails, atof(tb)); }
@@ -3100,16 +3181,32 @@ static void cloud_report(void) {
   jadd(",\"cloud\":{\"on\":%d,\"waiting\":%d,\"up\":%d,\"same\":%d,\"fails\":%d,\"mb\":%lld}", file_exists(PREPD "/cloud_on"), cloud_waiting(), up, same, fl, by / 1048576);
 }
 /* 0 = in the cloud (sent now, or *same = already there); -1 = try again later; -2 = nothing to send (no internal copy) */
-static int cloud_part(const char *key, const char *u, const char *t, const char *nm, int *same, unsigned long long *sent, char *why, size_t wn) {
+/* 1.1.84: the member's index (members/<id>/<slot>/index.txt = "<game> <part> <cloud folder>" per line, newest wins) */
+static int mem_index_put(const char *key, const char *mtag, const char *t, const char *nm, const char *base) {
+  char k[200]; snprintf(k, sizeof k, "members/%s/index.txt", mtag);
+  unsigned char *old = 0; size_t ol = 0; sv_get_raw(key, k, &old, &ol, 0, 0); /* missing = new member */
+  size_t cap = ol + 600; char *nw = malloc(cap); if (!nw) { free(old); return -1; } size_t n = 0;
+  if (old) { char *b = malloc(ol + 1); if (b) { memcpy(b, old, ol); b[ol] = 0;
+      for (char *ln = b, *nx; ln && *ln; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a1[16] = "", a2[64] = ""; if (sscanf(ln, "%15s %63s", a1, a2) == 2 && !strcmp(a1, t) && !strcmp(a2, nm)) continue; if (*ln) n += (size_t)snprintf(nw + n, cap - n, "%s\n", ln); }
+      free(b); } free(old); }
+  n += (size_t)snprintf(nw + n, cap - n, "%s %s %s\n", t, nm, base);
+  int r = sv_put(key, k, (const unsigned char *)nw, n); free(nw); return r;
+}
+static int cloud_part_m(const char *key, const char *u, const char *t, const char *nm, const char *mtag, int *same, unsigned long long *sent, char *why, size_t wn);
+static int cloud_part(const char *key, const char *u, const char *t, const char *nm, int *same, unsigned long long *sent, char *why, size_t wn) { return cloud_part_m(key, u, t, nm, "", same, sent, why, wn); }
+static int cloud_part_m(const char *key, const char *u, const char *t, const char *nm, const char *mtag, int *same, unsigned long long *sent, char *why, size_t wn) {
   char d[220], p[320]; size_t mn = 0, un = 0; *same = 0; *sent = 0;
   snprintf(d, sizeof d, PREPD "/%s/%s/%s", u, t, nm);
   snprintf(p, sizeof p, "%s/manifest.txt", d); char *man = read_all(p, &mn, 256 * 1024);
   if (!man || !mn) { free(man); snprintf(why, wn, "no internal copy"); return -2; }
   snprintf(p, sizeof p, "%s/uploaded.txt", d); char *upl = read_all(p, &un, 256 * 1024);
-  if (upl && un == mn && !memcmp(upl, man, mn)) { free(man); free(upl); *same = 1; return 0; }
+  { char cp[320], cb[220] = ""; snprintf(cp, sizeof cp, "%s/cloud.txt", d); FILE *cf = fopen(cp, "r"); if (cf) { if (!fgets(cb, sizeof cb, cf)) cb[0] = 0; fclose(cf); }
+    char want[120]; if (mtag[0]) snprintf(want, sizeof want, "members/%s/", mtag); else snprintf(want, sizeof want, "%s/", console_id);
+    int same_dest = !strncmp(cb, want, strlen(want)); /* 1.1.84: unchanged AND already in the same place (same member) */
+    if (upl && un == mn && !memcmp(upl, man, mn) && same_dest) { free(man); free(upl); *same = 1; return 0; } }
   free(upl);
   if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { free(man); snprintf(why, wn, "no memory"); return -1; } sv_buf = b; }
-  char base[220]; snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
+  char base[220]; if (mtag[0]) snprintf(base, sizeof base, "members/%s/%s/%s/%lld", mtag, t, nm, (long long)time(0)); else snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
   sv_man_n = 0; if (sv_man) sv_man[0] = 0;
   int bad = 0, nfiles = 0;
   for (char *ln = man, *nx; ln && *ln && !bad; ln = nx) {
@@ -3144,6 +3241,7 @@ static int cloud_part(const char *key, const char *u, const char *t, const char 
   snprintf(p, sizeof p, "%s/manifest.txt", d); size_t n2 = 0; char *m2 = read_all(p, &n2, 256 * 1024);
   snprintf(p, sizeof p, "%s/uploaded.txt", d); FILE *f = fopen(p, "w"); if (f && m2) fwrite(m2, 1, n2, f); if (f) { fflush(f); fsync(fileno(f)); fclose(f); } free(m2);
   snprintf(p, sizeof p, "%s/cloud.txt", d); put_file(p, base);
+  if (mtag[0] && mem_index_put(key, mtag, t, nm, base)) { snprintf(why, wn, "member index not updated"); return -1; }
   sv_log("cloud batch: sent %s %s %s: %d files, %llu bytes -> %s", u, t, nm, nfiles, *sent, base);
   return 0;
 }
@@ -3162,7 +3260,8 @@ static void cloud_step(const char *key, int budget) {
     char u[16] = "", t[16] = "", nm[48] = ""; long next = ftell(q);
     if (sscanf(ln, "%15s %15s %47s", u, t, nm) != 3 || strchr(nm, '/') || strstr(nm, "..")) { pos = next; continue; }
     int sm = 0; unsigned long long sent = 0; char why[160] = "";
-    int r = cloud_part(key, u, t, nm, &sm, &sent, why, sizeof why); worked = 1;
+    char mtag[64] = ""; { const char *mp = strstr(ln, " m="); if (mp) { sscanf(mp + 3, "%63s", mtag); if (strstr(mtag, "..")) mtag[0] = 0; } }
+    int r = cloud_part_m(key, u, t, nm, mtag, &sm, &sent, why, sizeof why); worked = 1;
     if (r == 0) { if (sm) same++; else { up++; by += (long long)sent; } tries = 0; pos = next; }
     else if (r == -2 || ++tries >= 5) {
       fl++; tries = 0; pos = next;
@@ -3818,6 +3917,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_copycheck")) look_copycheck();
     else if (!strcmp(t, "/_restoreall")) look_restoreall();
     else if (!strncmp(t, "/_prepmember.", 13)) look_prepmember(t);
+    else if (!strncmp(t, "/_memtag.", 9)) look_memtag(t);
+    else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
     else if (!strncmp(t, "/_input.", 8)) look_input(t);
