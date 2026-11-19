@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.104"
+#define R2_VERSION "1.1.105"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2616,11 +2616,12 @@ struct r2_prx_load { char process_name[32]; char prx_path[100]; uint64_t res; } 
 __asm__(".intel_syntax noprefix\n.global r2_osyscall\nr2_osyscall:\n  mov rax, 0\n  mov r10, rcx\n  syscall\n  jb 1f\n  ret\n1:\n  neg rax\n  ret\n.att_syntax prefix\n");
 long r2_osyscall(long num, ...);
 static long r2_sdk(uint64_t cmd, void *data) { return r2_osyscall(500, cmd, data); }
-static void look_ghver(void) { char v[80]; long r = r2_sdk(0, 0); snprintf(v, sizeof v, "%ld (0x%lx)", r, (unsigned long)r); look_kv("gh/sdk-version", v); }
+static void look_ghver(void) { char v[160]; long r = r2_sdk(0, 0); snprintf(v, sizeof v, "%ld (0x%lx)", r, (unsigned long)r); look_kv("gh/sdk-version", v);
+  struct { int pid; char name[40]; char path[64]; char titleid[16]; char contentid[64]; char version[6]; uint64_t base_address; } __attribute__((packed)) pi;
+  memset(&pi, 0, sizeof pi); pi.pid = getpid(); long q = r2_sdk(4, &pi); snprintf(v, sizeof v, "%ld: pid %d name '%.39s' title '%.15s'", q, pi.pid, pi.name, pi.titleid); look_kv("gh/proc-info", v); }
 static void look_shprobe(const char *key) {
   if (sv_game_open()) { look_kv("shprobe/refused", "a game is open - close it first"); return; }
   long ver = r2_sdk(0, 0); char v[200]; snprintf(v, sizeof v, "%ld", ver); look_kv("shprobe/sdk", v);
-  if (ver < 0) { look_kv("shprobe/refused", "GoldHEN's SDK call is not there on this PS4"); return; }
   mkdir("/data/round2", 0777); unlink("/data/round2/shprobe.txt"); unlink("/data/round2/shprobe.txt.done");
   FILE *f = fopen("/data/round2/r2shprobe.prx", "wb"); if (!f || fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f) != r2_shprobe_prx_len) { if (f) fclose(f); look_kv("shprobe/error", "could not write the probe"); return; } fclose(f);
   struct r2_prx_load a; memset(&a, 0, sizeof a); snprintf(a.process_name, sizeof a.process_name, "SceShellUI"); snprintf(a.prx_path, sizeof a.prx_path, "/data/round2/r2shprobe.prx");
