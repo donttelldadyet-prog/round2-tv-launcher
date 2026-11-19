@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.75"
+#define R2_VERSION "1.1.76"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1171,7 +1171,7 @@ static void sv_log(const char *fmt, ...) {
   time_t t = time(0) + 8 * 3600; struct tm tm; gmtime_r(&t, &tm);
   fprintf(f, "%02d/%02d %02d:%02d:%02d ", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec);
   va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fputc('\n', f); fclose(f);
-  if (bpop_enabled()) { char b[200]; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap); bpop_key(!strncmp(b, "backup ", 7) ? "bk" : "", "%s", b); } /* 1.1.75 */
+  if (bpop_enabled()) { char b[200]; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap); bpop_key(!strncmp(b, "backup ", 7) || !strncmp(b, "cloud batch: sent", 17) || !strncmp(b, "copy only: ", 11) ? "bk" : "", "%s", b); } /* 1.1.75; 1.1.76 per-part lines share one slot */
 }
 /* 1.1.34: the internal "prep/batch" copy (middle layer of slot -> internal prep -> cloud). sv_up_dir writes each file here
    as it reads it; set to "" when no prep copy is wanted. */
@@ -1710,6 +1710,7 @@ static void snap_step(const char *key, int budget) {
     pos++; done = pos;
     snprintf(a, sizeof a, "%d", pos); snap_put("pos", a);
     char sb[80]; snprintf(sb, sizeof sb, "%d %d %lld", done, fails, by); snap_put("stat", sb);
+    bpop_key("sprog", "Restore point (cloud): %d of %d save parts done, %lld MB, %d failed", done, total, by / 1048576, fails); /* 1.1.76 */
   }
   fclose(td);
   if (pos >= total) snap_finish(key, lab, stamp, done, fails, by);
@@ -2813,6 +2814,7 @@ static void clean_step(const char *key, int budget) {
     if (copyonly) sv_log("copy only: user %s game %s: internal copy %s (nothing removed)", u, t, br ? "FAILED" : "ok");
     else sv_log("clean slate: user %s game %s: internal copy %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
     cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
+    bpop_key("clprog", "%s: %d of %d games done, %d failed", copyonly ? "Internal copy" : "Clean slate", done, total, fails); /* 1.1.76 */
   }
   fclose(td);
   if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); clean_finish(done, fails, parts); }
@@ -2968,6 +2970,7 @@ static void cloud_step(const char *key, int budget) {
       sv_log("cloud batch: GAVE UP on %s %s %s: %s", u, t, nm, why);
     } else { sv_log("cloud batch: %s %s %s not sent (try %d of 5): %s", u, t, nm, tries, why); pr_wr("cloud_tries", "%d\n", tries); break; }
     pr_wr("cloud_pos", "%ld\n", pos); pr_wr("cloud_stat", "%d %d %d %lld\n", up, same, fl, by); pr_wr("cloud_tries", "%d\n", tries);
+    bpop_key("cprog", "Cloud copy: %d sent (%lld MB), %d unchanged, %d failed - %d still waiting", up, by / 1048576, same, fl, cloud_waiting()); /* 1.1.76 */
   }
   int atend = pos >= (long)qs.st_size && feof(q);
   fclose(q);
