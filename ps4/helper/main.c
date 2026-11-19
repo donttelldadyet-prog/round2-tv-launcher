@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.74"
+#define R2_VERSION "1.1.75"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -132,6 +132,42 @@ static void notify(const char *msg) {
   sceKernelSendNotificationRequest(0, &req, sizeof req, 0);
 }
 
+/* 1.1.75 (owner 19 Nov 4:48pm, Kaeden test bench: "give feedback through popups so I don't stare at a blank home screen"):
+   VERBOSE pop-ups, only while /data/round2/popups-verbose exists ("/_bpop.on" / "/_bpop.off"). Messages go into a small queue;
+   a thread shows one every 3 s (the PS4 stacks them otherwise). A progress message with a key replaces the queued one with
+   the same key, so a backup shows its latest count instead of a backlog. Full queue: the oldest plain message is dropped. */
+#define BPOP_FLAG "/data/round2/popups-verbose"
+#define BPOP_Q 8
+static pthread_mutex_t bp_mx = PTHREAD_MUTEX_INITIALIZER;
+static char bp_msg[BPOP_Q][200], bp_key[BPOP_Q][16]; static int bp_n, bp_on = -1; static long long bp_chk;
+static int bpop_enabled(void) {
+  long long now = (long long)time(0);
+  if (bp_on < 0 || now - bp_chk >= 10) { struct stat st; bp_on = !stat(BPOP_FLAG, &st); bp_chk = now; }
+  return bp_on;
+}
+static void bpop_key(const char *key, const char *fmt, ...) {
+  if (!bpop_enabled()) return;
+  char b[200]; va_list ap; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap);
+  pthread_mutex_lock(&bp_mx);
+  int i = -1;
+  if (key && key[0]) for (int j = 0; j < bp_n; j++) if (!strcmp(bp_key[j], key)) { i = j; break; }
+  if (i < 0) { if (bp_n == BPOP_Q) { memmove(bp_msg, bp_msg + 1, sizeof bp_msg[0] * (BPOP_Q - 1)); memmove(bp_key, bp_key + 1, sizeof bp_key[0] * (BPOP_Q - 1)); bp_n--; } i = bp_n++; }
+  snprintf(bp_msg[i], sizeof bp_msg[i], "%s", b); snprintf(bp_key[i], sizeof bp_key[i], "%s", key ? key : "");
+  pthread_mutex_unlock(&bp_mx);
+}
+#define bpop(...) bpop_key("", __VA_ARGS__)
+void r2_bpop(const char *key, const char *msg) { bpop_key(key, "%s", msg); } /* for tls/r2dns.c */
+static void *bpop_thread(void *arg) {
+  (void)arg;
+  for (;;) {
+    sleep(3);
+    char m[220] = ""; pthread_mutex_lock(&bp_mx);
+    if (bp_n) { snprintf(m, sizeof m, "Round2 %s: %s", R2_VERSION, bp_msg[0]); memmove(bp_msg, bp_msg + 1, sizeof bp_msg[0] * (BPOP_Q - 1)); memmove(bp_key, bp_key + 1, sizeof bp_key[0] * (BPOP_Q - 1)); bp_n--; }
+    pthread_mutex_unlock(&bp_mx);
+    if (m[0]) notify(m);
+  }
+  return 0;
+}
 /* growing text buffer for the JSON report */
 static char *J;
 static size_t Jn, Jcap;
@@ -1135,6 +1171,7 @@ static void sv_log(const char *fmt, ...) {
   time_t t = time(0) + 8 * 3600; struct tm tm; gmtime_r(&t, &tm);
   fprintf(f, "%02d/%02d %02d:%02d:%02d ", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec);
   va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fputc('\n', f); fclose(f);
+  if (bpop_enabled()) { char b[200]; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap); bpop_key(!strncmp(b, "backup ", 7) ? "bk" : "", "%s", b); } /* 1.1.75 */
 }
 /* 1.1.34: the internal "prep/batch" copy (middle layer of slot -> internal prep -> cloud). sv_up_dir writes each file here
    as it reads it; set to "" when no prep copy is wanted. */
@@ -2958,6 +2995,7 @@ static void look_reboot(void) {
   reboot_after = 1; look_kv("reboot/result", "restarting in ~3 s - jailbreak needed after");
 }
 static void look_rest(void) {
+  bpop("Going to sleep now (asked by the control centre)");
   char v[80];
   int en = sceSystemStateMgrIsStandbyModeEnabled();
   snprintf(v, sizeof v, "%d", en); look_kv("rest/enabled", v);
@@ -3112,6 +3150,7 @@ static void look_keepawake(const char *spec) {
   /* 1.1.74: kept in a file so a helper update/restart doesn't drop it (Kaeden 19 Nov: slept after each update) */
   if (g_awake_until) { char b[24]; snprintf(b, sizeof b, "%lld", g_awake_until); put_file("/data/round2/keepawake.txt", b); } else unlink("/data/round2/keepawake.txt");
   if (mins) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); }
+  if (mins) bpop("Staying awake for %d min (asked by the control centre)", mins); else bpop("Stay-awake cleared - normal power saving");
   char v[32]; snprintf(v, sizeof v, mins ? "holding %d min" : "hold cleared", mins);
   look_kv("keepawake/result", v);
 }
@@ -3585,6 +3624,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     }
     else if (!strncmp(t, "/_cloud.", 8)) look_cloud(t);
     else if (!strcmp(t, "/_rest")) look_rest();
+    else if (!strcmp(t, "/_bpop.on")) { put_file(BPOP_FLAG, "1"); bp_on = 1; bp_chk = time(0); look_kv("bpop/result", "verbose pop-ups ON"); bpop("Verbose pop-ups ON - I will tell you what I am doing"); }
+    else if (!strcmp(t, "/_bpop.off")) { unlink(BPOP_FLAG); bp_on = 0; look_kv("bpop/result", "verbose pop-ups off"); }
     else if (!strcmp(t, "/_reboot")) look_reboot();
     else if (!strncmp(t, "/_ddp.", 6)) look_ddp(t);
     else if (!strncmp(t, "/_wake.", 7)) look_wake(t);
@@ -3642,6 +3683,7 @@ static int check_cmd(const char *key) { /* every minute; 1 = it did something (r
   int i = 0;
   while (c[i] && c[i] != '"' && i < 23) { cid[i] = c[i]; i++; }
   cid[i] = 0;
+  { char jp[120] = "", jd[16] = ""; jget(body, "do", jd, sizeof jd); jget(body, "p", jp, sizeof jp); bpop("Job from the control centre: %s %s", jd, jp); }
   if (strstr(body, "\"do\":\"clean\"")) clean_up(key, cid);
   else if (strstr(body, "\"do\":\"update\"")) do_update(key, cid, body);
   else if (strstr(body, "\"do\":\"look\"")) do_look(key, cid, body);
@@ -3721,7 +3763,7 @@ static void *watchdog(void *arg) {
        running the helper as its own program) restarted its helper on every wake after 20+ min of rest, and if the starter's
        relaunch failed right after the wake the room went silent while the PS4 was on. */
     { double t = mono_s(), slept = t - last - 15; last = t;
-      if (slept > 30) { r2_where_shift(slept); cuts = 0; noted = 0; wd_note("woke from rest after about %d s - not counted as stuck", (int)slept); } }
+      if (slept > 30) { r2_where_shift(slept); cuts = 0; noted = 0; wd_note("woke from rest after about %d s - not counted as stuck", (int)slept); bpop("Woke up after %d min %d s asleep - carrying on", (int)slept / 60, (int)slept % 60); } }
     r2_where_flush(10); /* 1.1.71: where.txt only for a step that lasts */
     double age = r2_where_age(); const char *st = r2_where_now();
     if (age < 300) { cuts = 0; noted = 0; continue; }
@@ -3763,6 +3805,8 @@ int main(void) {
   write_status("started, first report in about 10 seconds");
   r2_where_start(R2_VERSION); /* 1.1.26: slow.log gets "the run before was last in: <step>" */
   { pthread_t wt; if (pthread_create(&wt, 0, watchdog, 0) == 0) pthread_detach(wt); else wd_note("could not start"); } /* 1.1.42 */
+  { pthread_t bt; if (pthread_create(&bt, 0, bpop_thread, 0) == 0) pthread_detach(bt); } /* 1.1.75 */
+  bpop("Helper started - connecting to Round2...");
   update_guard();
   { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
   { char st[16] = ""; cl_rd("state", st, sizeof st); clean_on = !strcmp(st, "running") || !strcmp(st, "paused"); } /* 1.1.50: carry on a clean slate */
@@ -3788,6 +3832,7 @@ int main(void) {
       } else {
         if (m == 0) sleep(10);
         int st = report(key, status, sizeof status);
+        bpop_key("rep", st == 200 ? "Report sent to Round2 (games, disk, Wi-Fi) - OK" : "Report to Round2 FAILED (%d) - will retry", st);
         for (int i = 0; m == 0 && st != 200 && i < 6; i++) { sleep(8); st = report(key, status, sizeof status); }
         write_status(status);
         if (m == 0) put_file(APP "/hello", R2_VERSION); /* 1.1.73 */
@@ -3812,6 +3857,7 @@ int main(void) {
     if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); } /* 1.1.33: act on auto-promote here, not only after a look job */
     r2_where("check-in", 1);
     { double t = tm_now(); int did = (key[0] || read_key(key, sizeof key)) && check_cmd(key); r2_timing(did ? "check-in + doing a job" : "check-in (nothing to do)", tm_now() - t); /* 1.1.71: split */
+      if (!did && m % 3 == 0) bpop_key("hb", "Online - checked in (%.2f s), no jobs. %s%s", tm_now() - t, snap_on ? "Backup running. " : clean_on ? "Copy/clean running. " : "", g_awake_until > (long long)time(0) ? "Staying awake." : "");
       if (did) { report(key, status, sizeof status); write_status(status); } }
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */

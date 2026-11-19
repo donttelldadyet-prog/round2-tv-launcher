@@ -140,6 +140,7 @@ void r2_where_start(const char *version) { /* at start: what was the last run do
    M s"). 1.1.26 made the steps give up quickly instead of hanging – so a dead spell now shows up as failures, not as a
    slow step, and this is where it is written down. Kept under 32 KB (old file -> net-fail.log.old). */
 #define R2_HOST "round2-book.donttelldadyet.workers.dev"
+__attribute__((weak)) void r2_bpop(const char *key, const char *msg) { (void)key; (void)msg; } /* 1.1.75: helper pop-ups */
 static int nf_count; static long long nf_first;
 /* 1.1.72 (Bella 19 Nov: on, its helper running, other PS4s on the shop network could see it, yet every connection to the
    engine failed for 2 h 14 min): when the engine can't be reached, test the path piece by piece and write it down –
@@ -161,8 +162,9 @@ static const char *probe(const char *ip, int port) {
 static void net_probe(FILE *f, const char *s) {
   char eng[64] = ""; FILE *c = fopen("/data/round2/addr-" R2_HOST ".txt", "r");
   if (c) { if (!fgets(eng, sizeof eng, c)) eng[0] = 0; fclose(c); eng[strcspn(eng, "\r\n")] = 0; }
-  fprintf(f, "%s   path check: shop router %s · internet (1.1.1.1) %s · engine %s %s\n", s, probe("192.168.88.1", 80),
-          probe("1.1.1.1", 443), eng[0] ? eng : "?", eng[0] ? probe(eng, 443) : "-");
+  const char *pr = probe("192.168.88.1", 80), *pi = probe("1.1.1.1", 443), *pe = eng[0] ? probe(eng, 443) : "-";
+  fprintf(f, "%s   path check: shop router %s · internet (1.1.1.1) %s · engine %s %s\n", s, pr, pi, eng[0] ? eng : "?", pe);
+  { char m[200]; snprintf(m, sizeof m, "Path check: router %s, internet %s, Round2 %s", pr, pi, pe); r2_bpop("path", m); }
 }
 void r2_netnote(const char *path, int status, const char *err) {
   int ok = status >= 200 && status < 500;
@@ -173,12 +175,14 @@ void r2_netnote(const char *path, int status, const char *err) {
   long long now = (long long)time(0); char s[24]; stamp(s, sizeof s, now);
   if (ok) {
     if (f) fprintf(f, "%s back after %d failure(s), %lld s\n", s, nf_count, now - nf_first);
+    { char m[120]; snprintf(m, sizeof m, "Back online after %d failed tries (%lld s)", nf_count, now - nf_first); r2_bpop("net", m); }
     nf_count = 0;
   } else {
     if (!nf_count) nf_first = now;
     nf_count++;
     if (f && (nf_count <= 5 || nf_count % 10 == 0)) fprintf(f, "%s fail #%d %s in '%s': %d %.80s\n", s, nf_count, path ? path : "", w_name, status, err ? err : "");
     if (f && (nf_count == 3 || nf_count % 10 == 0)) net_probe(f, s);
+    { char m[160]; snprintf(m, sizeof m, "Can't reach Round2 (try #%d, step '%s') - will keep trying", nf_count, w_name); r2_bpop("net", m); }
   }
   if (f) fclose(f);
 }
