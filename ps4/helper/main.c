@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.97"
+#define R2_VERSION "1.1.98"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2480,6 +2480,7 @@ static void look_memload(const char *key, const char *spec) {
    /_memload (renames it <Name>, links it, loads every game the player has in the cloud); a player with nothing in the cloud
    yet gets the link + the name only (/_memtag). While a clean slate runs it answers "waits" – the engine tries again. Result
    keys memplay/loading | memplay/ready | memplay/waits | memplay/refused, value "<profile> <text>". */
+static int av_apply(const char *key, uint32_t uid, const char *id, const char *sl);
 static void memplay_one(const char *key, const char *spec, int allow_main) {
   char id[32] = "", sl[16] = "", nm[40] = "", st[16] = "", want[64], v[200], ms[200];
   char pos[4] = "";
@@ -2500,6 +2501,7 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
   if (!pick) { look_kv("memplay/refused", "- this room has no profile for that slot: ask staff"); return; }
   char u[16]; snprintf(u, sizeof u, "%08x", pick);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
+  av_apply(key, pick, id, sl); /* 1.1.98: their picture first (a moment), then the saves */
   snprintf(ms, sizeof ms, "/_memload.%s.%s.%s.%s", u, id, sl, nm);
   look_mute = 1; look_last[0] = 0; look_memload(key, ms); look_mute = 0;
   if (!strncmp(look_last, "memload/started", 15)) { snprintf(v, sizeof v, "%s%s %s", pick == mainu ? "main " : "", u, look_last + 17); sv_log("member play: %s/%s '%s' -> profile %s, loading", id, sl, shown, u); look_kv("memplay/loading", v); return; }
@@ -2509,6 +2511,55 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
   sv_log("member play: %s/%s '%s' -> profile %s, linked (no saves in the cloud yet; rename 0x%08x)", id, sl, shown, u, (unsigned)r);
   if (pick == mainu) bpop("%s: ready on the main profile - just play", shown); else bpop("%s: profile ready - sign in as %s", shown, shown);
   snprintf(v, sizeof v, "%s%s new member - profile linked%s", pick == mainu ? "main " : "", u, pick == mainu ? "" : " and named"); look_kv("memplay/ready", v);
+}
+/* 1.1.98 (owner 20 Nov 1:33am: "wire up the lapy avatars first as proof of concept"). Lapy's Avatar Changer keeps its pictures
+   in /data/AVATARS as .xavatar files (a zip of avatar.png + avatar64/128/260/440.dds + picture.* + online.json). "/_avlib" uploads them
+   to the cloud as lib/av/NNNN.xavatar (+ lib/av/index.txt "NNNN<tab>file name", names in sorted order) so the member page can
+   show them. When a member picks one the engine unzips it into members/<id>/<slot>/avatar.bin ("R2AV <n>\n" then per file
+   "<name> <length>\n<bytes>"); av_apply puts those files on the profile at Load (signed-out spare only, never the main). */
+static int av_cmp(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+static void look_avlib(const char *key, const char *spec) {
+  int from = 1; sscanf(spec, "/_avlib.%d", &from); if (from < 1) from = 1;
+  DIR *d = opendir("/data/AVATARS"); if (!d) { look_kv("avlib/error", "no /data/AVATARS on this PS4"); return; }
+  static char *nm[1200]; int n = 0; struct dirent *e;
+  while ((e = readdir(d)) && n < 1200) { size_t l = strlen(e->d_name); if (l > 8 && l < 120 && !strcasecmp(e->d_name + l - 8, ".xavatar")) nm[n++] = strdup(e->d_name); }
+  closedir(d); qsort(nm, n, sizeof nm[0], av_cmp);
+  unsigned char *b = malloc(SV_PIECE); size_t ixn = 0, ixc = 64 * 1024; char *ix = malloc(ixc); ix[0] = 0;
+  int up = 0, bad = 0, big = 0; time_t t0 = time(0);
+  for (int i = 0; i < n && b && ix; i++) {
+    int w = snprintf(ix + ixn, ixc - ixn, "%04d\t%s\n", i + 1, nm[i]); if (w > 0 && (size_t)w < ixc - ixn) ixn += (size_t)w;
+    if (i + 1 < from) continue;
+    char p[200], k[64]; snprintf(p, sizeof p, "/data/AVATARS/%s", nm[i]); snprintf(k, sizeof k, "lib/av/%04d.xavatar", i + 1);
+    FILE *f = fopen(p, "rb"); if (!f) { bad++; continue; }
+    size_t r = fread(b, 1, SV_PIECE, f); int more = fgetc(f) != EOF; fclose(f);
+    if (more) { big++; continue; }
+    if (sv_put(key, k, b, r)) { bad++; sv_log("avlib: %s upload failed", nm[i]); } else up++;
+    if (up % 25 == 0) { sceSystemServicePowerTick(); sv_log("avlib: %d of %d up (%lds)", up, n - from + 1, (long)(time(0) - t0)); }
+  }
+  if (ix && sv_put(key, "lib/av/index.txt", (unsigned char *)ix, ixn)) bad++;
+  for (int i = 0; i < n; i++) free(nm[i]); free(b); free(ix);
+  char v[160]; snprintf(v, sizeof v, "%d avatars found, %d uploaded, %d failed, %d too big, %lds", n, up, bad, big, (long)(time(0) - t0));
+  sv_log("avlib: %s", v); look_kv(bad ? "avlib/partial" : "avlib/done", v);
+}
+static int av_apply(const char *key, uint32_t uid, const char *id, const char *sl) {
+  if (uid == r2_main_user()) return 0;
+  char k[120], why[160]; unsigned char *data = 0; size_t len = 0; snprintf(k, sizeof k, "members/%s/%s/avatar.bin", id, sl);
+  if (sv_get_raw(key, k, &data, &len, why, sizeof why)) { sv_log("avatar: %s/%s has no picture yet (%s)", id, sl, why); free(data); return 0; }
+  if (user_signed_in(uid)) { sv_log("avatar: %08x is signed in - picture not changed", uid); free(data); return -1; }
+  int nf = 0; if (len < 8 || memcmp(data, "R2AV ", 5) || (nf = atoi((char *)data + 5)) < 1 || nf > 20) { sv_log("avatar: %s bad bundle", k); free(data); return -1; }
+  char td[120], rv[200]; av_dir(uid, td, sizeof td); sv_rights_up(rv, sizeof rv); mkdir(td, 0777); av_keep(uid, td);
+  { DIR *x = opendir(td); struct dirent *e; while (x && (e = readdir(x))) if (av_name(e->d_name)) { char p[300]; snprintf(p, sizeof p, "%s/%s", td, e->d_name); unlink(p); } if (x) closedir(x); }
+  size_t o = (size_t)((unsigned char *)memchr(data, '\n', len) - data) + 1; int cp = 0, bad = 0;
+  for (int i = 0; i < nf && o < len; i++) {
+    char nm[48] = ""; unsigned long fl = 0; unsigned char *nl = memchr(data + o, '\n', len - o); if (!nl) { bad++; break; }
+    *nl = 0; if (sscanf((char *)data + o, "%47s %lu", nm, &fl) != 2 || !av_name(nm) || strchr(nm, '/')) { bad++; break; }
+    o = (size_t)(nl - data) + 1; if (o + fl > len) { bad++; break; }
+    char p[300]; snprintf(p, sizeof p, "%s/%s", td, nm); FILE *f = fopen(p, "wb");
+    if (f && fwrite(data + o, 1, fl, f) == fl) cp++; else bad++; if (f) fclose(f); o += fl;
+  }
+  sv_rights_back(); free(data);
+  sv_log("avatar: %s/%s -> profile %08x: %d file(s) written, %d failed", id, sl, uid, cp, bad);
+  return bad ? -1 : cp;
 }
 /* 1.1.94 (owner 20 Nov 12:53am: tick several crew players and load them at once): "/_memplay.<member>.<slot>.<Name>[.<slot>.<Name>…]"
    (up to 4). The first player starts now; the others wait in /data/round2/memq and start one after another when the load
@@ -4123,6 +4174,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_avinfo.", 9)) look_avinfo(t);
     else if (!strncmp(t, "/_avcopy.", 9)) look_avcopy(t, 0);
     else if (!strncmp(t, "/_avreset.", 10)) look_avcopy(t, 1);
+    else if (!strncmp(t, "/_avlib", 7)) look_avlib(key, t);
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
     else if (!strncmp(t, "/_uorder.", 9)) look_uorder(t);
     else if (!strncmp(t, "/_clean.", 8)) look_clean(t);
