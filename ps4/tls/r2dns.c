@@ -14,6 +14,8 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "r2tls.h"
 
 #define R2DNS_WAIT_MS 2500
@@ -137,7 +139,31 @@ void r2_where_start(const char *version) { /* at start: what was the last run do
    engine (time, request, the step it failed in, the error) and one line when they work again ("back after N failures,
    M s"). 1.1.26 made the steps give up quickly instead of hanging – so a dead spell now shows up as failures, not as a
    slow step, and this is where it is written down. Kept under 32 KB (old file -> net-fail.log.old). */
+#define R2_HOST "round2-book.donttelldadyet.workers.dev"
 static int nf_count; static long long nf_first;
+/* 1.1.72 (Bella 19 Nov: on, its helper running, other PS4s on the shop network could see it, yet every connection to the
+   engine failed for 2 h 14 min): when the engine can't be reached, test the path piece by piece and write it down –
+   the shop router, an internet address that is not Cloudflare, and the engine's last known address. */
+static const char *probe(const char *ip, int port) {
+  struct sockaddr_in sa; memset(&sa, 0, sizeof sa); sa.sin_family = AF_INET; sa.sin_port = htons((unsigned short)port);
+  if (!ip || inet_pton(AF_INET, ip, &sa.sin_addr) != 1) return "no address";
+  int fd = socket(AF_INET, SOCK_STREAM, 0); if (fd < 0) return "no socket";
+  int fl = fcntl(fd, F_GETFL, 0); fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+  const char *r = "ok";
+  if (connect(fd, (struct sockaddr *)&sa, sizeof sa)) {
+    if (errno != EINPROGRESS) r = errno == ECONNREFUSED ? "refused (reachable)" : "error";
+    else { fd_set wf; FD_ZERO(&wf); FD_SET(fd, &wf); struct timeval tv = { 3, 0 }; int e = 0; socklen_t el = sizeof e;
+      if (select(fd + 1, 0, &wf, 0, &tv) <= 0) r = "no answer in 3 s";
+      else if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &e, &el) || e) r = e == ECONNREFUSED ? "refused (reachable)" : "failed"; }
+  }
+  close(fd); return r;
+}
+static void net_probe(FILE *f, const char *s) {
+  char eng[64] = ""; FILE *c = fopen("/data/round2/addr-" R2_HOST ".txt", "r");
+  if (c) { if (!fgets(eng, sizeof eng, c)) eng[0] = 0; fclose(c); eng[strcspn(eng, "\r\n")] = 0; }
+  fprintf(f, "%s   path check: shop router %s · internet (1.1.1.1) %s · engine %s %s\n", s, probe("192.168.88.1", 80),
+          probe("1.1.1.1", 443), eng[0] ? eng : "?", eng[0] ? probe(eng, 443) : "-");
+}
 void r2_netnote(const char *path, int status, const char *err) {
   int ok = status >= 200 && status < 500;
   if (ok && !nf_count) return;
@@ -152,6 +178,7 @@ void r2_netnote(const char *path, int status, const char *err) {
     if (!nf_count) nf_first = now;
     nf_count++;
     if (f && (nf_count <= 5 || nf_count % 10 == 0)) fprintf(f, "%s fail #%d %s in '%s': %d %.80s\n", s, nf_count, path ? path : "", w_name, status, err ? err : "");
+    if (f && (nf_count == 3 || nf_count % 10 == 0)) net_probe(f, s);
   }
   if (f) fclose(f);
 }
