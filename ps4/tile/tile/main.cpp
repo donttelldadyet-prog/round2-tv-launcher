@@ -1,4 +1,5 @@
-/* Round2 tile (PS4 app, fPKG RTWO00001) – owner 19 Nov 2026: "the tile just opens the page, shows progress, and keeps guests
+/* 0.04: PS4 id from the helper's file (the app can't ask the kernel) – 0.03 showed "https/http 400" = no id.
+   Round2 tile (PS4 app, fPKG RTWO00001) – owner 19 Nov 2026: "the tile just opens the page, shows progress, and keeps guests
    from interrupting save prep".
    0.02 (owner 11:25pm, after testing 0.01 on Kaeden: text hard to read, "can't reach Round2", use our logo):
      - own text drawing (FreeType glyphs alpha-blended onto the screen; the sample's drawer showed hollow letters) and solid
@@ -32,7 +33,7 @@ extern "C" {
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.03"
+#define TILE_V "0.04"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
 std::stringstream debugLogStream;
@@ -98,7 +99,7 @@ static void *poller(void *) {
       if (strcmp(room, g_room) || strcmp(u, g_url) || strcmp(l, g_line) || strcmp(l2, g_line2) || strcmp(st, g_status) || g_err[0]) {
         strcpy(g_room, room); strcpy(g_url, u); strcpy(g_line, l); strcpy(g_line2, l2); strcpy(g_status, st); g_err[0] = 0; g_dirty = 2; }
     } else {
-      char e[64]; if (!net_ok) snprintf(e, sizeof e, "network start 0x%08x", (unsigned)net_err); else snprintf(e, sizeof e, "https 0x%08x  http 0x%08x", (unsigned)n1, (unsigned)n);
+      char e[64]; if (!g_id[0]) snprintf(e, sizeof e, "this PS4's id not found - is the Round2 helper running?"); else if (!net_ok) snprintf(e, sizeof e, "network start 0x%08x", (unsigned)net_err); else snprintf(e, sizeof e, "https 0x%08x  http 0x%08x", (unsigned)n1, (unsigned)n);
       if (strcmp(g_status, "off") || strcmp(e, g_err)) { strcpy(g_status, "off"); strcpy(g_line, "Cannot reach Round2 right now - trying again..."); g_line2[0] = 0; strcpy(g_err, e); g_dirty = 2; }
     }
     pthread_mutex_unlock(&mx);
@@ -150,12 +151,23 @@ static void draw_qr(const char *t, int x, int y, int size) {
   rect(x, y, size, size, WHITE);
   for (int r = 0; r < q; r++) for (int c = 0; c < q; c++) if (qrcodegen_getModule(qr, c, r)) rect(x + off + c * cell, y + off + r * cell, cell, cell, BLACK);
 }
-/* the PS4's 16-byte id – the same one the Round2 helper reports. Not in the toolchain's libkernel list, so looked up by name. */
-static int open_ps_id(uint8_t *id) {
-  int h = sceKernelLoadStartModule("libkernel.sprx", 0, NULL, 0, NULL, NULL);
-  int (*fn)(uint8_t *) = NULL;
-  if (h <= 0 || sceKernelDlsym(h, "sceKernelGetOpenPsId", (void **)&fn) || !fn) { h = 0x2001; fn = NULL; if (sceKernelDlsym(h, "sceKernelGetOpenPsId", (void **)&fn) || !fn) return -1; }
-  return fn(id);
+/* the PS4's 16-byte id – the same one the Round2 helper reports. 0.03 on Kaeden: the app may not ask the kernel for it (the
+   engine answered 400 = no id). 0.04: first the file the helper (1.1.89+) writes, then the kernel ways. g_idsrc says which. */
+static char g_idsrc[16] = "";
+static int read_id_file(const char *p) {
+  FILE *f = fopen(p, "r"); if (!f) return -1; char b[48] = ""; if (!fgets(b, sizeof b, f)) b[0] = 0; fclose(f);
+  int n = 0; for (int i = 0; b[i] && n < 32; i++) if ((b[i] >= '0' && b[i] <= '9') || (b[i] >= 'a' && b[i] <= 'f')) g_id[n++] = b[i];
+  g_id[n] = 0; return n == 32 ? 0 : -1;
+}
+static void find_id(void) {
+  if (!read_id_file("/user/data/round2/tile-id.txt")) { strcpy(g_idsrc, "file"); return; }
+  if (!read_id_file("/data/round2/tile-id.txt")) { strcpy(g_idsrc, "file2"); return; }
+  const char *libs[] = { "libkernel.sprx", "/system/common/lib/libkernel_sys.sprx", "libkernel_sys.sprx" };
+  const char *fns[] = { "sceKernelGetOpenPsId", "sceKernelGetOpenPsIdForSystem" };
+  for (int l = 0; l < 3; l++) { int h = sceKernelLoadStartModule(libs[l], 0, NULL, 0, NULL, NULL); if (h <= 0) continue;
+    for (int k = 0; k < 2; k++) { int (*fn)(uint8_t *) = NULL; uint8_t id[16] = { 0 };
+      if (!sceKernelDlsym(h, fns[k], (void **)&fn) && fn && !fn(id)) { for (int i = 0; i < 16; i++) sprintf(g_id + i * 2, "%02x", id[i]); snprintf(g_idsrc, sizeof g_idsrc, "k%d%d", l, k); return; } } }
+  g_id[0] = 0; strcpy(g_idsrc, "none");
 }
 
 int main() {
@@ -168,7 +180,7 @@ int main() {
   scene->InitFont(&fSmall, "/app0/assets/fonts/ChakraPetch-SemiBold.ttf", 34);
   scene->InitFont(&fTiny, "/app0/assets/fonts/ChakraPetch-Regular.ttf", 24);
 
-  { uint8_t id[16] = { 0 }; if (!open_ps_id(id)) for (int i = 0; i < 16; i++) sprintf(g_id + i * 2, "%02x", id[i]); else strcpy(g_err, "no PS4 id"); }
+  find_id();
   net_init();
   pthread_t th; pthread_create(&th, NULL, poller, NULL);
 
@@ -190,7 +202,7 @@ int main() {
       if (line2[0]) wrap(fSmall, line2, 150, y + 30, 900, 46, DIM);
       text(fSmall, "Open your phone camera and scan the code.", 150, 990, DIM);
       if (err[0]) text(fTiny, err, 150, 1050, DIM);
-      text(fTiny, "tile " TILE_V, 1760, 1050, DIM);   /* 0.03: version on screen, to see an automatic update land */
+      { char vv[48]; snprintf(vv, sizeof vv, "tile " TILE_V "  id %s", g_idsrc); text(fTiny, vv, 1640, 1050, DIM); }   /* 0.03: version on screen, to see an automatic update land */
       if (url[0]) { rect(1150, 150, 660, 660, CARD); draw_qr(url, 1180, 180, 600); text(fSmall, "book.round2.sg/m", 1330, 870, DIM); }
       else { rect(1150, 150, 660, 660, CARD); text(fSmall, "QR code appears when", 1270, 460, DIM); text(fSmall, "Round2 answers", 1320, 510, DIM); }
     }

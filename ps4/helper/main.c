@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.88"
+#define R2_VERSION "1.1.89"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -4284,6 +4284,7 @@ int main(void) {
   sceUserServiceInitialize(0);
   sceNetCtlInit();
   get_console_id();
+  if (console_id[0]) { mkdir("/data/round2", 0777); put_file("/data/round2/tile-id.txt", console_id); } /* 1.1.89: the Round2 tile reads this PS4's id here (apps can't ask the kernel for it) */
   char key[128] = "", status[400] = "starting";
   int warned = 0;
   g_up = (long long)time(0);
