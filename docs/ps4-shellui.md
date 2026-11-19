@@ -63,3 +63,13 @@ so names are read from the running menu with Mono reflection. Nothing is called 
 4. Read R2 `saves/lib/probe/round2_shprobe3-<console>.txt`; compare every row of the table above. Write a new table for that
    firmware here – don't overwrite Kaeden's.
 5. Only then load the add-on (a build made/checked for that firmware), with the owner watching.
+
+## Crash log
+| When | PS4 | What | Cause | Fix |
+|---|---|---|---|---|
+| 20 Nov 5:50am | Kaeden 13.50 | `round2_pwrprobe1` → menu error CE-36329-3 (helper + jailbreak survived) | read Mono's "Constant" metadata table as 3 columns; Mono has 4 and aborts on a column-count mismatch (`mono_metadata_decode_row`). Also suspect: setting up methods of every class | removed from ps4-shell; `round2_sweep1` checks each table's column count from Mono's table header first, reads method names from metadata, writes a breadcrumb `/data/round2/<name>.step` before every step |
+
+## The sweep (owner 20 Nov 5:49am)
+One read-only add-on, `round2_sweep1`, run on EVERY PS4 (not one per firmware): rest mode, wake, network-in-rest, timers, Remote
+Play, log-in/out, users, controllers, PS button – class/method names, constants (registry assembly in full), every system function
+the menu calls. Result: R2 `lib/probe/round2_sweep1-<console>.txt`. Kaeden first; then each room when the owner turns it on.
