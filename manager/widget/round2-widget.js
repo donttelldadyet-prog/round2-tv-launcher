@@ -71,20 +71,37 @@ function warnLine(w, j, sz, n) {
   for (const x of L.slice(0, n || 1)) txt(w, '⚠︎ ' + x, sz, WARN);
 }
 function bar(parent, r, h) { const b = parent.addStack(); b.size = new Size(4, h); b.backgroundColor = rc(r.r); b.cornerRadius = 2; }
-/* board row: Room · state · guest / TV · PS4 · next TV message */
-function boardRow(parent, r, wide) {
-  const s = stateOf(r), row = line(parent); row.spacing = 6; bar(row, r, wide ? 38 : 24);
-  const col = row.addStack(); col.layoutVertically();
-  const top = line(col);
-  txt(top, r.r, wide ? 13 : 11, rc(r.r), true);
-  txt(top, wide ? s.big : s.short, wide ? 13 : 11, s.c, r.st === 'in');
-  if (wide && names && s.who) txt(top, s.who, 12, MUTE);
-  const m = (r.msgs || [])[0];
-  const a = [tvOf(r) && '📺 ' + tvOf(r), r.ps4 && r.ps4.on && '🎮 ' + ps4Of(r)].filter(Boolean).join('  ');
-  const b = wide ? [m && '🔔 ' + clk(m.at) + ' ' + msgName(m), nextLine(r)].filter(Boolean).join('  ·  ') : '';
-  if (a) txt(col, a, wide ? 10.5 : 9, r.tv && (r.tv.off || r.tv.quiet) ? WARN : MUTE);
-  if (b) txt(col, b, 10.5, MUTE);
-  if (wide) row.addSpacer();
+/* ---------- colour boxes (owner 20 Nov: "box them into their colours – this layout isn't efficient") ----------
+   Two columns of boxes tinted in each room's colour. Box widths come from the screen size (widgets don't say their own size). */
+function mix(hex, a) {   /* the room colour at a% over the dark background */
+  const h = (RC[hex] || hex).replace('#', ''), bg = [11, 9, 20], c = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  return new Color('#' + c.map((v, i) => Math.round(bg[i] + (v - bg[i]) * a).toString(16).padStart(2, '0')).join(''));
+}
+function widgetW() { const sw = Device.screenSize().width; return sw <= 360 ? 292 : sw <= 375 ? 329 : sw <= 393 ? 338 : sw <= 402 ? 345 : 364; }
+function tvTone(r) { return r.tv && (r.tv.quiet || (r.tv.off && r.st === 'in')) ? WARN : INK; }
+function box(parent, r, w, h, wide) {
+  const s = stateOf(r), b = parent.addStack(); b.layoutVertically(); b.size = new Size(w, h); b.setPadding(5, 7, 5, 6); b.spacing = 1;
+  b.backgroundColor = mix(r.r, r.st === 'in' ? 0.34 : 0.16); b.cornerRadius = 9; b.borderColor = rc(r.r); b.borderWidth = r.st === 'in' ? 1.5 : 0;
+  const top = line(b); top.spacing = 4; txt(top, r.r, wide ? 13 : 11.5, rc(r.r), true); top.addSpacer(); txt(top, s.short, wide ? 11.5 : 10, r.st === 'in' ? INK : MUTE, r.st === 'in');
+  const tv = tvOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : '';
+  if (!wide) {   /* medium: one more line – the guest, then what's on */
+    const l = [names && s.who, ps ? '🎮 ' + ps : tv && '📺 ' + tv].filter(Boolean).join(' · ');
+    if (l) txt(b, l, 9.5, ps || !tv ? INK : tvTone(r));
+    b.addSpacer(); return;
+  }
+  if (names && s.who) txt(b, s.who, 11, INK);
+  if (tv) txt(b, '📺 ' + tv, 10.5, tvTone(r));
+  if (ps) txt(b, '🎮 ' + ps, 10.5, INK);
+  if (wide) { const m = (r.msgs || [])[0]; if (m) txt(b, '🔔 ' + clk(m.at) + ' ' + msgName(m), 10, MUTE); const nl = nextLine(r); if (nl) txt(b, nl.replace(/^then /, '→ '), 10, MUTE); }
+  b.addSpacer();
+}
+function boxGrid(w, L, h, wide) {
+  const gap = 6, bw = Math.floor((widgetW() - 20 - gap) / 2);
+  for (let i = 0; i < L.length; i += 2) {
+    const row = w.addStack(); row.layoutHorizontally(); row.spacing = gap;
+    box(row, L[i], bw, h, wide); if (L[i + 1]) box(row, L[i + 1], bw, h, wide); else { const e = row.addStack(); e.size = new Size(bw, h); }
+    if (i + 2 < L.length) w.addSpacer(gap);
+  }
 }
 /* tv row: Room · TV app (since) · PS4 game */
 function tvRow(parent, r, wide) {
@@ -187,17 +204,16 @@ async function build() {
     if ((j.warn || []).length) txt(w, '⚠︎ ' + j.warn[0], 10, WARN);
     return w;
   }
-  if (fam === 'medium') {   /* every room at a glance, two columns */
-    header(w, j, 12); w.addSpacer(6);
-    const cols = line(w); cols.spacing = 10; cols.topAlignContent();
-    const a = cols.addStack(), b = cols.addStack(); a.layoutVertically(); b.layoutVertically(); a.spacing = 5; b.spacing = 5;
-    open.forEach((r, i) => boardRow(i < Math.ceil(open.length / 2) ? a : b, r, false));
-    w.addSpacer(); warnLine(w, j, 10);
+  w.setPadding(10, 10, 10, 10);
+  if (fam === 'medium') {   /* every room as a small colour box: name, status, TV / PS4 */
+    header(w, j, 11); w.addSpacer(5);
+    boxGrid(w, open, open.length > 4 ? 36 : 54, false);
+    w.addSpacer(); if ((j.warn || []).length) warnLine(w, j, 9.5);
     return w;
   }
-  header(w, j, 13); w.addSpacer(8);
-  for (const r of open) { boardRow(w, r, true); w.addSpacer(6); }
-  w.addSpacer(); warnLine(w, j, 11, 3);
+  header(w, j, 12); w.addSpacer(6);
+  boxGrid(w, open, open.length > 4 ? 96 : 140, true);
+  w.addSpacer(); warnLine(w, j, 10.5, 2);
   return w;
 }
 
