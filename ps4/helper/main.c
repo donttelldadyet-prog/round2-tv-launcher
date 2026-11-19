@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.91"
+#define R2_VERSION "1.1.92"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2640,15 +2640,11 @@ static int pad_off(char *out, size_t on) {
   if (!n) snprintf(out, on, "nobody signed in");
   sv_log("controllers off: %d of %d (%s)", ok, n, out); return ok;
 }
-static void look_padoff(void) { char r[240]; int ok = pad_off(r, sizeof r); look_kv(ok > 0 ? "padoff/result" : "padoff/error", r); }
-static void refresh_profiles(void) {
-  UserIdList l; memset(&l, 0, sizeof l); uint32_t mainu = r2_main_user(); int out = 0;
-  if (file_exists("/data/round2/padoff-on")) { char pr[240]; pad_off(pr, sizeof pr); sleep(1); } /* 1.1.91 */
-  if (!sceUserServiceGetLoginUserIdList(&l)) for (int i = 0; i < 4; i++) if (l.userId[i] != -1 && l.userId[i] != 0) { sceUserServiceLogout(l.userId[i]); out++; }
-  sleep(3);
-  int r = mainu ? sceUserServiceLogin((int32_t)mainu) : -1;
-  sv_log("profiles refreshed: %d signed out, main profile %08x signed back in (result 0x%08x)", out, mainu, (unsigned)r);
-  bpop("Profiles refreshed: %d signed out, main profile signed back in", out);
+static __attribute__((unused)) void look_padoff(void) { char r[240]; int ok = pad_off(r, sizeof r); look_kv(ok > 0 ? "padoff/result" : "padoff/error", r); }
+static void refresh_profiles(void) { /* 1.1.92 (owner 20 Nov 12:30am): NO sign-out any more. Signing out the profile a controller is
+     using (main or a spare) left that controller "frozen" on Kaeden; the rooms' helper never signed anyone out and never had
+     that. The clean slate still empties every profile and resets names; guests switch profiles themselves. */
+  sv_log("profiles: nobody signed out (1.1.92)");
 }
 static void clean_finish(int done, int fails, int parts) {
   char rn[120] = "", kind[16] = "clean", lab[48] = "-", pr[200] = "", cb[48], t0s[24], t1s[24]; long long t0 = 0, cp = 0, cby = 0;
@@ -4083,7 +4079,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_mi.on")) { unlink("/data/round2/mi-skip-off"); look_kv("mi/result", "member-index skip ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
     else if (!strncmp(t, "/_memplay.", 10)) look_memplay(key, t); /* 1.1.90 */
-    else if (!strcmp(t, "/_padoff")) look_padoff(); /* 1.1.91 */
+    /* 1.1.92: "/_padoff" removed - scePadDisconnectDevice hung the helper on Kaeden (1.1.91) */
     else if (!strcmp(t, "/_padoff.on")) { put_file("/data/round2/padoff-on", "1"); look_kv("padoff/auto", "on"); }
     else if (!strcmp(t, "/_padoff.off")) { unlink("/data/round2/padoff-on"); look_kv("padoff/auto", "off"); }
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
