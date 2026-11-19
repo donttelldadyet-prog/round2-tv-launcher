@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.105"
+#define R2_VERSION "1.1.106"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2622,15 +2622,25 @@ static void look_ghver(void) { char v[160]; long r = r2_sdk(0, 0); snprintf(v, s
 static void look_shprobe(const char *key) {
   if (sv_game_open()) { look_kv("shprobe/refused", "a game is open - close it first"); return; }
   long ver = r2_sdk(0, 0); char v[200]; snprintf(v, sizeof v, "%ld", ver); look_kv("shprobe/sdk", v);
-  mkdir("/data/round2", 0777); unlink("/data/round2/shprobe.txt"); unlink("/data/round2/shprobe.txt.done");
-  FILE *f = fopen("/data/round2/r2shprobe.prx", "wb"); if (!f || fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f) != r2_shprobe_prx_len) { if (f) fclose(f); look_kv("shprobe/error", "could not write the probe"); return; } fclose(f);
-  struct r2_prx_load a; memset(&a, 0, sizeof a); snprintf(a.process_name, sizeof a.process_name, "SceShellUI"); snprintf(a.prx_path, sizeof a.prx_path, "/data/round2/r2shprobe.prx");
-  sv_log("shprobe: loading the read-only probe into SceShellUI (GoldHEN SDK %ld)", ver);
-  long r = r2_sdk(6, &a); snprintf(v, sizeof v, "call %ld, result 0x%llx", r, (unsigned long long)a.res); look_kv("shprobe/load", v); sv_log("shprobe: %s", v);
-  int done = 0; for (int i = 0; i < 30 && !(done = file_exists("/data/round2/shprobe.txt.done")); i++) sleep(1);
-  struct stat st; long sz = stat("/data/round2/shprobe.txt", &st) ? -1 : (long)st.st_size;
-  snprintf(v, sizeof v, "%s, %ld bytes", done ? "finished" : "not finished in 30 s", sz); look_kv("shprobe/result", v); sv_log("shprobe: %s", v);
-  if (sz > 0) { size_t n = 0; char *b = read_all("/data/round2/shprobe.txt", &n, 1024 * 1024); if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/shprobe-%s.txt", console_id); int u = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shprobe/upload", u ? "failed" : k); } }
+  /* 1.1.106: 1.1.105 got 0x80020002 (file not found) for /data/... – the menu sees the disk differently. Try the real paths too. */
+  static const char *outs[] = { "/data/round2/shprobe.txt", "/user/data/round2/shprobe.txt", "/system_tmp/shprobe.txt", 0 };
+  for (int i = 0; outs[i]; i++) { char d[80]; unlink(outs[i]); snprintf(d, sizeof d, "%s.done", outs[i]); unlink(d); }
+  static const char *prx[] = { "/data/round2/r2shprobe.prx", "/user/data/round2/r2shprobe.prx", "/system_tmp/r2shprobe.prx", 0 };
+  { FILE *f = fopen("/data/round2/r2shprobe.prx", "wb"); if (!f || fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f) != r2_shprobe_prx_len) { if (f) fclose(f); look_kv("shprobe/error", "could not write the probe"); return; } fclose(f); }
+  { FILE *f = fopen("/system_tmp/r2shprobe.prx", "wb"); if (f) { fwrite(r2_shprobe_prx, 1, r2_shprobe_prx_len, f); fclose(f); } }
+  char res[200] = ""; int loaded = 0;
+  for (int i = 0; prx[i] && !loaded; i++) {
+    struct r2_prx_load a; memset(&a, 0, sizeof a); snprintf(a.process_name, sizeof a.process_name, "SceShellUI"); snprintf(a.prx_path, sizeof a.prx_path, "%s", prx[i]);
+    long r = r2_sdk(6, &a); size_t l = strlen(res); snprintf(res + l, sizeof res - l, "%s%d:%lx", i ? " " : "", i, (unsigned long)(uint32_t)a.res);
+    sv_log("shprobe: load %s into SceShellUI: call %ld, result 0x%llx", prx[i], r, (unsigned long long)a.res);
+    if (r == 0 && (int64_t)a.res > 0 && (int64_t)a.res < 0x80000000LL) loaded = 1;
+  }
+  look_kv("shprobe/load", res);
+  const char *got = 0; for (int s2 = 0; s2 < 30 && !got; s2++) { for (int i = 0; outs[i] && !got; i++) { char d[80]; snprintf(d, sizeof d, "%s.done", outs[i]); if (file_exists(d)) got = outs[i]; } if (!got) sleep(1); }
+  const char *out = got; if (!out) for (int i = 0; outs[i] && !out; i++) if (file_exists(outs[i])) out = outs[i];
+  struct stat st; long sz = (!out || stat(out, &st)) ? -1 : (long)st.st_size;
+  snprintf(v, sizeof v, "%s, %s, %ld bytes", got ? "finished" : "not finished in 30 s", out ? out : "no file", sz); look_kv("shprobe/result", v); sv_log("shprobe: %s", v);
+  if (sz > 0) { size_t n = 0; char *b = read_all(out, &n, 1024 * 1024); if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/shprobe-%s.txt", console_id); int u = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shprobe/upload", u ? "failed" : k); } }
 }
 static void look_rename(const char *spec) {
   char u[16] = "", nm[40] = "", v[160], have[40] = ""; if (sscanf(spec, "/_rename.%8[0-9a-f].%31[A-Za-z0-9_]", u, nm) != 2) { look_kv("rename/error", "bad spec"); return; }

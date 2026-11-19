@@ -31,7 +31,6 @@ extern void *mono_method_signature(void *);
 extern unsigned int mono_signature_get_param_count(void *);
 extern const char *sceKernelGetFsSandboxRandomWord(void);
 
-#define OUT "/data/round2/shprobe.txt"
 #define MAXOUT (900 * 1024)
 static int g_fd = -1, g_len = 0;
 static void wr(const char *s) { int n = (int)strlen(s); if (g_fd < 0 || g_len + n > MAXOUT) return; write(g_fd, s, n); g_len += n; }
@@ -65,7 +64,8 @@ static void dump(const char *path) {
 }
 static void *probe_thread(void *a) {
   (void)a; sleep(2);
-  g_fd = open(OUT, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (g_fd < 0) return 0;
+  static const char *outs[] = { "/data/round2/shprobe.txt", "/user/data/round2/shprobe.txt", "/system_tmp/shprobe.txt", 0 }; const char *out = 0;
+  for (int i = 0; outs[i] && g_fd < 0; i++) { g_fd = open(outs[i], O_WRONLY | O_CREAT | O_TRUNC, 0666); out = outs[i]; } if (g_fd < 0) return 0;
   wr("round2_shprobe 1.00 - read-only list of SceShellUI user/controller code\n");
   mono_thread_attach(mono_get_root_domain());
   const char *apps[] = { "/app0/psm/Application/app.exe", "/app0/psm/Application/platform.dll", 0 };
@@ -74,7 +74,7 @@ static void *probe_thread(void *a) {
   const char *libs[] = { "Sce.Vsh.ShellUI.Core.dll", "Sce.Vsh.UserService.dll", "Sce.Vsh.Orbis.UserService.dll", "Sce.PlayStation.Core.dll", "Sce.Vsh.SystemService.dll", "Sce.Vsh.Orbis.Pad.dll", 0 };
   for (int i = 0; sb && libs[i]; i++) { snprintf(p, sizeof p, "/%s/common/lib/%s", sb, libs[i]); dump(p); }
   wr("## end\n"); close(g_fd); g_fd = -1;
-  int d = open(OUT ".done", O_WRONLY | O_CREAT | O_TRUNC, 0666); if (d >= 0) { write(d, "1\n", 2); close(d); }
+  char dn[80]; snprintf(dn, sizeof dn, "%s.done", out); int d = open(dn, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (d >= 0) { write(d, "1\n", 2); close(d); }
   return 0;
 }
 static int g_started = 0;
