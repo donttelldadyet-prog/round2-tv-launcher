@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.98"
+#define R2_VERSION "1.1.99"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -4182,6 +4182,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_copycheck")) look_copycheck();
     else if (!strcmp(t, "/_restoreall")) look_restoreall();
     else if (!strcmp(t, "/_tile.now")) tile_check(key, 1); /* 1.1.87 */
+    else if (!strcmp(t, "/_tile.on")) { unlink("/data/round2/tile-off"); put_file("/data/round2/tile-on", "1"); look_kv("tile/result", "tile switched ON for this PS4"); } /* 1.1.99 */
+    else if (!strcmp(t, "/_tile.off")) { unlink("/data/round2/tile-on"); put_file("/data/round2/tile-off", "1"); look_kv("tile/result", "tile switched off for this PS4"); }
     else if (!strncmp(t, "/_prepmember.", 13)) look_prepmember(t);
     else if (!strncmp(t, "/_memtag.", 9)) look_memtag(t);
     else if (!strcmp(t, "/_pf.off")) { put_file("/data/round2/prefetch-off", "1"); look_kv("pf/result", "prefetch OFF"); }
@@ -4401,6 +4403,9 @@ static void tile_ver(char *v, size_t n) { v[0] = 0; FILE *f = fopen("/data/round
 static int tile_check(const char *key, int force) {
   char run[32], have[24], v[24], sha[80], sz[24], hdr[200], err[160], why[200] = ""; running_title(run, sizeof run);
   if (snap_on || clean_on) return 0;
+  /* 1.1.99 (owner 20 Nov 1:59am, moving Max: "doesn't install ps4 tile, just the major fixes"): the tile is only installed/updated
+     where it's switched on – /data/round2/tile-on ("/_tile.on"), or already installed (Kaeden). "/_tile.off" stops it. */
+  { char hv[24]; tile_ver(hv, sizeof hv); if (file_exists("/data/round2/tile-off") || (!hv[0] && !file_exists("/data/round2/tile-on"))) { if (force) look_kv("tile/result", "the tile is switched off on this PS4 (/_tile.on to allow)"); return 0; } }
   if (run[0] && !strcmp(run, "RTWO00001")) { char cr[160]; if (close_game(cr, sizeof cr)) { if (force) look_kv("tile/waits", cr); return 0; } running_title(run, sizeof run); } /* 1.1.90: the tile is closed first (owner: no closing by hand) */
   if (run[0] && strcmp(run, VUE_ID)) { if (force) look_kv("tile/waits", run); return 0; }   /* a game is open */
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
