@@ -32,6 +32,7 @@ extern "C" {
 
 #define W 1920
 #define H 1080
+#define TILE_V "0.03"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
 std::stringstream debugLogStream;
@@ -61,7 +62,7 @@ static void net_init(void) {
 /* returns bytes read, or a negative PS4 error code */
 static int http_get(const char *url, char *out, int max) {
   int tpl = 0, conn = 0, req = 0, n = 0, r = 0; int32_t code = 0;
-  tpl = sceHttpCreateTemplate(httpCtx, "Round2Tile/0.02 (PLAYSTATION 4)", ORBIS_HTTP_VERSION_1_1, 1); if (tpl < 0) return tpl;
+  tpl = sceHttpCreateTemplate(httpCtx, "Round2Tile/" TILE_V " (PLAYSTATION 4)", ORBIS_HTTP_VERSION_1_1, 1); if (tpl < 0) return tpl;
   if (!strncmp(url, "https", 5)) sceHttpsDisableOption(tpl, 0x3F);   /* server / name / date / known-CA checks off: old CA list on the PS4 */
   conn = sceHttpCreateConnectionWithURL(tpl, url, 1); if (conn < 0) { n = conn; goto done; }
   req = sceHttpCreateRequestWithURL(conn, ORBIS_METHOD_GET, url, 0); if (req < 0) { n = req; goto done; }
@@ -189,6 +190,7 @@ int main() {
       if (line2[0]) wrap(fSmall, line2, 150, y + 30, 900, 46, DIM);
       text(fSmall, "Open your phone camera and scan the code.", 150, 990, DIM);
       if (err[0]) text(fTiny, err, 150, 1050, DIM);
+      text(fTiny, "tile " TILE_V, 1760, 1050, DIM);   /* 0.03: version on screen, to see an automatic update land */
       if (url[0]) { rect(1150, 150, 660, 660, CARD); draw_qr(url, 1180, 180, 600); text(fSmall, "book.round2.sg/m", 1330, 870, DIM); }
       else { rect(1150, 150, 660, 660, CARD); text(fSmall, "QR code appears when", 1270, 460, DIM); text(fSmall, "Round2 answers", 1320, 510, DIM); }
     }
