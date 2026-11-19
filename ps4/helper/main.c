@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.109"
+#define R2_VERSION "1.1.110"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2676,7 +2676,7 @@ static void look_shmod(const char *key, const char *spec) {
   if (sv_game_open()) { look_kv("shmod/refused", "a game is open - close it first"); return; }
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\n", key); snprintf(path, sizeof path, "/ps4/prx?name=%s", name);
   unsigned char *d = 0; size_t len = 0; int st = r2tls_fetch(ENGINE_HOST, "GET", path, hdr, 0, 0, &d, &len, 4 * 1024 * 1024, err, sizeof err);
-  if (st != 200 || !d || len < 64 || memcmp(d, "\x7f" "ELF", 4)) { snprintf(v, sizeof v, "download %d %s (%zu bytes)", st, err, len); free(d); look_kv("shmod/error", v); return; }
+  if (st != 200 || !d || len < 64 || (memcmp(d, "\x7f" "ELF", 4) && memcmp(d, "\x4f\x15\x3d\x1d", 4))) { /* 1.1.110: a .prx is a SELF (4F 15 3D 1D), not a bare ELF */ snprintf(v, sizeof v, "download %d %s (%zu bytes)", st, err, len); free(d); look_kv("shmod/error", v); return; }
   mkdir("/data/GoldHEN", 0777); mkdir("/data/GoldHEN/plugins", 0777); snprintf(up, sizeof up, "/data/GoldHEN/plugins/%s.prx", name);
   unlink(up); FILE *f = fopen(up, "wb"); int okw = f && fwrite(d, 1, len, f) == len; if (f) fclose(f); free(d); chmod(up, 0777);
   if (!okw) { look_kv("shmod/error", "could not save it"); return; }
