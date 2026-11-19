@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.69"
+#define R2_VERSION "1.1.70"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -3655,7 +3655,7 @@ static int wake_login_main(void) {
    program restarts (the starter brings a fresh one); in GoldHEN's shared program it can only note it (exiting there would
    take the blocker down too). Every action is written to slow.log. */
 extern volatile int r2tls_fd;
-double r2_where_age(void); const char *r2_where_now(void);
+double r2_where_age(void); const char *r2_where_now(void); void r2_where_shift(double secs);
 static void wd_note(const char *fmt, ...) {
   FILE *f = fopen("/data/round2/slow.log", "a"); if (!f) return;
   time_t x = time(0) + 8 * 3600; struct tm tm; gmtime_r(&x, &tm);
@@ -3663,9 +3663,15 @@ static void wd_note(const char *fmt, ...) {
   va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap); fputc('\n', f); fclose(f);
 }
 static void *watchdog(void *arg) {
-  (void)arg; int cuts = 0, noted = 0;
+  (void)arg; int cuts = 0, noted = 0; double last = mono_s();
   for (;;) {
     sleep(15);
+    /* 1.1.70: this loop wakes every 15 s. A much longer gap means the PS4 was in rest mode (every thread stands still, the
+       running clock doesn't) – that time is sleep, not a freeze: take it off the step's age. Before this, Bella (the only PS4
+       running the helper as its own program) restarted its helper on every wake after 20+ min of rest, and if the starter's
+       relaunch failed right after the wake the room went silent while the PS4 was on. */
+    { double t = mono_s(), slept = t - last - 15; last = t;
+      if (slept > 30) { r2_where_shift(slept); cuts = 0; noted = 0; wd_note("woke from rest after about %d s - not counted as stuck", (int)slept); } }
     double age = r2_where_age(); const char *st = r2_where_now();
     if (age < 300) { cuts = 0; noted = 0; continue; }
     int net = !strcmp(st, "read") || !strcmp(st, "send") || !strcmp(st, "connect") || !strcmp(st, "handshake") || !strcmp(st, "lookup");

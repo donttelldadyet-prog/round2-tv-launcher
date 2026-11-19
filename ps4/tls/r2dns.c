@@ -113,7 +113,10 @@ void r2_where(const char *name, int save) {
   snprintf(w_name, sizeof w_name, "%s", name); w_wall = wall; w_mono = mono;
   if (save) { FILE *f = fopen("/data/round2/where.txt", "w"); if (f) { char s[24]; stamp(s, sizeof s, wall); fprintf(f, "%s %s\n", s, name); fclose(f); } }
 }
-double r2_where_age(void) { return w_mono ? mono_now() - w_mono : 0; }   /* 1.1.42: for the watchdog (running clock: stands still in rest mode) */
+double r2_where_age(void) { return w_mono ? mono_now() - w_mono : 0; }   /* 1.1.42: for the watchdog */
+/* 1.1.70 (Bella 19 Nov): the running clock does NOT stand still in rest mode (Bella 44261 s, Atlas 23491 s, Kaeden 810 s after
+   a sleep) – the watchdog moves the step's start on by the time the PS4 slept, so a wake never looks like a freeze. */
+void r2_where_shift(double secs) { if (w_mono) w_mono += secs; }
 const char *r2_where_now(void) { return w_name; }
 void r2_where_start(const char *version) { /* at start: what was the last run doing when it ended? */
   char b[100] = ""; FILE *f = fopen("/data/round2/where.txt", "r");
