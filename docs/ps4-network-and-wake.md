@@ -53,3 +53,14 @@ round2-ps4 = extra SSID on the main unit, its own subnet 192.168.120.x (devices 
 1. Bella + Atlas awake on round2-ps4 → rest Atlas → wake it from Bella after 3 min, 30 min, 2 h (direct + broadcast). Swap roles.
 2. If only short sleeps work: router IP+MAC binding for both (owner OK), repeat the 2 h test.
 3. Meanwhile keep reading net-fail.log on both every evening for A and B.
+
+## Sweep findings – rest mode & wake inside the PS4 (Kaeden 13.50, 20 Nov 6:10am; every PS4 gets the same sweep)
+- The menu knows only two wake triggers: **REMOTE_PLAY (100)** = the LAN wake we already use (DDP), and **REMOTE_PLAY_NP_PUSH
+  (102)** = a wake through Sony's servers (blocked here – PS4 DNS 127.0.0.1). **No timer/alarm wake exists in the menu.**
+- A PS4 woken by Remote Play runs `WakeOnRemotePlayMode`: a shutdown timer that sends it back to rest if no Remote Play session
+  connects (standby reason 14). To check in the logs.
+- "Main on standby" = half-awake in rest (downloads, auto-update, event schedule), started by the low-power chip (EAP). All
+  auto-download settings are 0 on Kaeden.
+- Settings read with helper 1.1.111 `/_pwrreg` (Kaeden): rest mode 1 · stay connected 1 · turn on from network 1 · USB power 2 ·
+  Wi-Fi band 0 · Remote Play 1. **Next: the same read on Bella, Atlas and Kai** – a different value there would explain the wake
+  problem (Kai wakes, Bella/Atlas don't).
