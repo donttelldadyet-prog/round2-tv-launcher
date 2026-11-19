@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.79"
+#define R2_VERSION "1.1.80"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -1913,6 +1913,7 @@ static int sv_db_add(const char *u, const char *t, const char *nm, const char *m
   unlink(work); return 0;
 }
 static int sv_make_part_do(const char *key, const char *u, const char *t, const char *nm, const char *src, char *why, size_t wn) {
+  double mt0 = tm_now(), mt1 = 0, mt2 = 0, mt3 = 0, mt4 = 0; /* 1.1.80: which step of making a part is slow? */
   char img[220], kp[220], dp[200], prep[260]; struct stat st;
   snprintf(img, sizeof img, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm); snprintf(kp, sizeof kp, "/user/home/%s/savedata/%s/%s.bin", u, t, nm);
   db_path(u, dp, sizeof dp); snprintf(prep, sizeof prep, "/data/round2/prep/%s/%s/%s", u, t, nm);
@@ -1953,9 +1954,11 @@ static int sv_make_part_do(const char *key, const char *u, const char *t, const 
   if (sfo_find(sf, sn, "PARAMS", &off, &len, &fmt) || len < 0x50) MK_FAIL("param.sfo has no PARAMS");
   memcpy(sf + off + 4, &uid, 4); memcpy(sf + off + 8, hm, 32); memcpy(sf + off + 0x3C, sf + off + 0x2C, 0x10);
   /* key + image */
+  mt1 = tm_now(); r2_timing("make part: labels from the cloud", mt1 - mt0);
   if (sv_lib() || sv_make_lib()) MK_FAIL("save-making library missing");
   char dir[200]; snprintf(dir, sizeof dir, "/user/home/%s/savedata/%s/x", u, t); mkdirs_for(dir);
   uint8_t enc[0x60], dec[0x20]; int kr = sv_new_key(enc, dec); if (kr) MK_FAIL("new key from the key service failed (%d)", kr);
+  mt2 = tm_now(); r2_timing("make part: new key", mt2 - mt1);
   int fd = open(kp, O_CREAT | O_TRUNC | O_WRONLY, 0777); if (fd < 0) MK_FAIL("can't write the key (errno %d)", errno);
   int wr = (int)write(fd, enc, 0x60); fsync(fd); close(fd); if (wr != 0x60) { unlink(kp); MK_FAIL("key write %d", wr); }
   uint64_t vsz = (uint64_t)blocks << 15;
@@ -1966,6 +1969,7 @@ static int sv_make_part_do(const char *key, const char *u, const char *t, const 
   memset(dec, 0, sizeof dec);
   if (ar < 0 || ir < 0 || cr < 0) { unlink(img); unlink(kp); MK_FAIL("image not made (allocate 0x%08x, init 0x%08x, create 0x%08x)", (unsigned)ar, (unsigned)ir, (unsigned)cr); }
   fd = open(img, O_RDONLY); if (fd >= 0) { fsync(fd); close(fd); }
+  mt3 = tm_now(); r2_timing("make part: make the image", mt3 - mt2);
   /* labels in */
   char ow[160] = "";
   if (sv_open(u, t, nm, 0, ow, sizeof ow)) { unlink(img); unlink(kp); MK_FAIL("new image won't open (%s)", ow); }
@@ -1976,11 +1980,14 @@ static int sv_make_part_do(const char *key, const char *u, const char *t, const 
   int clr = sv_close();
   if (wf) { unlink(img); unlink(kp); MK_FAIL("%d label file(s) not written", wf); }
   /* its row in the save list, then the icon */
+  mt4 = tm_now(); r2_timing("make part: open + labels in", mt4 - mt3);
   char dw[200] = "";
   if (sv_db_add(u, t, nm, mtl, stl, dtl, blocks, acct, uid, dw, sizeof dw)) { unlink(img); unlink(kp); MK_FAIL("%s", dw); }
   for (int i = 0; i < ns; i++) if (!strcmp(sysn[i], "icon0.png")) { char ip[260]; snprintf(ip, sizeof ip, "/user/home/%s/savedata_meta/user/%s/%s_icon0.png", u, t, nm); mkdirs_for(ip);
     int f = open(ip, O_CREAT | O_TRUNC | O_WRONLY, 0666); if (f >= 0) { if (write(f, sysd[i], sysl[i]) < 0) {} fsync(f); close(f); } }
   for (int i = 0; i < ns; i++) free(sysd[i]);
+  { double mt5 = tm_now(); r2_timing("make part: save list + icon", mt5 - mt4);
+    sv_log("make part timing: %s %s %s: labels from cloud %.2f s, key %.2f s, image %.2f s (%lld blocks), open+labels %.2f s, save list %.2f s", u, t, nm, mt1 - mt0, mt2 - mt1, mt3 - mt2, blocks, mt4 - mt3, mt5 - mt4); }
   sv_log("make part done: user %s game %s part %s: %lld blocks (%llu bytes), %d label files, account %016llx, close %d", u, t, nm, blocks, (unsigned long long)vsz, ns, (unsigned long long)acct, clr);
   #undef MK_FAIL
   (void)prep; return 0;
