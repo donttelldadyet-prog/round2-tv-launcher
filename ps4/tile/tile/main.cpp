@@ -1,4 +1,4 @@
-/* 0.04: PS4 id from the helper's file (the app can't ask the kernel) – 0.03 showed "https/http 400" = no id.
+/* 0.05: the title line comes from the engine (member loading / ready). 0.04: PS4 id from the helper's file (the app can't ask the kernel) – 0.03 showed "https/http 400" = no id.
    Round2 tile (PS4 app, fPKG RTWO00001) – owner 19 Nov 2026: "the tile just opens the page, shows progress, and keeps guests
    from interrupting save prep".
    0.02 (owner 11:25pm, after testing 0.01 on Kaeden: text hard to read, "can't reach Round2", use our logo):
@@ -33,7 +33,7 @@ extern "C" {
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.04"
+#define TILE_V "0.05"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
 std::stringstream debugLogStream;
@@ -43,7 +43,7 @@ static Color BG = { 6, 5, 10 }, CARD = { 20, 17, 31 }, INK = { 244, 241, 251 }, 
 
 /* ---- what the engine said last (shared with the poll thread) ---- */
 static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
-static char g_room[32] = "", g_url[200] = "", g_line[200] = "Connecting to Round2...", g_line2[200] = "", g_status[24] = "wait", g_err[64] = "";
+static char g_title[80] = "", g_room[32] = "", g_url[200] = "", g_line[200] = "Connecting to Round2...", g_line2[200] = "", g_status[24] = "wait", g_err[64] = "";
 static volatile int g_dirty = 2;
 static char g_id[40] = "";
 
@@ -94,10 +94,10 @@ static void *poller(void *) {
     }
     pthread_mutex_lock(&mx);
     if (n > 0) {
-      char room[32], u[200], l[200], l2[200], st[24];
-      jget(buf, "room", room, sizeof room); jget(buf, "url", u, sizeof u); jget(buf, "line", l, sizeof l); jget(buf, "line2", l2, sizeof l2); jget(buf, "status", st, sizeof st);
-      if (strcmp(room, g_room) || strcmp(u, g_url) || strcmp(l, g_line) || strcmp(l2, g_line2) || strcmp(st, g_status) || g_err[0]) {
-        strcpy(g_room, room); strcpy(g_url, u); strcpy(g_line, l); strcpy(g_line2, l2); strcpy(g_status, st); g_err[0] = 0; g_dirty = 2; }
+      char room[32], u[200], l[200], l2[200], st[24], ti[80];
+      jget(buf, "title", ti, sizeof ti); jget(buf, "room", room, sizeof room); jget(buf, "url", u, sizeof u); jget(buf, "line", l, sizeof l); jget(buf, "line2", l2, sizeof l2); jget(buf, "status", st, sizeof st);
+      if (strcmp(room, g_room) || strcmp(u, g_url) || strcmp(l, g_line) || strcmp(l2, g_line2) || strcmp(st, g_status) || strcmp(ti, g_title) || g_err[0]) {
+        strcpy(g_title, ti); strcpy(g_room, room); strcpy(g_url, u); strcpy(g_line, l); strcpy(g_line2, l2); strcpy(g_status, st); g_err[0] = 0; g_dirty = 2; }
     } else {
       char e[64]; if (!g_id[0]) snprintf(e, sizeof e, "this PS4's id not found - is the Round2 helper running?"); else if (!net_ok) snprintf(e, sizeof e, "network start 0x%08x", (unsigned)net_err); else snprintf(e, sizeof e, "https 0x%08x  http 0x%08x", (unsigned)n1, (unsigned)n);
       if (strcmp(g_status, "off") || strcmp(e, g_err)) { strcpy(g_status, "off"); strcpy(g_line, "Cannot reach Round2 right now - trying again..."); g_line2[0] = 0; strcpy(g_err, e); g_dirty = 2; }
@@ -187,8 +187,8 @@ int main() {
   int frame = 0;
   for (;;) {
     if (g_dirty > 0) {
-      char room[32], url[200], line[200], line2[200], st[24], err[64];
-      pthread_mutex_lock(&mx); strcpy(room, g_room); strcpy(url, g_url); strcpy(line, g_line); strcpy(line2, g_line2); strcpy(st, g_status); strcpy(err, g_err); g_dirty--; pthread_mutex_unlock(&mx);
+      char room[32], url[200], line[200], line2[200], st[24], err[64], ti[80];
+      pthread_mutex_lock(&mx); strcpy(ti, g_title); strcpy(room, g_room); strcpy(url, g_url); strcpy(line, g_line); strcpy(line2, g_line2); strcpy(st, g_status); strcpy(err, g_err); g_dirty--; pthread_mutex_unlock(&mx);
       FB = scene->Buf();
       rect(0, 0, W, H, BG);
       rect(0, 0, W, 12, GOLD);
@@ -197,7 +197,7 @@ int main() {
       text(fSmall, head, 150, 360, GOLD);
       int busy = !strcmp(st, "loading") || !strcmp(st, "reset");
       rect(150, 400, 900, 5, busy ? GOLD : (strcmp(st, "off") ? GREEN : RED));
-      text(fBig, busy ? "Please wait" : "Scan to log in", 150, 510, INK);
+      text(fBig, ti[0] ? ti : busy ? "Please wait" : "Scan to log in", 150, 510, !strcmp(st, "done") ? GREEN : INK);   /* 0.05: title from the engine ("Hi Aliff!", "Ready, Aliff!") */
       int y = wrap(fMid, line, 150, 600, 900, 62, busy ? GOLD : INK);
       if (line2[0]) wrap(fSmall, line2, 150, y + 30, 900, 46, DIM);
       text(fSmall, "Open your phone camera and scan the code.", 150, 990, DIM);
