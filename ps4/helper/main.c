@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.87"
+#define R2_VERSION "1.1.88"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -4196,7 +4196,8 @@ static void *watchdog(void *arg) {
    installer (BGFT, the same one GoldHEN's Package Installer and "Internal PKG Installer" use). Never while a game or the tile
    itself is open, never during a clean slate / backup. If the installer refuses, the file stays in /data/pkg so staff can
    install it with Debug Settings > Package Installer (hdd), and the same version isn't tried again until the next restart.
-   /data/round2/tile.ver = the version installed; the report carries it ("tile"). */
+   /data/round2/tile.ver = the version installed; the report carries it ("tile").
+   1.1.88: the PS4 answers 0x80990088 ("already installed") for a newer tile over an older one -> remove the old one, install again. */
 #define TILE_PKG "/data/pkg/round2-tile.pkg"
 static char tile_tried[24];
 typedef struct { void *heap; size_t heapSize; } BgftInit;
@@ -4213,7 +4214,17 @@ static int tile_install(char *why, size_t wn) {
   BgftParamEx p; memset(&p, 0, sizeof p);
   p.params.entitlementType = 5; p.params.id = ""; p.params.contentUrl = "/user" TILE_PKG; p.params.contentName = "Round2"; p.params.iconPath = "";
   p.params.playgoScenarioId = "0"; p.params.option = 0x10000; p.slot = 0;
-  int task = -1, r = bReg(&p, &task); if (r) { snprintf(why, wn, "installer said 0x%08x", (unsigned)r); return -1; }
+  int task = -1, r = bReg(&p, &task);
+  if (r == (int)0x80990088) { /* 1.1.88: "already installed" (DirectPackageInstaller's reading of this code) – a newer tile can't be
+       laid over the old one, so the old one is removed first (the tile keeps nothing of its own), then installed again */
+    static int (*aInit)(void), (*aUninst)(const char *); static int alooked;
+    if (!alooked) { alooked = 1; int am = sceKernelLoadStartModule("/system/common/lib/libSceAppInstUtil.sprx", 0, 0, 0, 0, 0);
+      if (am > 0) { sceKernelDlsym(am, "sceAppInstUtilInitialize", (void **)&aInit); sceKernelDlsym(am, "sceAppInstUtilAppUnInstall", (void **)&aUninst); } }
+    if (!aInit || !aUninst) { snprintf(why, wn, "old tile in the way and the remover isn't reachable"); return -1; }
+    int ri = aInit(), ru = aUninst("RTWO00001"); sv_log("tile: old one removed first (init 0x%08x, remove 0x%08x)", (unsigned)ri, (unsigned)ru);
+    sleep(3); task = -1; r = bReg(&p, &task);
+  }
+  if (r) { snprintf(why, wn, "installer said 0x%08x", (unsigned)r); return -1; }
   r = bStart(task); if (r) { snprintf(why, wn, "install start 0x%08x (task %d)", (unsigned)r, task); return -1; }
   snprintf(why, wn, "install started (task %d)", task); return 0;
 }
