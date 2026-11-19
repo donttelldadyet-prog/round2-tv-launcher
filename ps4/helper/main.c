@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.112"
+#define R2_VERSION "1.1.113"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -4393,6 +4393,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     char *bar = strchr(t, '|');
     int dp = 0;
     if (bar) { *bar = 0; dp = atoi_safe(bar + 1); }
+    { char jl[48]; snprintf(jl, sizeof jl, "job %.43s", t); r2_where(jl, 1); } /* 1.1.113: every job writes its own name */
     if (!strcmp(t, "/_profiles")) look_profiles();
     else if (!strncmp(t, "/_save.", 7)) look_save(t, dp);
     else if (!strncmp(t, "/_sback.", 8)) look_sback(key, t);
@@ -4512,11 +4513,11 @@ static int check_cmd(const char *key) { /* every minute; 1 = it did something (r
   while (c[i] && c[i] != '"' && i < 23) { cid[i] = c[i]; i++; }
   cid[i] = 0;
   { char jp[120] = "", jd[16] = ""; jget(body, "do", jd, sizeof jd); jget(body, "p", jp, sizeof jp); bpop("Job from the control centre: %s %s", jd, jp); }
-  if (strstr(body, "\"do\":\"clean\"")) clean_up(key, cid);
-  else if (strstr(body, "\"do\":\"update\"")) do_update(key, cid, body);
+  if (strstr(body, "\"do\":\"clean\"")) { r2_where("job clean-up", 1); clean_up(key, cid); } /* 1.1.113: job names */
+  else if (strstr(body, "\"do\":\"update\"")) { r2_where("job helper update", 1); do_update(key, cid, body); }
   else if (strstr(body, "\"do\":\"look\"")) do_look(key, cid, body);
-  else if (strstr(body, "\"do\":\"prof\"")) do_prof(key, cid, body);
-  else if (strstr(body, "\"do\":\"dns\"")) do_dns(key, cid, body);
+  else if (strstr(body, "\"do\":\"prof\"")) { r2_where("job profile", 1); do_prof(key, cid, body); }
+  else if (strstr(body, "\"do\":\"dns\"")) { r2_where("job blocker settings", 1); do_dns(key, cid, body); }
   else cmd_done(key, cid, 0, 1, 0, 0, 0, "this helper doesn't know that command - update it");
   return 1;
 }

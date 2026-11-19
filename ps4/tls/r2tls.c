@@ -119,6 +119,12 @@ static int tls_go(const char *host, const char *method, const char *path, const 
   if (err && errlen) err[0] = 0;
   *rbuf = 0;
   *rlen = 0;
+  /* 1.1.113 (owner 20 Nov 7:32am "make every job write its own name"): remember the step label the request started in (a job's
+     name) and put it back afterwards – before, the label stayed on "read" for the rest of a long job, so slow.log said "stuck in
+     'read'" when the helper was really busy with the job (found 20 Nov 7:24am). */
+  char prev_step[48]; snprintf(prev_step, sizeof prev_step, "%s", quiet ? "" : r2_where_now());
+  { static const char *netst[] = { "lookup", "connect", "handshake", "send", "read", 0 };
+    for (int q = 0; netst[q]; q++) if (!strcmp(prev_step, netst[q])) { snprintf(prev_step, sizeof prev_step, "after network"); break; } }
 
   if (!ca_ready) {
     mbedtls_x509_crt_init(&cacert);
@@ -224,6 +230,7 @@ fail:
 done:
   if (offered && !hs_ok) r2_sess_ok = 0; /* 1.1.71: a session that failed is not offered again */
   if (!quiet) r2tls_fd = -1;
+  if (!quiet && prev_step[0]) r2_where(prev_step, 0); /* 1.1.113 */
   mbedtls_ssl_close_notify(&ssl);
   mbedtls_net_free(&net);
   mbedtls_ssl_free(&ssl);
