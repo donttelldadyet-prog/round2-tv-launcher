@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.108"
+#define R2_VERSION "1.1.109"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2667,6 +2667,26 @@ static void look_shprobe(const char *key) {
   snprintf(v, sizeof v, "%s, %s, %ld bytes", got ? "finished" : "not finished in 30 s", out ? out : "no file", sz); look_kv("shprobe/result", v); sv_log("shprobe: %s", v);
   if (sz > 0) { size_t n = 0; char *b = read_all(out, &n, 1024 * 1024); if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/shprobe-%s.txt", console_id); int u = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shprobe/upload", u ? "failed" : k); } }
 }
+/* 1.1.109: "/_shmod.<name>" = fetch a Round2 system-menu add-on (round2_*.prx, branch ps4-shell, via the engine's /ps4/prx) into
+   GoldHEN's plugin folder - the only place the menu can load from (1.1.107) - and load it into SceShellUI. The add-on writes
+   /data/round2/<name>.txt (+ .done); that text goes to R2 lib/probe/<name>-<console>.txt. Refused while a game is open.
+   Add-on changes then need no helper update (owner 20 Nov: keep helper switches per PS4 start low). */
+static void look_shmod(const char *key, const char *spec) {
+  char name[40] = "", v[220], path[120], up[120], hdr[200], err[160]; if (sscanf(spec, "/_shmod.%39[a-z0-9_]", name) != 1 || strncmp(name, "round2_", 7)) { look_kv("shmod/error", "bad name"); return; }
+  if (sv_game_open()) { look_kv("shmod/refused", "a game is open - close it first"); return; }
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\n", key); snprintf(path, sizeof path, "/ps4/prx?name=%s", name);
+  unsigned char *d = 0; size_t len = 0; int st = r2tls_fetch(ENGINE_HOST, "GET", path, hdr, 0, 0, &d, &len, 4 * 1024 * 1024, err, sizeof err);
+  if (st != 200 || !d || len < 64 || memcmp(d, "\x7f" "ELF", 4)) { snprintf(v, sizeof v, "download %d %s (%zu bytes)", st, err, len); free(d); look_kv("shmod/error", v); return; }
+  mkdir("/data/GoldHEN", 0777); mkdir("/data/GoldHEN/plugins", 0777); snprintf(up, sizeof up, "/data/GoldHEN/plugins/%s.prx", name);
+  unlink(up); FILE *f = fopen(up, "wb"); int okw = f && fwrite(d, 1, len, f) == len; if (f) fclose(f); free(d); chmod(up, 0777);
+  if (!okw) { look_kv("shmod/error", "could not save it"); return; }
+  char out[120], don[130]; snprintf(out, sizeof out, "/data/round2/%s.txt", name); snprintf(don, sizeof don, "%s.done", out); unlink(out); unlink(don);
+  struct r2_prx_load a; memset(&a, 0, sizeof a); snprintf(a.process_name, sizeof a.process_name, "SceShellUI"); snprintf(a.prx_path, sizeof a.prx_path, "/user/data/GoldHEN/plugins/%s.prx", name);
+  long r = r2_sdk(6, &a); snprintf(v, sizeof v, "%zu bytes, call %ld, result 0x%llx", len, r, (unsigned long long)a.res); look_kv("shmod/load", v); sv_log("shmod: %s into SceShellUI: %s", name, v);
+  int done = 0; for (int i = 0; i < 30 && !(done = file_exists(don)); i++) sleep(1);
+  struct stat ss; long sz = stat(out, &ss) ? -1 : (long)ss.st_size; snprintf(v, sizeof v, "%s, %ld bytes", done ? "finished" : "not finished in 30 s", sz); look_kv("shmod/result", v); sv_log("shmod: %s %s", name, v);
+  if (sz > 0) { size_t n = 0; char *b = read_all(out, &n, 1024 * 1024); if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/%s-%s.txt", name, console_id); int u2 = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shmod/upload", u2 ? "failed" : k); } }
+}
 static void look_rename(const char *spec) {
   char u[16] = "", nm[40] = "", v[160], have[40] = ""; if (sscanf(spec, "/_rename.%8[0-9a-f].%31[A-Za-z0-9_]", u, nm) != 2) { look_kv("rename/error", "bad spec"); return; }
   uint32_t uid = (uint32_t)strtoul(u, 0, 16); if (uid == r2_main_user()) { look_kv("rename/refused", "never the main profile"); return; }
@@ -4348,6 +4368,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_rename.", 9)) look_rename(t); /* 1.1.100 */
     else if (!strcmp(t, "/_ghver")) look_ghver(); /* 1.1.103 */
     else if (!strcmp(t, "/_shprobe")) look_shprobe(key);
+    else if (!strncmp(t, "/_shmod.", 8)) look_shmod(key, t); /* 1.1.109 */
     else if (!strcmp(t, "/_renamesi.on")) { put_file("/data/round2/rename-signedin", "1"); look_kv("renamesi/result", "member loads now rename signed-in spares"); }
     else if (!strcmp(t, "/_renamesi.off")) { unlink("/data/round2/rename-signedin"); look_kv("renamesi/result", "signed-in spares keep their names"); }
     else if (!strncmp(t, "/_udel.", 7)) look_udel(t);
