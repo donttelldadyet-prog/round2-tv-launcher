@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.93"
+#define R2_VERSION "1.1.94"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2480,7 +2480,7 @@ static void look_memload(const char *key, const char *spec) {
    /_memload (renames it <Name>, links it, loads every game the player has in the cloud); a player with nothing in the cloud
    yet gets the link + the name only (/_memtag). While a clean slate runs it answers "waits" – the engine tries again. Result
    keys memplay/loading | memplay/ready | memplay/waits | memplay/refused, value "<profile> <text>". */
-static void look_memplay(const char *key, const char *spec) {
+static void memplay_one(const char *key, const char *spec) {
   char id[32] = "", sl[16] = "", nm[40] = "", st[16] = "", want[64], v[200], ms[200];
   if (sscanf(spec, "/_memplay.%31[a-z0-9-].%15[a-z0-9].%31[A-Za-z0-9_]", id, sl, nm) != 3 || !mem_ok(id) || !mem_ok(sl)) { look_kv("memplay/error", "bad spec"); return; }
   cl_rd("state", st, sizeof st);
@@ -2505,6 +2505,32 @@ static void look_memplay(const char *key, const char *spec) {
   sv_log("member play: %s/%s '%s' -> profile %s, linked (no saves in the cloud yet; rename 0x%08x)", id, sl, shown, u, (unsigned)r);
   bpop("%s: profile ready - sign in as %s", shown, shown);
   snprintf(v, sizeof v, "%s new member - profile linked and named", u); look_kv("memplay/ready", v);
+}
+/* 1.1.94 (owner 20 Nov 12:53am: tick several crew players and load them at once): "/_memplay.<member>.<slot>.<Name>[.<slot>.<Name>…]"
+   (up to 4). The first player starts now; the others wait in /data/round2/memq and start one after another when the load
+   before them is done (clean_step) – a player with nothing in the cloud yet is linked and named at once. */
+#define MEMQ "/data/round2/memq"
+static void memplay_next(const char *key) {
+  char b[600] = "", ln[200]; FILE *f = fopen(MEMQ, "r"); if (!f) return;
+  size_t n = fread(b, 1, sizeof b - 1, f); b[n] = 0; fclose(f);
+  char *nl = strchr(b, '\n'); if (!b[0]) { unlink(MEMQ); return; }
+  if (nl) { *nl = 0; snprintf(ln, sizeof ln, "%s", b); put_file(MEMQ, nl + 1); if (!nl[1]) unlink(MEMQ); } else { snprintf(ln, sizeof ln, "%s", b); unlink(MEMQ); }
+  char id[32], sl[16], nm[40], spec[160]; if (sscanf(ln, "%31s %15s %39s", id, sl, nm) != 3) return;
+  snprintf(spec, sizeof spec, "/_memplay.%s.%s.%s", id, sl, nm);
+  int m0 = look_mute; look_mute = 1; look_last[0] = 0; memplay_one(key, spec); look_mute = m0;
+  sv_log("member play queue: %s %s -> %s", id, sl, look_last);
+  if (!strncmp(look_last, "memplay/ready", 13) || !strncmp(look_last, "memplay/refused", 15) || !strncmp(look_last, "memplay/error", 13)) memplay_next(key); /* nothing started - go on */
+}
+static void look_memplay(const char *key, const char *spec) {
+  char buf[200], *tok[12]; int nt = 0; snprintf(buf, sizeof buf, "%s", spec + 10);
+  for (char *p = buf, *q; p && nt < 12; p = q) { q = strchr(p, '.'); if (q) *q++ = 0; tok[nt++] = p; }
+  if (nt < 3 || !(nt % 2)) { look_kv("memplay/error", "bad spec"); return; }
+  unlink(MEMQ);
+  if (nt > 3) { FILE *f = fopen(MEMQ, "w"); if (f) { for (int i = 3; i + 1 < nt; i += 2) fprintf(f, "%s %s %s\n", tok[0], tok[i], tok[i + 1]); fclose(f); } }
+  char one[160]; snprintf(one, sizeof one, "/_memplay.%s.%s.%s", tok[0], tok[1], tok[2]);
+  memplay_one(key, one);
+  if (nt > 3 && !strncmp(look_last, "memplay/", 8)) {} /* look_last only filled when muted */
+  { char st[16] = ""; cl_rd("state", st, sizeof st); if (strcmp(st, "running") && strcmp(st, "paused")) memplay_next(key); } /* first one didn't start a load: go on now */
 }
 static void look_copy(const char *spec) {
   char st[16] = ""; cl_rd("state", st, sizeof st);
@@ -3226,6 +3252,7 @@ static void clean_step(const char *key, int budget) {
       char rn[120] = "", kd[16] = "", lb[48] = ""; long long t0 = 0; cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kd, &t0, lb);
       if (!strcmp(kd, "prep")) { for (char *c = lb; *c; c++) if (*c == '_') *c = ' ';
         sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "Member %s is READY: %d games loaded, %d failed, in %.0f s", lb, done - fails, fails, atof(tb)); }
+      if (!strcmp(kd, "prep") && file_exists(MEMQ)) memplay_next(key); /* 1.1.94: next ticked player */
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
       bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } } }
   if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
