@@ -39,7 +39,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.81"
+#define R2_VERSION "1.1.82"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2295,6 +2295,39 @@ static void look_restoreall(void) {
   sv_log("restore test started: %d games from restore point %s (%s)", ng, lab, stamp);
   char v[80]; snprintf(v, sizeof v, "%d games from restore point %s", ng, lab); look_kv("restoreall/started", v);
 }
+/* 1.1.82 (owner 19 Nov 7:21pm: "if we expect a member, the data should be in their profile beforehand"): STAGE 1 test of
+   member prepare-ahead. "/_prepmember.<target profile>.<source profile>.<Name>" - every game of <source profile> in this PS4's
+   restore point is moved into <target profile> (a spare, never the main), which is renamed <Name> (letters, digits, '_' =
+   space; skipped if it is signed in). Same background job and timings as /_restoreall; the pop-up says when the member is ready.
+   (Stage 2 will take the saves from the member's own cloud folder instead of a profile's restore point.) */
+static void look_prepmember(const char *spec) {
+  char tu[16] = "", su[16] = "", nm[40] = "", st[16] = "", lab[24] = "", stamp[24] = "", sst[16] = "", v[160]; int dn = 0, tt = 0, fl = 0; long long by = 0;
+  if (sscanf(spec, "/_prepmember.%8[0-9a-f].%8[0-9a-f].%31[A-Za-z0-9_]", tu, su, nm) != 3) { look_kv("prep/error", "bad spec"); return; }
+  uint32_t tid = (uint32_t)strtoul(tu, 0, 16);
+  if (tid == r2_main_user()) { look_kv("prep/refused", "not the main profile"); return; }
+  if (!prof_slot_base(tid)) { look_kv("prep/refused", "no such target profile"); return; }
+  cl_rd("state", st, sizeof st);
+  if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("prep/refused", "a clean slate / copy is already running"); return; }
+  if (!snap_status(lab, stamp, sst, &dn, &tt, &fl, &by) || strcmp(sst, "done")) { look_kv("prep/refused", "no finished restore point on this PS4"); return; }
+  FILE *ix = fopen(SNAPD "/index", "r"); if (!ix) { look_kv("prep/error", "no restore point list"); return; }
+  mkdir(CLND, 0777);
+  FILE *td = fopen(CLND "/todo", "w"); if (!td) { fclose(ix); look_kv("prep/error", "can't write the list"); return; }
+  char ln[200], u[16], t[16], pn[48], pt[16] = ""; int f, fl2, ng = 0; unsigned long long b;
+  while (fgets(ln, sizeof ln, ix)) {
+    if (sscanf(ln, "%15s %15s %47s %d %llu %d", u, t, pn, &f, &b, &fl2) != 6 || fl2 || strcmp(u, su) || r2_homebrew(t) || !strcmp(t, VUE_ID) || !strcmp(t, pt)) continue;
+    fprintf(td, "%s %s\n", tu, t); ng++; snprintf(pt, sizeof pt, "%s", t);
+  }
+  fclose(ix); fclose(td);
+  char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
+  if (user_signed_in(tid)) sv_log("member prep: profile %s is signed in - name left as it is", tu);
+  else { int r = sceUserServiceSetUserName((int32_t)tid, shown); sv_log("member prep: profile %s renamed to '%s' (0x%08x)", tu, shown, (unsigned)r); }
+  cl_begin("prep", nm);
+  cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("rtime", "0\n"); cl_wr("mode", "restore %s %s\n", stamp, su);
+  cl_wr("state", ng ? "running\n" : "done\n"); clean_on = ng > 0;
+  sv_log("member prep started: '%s' into profile %s from %s's saves in restore point %s: %d games", shown, tu, su, lab, ng);
+  bpop("Preparing member %s: %d games into their profile...", shown, ng);
+  snprintf(v, sizeof v, "%d games for %s into profile %s", ng, shown, tu); look_kv("prep/started", v);
+}
 static void look_copy(const char *spec) {
   char st[16] = ""; cl_rd("state", st, sizeof st);
   if (strcmp(spec, "/_copy.all")) { look_kv("copy/error", "bad spec (use /_copy.all)"); return; }
@@ -2931,8 +2964,8 @@ static void clean_step(const char *key, int budget) {
     sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer();
     { char rm[48] = ""; cl_rd("mode", rm, sizeof rm);
       if (!strncmp(rm, "restore ", 8)) { /* 1.1.77: "/_restoreall" - each game moved back in from the restore point, timed */
-        char stp[24] = "", ms[300], tb[48] = ""; sscanf(rm + 8, "%23s", stp);
-        snprintf(ms, sizeof ms, "/_gmove.%s.%s.%s/%s/%s/_game/%s", u, t, console_id, u, t, stp);
+        char stp[24] = "", su[16] = "", ms[300], tb[48] = ""; sscanf(rm + 8, "%23s %15s", stp, su); /* 1.1.82: su = source profile (member prep) */
+        snprintf(ms, sizeof ms, "/_gmove.%s.%s.%s/%s/%s/_game/%s", u, t, console_id, su[0] ? su : u, t, stp);
         double d0 = g_t_dl, w0 = g_t_wr, b0 = g_t_bk, k0 = g_t_mk, g0 = tm_now(); unsigned long long by0 = g_b_dl;
         look_mute = 1; look_last[0] = 0; int r = look_gmove(key, ms); look_mute = 0;
         if (r) { sv_log("restore test: user %s game %s NOT restored - %s", u, t, look_last[0] ? look_last : "see save.log"); cl_err("%s game %s not restored: %s", u, t, look_last[0] ? look_last : "?"); }
@@ -2979,6 +3012,9 @@ static void clean_step(const char *key, int budget) {
   fclose(td);
   if (pos >= total) { cl_wr("state", "done\n"); clean_on = 0; sv_log("clean slate DONE: %d games, %d failed, %d parts removed", done, fails, parts); clean_finish(done, fails, parts);
     { char rm[48] = "", tb[48] = ""; cl_rd("mode", rm, sizeof rm); if (!strncmp(rm, "restore ", 8)) { cl_rd("rtime", tb, sizeof tb);
+      char rn[120] = "", kd[16] = "", lb[48] = ""; long long t0 = 0; cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kd, &t0, lb);
+      if (!strcmp(kd, "prep")) { for (char *c = lb; *c; c++) if (*c == '_') *c = ' ';
+        sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "Member %s is READY: %d games loaded, %d failed, in %.0f s", lb, done - fails, fails, atof(tb)); }
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
       bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } } }
   if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
@@ -3780,6 +3816,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_copy.", 7)) look_copy(t);
     else if (!strcmp(t, "/_copycheck")) look_copycheck();
     else if (!strcmp(t, "/_restoreall")) look_restoreall();
+    else if (!strncmp(t, "/_prepmember.", 13)) look_prepmember(t);
     else if (!strncmp(t, "/_purge.", 8)) look_purge(t);
     else if (!strncmp(t, "/_reset", 7)) look_reset(t);
     else if (!strncmp(t, "/_input.", 8)) look_input(t);
