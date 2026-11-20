@@ -98,3 +98,10 @@ so names are read from the running menu with Mono reflection. Nothing is called 
 One read-only add-on, `round2_sweep2` (sweep1 = same with a 1.8 MB cap, cut on Kaeden), run on EVERY PS4 (not one per firmware): rest mode, wake, network-in-rest, timers, Remote
 Play, log-in/out, users, controllers, PS button – class/method names, constants (registry assembly in full), every system function
 the menu calls. Result: R2 `lib/probe/round2_sweep2-<console>.txt` + helper 1.1.111 `/_pwrreg`. Kaeden DONE 20 Nov 6:10am (2.36 MB, complete); then each room when the owner turns it on.
+
+## round2_shell9 + helper 1.1.124 (20 Nov 9:10pm, Kaeden)
+- shell9 = shell8 without the 2-s wait: logs everyone out the moment the tile leaves the front (fg.txt checked every 0.1 s; the
+  helper writes it within 0.25 s during a load). Owner had ~4 s of usable menu with shell8.
+- **Quirk logged:** a new add-on name loads NEXT TO the old one if the menu is already running the old one (helper checked only its
+  own name). shell8 + shell9 ran together on Kaeden from 21:11:14 – menu fine. Fixed for the next helper build (wait for the next
+  PS4 start while any add-on heartbeat is fresh). Until then: restart the PS4 after an add-on change.
