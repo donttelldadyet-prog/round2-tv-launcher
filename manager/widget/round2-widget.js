@@ -10,7 +10,8 @@
 //   money     today's bookings: how many were made today, paid / not paid, cancelled, the latest one
 //   health    the health light in full (SimplyBook use, background timers, payments to sort, TVs not reporting)
 //   tomorrow  tomorrow's first session and rooms (the board shows this by itself once tonight's last guest has left)
-//   count     lock screen: the next room to finish, counting down live (the round lock widget does this without a word)
+//   count     lock screen: the next rooms to start or finish (rooms at the same time together), counting down live
+//             (the round lock widget does this without a word); then the group after it
 //   room:Kai  just one room, in detail          nonames   hide guest names
 // Data refreshes every few minutes (iOS decides exactly when). Tap a widget to open the control centre.
 const KEY = '__KEY__', API = '__URL__', CC = 'https://staff.round2.sg/';
@@ -292,23 +293,30 @@ async function build() {
 
   /* ----- lock screen (one colour, no names) ----- */
   /* (6) countdown (owner 20 Nov): the next room to finish, live – iOS counts the seconds itself, no refresh needed */
-  const cd = one ? (one.st === 'in' ? { r: one.r, at: one.till, t: 'out' } : one.next ? { r: one.r, at: one.next, t: 'in' } : null)
+  /* rooms that start or finish at the same time count down together (owner 20 Nov: "doesn't show stacking rooms with same
+     start times") – the next group of starts or ends, then the one after it */
+  const G = []; for (const e of (j.events || []).filter((e) => e.at > Date.now() && (!only || e.r.toLowerCase() === only))) {
+    const g = G[G.length - 1]; if (g && g.t === e.t && Math.abs(g.at - e.at) < 60e3) { if (!g.rs.includes(e.r)) g.rs.push(e.r); } else G.push({ at: e.at, t: e.t, rs: [e.r] }); }
+  const cd0 = one ? (one.st === 'in' ? { r: one.r, at: one.till, t: 'out' } : one.next ? { r: one.r, at: one.next, t: 'in' } : null)
     : j.nextEnd ? { r: j.nextEnd.r, at: j.nextEnd.at, t: 'out' } : j.nextStart ? { r: j.nextStart.r, at: j.nextStart.at, t: 'in' } : null;
+  const cd = !one && G[0] ? Object.assign({ r: G[0].rs[0] }, G[0]) : cd0 && Object.assign({ rs: [cd0.r] }, cd0), cd2 = (one ? G.find((g) => cd && g.at > cd.at + 60e3) : G[1]) || null;
+  const grpName = (g) => g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ');
   const timer = (st, at, sz, color) => { const d = st.addDate(new Date(at)); d.applyTimerStyle(); d.font = fnt(sz, 'time'); d.textColor = color || INK; d.lineLimit = 1; d.minimumScaleFactor = 0.5; return d; };
   if (fam === 'accessoryCircular' && view !== 'rooms') {
     w.addAccessoryWidgetBackground = true;
     const st = w.addStack(); st.layoutVertically(); st.centerAlignContent();
     if (!cd) { const a = line(st); a.addSpacer(); if (one) ico(a, RICON[one.r], rc(one.r), 18); else txt(a, c.in + '/' + c.open, 18, INK, true); a.addSpacer(); const b = line(st); b.addSpacer(); txt(b, one ? one.st.toUpperCase() : over(j) ? 'DONE' : 'IN', 10, MUTE); b.addSpacer(); return w; }
-    const a = line(st); a.addSpacer(); ico(a, RICON[cd.r], rc(cd.r), 15); a.addSpacer();
+    const a = line(st); a.spacing = 1; a.addSpacer(); for (const r of cd.rs.slice(0, 3)) ico(a, RICON[r], rc(r), cd.rs.length > 1 ? 11 : 15); a.addSpacer();
     const b = line(st); b.addSpacer(); timer(b, cd.at, 13); b.addSpacer();
     const e = line(st); e.addSpacer(); txt(e, cd.t === 'out' ? 'OUT' : 'IN', 8, MUTE, true); e.addSpacer();
     return w;
   }
   if (fam === 'accessoryRectangular' && view === 'count') {
     if (!cd) { txt(w, over(j) ? 'Tonight done' : 'Nobody in', 13, INK, true); const T = j.tomorrow; if (T && T.first) txt(w, 'Tomorrow ' + clk(T.first.at) + ' ' + T.first.r, 12, INK); return w; }
-    const a = line(w); a.spacing = 4; ico(a, RICON[cd.r], rc(cd.r), 14); txt(a, cd.r + (cd.t === 'out' ? ' out ' : ' in ') + clk(cd.at), 13, INK, 'room'); a.addSpacer();
+    const a = line(w); a.spacing = 3; for (const r of cd.rs.slice(0, 4)) ico(a, RICON[r], rc(r), 13);
+    txt(a, grpName(cd) + (cd.t === 'out' ? ' out ' : ' in ') + clk(cd.at), 12.5, INK, true); a.addSpacer();
     timer(w, cd.at, 22);
-    const nx = cd.t === 'out' && j.nextStart ? j.nextStart : null; if (nx) txt(w, 'then ' + nx.r + ' in ' + clk(nx.at), 11, MUTE);
+    if (cd2) { const b = line(w); b.spacing = 3; txt(b, 'then', 11, MUTE); for (const r of cd2.rs.slice(0, 4)) ico(b, RICON[r], rc(r), 10); txt(b, grpName(cd2) + (cd2.t === 'out' ? ' out ' : ' in ') + clk(cd2.at), 11, MUTE); b.addSpacer(); }
     return w;
   }
   if (fam === 'accessoryRectangular' && view === 'money') {
@@ -320,7 +328,13 @@ async function build() {
     const H = hl(j); txt(w, H.lv >= 2 ? '● Needs someone' : H.lv ? '● Keep an eye' : '● All systems OK', 13, INK, true);
     for (const x of H.list.slice(0, 2)) txt(w, x.t.replace(/^[^\w"]+/, ''), 11, INK); if (!H.list.length && j.health && j.health.sb != null) txt(w, j.health.sb + ' SimplyBook requests today', 11, MUTE); return w;
   }
-  if (fam === 'accessoryInline' && view === 'count' && cd) { w.addText(cd.r + ' ' + cd.t + ' ' + clk(cd.at)); return w; }
+  if (fam === 'accessoryInline' && view === 'count' && cd) { w.addText(cd.rs.join(' + ') + ' ' + cd.t + ' ' + clk(cd.at)); return w; }
+  if (fam === 'accessoryRectangular' && view === 'tomorrow') {
+    const T = j.tomorrow; if (!T || !T.first) { txt(w, 'Tomorrow', 13, INK, true); txt(w, T ? 'Nothing booked yet' : 'Update the engine', 12, MUTE); return w; }
+    const a = line(w); a.spacing = 3; txt(a, 'Tomorrow · ' + T.n, 13, INK, true); for (const r of (T.rooms || []).slice(0, 5)) ico(a, RICON[r], rc(r), 11); a.addSpacer();
+    const b = line(w); b.spacing = 3; txt(b, 'First ' + clk(T.first.at), 12, INK); ico(b, RICON[T.first.r], rc(T.first.r), 12); txt(b, T.first.r, 12, INK); b.addSpacer();
+    txt(w, T.last ? 'Last out ' + clk(T.last) : '', 11, MUTE); return w;
+  }
   if (fam === 'accessoryInline') {
     const e = j.nextEnd, s = j.nextStart, m = msgs.filter((q) => q.at > Date.now())[0], x = ev[0];
     w.addText(one ? one.r + ' ' + stateOf(one).short + (tvOf(one) ? ' · ' + tvOf(one) : '')
