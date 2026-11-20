@@ -258,6 +258,13 @@ For the admin who handles extensions. Control centre › **In session** (engine 
 ## Switching apps while a banner is up (31 Oct 2026)
 
 - **Android:** the small banner is a system overlay, so it stays on top when the guest jumps YouTube → Netflix with the remote's Netflix button (or the TV ignores that button while the card has the remote – it shakes, like any other button). Pressing Home brings the message straight back as the big banner (`FoodAlerts.menuInFront`).
+  **Sony (Max, Kaeden), fixed 20 Nov 2026 (app 1.0.287):** Sony never pauses the menu for an HDMI input or its own Netflix, so
+  Home arrives as `onNewIntent`, not `onResume` – and the swap to the big banner never ran (owner, Max 2pm: "That's a wrap!" on
+  the PS4 input, Home to the menu, no banner). `onNewIntent` with Home now calls `FoodAlerts.menuInFront("home")` too.
+  Home itself stays allowed (Android can't stop it): it is what brings the message back as the big banner, which needs OK.
+- **The TV's own message log (Android 1.0.287+):** the last 40 message events (big/small banner and why, OK, Home, cut-off,
+  asleep) in the app and at Firebase `/r2/<key>/<room>/msgLog`. Read it with the engine's `msglog` action (staff code; or
+  `diag:req` `[{"action":"msglog","room":"max"}]`) before asking anyone what they saw.
 - **LG:** webOS may close the Round2 Alerts card when another app opens. The helper (`watch_apps`) checks 2 s after any app-to-app switch whether `sg.round2.alerts` is still running; if not, it clears `card.up`/`msg.last`/`food.last` so a message waiting for OK, or Loot dropped, pops up again over the new app within seconds. Home pressed while the card was up: `card.up` is cleared and the big banner shows straight away.
 - No-OK messages and Order locked in are not brought back (they were already shown once).
 

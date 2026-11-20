@@ -83,6 +83,7 @@ public class FoodAlerts extends Service {
      *  becomes a small banner straight away. */
     static void menuLeft() {
         final FoodAlerts s = inst;
+        if (s != null && prefs(s).getString("msg", null) != null) mlog(s, "menu left (paused) with a message waiting");
         if (s != null) s.main.postDelayed(new Runnable() { @Override public void run() { s.main.removeCallbacks(s.msgTick); s.main.post(s.msgTick); } }, 700);
     }
 
@@ -103,9 +104,11 @@ public class FoodAlerts extends Service {
         catch (Exception e) { return "Active"; }
     }
 
-    static void menuInFront() {
+    static void menuInFront() { menuInFront("resume"); }
+    static void menuInFront(String how) {
         final FoodAlerts s = inst;
         if (s == null) return;
+        if (s.card != null && s.msgCardId != null) mlog(s, s.msgCardId + " back on the menu (" + how + "): small banner off, big banner next");
         s.main.post(new Runnable() { @Override public void run() { s.hideCard(); } });
         /* a message still waiting for OK (e.g. its small banner was up and the guest pressed Home instead of OK) comes
            back straight away as the big banner on the home screen, not at the next 5-minute reminder. If the menu is
@@ -800,7 +803,7 @@ public class FoodAlerts extends Service {
             main.postDelayed(this, REPEAT_MS);
         }
     };
-    private String msgCardId;
+    private String msgCardId, asleepId;
     private final Runnable msgTick = new Runnable() {
         @Override public void run() {
             main.removeCallbacks(this);
@@ -811,9 +814,9 @@ public class FoodAlerts extends Service {
                 JSONObject d = new JSONObject(j);
                 String id = d.optString("id");
                 long now = Clock.now(), at = d.optLong("at", 0), until = d.optLong("until", at + 3 * 3600_000L);
-                if (now > until) { p.edit().remove("msg").apply(); if (card != null && id.equals(msgCardId)) { hideCard(); msgCardId = null; } return; }
+                if (now > until) { p.edit().remove("msg").apply(); if (card != null && id.equals(msgCardId)) { hideCard(); msgCardId = null; } mlog(FoodAlerts.this, id + " cut-off: gone"); return; }
                 if (now < at) { main.postDelayed(this, Math.min(at - now, 60_000)); return; }
-                if (!"Active".equals(power())) { main.postDelayed(this, 60_000); return; }   // TV asleep: waits – the screen-on receiver shows it straight away (overnight review 5 Nov)
+                if (!"Active".equals(power())) { if (!id.equals(asleepId)) { asleepId = id; mlog(FoodAlerts.this, id + " due, TV asleep: waits"); } main.postDelayed(this, 60_000); return; }   // TV asleep: waits – the screen-on receiver shows it straight away (overnight review 5 Nov)
                 if (card != null && id.equals(msgCardId)) { main.postDelayed(this, Math.max(1_000, Math.min(MSG_REPEAT_MS, until - now + 1_000))); return; }   // still on screen
                 if (card != null && foodCardNo != null) { main.postDelayed(this, 30_000); return; }   // Loot dropped is up: it comes first, then this
                 boolean again = id.equals(p.getString("msgShownId", ""));
@@ -842,9 +845,11 @@ public class FoodAlerts extends Service {
     }
 
     private void showMsg(String json, boolean again) {
-        if (MainActivity.showMsg(json)) return;                           // Round2 Home is in front: the menu shows it
         JSONObject d;
         try { d = new JSONObject(json); } catch (Exception e) { return; }
+        String why = MainActivity.whereMsg();
+        if (MainActivity.showMsg(json)) { mlog(this, d.optString("id") + " " + d.optString("kind") + (again ? " again" : "") + ": big banner (menu) · " + why); return; }   // Round2 Home is in front: the menu shows it
+        mlog(this, d.optString("id") + " " + d.optString("kind") + (again ? " again" : "") + ": small banner · " + why + " · front " + HomeWatch.nowFront);
         if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
             try { Toast.makeText(this, d.optString("title") + "\n" + d.optString("text"), Toast.LENGTH_LONG).show(); } catch (Exception ignored) { }
             return;
@@ -871,7 +876,7 @@ public class FoodAlerts extends Service {
         okLocked = !last;
         if (i > 0) onLeft = new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i - 1); } };
         if (!last) onRight = new Runnable() { @Override public void run() { pageTurn = true; showMsgPage(d, again, pg, i + 1); } };
-        onOk = new Runnable() { @Override public void run() { msgCardId = null; if (ack) msgAck(FoodAlerts.this, id); } };
+        onOk = new Runnable() { @Override public void run() { msgCardId = null; mlog(FoodAlerts.this, id + " OK on the small banner"); if (ack) msgAck(FoodAlerts.this, id); } };
         // must be acknowledged: stays until OK (Back and other buttons only shake it), gone at the cut-off;
         // no OK needed: 45 s (owner's rules, 31 Oct 2026 – docs/guest-messages.md "Big banner vs small banner")
         showCard(tag, i == 0 ? d.optString("title") : "", text, "", ack ? 0 : READY_SHOW_MS, "", false);
@@ -909,4 +914,34 @@ public class FoodAlerts extends Service {
     }
 
     private static void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException ignored) { } }
+
+    /* ---------- the TV's own message log (owner, 20 Nov: Max's "That's a wrap!" – read the TV's records, don't ask him) ----------
+       The last 40 message events (big or small banner, OK, Home, cut-off, asleep), kept on the TV and copied to
+       /r2/<key>/<room>/msgLog so the engine's tvmsgs report can read them. A few dozen events a day: one small write each. */
+    private static final java.util.ArrayDeque<String> MLOG = new java.util.ArrayDeque<>();
+    static void mlog(Context c, String what) {
+        try {
+            Clock.load(c);
+            String line = new java.text.SimpleDateFormat("d MMM HH:mm:ss", java.util.Locale.UK) {{ setTimeZone(java.util.TimeZone.getTimeZone("Asia/Singapore")); }}.format(new java.util.Date(Clock.now())) + " " + what;
+            final org.json.JSONArray arr;
+            synchronized (MLOG) {
+                if (MLOG.isEmpty()) { try { org.json.JSONArray old = new org.json.JSONArray(prefs(c).getString("mlog", "[]")); for (int i = 0; i < old.length(); i++) MLOG.add(old.getString(i)); } catch (Exception ignored) { } }
+                MLOG.add(line); while (MLOG.size() > 40) MLOG.poll();
+                arr = new org.json.JSONArray(MLOG);
+            }
+            prefs(c).edit().putString("mlog", arr.toString()).apply();
+            final String room = prefs(c).getString("room", "");
+            if (!enabled() || room.isEmpty()) return;
+            new Thread(new Runnable() { @Override public void run() {
+                HttpURLConnection h = null;
+                try {
+                    h = (HttpURLConnection) new URL(FB_URL + "/r2/" + BuildConfig.FOOD_ALERT_KEY + "/" + room + "/msgLog.json").openConnection();
+                    h.setConnectTimeout(15_000); h.setReadTimeout(15_000); h.setDoOutput(true); h.setRequestMethod("PUT");
+                    h.setRequestProperty("Content-Type", "application/json");
+                    h.getOutputStream().write(new JSONObject().put("v", BuildConfig.VERSION_NAME).put("lines", arr).toString().getBytes("UTF-8"));
+                    h.getResponseCode();
+                } catch (Exception ignored) { } finally { if (h != null) h.disconnect(); }
+            } }, "msg-log").start();
+        } catch (Exception ignored) { }
+    }
 }

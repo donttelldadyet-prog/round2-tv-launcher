@@ -206,12 +206,17 @@ public class MainActivity extends Activity {
         if (room != null) { pendingRoom = room; applyPendingRoom(); }
         // Check for new event backgrounds now: adb shell am start -n sg.round2.tvhome/.MainActivity --ez syncThemes true
         // The remote's Home button (via the Home button helper) while the menu is already open: back to the main menu
+        boolean home = intent.getBooleanExtra("home", false) || (Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME));
         if (intent.getBooleanExtra("home", false) && web != null && pageReady)
             web.evaluateJavascript("window.r2Home && window.r2Home()", null);
         /* the remote's own Home while we never paused (Max, 5 Nov: Sony runs its Netflix / HDMI inputs outside Android, so the
            menu kept "opening an app": no ambience, and "That's a wrap" drawn behind the app). Home = the guest is back. */
         else if (Intent.ACTION_MAIN.equals(intent.getAction()) && intent.hasCategory(Intent.CATEGORY_HOME) && web != null && pageReady)
             web.evaluateJavascript("window.r2Home && window.r2Home()", null);
+        /* Max, 20 Nov 2pm (owner): "That's a wrap!" showed as the small banner over the PS4, Home took him to the menu – and the
+           big banner never came. On Sony the menu is never paused for an HDMI input, so onResume (where FoodAlerts.menuInFront
+           swaps the small banner for the big one) didn't run. Home = back on the menu, whichever way it arrives. */
+        if (home) { leavingAt = 0; front = this; FoodAlerts.menuInFront("home"); }
         if (intent.getBooleanExtra("syncThemes", false) && web != null)
             web.evaluateJavascript("window.r2SyncThemes && window.r2SyncThemes(true)", null);
     }
@@ -404,6 +409,13 @@ public class MainActivity extends Activity {
     }
 
     /** A personal message (FoodAlerts): the menu shows it if it is on screen. False = show it natively. */
+    /** For the TV's message log: why a message goes to the menu or to the small banner. */
+    static String whereMsg() {
+        MainActivity a = front;
+        if (a == null) return "menu not in front";
+        if (a.leavingAt > 0) return "menu opening an app " + (System.currentTimeMillis() - a.leavingAt) / 1000 + " s ago";
+        return a.pageReady ? "menu in front" : "menu loading";
+    }
     static boolean showMsg(final String json) {
         final MainActivity a = front;
         if (a == null) return false;
