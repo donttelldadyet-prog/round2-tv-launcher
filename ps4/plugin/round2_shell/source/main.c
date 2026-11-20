@@ -7,6 +7,10 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 12.00 (owner 21 Nov 2:26am: after the 2:24am clean slate the controller couldn't get back in; his guess: a raw log-out. The log
+//   shows the menu's own LogoutAll at 2:24:08, picker already un-paused by it 3 s later, then our "bring back profile picker" on a
+//   picker that wasn't paused any more). (a) resume the picker only if it is still paused; (b) PROBE: for 30 s after every log-out,
+//   one line every 2 s – picker paused?, controller buttons/pad list – so the next stuck controller leaves a trace. Proven functions only.
 // 11.00 (owner 20 Nov 10:25pm: "for the automatic cleanslate, the detector should be the trigger, no key triggers on the menu or
 //   game"): the MENU half of the button detector. While a reset countdown is armed (/data/round2/input/arm = a future time, the
 //   same switch the in-game detector round2_input uses), every change of the controller buttons writes the time to
@@ -61,12 +65,12 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#define R2SH_VER "11.00"
-#define R2SH_NAME "round2_shell11"
+#define R2SH_VER "12.00"
+#define R2SH_NAME "round2_shell12"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00001100;
+attr_public u32 g_pluginVersion = 0x00001200;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -163,7 +167,8 @@ static void lock_on(const char *why) {
 static void *g_lockobj(void) { extern void *mono_gchandle_get_target(unsigned int); return g_lock ? mono_gchandle_get_target(g_lock) : 0; }
 static void lock_off(const char *why) {
   if (g_lock) { void *o = g_lockobj(); if (o) inv("PS button unlock", mDispose, o, 0, 0); mono_gchandle_free(g_lock); g_lock = 0; lg("PS + Share buttons UNLOCKED (%s)", why); }
-  if (g_susp) { inv("bring back profile picker", mResume, 0, 0, 0); g_susp = 0; lg("profile picker BACK (%s) - check says %d", why, suspended()); }
+  if (g_susp) { int was = suspended(); if (was == 1) { inv("bring back profile picker", mResume, 0, 0, 0); lg("profile picker BACK (%s) - check says %d", why, suspended()); }
+    else lg("profile picker already back (%s) - not resumed again (check said %d)", why, was); g_susp = 0; }   /* 12.00 */
 }
 static int combo_held(int *since) { int b = held_buttons(); if (b >= 0 && (b & COMBO) == COMBO) { if (!*since) *since = (int)time(0); return (int)time(0) - *since >= 1; } *since = 0; return 0; }
 static int loading(void) {
@@ -233,7 +238,8 @@ static void *shell_thread(void *a) {
       rd_(DIR_U "/fg.txt", fg, sizeof fg);   /* 9.00: no wait */
       if (fg[0] && strcmp(fg, "RTWO00001") && strcmp(fg, "CUSA00960")) lg("a game was opened before the log-out (%s) - it closes now (owner: just close)", fg);
       log_all_out(was == 2 ? "clean slate finished" : "member load finished");
-      lock_off("after the log-out - guests press PS and pick their profile"); }
+      lock_off("after the log-out - guests press PS and pick their profile");
+      for (int i = 0; i < 15; i++) { sleep(2); int b = held_buttons(); lg("after log-out +%ds: picker paused %d, buttons 0x%x%s", (i + 1) * 2, suspended(), b < 0 ? 0 : b, b < 0 ? " (pads unreadable)" : ""); } }   /* 12.00 probe */
     was = l; usleep(l ? 100000 : 1000000);
   }
   lock_off("a newer add-on took over"); lg("stopped - a newer add-on is running");
