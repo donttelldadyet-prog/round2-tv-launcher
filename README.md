@@ -100,6 +100,11 @@ wrap!" at 6:00pm showed as the big banner at 6:00, 6:05, 6:10 and was never OK'd
 getting through. Fix by hand as on 14 Nov (Accessibility › Round2 Home button off, then on). **Lesson: updating Kai = the helper
 needs that off/on afterwards** until one of the options below is chosen (option 3 – restart a helper that is ON but not
 running, e.g. right after an update via MY_PACKAGE_REPLACED – would cover this case).
+**Built 20 Nov (owner: "ok build for me"), app 1.0.288, TCL only:** `UpdateReceiver.guardCheck` – the helper switched ON in
+Accessibility but neither bound by Android nor its `:guard` process alive → off, 1.5 s, on; at most once per 10 min; checked
+20 s and 60 s after the app starts (so after every update) and with each 5-minute check-in. The update's own off/on now waits
+1.5 s (was 0.5 s). Everything it does goes to the TV's log (`msgLog`, "helper: …" lines; engine `msglog` action) and the
+check-in carries `hg` = on / on-stopped / off (+np = no permission to restart). Never switches the helper on when it is off.
 
 **Ways forward, none chosen:**
 1. *Helper stops listening to the remote on TCL* – watch for the TV's own home screen appearing and jump back to Round2

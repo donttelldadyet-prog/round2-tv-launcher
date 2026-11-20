@@ -218,6 +218,9 @@ public class FoodAlerts extends Service {
         main.post(msgTick);   // a message waiting from before a restart
         main.postDelayed(lootAgain, REPEAT_MS);   // Loot dropped not OK'd before a restart: reminders carry on (overnight review 5 Nov)
         main.post(heartbeat);   // check-in for the control centre (On the TVs now)
+        /* Kai (TCL): the Home-button helper ON but not running after an update or a kill → restart it (UpdateReceiver.guardCheck) */
+        main.postDelayed(new Runnable() { @Override public void run() { UpdateReceiver.guardCheck(FoodAlerts.this, "start-up +20 s"); } }, 20_000);
+        main.postDelayed(new Runnable() { @Override public void run() { UpdateReceiver.guardCheck(FoodAlerts.this, "start-up +60 s"); } }, 60_000);
         main.postDelayed(cmdPoll, 30_000);   // "Update now" from the control centre
         try { registerReceiver(screenOn, new android.content.IntentFilter(Intent.ACTION_SCREEN_ON)); } catch (Exception ignored) { }
         try {   /* the app in front, from the Accessibility helper's own process (5 Nov) */
@@ -259,11 +262,13 @@ public class FoodAlerts extends Service {
                     o.put("pw", power());   /* screen on / asleep (3 Nov) */
                     String ip = lanIp(); if (!ip.isEmpty()) o.put("ip", ip);   /* its address on the shop network – the PC toolkit's "connect kai" reads it (15 Nov) */
                     try { org.json.JSONArray ex = exits(); if (ex.length() > 0) o.put("exits", ex); } catch (Exception ignored) { }   /* why a part of the app last stopped (6 Nov) */
+                    o.put("hg", UpdateReceiver.guardState(FoodAlerts.this));   /* the Home-button helper: on / on-stopped / off (+np = no permission to restart) – 20 Nov */
                     h.getOutputStream().write(o.toString().getBytes("UTF-8"));
                     h.getResponseCode();
                 } catch (Exception ignored) { }
                 finally { if (h != null) h.disconnect(); }
             } }, "heartbeat").start();
+            UpdateReceiver.guardCheck(FoodAlerts.this, "check-in");
             main.postDelayed(this, 5 * 60_000L);
         }
     };
