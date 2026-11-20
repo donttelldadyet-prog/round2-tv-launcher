@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.127"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.128"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -4877,10 +4877,18 @@ static void *alive_thread(void *arg) {
    the menu add-on) is written within 0.25 s while a member load runs or just finished (else every 2 s); the pop-up the moment
    the tile is gone. */
 static void *fg_thread(void *arg) {
-  (void)arg; char last[32] = "-";
+  (void)arg; char last[32] = "-"; int sent_tile = -1; double tile_try = 0;
   for (;;) {
     int hot = g_after_load || file_exists("/data/round2/memqn");
     char rt[32]; running_title(rt, sizeof rt);
+    /* 1.1.128 (owner 10:02pm): tell the engine the moment the Round2 tile opens or closes, so the phone's Load is refused at once
+       when it isn't open. Only on a change (retry every 10 s if the engine didn't answer). */
+    { int on = !strcmp(rt, "RTWO00001");
+      if (on != sent_tile && g_alive_key[0] && mono_s() - tile_try >= 10) { tile_try = mono_s();
+        char hdr[220], req[160], body[120], err[120]; snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", g_alive_key);
+        int n = snprintf(req, sizeof req, "{\"id\":\"%s\",\"v\":\"%s\",\"tile\":%d}", console_id, R2_VERSION, on);
+        int r = r2tls_request_quiet(ENGINE_HOST, "POST", "/ps4/alive", hdr, req, n, body, sizeof body, err, sizeof err);
+        if (r == 200) { sent_tile = on; tile_try = 0; } else sv_log("tile %s: engine not told (%d %s) - trying again in 10 s", on ? "open" : "closed", r, err); } }
     if (strcmp(rt, last)) { snprintf(last, sizeof last, "%s", rt); put_file("/data/round2/fg.txt", rt); }
     if (g_after_load && (strcmp(rt, "RTWO00001") || time(0) - g_after_load > 20)) {
       int game = rt[0] && strcmp(rt, "RTWO00001") && strcmp(rt, VUE_ID);
