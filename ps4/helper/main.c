@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.130"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.131"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -141,6 +141,7 @@ int sceRegMgrSetStr(long, const char *, int);
 int sceRegMgrSetBin(long, const void *, int);
 int sceUserServiceSetUserName(int32_t, const char *);
 int sceUserServiceLogin(int32_t);
+int sceUserServiceGetForegroundUser(int32_t *);
 int sceUserServiceLogout(int32_t);
 int sceSystemServiceGetAppIdOfBigApp(void);
 int sceLncUtilGetAppTitleId(int, char *);
@@ -2977,6 +2978,41 @@ static int kept_newer(const char *key, uint32_t pu, const char *id, const char *
     if (!o) o = fopen(of, "w"); if (o) fprintf(o, "%s\n", t); n++; sv_log("member play: %s game %s newer in the cloud (%lld, loaded here %lld)", mtag, t, bt, at); }
   if (o) fclose(o); free(b); return n;
 }
+/* 1.1.131 PKG STEP 1 (owner 20 Nov 10:38pm: "whenever a pkg job is sent, check guest is inside etc. pass all the safety checks, then
+   check if profile is logged in … after a clean slate … the press ps button with no logged in profile, so use main profile").
+   "/_pkgprep" = the safety checks + sign the main profile in if nobody is (the PS4's installer needs a signed-in, foreground
+   user). The engine already refuses any PS4 job while the room has a session now or within 15 min. "/_pkgdone" = the job is
+   over: if WE signed the main profile in, the menu add-on logs everyone out its own way (controllers stay fine). Nothing is
+   installed yet – this step proves the sign-in from the PS-button screen. */
+static int g_pkg_login;   /* 1 = this helper signed the main profile in for a PKG job */
+static void look_pkgprep(void) {
+  char rt[32] = "", st[16] = "", v[220]; running_title(rt, sizeof rt); cl_rd("state", st, sizeof st);
+  if (rt[0]) { snprintf(v, sizeof v, "- an app is open (%s)", rt); look_kv("pkgprep/refused", v); return; }
+  if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("pkgprep/refused", "- a clean slate / save job is running"); return; }
+  if (file_exists("/data/round2/memqn")) { look_kv("pkgprep/refused", "- a member load is running"); return; }
+  if (cd_on) { look_kv("pkgprep/refused", "- a reset countdown is running"); return; }
+  UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l); int n = 0; char who[120] = "";
+  for (int i = 0; i < 4; i++) if (l.userId[i] != -1 && l.userId[i]) { char nm[40] = ""; sceUserServiceGetUserName(l.userId[i], nm, sizeof nm); size_t k = strlen(who); snprintf(who + k, sizeof who - k, "%s%s", k ? ", " : "", nm); n++; }
+  int fg = -1, rf = sceUserServiceGetForegroundUser(&fg);
+  if (n) { snprintf(v, sizeof v, "already signed in: %s (foreground %08x, 0x%08x) - used as is", who, (unsigned)fg, (unsigned)rf); sv_log("pkg prep: %s", v); look_kv("pkgprep/ready", v); return; }
+  uint32_t m = r2_main_user(); if (!m) { look_kv("pkgprep/refused", "- no main profile known"); return; }
+  double t0 = tm_now(); int r = sceUserServiceLogin((int32_t)m), in = 0;
+  for (int w = 0; w < 40 && !(in = user_signed_in(m)); w++) usleep(250000);
+  rf = sceUserServiceGetForegroundUser(&fg);
+  g_pkg_login = in; if (in) put_file("/data/round2/pkg-login", "1\n");
+  snprintf(v, sizeof v, "main profile %08x sign-in 0x%08x: %s in %.1f s; foreground %08x (0x%08x)", m, (unsigned)r, in ? "signed in" : "NOT signed in", tm_now() - t0, (unsigned)fg, (unsigned)rf);
+  sv_log("pkg prep: %s", v); look_kv(in ? "pkgprep/ready" : "pkgprep/error", v);
+}
+static void look_pkgdone(void) {
+  if (!g_pkg_login && !file_exists("/data/round2/pkg-login")) { look_kv("pkgdone/result", "nothing to undo - the helper didn't sign anyone in"); return; }
+  g_pkg_login = 0; unlink("/data/round2/pkg-login");
+  char v[160]; int ok = 0;
+  if (R2_SHELL && shell_alive()) { unlink("/data/round2/shell-logout-now.done"); put_file("/data/round2/shell-logout-now", "1\n");
+    for (int w = 0; w < 40 && !(ok = file_exists("/data/round2/shell-logout-now.done")); w++) usleep(200000);
+    unlink("/data/round2/shell-logout-now"); unlink("/data/round2/shell-logout-now.done"); }
+  snprintf(v, sizeof v, "%s", ok ? "everyone logged out by the menu add-on (PS-button screen)" : "menu add-on didn't answer - main profile left signed in");
+  sv_log("pkg done: %s", v); look_kv("pkgdone/result", v);
+}
 static void look_memplay(const char *key, const char *spec);
 static void cloud_step(const char *key, int budget);
 static void switch_resume(const char *key) {   /* the release is done: start the member load that was waiting */
@@ -4700,6 +4736,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_tile.off")) { unlink("/data/round2/tile-on"); put_file("/data/round2/tile-off", "1"); look_kv("tile/result", "tile switched off for this PS4"); }
     else if (!strncmp(t, "/_prepmember.", 13)) look_prepmember(t);
     else if (!strncmp(t, "/_memtag.", 9)) look_memtag(t);
+    else if (!strcmp(t, "/_pkgprep")) look_pkgprep();   /* 1.1.131 */
+    else if (!strcmp(t, "/_pkgdone")) look_pkgdone();
     else if (!strcmp(t, "/_pf.off")) { put_file("/data/round2/prefetch-off", "1"); look_kv("pf/result", "prefetch OFF"); }
     else if (!strcmp(t, "/_pf.on")) { unlink("/data/round2/prefetch-off"); look_kv("pf/result", "prefetch ON"); }
     else if (!strcmp(t, "/_bb.off")) { put_file("/data/round2/bigbundle-off", "1"); look_kv("bb/result", "big-file bundles OFF"); }
