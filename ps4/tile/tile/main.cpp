@@ -1,4 +1,12 @@
-/* 0.07 (owner 20 Nov 3:03am): no character picture (names went behind the QR code) – text column 130-1070, QR card on the
+/* 0.08 (owner 20 Nov 8:05pm: "animation before and after ready, maybe use round2 logo … give instructions for the controllers next
+   screen cos they dont know whats gonna happen … immediately after close of ps4 tile"):
+   - while saves load the Round2 logo pulses in the room's colour with a white shine sweeping across it;
+   - when a load this tile watched finishes: 3 s "ready" burst (rings from the logo, logo flashes green), then 9 s of "What happens
+     next" (screen closes · TV shows "Press PS button" · press PS · pick your profile · more players each press their own PS) with a
+     countdown bar, then the tile CLOSES ITSELF. The menu add-on logs everyone out as soon as it sees the tile gone.
+   - only after a load it watched: a tile opened later (to switch players) never closes by itself (owner: no idle close).
+   - asks the engine every 3 s while loading (was 8).
+   0.07 (owner 20 Nov 3:03am): no character picture (names went behind the QR code) – text column 130-1070, QR card on the
    right at 1250; the title wraps; the bar label says which player is loading ("player 2 of 3").
    0.06 (owner 20 Nov 2:33am: "can the ps4 tile when launched also show a similar theme, also needs loading bars or something
    responsive to have feedback to guests"): the room's colour + character (like the member page and the TV home screen), a glow, a
@@ -40,7 +48,8 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.07"
+#define TILE_V "0.08"
+#include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
 std::stringstream debugLogStream;
@@ -115,7 +124,7 @@ static void *poller(void *) {
       if (strcmp(g_status, "off") || strcmp(e, g_err)) { strcpy(g_status, "off"); strcpy(g_line, "Cannot reach Round2 right now - trying again..."); g_line2[0] = 0; strcpy(g_err, e); g_dirty = 2; }
     }
     pthread_mutex_unlock(&mx);
-    sceKernelSleep(strcmp(g_status, "loading") && strcmp(g_status, "reset") ? 20 : 8);   /* faster while something is moving */
+    sceKernelSleep(strcmp(g_status, "loading") && strcmp(g_status, "reset") ? 20 : 3);   /* faster while something is moving (0.08: 3 s) */
   }
   return 0;
 }
@@ -156,6 +165,14 @@ static int wrap(FT_Face f, const char *s, int x, int y, int maxw, int lh, Color 
   return y;
 }
 static void logo(int x, int y, Color c) { for (int j = 0; j < LOGO_H; j++) for (int i = 0; i < LOGO_W; i++) blend(x + i, y + j, c, LOGO_A[j * LOGO_W + i]); }
+/* 0.08: the logo in colour c at strength a (0-255), plus a white shine band centred at sx (logo x) */
+static void logo_fx(int x, int y, Color c, int a, int sx) {
+  for (int j = 0; j < LOGO_H; j++) for (int i = 0; i < LOGO_W; i++) { int la = LOGO_A[j * LOGO_W + i]; if (!la) continue;
+    blend(x + i, y + j, c, la * a / 255); int d = abs(i - sx + (j - LOGO_H / 2) / 3); if (d < 50) blend(x + i, y + j, WHITE, la * (50 - d) / 60); } }
+static void ring(int cx, int cy, int r, int t, Color c, int a) {
+  if (r <= 0 || a <= 0) return; int r2o = (r + t) * (r + t), r2i = r * r;
+  for (int y = cy - r - t; y <= cy + r + t; y++) for (int x = cx - r - t; x <= cx + r + t; x++) { int d = (x - cx) * (x - cx) + (y - cy) * (y - cy); if (d >= r2i && d <= r2o) blend(x, y, c, a); } }
+static double now_s(void) { return sceKernelGetProcessTime() / 1e6; }
 static void draw_qr(const char *t, int x, int y, int size) {
   static uint8_t qr[qrcodegen_BUFFER_LEN_MAX], tmp[qrcodegen_BUFFER_LEN_MAX];
   if (!t[0] || !qrcodegen_encodeText(t, tmp, qr, qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN, qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true)) return;
@@ -207,13 +224,16 @@ int main() {
   const int BX = 130, BY = 900, BW = 940, BH = 22;          /* progress bar */
   const int QX = 1270, QY = 230, QS = 480;                   /* QR card (0.07: right, clear of the text) */
   char pkk[8] = "", pnn[8] = "", pnw[32] = "";
+  int seen_loading = 0, howto = 0; double ready_t0 = 0;   /* 0.08 */
+  FT_Face fF = fMid;
   for (;;) {
-    if (g_dirty > 0 && BASE) {
+    if (g_dirty > 0 && BASE && !howto) {   /* 0.08: the instruction card stays until the tile closes */
       char room[32], url[200], line[200], line2[200], err[64], ti[80], co[8], rn[32];
       pthread_mutex_lock(&mx); strcpy(ti, g_title); strcpy(room, g_room); strcpy(url, g_url); strcpy(line, g_line); strcpy(line2, g_line2); strcpy(st, g_status); strcpy(err, g_err);
       strcpy(co, g_color); strcpy(rn, g_rname); done = atoi(g_done); total = atoi(g_total); strcpy(pkk, g_pk); strcpy(pnn, g_pn); strcpy(pnw, g_pnow); g_dirty--;
       pthread_mutex_unlock(&mx);
       FB = BASE; AC = hexc(co, GOLD); busy = !strcmp(st, "loading") || !strcmp(st, "reset");
+      if (busy) seen_loading = 1; if (!strcmp(st, "done") && seen_loading && !ready_t0) ready_t0 = now_s();   /* 0.08 */
       for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {   /* background + the room-colour glow from the top right */
         int dx = x - 1650, dy = y + 150; float d = (float)(dx * dx + dy * dy) / (1350.f * 1350.f); float g = d < 1 ? (1 - d) * (1 - d) * 0.34f : 0;
         int r = BG.r + (int)((AC.r - BG.r) * g), gg = BG.g + (int)((AC.g - BG.g) * g), b = BG.b + (int)((AC.b - BG.b) * g);
@@ -246,7 +266,27 @@ int main() {
       else { int span = BW - 220, p = (frame * 7) % (2 * span), x = p < span ? p : 2 * span - p; rect(BX + x, BY, 220, BH, AC); snprintf(lab, sizeof lab, "Getting ready"); }
       lx = text(fSmall, lab, BX, BY + 70, INK);
       char dots[8]; int n = (frame / 20) % 4; for (int i = 0; i < n; i++) dots[i] = '.'; dots[n] = 0; text(fSmall, dots, lx + 4, BY + 70, AC);
-    } else if (!strcmp(st, "done")) { shown = 0; rect(BX, BY, BW, BH, GREEN); text(fSmall, "All set - enjoy!", BX, BY + 70, GREEN); }
+      logo_fx(130, 90, AC, 110 + (int)(110 * (frame % 90 < 45 ? frame % 45 : 45 - frame % 45) / 45), (frame * 10) % (LOGO_W + 300) - 150);   /* 0.08 */
+    } else if (!strcmp(st, "done") && !howto) { shown = 0; rect(BX, BY, BW, BH, GREEN); text(fSmall, "All set - enjoy!", BX, BY + 70, GREEN); }
+    if (ready_t0) {   /* 0.08: ready burst, then "what happens next", then close */
+      double e = now_s() - ready_t0;
+      if (e < 3.0) { int cx = 130 + LOGO_W / 2, cy = 90 + LOGO_H / 2;
+        for (int k = 0; k < 3; k++) { double q = e - k * 0.45; if (q > 0) ring(cx, cy, (int)(q * 520), 6, k == 1 ? AC : GREEN, (int)(200 * (1 - q / 3.0))); }
+        logo_fx(130, 90, GREEN, 120 + (int)(120 * (1 - (e - (int)e))), (int)(e * 400) % (LOGO_W + 300) - 150); }
+      else if (e < 12.0) {
+        if (!howto && BASE) { howto = 1; FB = BASE;   /* compose the instruction card once */
+          rect(0, 0, W, H, BG); rect(0, 0, W, 12, AC); logo(130, 90, WHITE);
+          int y = wrap(fBig, "What happens next", 130, 380, 1660, 84, GREEN);
+          const char *L[] = { "1.  This screen closes by itself.", "2.  Your TV shows \"Press PS button\".", "3.  Press the PS button on your controller.",
+                              "4.  Pick your profile - it has your name and picture.", "5.  More players? Each one presses PS on their own controller and picks theirs." };
+          y += 20; for (int i = 0; i < 5; i++) y = wrap(fF, L[i], 150, y + 18, 1620, 56, i == 2 || i == 3 ? INK : DIM);
+          FB = scene->Buf(); memcpy(FB, BASE, W * H * 4); }
+        double left = 12.0 - e; int bw = (int)(1660 * left / 9.0); if (bw < 0) bw = 0;
+        rect(130, 960, 1660, 18, CARD); rect(130, 960, bw, 18, AC);
+        char cl[48]; snprintf(cl, sizeof cl, "Closing in %d", (int)left + 1); text(fSmall, cl, 130, 1030, DIM);
+        logo_fx(130, 90, AC, 60, (frame * 10) % (LOGO_W + 300) - 150); }
+      else { sceSystemServiceLoadExec("exit", NULL); exit(0); }
+    }
     else { shown = 0; int a = 110 + (int)(100 * (frame % 120 < 60 ? frame % 60 : 60 - frame % 60) / 60); frame_box(QX - 20, QY - 20, QS + 40, QS + 40, 4, AC, a); }
     scene->SubmitFlip(frame); scene->FrameWait(frame); scene->FrameBufferSwap(); frame++;
   }

@@ -1,11 +1,11 @@
 # Package metadata.
 TITLE       := Round2
-VERSION     := 0.07
+VERSION     := 0.08
 TITLE_ID    := RTWO00001
 CONTENT_ID  := IV0000-RTWO00001_00-ROUND2MEMBERS000
 
 # Libraries linked into the ELF.
-LIBS        := -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceFreeType -lSceNet -lSceSsl -lSceHttp
+LIBS        := -lc -lkernel -lc++ -lSceVideoOut -lSceSysmodule -lSceFreeType -lSceNet -lSceSsl -lSceHttp -lSceSystemService
 
 # Additional compile flags.
 EXTRAFLAGS  := -DGRAPHICS_USES_FONT
