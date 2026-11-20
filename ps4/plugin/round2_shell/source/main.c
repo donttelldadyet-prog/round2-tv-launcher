@@ -7,6 +7,10 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 10.00 (owner 20 Nov 10:14pm: "can the clean slate also follow the logout logic … we can logout controllers to go into ps button"):
+//   the PS button is also locked during a clean slate / session reset, and everyone is logged out the menu's way at the end;
+//   the helper can ask for that log-out at the START of a reset (/data/round2/shell-logout-now -> .done) instead of signing
+//   spares out itself (which left the controllers stuck). No new Mono functions.
 // 9.00 (owner 20 Nov 9:02pm: could move in the menu ~4 s between the tile closing and the log-out): logs out the MOMENT the tile is
 //   gone (checks every 0.1 s; the helper 1.1.124 writes fg.txt within 0.25 s) – no 2-s wait for the pop-up any more.
 // 8.00 (20 Nov 8:50pm): waits at most 20 s for the tile (was 40 – the 8:36pm test waited all 40 s for a tile that never closed).
@@ -53,12 +57,12 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#define R2SH_VER "9.00"
-#define R2SH_NAME "round2_shell9"
+#define R2SH_VER "10.00"
+#define R2SH_NAME "round2_shell10"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000900;
+attr_public u32 g_pluginVersion = 0x00001000;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -162,7 +166,10 @@ static int loading(void) {
   if (exists_(DIR_U "/memqn")) return 1;
   char st[32] = "", run[64] = ""; int fd = open(DIR_U "/clean/state", O_RDONLY); if (fd >= 0) { int n = read(fd, st, sizeof st - 1); if (n > 0) st[n] = 0; close(fd); }
   fd = open(DIR_U "/clean/run", O_RDONLY); if (fd >= 0) { int n = read(fd, run, sizeof run - 1); if (n > 0) run[n] = 0; close(fd); }
-  return !strncmp(run, "prep", 4) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6));
+  int on = !strncmp(st, "running", 7) || !strncmp(st, "paused", 6);
+  if (on && !strncmp(run, "prep", 4)) return 1;
+  if (on && (!strncmp(run, "reset", 5) || !strncmp(run, "clean", 5) || !strncmp(run, "purge", 5))) return 2;   /* 10.00: clean slate */
+  return 0;
 }
 static int still_me(void) { char g[16] = ""; int fd = open(DIR_U "/shell.gen", O_RDONLY); if (fd >= 0) { int n = read(fd, g, sizeof g - 1); if (n > 0) g[n] = 0; close(fd); } return !strcmp(g, R2SH_NAME); }
 
@@ -204,19 +211,20 @@ static void *shell_thread(void *a) {
   while (still_me()) {
     if (time(0) - alive >= 30) { char t[24]; snprintf(t, sizeof t, "%ld\n", (long)time(0)); put_(DIR_U "/shell.alive", t); alive = time(0); }
     int l = loading();
+    if (exists_(DIR_U "/shell-logout-now")) { unlink(DIR_U "/shell-logout-now"); log_all_out("the helper asked (clean slate starting)"); put_(DIR_U "/shell-logout-now.done", "1\n"); }   /* 10.00 */
     if (!l && !was && exists_(DIR_U "/shell-selftest")) self_test();
-    if (l && !was) { lg("member load started"); lt = time(0); lock_on("member load"); }
+    if (l && !was) { lg("%s started", l == 2 ? "clean slate" : "member load"); lt = time(0); lock_on(l == 2 ? "clean slate" : "member load"); }
     if (l && g_lock && (time(0) - lt > 600)) lock_off("10 min limit");
     if (l && g_lock && combo_held(&since)) lock_off("unlock combo");
     if (!l && was) {   /* 7.00 (owner 8:22pm "continue blocking controllers? then after logout"): the PS button stays LOCKED until
                           after the log-out, so nobody can leave the tile for a game on the wrong profile; unlocked right after */
-      lg("member load finished - PS button stays locked until everyone is logged out");
+      lg("%s finished - PS button stays locked until everyone is logged out", was == 2 ? "clean slate" : "member load");
       char fg[40]; time_t t0 = time(0); rd_(DIR_U "/fg.txt", fg, sizeof fg); int tile = !strcmp(fg, "RTWO00001");
       while (!strcmp(fg, "RTWO00001") && time(0) - t0 < 20) { usleep(100000); rd_(DIR_U "/fg.txt", fg, sizeof fg); if (g_lock && combo_held(&since)) lock_off("unlock combo"); }   /* until the tile closes */
       lg("after the load: tile %s (%ld s)", !tile ? "wasn't open" : !strcmp(fg, "RTWO00001") ? "still open after 20 s" : "closed", (long)(time(0) - t0));
       rd_(DIR_U "/fg.txt", fg, sizeof fg);   /* 9.00: no wait */
       if (fg[0] && strcmp(fg, "RTWO00001") && strcmp(fg, "CUSA00960")) lg("a game was opened before the log-out (%s) - it closes now (owner: just close)", fg);
-      log_all_out("member load finished");
+      log_all_out(was == 2 ? "clean slate finished" : "member load finished");
       lock_off("after the log-out - guests press PS and pick their profile"); }
     was = l; usleep(l ? 100000 : 1000000);
   }
