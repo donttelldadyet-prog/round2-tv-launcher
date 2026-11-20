@@ -28,7 +28,7 @@ public class R2Pkg {
 }
 
 public static class R2Srv {
-  public static string ConfigPath, Token, Version = "1.0";
+  public static string ConfigPath, Token, StaffPath, Version = "1.1";
   public static int Port;
   public static List<string> Folders = new List<string>();
   public static List<R2Pkg> Pkgs = new List<R2Pkg>();
@@ -125,7 +125,7 @@ public static class R2Srv {
     return o;
   }
   static string ListJson() {
-    StringBuilder b = new StringBuilder("{\"ok\":true,\"v\":" + Q(Version) + ",\"port\":" + Port + ",\"token\":" + Q(Token) + ",\"active\":" + active + ",\"servedMB\":" + (servedBytes >> 20) + ",\"scanned\":" + Q(ScannedAt.ToString("HH:mm:ss")) + ",\"ips\":[");
+    StringBuilder b = new StringBuilder("{\"ok\":true,\"push\":" + Q(PushNote) + ",\"staff\":" + (Staff().Length > 0 ? "true" : "false") + ",\"v\":" + Q(Version) + ",\"port\":" + Port + ",\"token\":" + Q(Token) + ",\"active\":" + active + ",\"servedMB\":" + (servedBytes >> 20) + ",\"scanned\":" + Q(ScannedAt.ToString("HH:mm:ss")) + ",\"ips\":[");
     List<string> ips = Ips(); for (int i = 0; i < ips.Count; i++) { string[] p = ips[i].Split('|'); b.Append(i > 0 ? "," : "").Append("{\"ip\":" + Q(p[0]) + ",\"nic\":" + Q(p[1]) + "}"); }
     b.Append("],\"folders\":[");
     for (int i = 0; i < Folders.Count; i++) b.Append(i > 0 ? "," : "").Append("{\"path\":" + Q(Folders[i]) + ",\"there\":" + (Directory.Exists(Folders[i]) ? "true" : "false") + "}");
@@ -139,6 +139,42 @@ public static class R2Srv {
   }
 
   // ---------- folder picker (Windows dialog, on this laptop) ----------
+  // ---------- tell the booking engine what's here (1.1, 20 Nov 11:10pm: the control centre page can't reach this laptop
+  // directly from https, so the list goes to the engine; the control centre reads it from there, from any phone or computer) ----------
+  static string lastPushed = ""; static DateTime lastPushAt = DateTime.MinValue; public static string PushNote = "not sent yet";
+  static string Staff() { try { return File.Exists(StaffPath) ? File.ReadAllText(StaffPath).Trim() : ""; } catch { return ""; } }
+  static string BestIp() { List<string> ips = Ips(); foreach (string x in ips) if (x.StartsWith("192.168.")) return x.Split('|')[0]; return ips.Count > 0 ? ips[0].Split('|')[0] : ""; }
+  static string PushJson() {
+    StringBuilder b = new StringBuilder("{\"v\":" + Q(Version) + ",\"ip\":" + Q(BestIp()) + ",\"port\":" + Port + ",\"token\":" + Q(Token) + ",\"folders\":[");
+    for (int i = 0; i < Folders.Count; i++) b.Append(i > 0 ? "," : "").Append(Q(Folders[i]));
+    b.Append("],\"pkgs\":[");
+    List<R2Pkg> ps; lock (L) ps = new List<R2Pkg>(Pkgs); int n = 0;
+    foreach (R2Pkg p in ps) { if (p.Err != null || p.TitleId == null) continue;
+      b.Append(n++ > 0 ? "," : "").Append("{\"id\":" + Q(p.Id) + ",\"name\":" + Q(p.Name) + ",\"dir\":" + Q(System.IO.Path.GetDirectoryName(p.Path)) + ",\"size\":" + p.Size + ",\"cid\":" + Q(p.ContentId) + ",\"tid\":" + Q(p.TitleId) +
+        ",\"title\":" + Q(p.Title) + ",\"cat\":" + Q(p.Category) + ",\"appver\":" + Q(p.AppVer) + ",\"ver\":" + Q(p.Version) + ",\"fw\":" + Q(p.SysVer) + "}"); }
+    return b.Append("]}").ToString();
+  }
+  public static void Pusher() {
+    ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;   // TLS 1.2
+    while (true) {
+      try {
+        string st = Staff(), js = PushJson(); bool due = js != lastPushed || (DateTime.Now - lastPushAt).TotalMinutes >= 10;
+        if (st.Length == 0) PushNote = "add the staff code on this page so the control centre sees your files";
+        else if (due) {
+          using (WebClient w = new WebClient()) {
+            System.Collections.Specialized.NameValueCollection f = new System.Collections.Specialized.NameValueCollection();
+            f.Add("staff", st); f.Add("action", "pkglap"); f.Add("data", js); f.Add("active", active.ToString()); f.Add("servedMB", (servedBytes >> 20).ToString());
+            string r = Encoding.UTF8.GetString(w.UploadValues("https://round2-book.donttelldadyet.workers.dev/gm", f));
+            if (r.Contains("\"ok\":true")) { lastPushed = js; lastPushAt = DateTime.Now; PushNote = "control centre up to date (" + DateTime.Now.ToString("HH:mm") + ")"; }
+            else PushNote = "the engine said: " + (r.Length > 120 ? r.Substring(0, 120) : r);
+          }
+        }
+      } catch (Exception e) { PushNote = "couldn't reach the engine: " + e.Message; }
+      Thread.Sleep(30000);
+    }
+  }
+  public static void PushNow() { lastPushed = ""; }
+
   static string Pick() {
     string res = null;
     Thread t = new Thread(delegate () {
@@ -156,6 +192,7 @@ public static class R2Srv {
     TcpListener l = new TcpListener(IPAddress.Any, Port); l.Start();
     Log("sharing on port " + Port + " - addresses: " + string.Join(", ", Ips().ToArray()));
     Thread keep = new Thread(KeepAwake); keep.IsBackground = true; keep.Start();
+    Thread push = new Thread(Pusher); push.IsBackground = true; push.Start();
     while (true) { TcpClient c = l.AcceptTcpClient(); Thread th = new Thread(Handle); th.IsBackground = true; th.Start(c); }
   }
   static void KeepAwake() {
@@ -186,6 +223,7 @@ public static class R2Srv {
       string body = "";
       if (m == "POST") { int len = 0; string cl; if (hd.TryGetValue("Content-Length", out cl)) int.TryParse(cl, out len); if (len > 0 && len < 1 << 16) { byte[] b = new byte[len]; int n = 0; while (n < len) { int r = s.Read(b, n, len - n); if (r <= 0) break; n += r; } body = Encoding.UTF8.GetString(b, 0, n); } }
       string q = path.Contains("?") ? Uri.UnescapeDataString(path.Substring(path.IndexOf('?') + 1)) : ""; string route = path.Split('?')[0];
+      if (route == "/api/staff") { string k = body.Trim(); if (k.StartsWith("code=")) k = Uri.UnescapeDataString(k.Substring(5)); if (k.Length > 0 && k.Length < 200) { File.WriteAllText(StaffPath, k); PushNow(); } Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
       if (route == "/api/list") { Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
       if (route == "/api/scan") { Scan(); Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
       if (route == "/api/pick") { string f = Pick(); if (f != null && !Folders.Contains(f)) { Folders.Add(f); SaveFolders(); Scan(); } Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
@@ -232,9 +270,10 @@ public static class R2Srv {
     return "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>Round2 PKG server</title>" +
       "<style>body{font:15px system-ui;margin:20px;background:#111;color:#eee}button{font:inherit;padding:6px 12px;margin:2px}td{padding:3px 8px;border-bottom:1px solid #333}.g{color:#8f8}.p{color:#8cf}.a{color:#fc8}.e{color:#f88}</style>" +
       "<h2>Round2 PKG server</h2><p>Keep this running. Send games from the control centre (staff.round2.sg &rsaquo; PS4 games).</p>" +
-      "<div id=f></div><button onclick=\"go('/api/pick')\">+ Add folder or drive</button> <button onclick=\"go('/api/scan')\">Scan again</button><div id=l></div>" +
+      "<div id=k></div><div id=f></div><button onclick=\"go('/api/pick')\">+ Add folder or drive</button> <button onclick=\"go('/api/scan')\">Scan again</button><div id=l></div>" +
       "<script>function go(u){fetch(u).then(r=>r.json()).then(show)}function rm(p){fetch('/api/remove',{method:'POST',body:p}).then(r=>r.json()).then(show)}" +
-      "function show(j){document.getElementById('f').innerHTML='<h3>Folders</h3>'+j.folders.map(f=>'<div>'+f.path+(f.there?'':' <span class=e>(not connected)</span>')+' <button onclick=\\'rm('+JSON.stringify(f.path)+')\\'>remove</button></div>').join('')+'<p>Shared at '+j.ips.map(i=>i.ip+' ('+i.nic+')').join(', ')+' port '+j.port+' &middot; downloads now: '+j.active+' &middot; sent '+j.servedMB+' MB</p>';" +
+      "function stf(){fetch('/api/staff',{method:'POST',body:document.getElementById('sc').value}).then(r=>r.json()).then(show)}" +
+      "function show(j){document.getElementById('k').innerHTML='<p>Control centre: '+j.push+'</p>'+(j.staff?'':'<p>Staff code: <input id=sc type=password> <button onclick=stf()>Save</button></p>');document.getElementById('f').innerHTML='<h3>Folders</h3>'+j.folders.map(f=>'<div>'+f.path+(f.there?'':' <span class=e>(not connected)</span>')+' <button onclick=\\'rm('+JSON.stringify(f.path)+')\\'>remove</button></div>').join('')+'<p>Shared at '+j.ips.map(i=>i.ip+' ('+i.nic+')').join(', ')+' port '+j.port+' &middot; downloads now: '+j.active+' &middot; sent '+j.servedMB+' MB</p>';" +
       "var c={gd:'g',gp:'p',ac:'a'},n={gd:'Game',gp:'Patch',ac:'DLC'};document.getElementById('l').innerHTML='<h3>'+j.pkgs.length+' PKG files</h3><table>'+j.pkgs.map(p=>'<tr><td class='+(p.err?'e':c[p.cat]||'')+'>'+(p.err?'unreadable':n[p.cat]||p.cat)+'</td><td>'+(p.title||p.name)+'</td><td>'+(p.tid||'')+'</td><td>'+(p.appver||p.ver||'')+'</td><td>FW '+(p.fw||'?')+'</td><td>'+(p.size/1073741824).toFixed(2)+' GB</td><td>'+p.name+'</td></tr>').join('')+'</table>'}go('/api/list');setInterval(()=>go('/api/list'),15000)</script>";
   }
 }
@@ -242,6 +281,7 @@ public static class R2Srv {
 Add-Type -TypeDefinition $code -ReferencedAssemblies System.Windows.Forms -Language CSharp
 [R2Srv]::Port = $port
 [R2Srv]::ConfigPath = Join-Path $here 'pkg-folders.txt'
+[R2Srv]::StaffPath = Join-Path $here 'pkg-staff.txt'   # the staff code, so the list reaches the control centre (via the engine)
 # the secret part of the file links - kept in pkg-token.txt so queued jobs still work after a restart of this program
 $tokFile = Join-Path $here 'pkg-token.txt'
 if (Test-Path $tokFile) { $tok = (Get-Content $tokFile -Raw).Trim() }
