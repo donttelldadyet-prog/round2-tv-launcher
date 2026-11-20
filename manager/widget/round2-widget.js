@@ -37,7 +37,7 @@ function pixText(text, color, h) {   /* a pixel-font label as a picture, h point
   T.forEach((c, i) => PFONT[c].forEach((row, y) => { for (let x = 0; x < 5; x++) if (row[x] === '#') ctx.fillRect(new Rect((i * 6 + x) * s, y * s, s, s)); }));
   return { img: ctx.getImage(), w: (Math.max(1, T.length * 6 - 1) / 7) * h, h };
 }
-function plabel(st, text, color, h) { const p = pixText(text, color, h), i = st.addImage(p.img); i.imageSize = new Size(p.w, p.h); return i; }
+function plabel(st, text, color, h) { return txt(st, String(text).toUpperCase(), h * 8 / 7, color, 'pix'); }   /* now the real Press Start 2P (installed font) */
 function segBar(st, color, w, h) {   /* the yellow dashed strip next to SLOT SELECT */
   const ctx = new DrawContext(), s = 3; ctx.size = new Size(w * s, h * s); ctx.opaque = false; ctx.respectScreenScale = false;
   ctx.setFillColor(new Color(color.hex, 0.55)); for (let x = 0; x + 10 <= w * s; x += 14) ctx.fillRect(new Rect(x, 0, 10, h * s));
@@ -76,11 +76,16 @@ function it(parent, icon, iconColor, text, sz, color, kind) { const l = line(par
 function clk(ms) { const d = new Date(ms + 8 * 3600e3), h = d.getUTCHours(), m = d.getUTCMinutes(); return ((h + 11) % 12 + 1) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); }
 /* fonts (owner 20 Nov: "can the fonts be better"): rounded heavy for rooms and big numbers, monospaced for times and the
    ROUND2 badge (digits line up, a little arcade), rounded medium for the rest */
+/* the website's own fonts (owner 20 Nov: "use our theme fonts"): Press Start 2P for room names, labels and big numbers,
+   Chakra Petch for the rest. iPhone widgets can only use fonts installed on the phone – the control centre's "Install Round2
+   fonts" button gives the profile (round2-fonts.mobileconfig). Without it iPhone quietly uses its own font. Press Start 2P
+   fills its whole square, so it is set ~20% smaller to sit level with Chakra Petch. */
+const PS2P = 'PressStart2P-Regular', CHK = { m: 'ChakraPetch-Medium', s: 'ChakraPetch-SemiBold', b: 'ChakraPetch-Bold' };
 function fnt(sz, k) {
-  return k === 'time' ? Font.semiboldMonospacedSystemFont(sz) : k === 'head' ? Font.heavyMonospacedSystemFont(sz) : k === 'room' ? Font.heavyRoundedSystemFont(sz)
-    : k === 'big' ? Font.blackRoundedSystemFont(sz) : k ? Font.boldRoundedSystemFont(sz) : Font.mediumRoundedSystemFont(sz);
+  return k === 'pix' ? new Font(PS2P, sz) : k === 'room' || k === 'head' ? new Font(PS2P, sz * 0.8) : k === 'big' ? new Font(PS2P, sz * 0.78)
+    : k === 'time' ? new Font(CHK.s, sz * 1.08) : k ? new Font(CHK.b, sz * 1.08) : new Font(CHK.m, sz * 1.08);
 }
-function txt(st, s, sz, color, bold) { const t = st.addText(String(s)); t.font = fnt(sz, bold); t.textColor = color || INK; t.lineLimit = 1; t.minimumScaleFactor = 0.6; return t; }
+function txt(st, s, sz, color, bold) { const t = st.addText(bold === 'room' || bold === 'head' || bold === 'big' ? String(s).toUpperCase() : String(s));   /* Press Start 2P in capitals, like the website */ t.font = fnt(sz, bold); t.textColor = color || INK; t.lineLimit = 1; t.minimumScaleFactor = 0.6; return t; }
 function rc(r) { return new Color(RC[r] || '#cccccc'); }
 function line(parent) { const s = parent.addStack(); s.layoutHorizontally(); s.centerAlignContent(); s.spacing = 5; return s; }
 
@@ -211,14 +216,20 @@ function leftLine(parent, r, sz, extra) {
   const d = l.addDate(new Date(r.till)); d.applyTimerStyle(); d.font = fnt(sz, 'time'); d.textColor = soon ? WARN : OK; d.lineLimit = 1;
   txt(l, extra ? 'left · ' + extra : 'left', sz, extra ? INK : MUTE, extra ? '' : undefined); l.addSpacer(); return l;
 }
-function tvTone(r) { return r.tv && (r.tv.quiet || (r.tv.off && r.st === 'in')) ? WARN : INK; }
+function tvTone(r) { return r.st === 'in' && r.tv && (r.tv.quiet || r.tv.off) ? WARN : r.tv && (r.tv.off || r.tv.quiet) ? MUTE : INK; }   /* an empty room's TV being off is normal */
 function box(parent, r, w, h, wide) {
   const s = stateOf(r), b = parent.addStack(); b.layoutVertically(); b.size = new Size(w, h); b.setPadding(5, 7, 5, 6); b.spacing = 1;
   b.backgroundImage = frameImg(r.r, w, h, r.st === 'in');
   const top = line(b); top.spacing = 4; ico(top, RICON[r.r], rc(r.r), wide ? 13 : 11); txt(top, r.r, wide ? 13.5 : 11.5, rc(r.r), 'room'); top.addSpacer();
-  if (!wide && r.st === 'in' && r.till) {   /* medium: end time + the live minutes to go on the name line */
+  if (wide) {   /* large: the room name on its own line, then how it stands (owner 20 Nov: "line break after each room name") */
+    b.addSpacer(2);
+    if (r.st === 'in' && r.till) { const l = line(b); l.spacing = 4; const soon = r.till - Date.now() < 15 * 60e3; txt(l, 'till ' + clk(r.till), 11, INK, 'time');
+      const d = l.addDate(new Date(r.till)); d.applyTimerStyle(); d.font = fnt(11, 'time'); d.textColor = soon ? WARN : OK; d.lineLimit = 1; txt(l, 'left', 10, MUTE); l.addSpacer(); }
+    else { const l = line(b); txt(l, s.big, 11, r.st === 'clean' ? ACC : MUTE, 'time'); l.addSpacer(); }
+    b.addSpacer(2);
+  } else if (r.st === 'in' && r.till) {   /* medium: end time + the live minutes to go on the name line */
     txt(top, clk(r.till), 9.5, MUTE, 'time'); const soon = r.till - Date.now() < 15 * 60e3, d = top.addDate(new Date(r.till)); d.applyTimerStyle(); d.font = fnt(10.5, 'time'); d.textColor = soon ? WARN : OK; d.lineLimit = 1;
-  } else txt(top, s.short.replace(/^till /, '→ '), wide ? 11.5 : 10, r.st === 'in' ? INK : MUTE, 'time');
+  } else txt(top, s.short, 10, MUTE, 'time');
   const tv = tvOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : '';
   if (!wide) {   /* medium: one more line – the game if the PS4 is on, else the TV, else the guest */
     if (ps) it(b, 'pad', INK, (names && s.who ? s.who + ' · ' : '') + ps, 9.5, INK);
@@ -227,8 +238,7 @@ function box(parent, r, w, h, wide) {
     b.addSpacer(); return;
   }
   if (names && s.who) it(b, 'user', MUTE, s.who, 10.5, INK, true);
-  if (r.st === 'in' && r.till) leftLine(b, r, 10.5);
-  if (tv) it(b, 'tv', tvTone(r) === WARN ? WARN : MUTE, tv, 10, tvTone(r));
+  if (tv && (r.st === 'in' || (r.tv && !r.tv.off && !r.tv.quiet))) it(b, 'tv', tvTone(r) === WARN ? WARN : MUTE, tv, 10, tvTone(r));   /* an empty room's TV: only when it's on */
   if (ps) it(b, 'pad', MUTE, ps, 10, INK);
   const A = (r.msgs || []).filter(isAuto), S = (r.msgs || []).filter((m) => !isAuto(m));
   if (A.length) autoLine(b, A, 9.5);
@@ -237,15 +247,15 @@ function box(parent, r, w, h, wide) {
   b.addSpacer();
 }
 /* how many detail lines a big box will show – rows of busy rooms get the room, rows of two free rooms stay short */
-function boxLines(r) { const s = stateOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : ''; return (r.st === 'in' && r.till ? 1 : 0) + (names && s.who ? 1 : 0) + (tvOf(r) ? 1 : 0) + (ps ? 1 : 0) + ((r.msgs || []).some(isAuto) ? 1 : 0) + ((r.msgs || []).some((m) => !isAuto(m)) ? 1 : 0) + (nextLine(r) ? 1 : 0); }
+function boxLines(r) { const s = stateOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : ''; return 1 + (names && s.who ? 1 : 0) + (tvOf(r) && (r.st === 'in' || (r.tv && !r.tv.off && !r.tv.quiet)) ? 1 : 0) + (ps ? 1 : 0) + ((r.msgs || []).some(isAuto) ? 1 : 0) + ((r.msgs || []).some((m) => !isAuto(m)) ? 1 : 0) + (nextLine(r) ? 1 : 0); }
 function boxGrid(w, L, h, wide) {
   const gap = 6, bw = Math.floor((widgetW() - 20 - gap) / 2), rows = [];
   for (let i = 0; i < L.length; i += 2) rows.push(L.slice(i, i + 2));
   let hs = rows.map(() => h);
   if (wide) {   /* h = the space for all rows; share it out by how much each row has to say */
-    const n = rows.map((rw) => Math.max(...rw.map(boxLines))), quiet = n.filter((x) => !x).length, qh = Math.min(48, h / rows.length);
-    const need = n.map((x) => 26 + 14 * x), busy = need.filter((x, i) => n[i]).reduce((a, b) => a + b, 0), k = busy ? (h - quiet * qh) / busy : 0;
-    hs = n.map((x, i) => Math.floor(x ? need[i] * k : (busy ? qh : h / rows.length)));
+    const n = rows.map((rw) => Math.max(...rw.map(boxLines))), quiet = n.filter((x) => x <= 1).length, qh = Math.min(50, h / rows.length);
+    const need = n.map((x) => 30 + 14.5 * x), busy = need.filter((x, i) => n[i] > 1).reduce((a, b) => a + b, 0), k = busy ? (h - quiet * qh) / busy : 0;
+    hs = n.map((x, i) => Math.floor(x > 1 ? need[i] * k : (busy ? qh : h / rows.length)));
   }
   for (let i = 0; i < L.length; i += 2) {
     const row = w.addStack(), rh = hs[i / 2]; row.layoutHorizontally(); row.spacing = gap; h = rh;
@@ -256,7 +266,7 @@ function boxGrid(w, L, h, wide) {
 /* tv row: Room · TV app (since) · PS4 game */
 function tvRow(parent, r, wide) {
   const sz = wide ? 12 : 10.5, row = line(parent); row.spacing = 4;
-  ico(row, RICON[r.r], rc(r.r), sz); const nm = row.addStack(); nm.size = new Size(sz * 5.2, 0); txt(nm, r.r, sz, rc(r.r), 'room');
+  ico(row, RICON[r.r], rc(r.r), sz); const nm = row.addStack(); nm.size = new Size(sz * 6.8, 0); txt(nm, r.r, sz, rc(r.r), 'room');
   ico(row, 'tv', tvTone(r) === WARN ? WARN : MUTE, sz * 0.9); txt(row, (tvOf(r) || '–') + (wide && r.tv && r.tv.at && !r.tv.off ? ' · ' + clk(r.tv.at) : ''), sz, tvTone(r));
   const p = ps4Of(r); if (p) { row.addSpacer(4); ico(row, 'pad', MUTE, sz * 0.9); txt(row, p, sz, r.ps4 && r.ps4.on ? INK : MUTE); }
   row.addSpacer();
@@ -403,7 +413,7 @@ async function build() {
     const nA = fam === 'small' ? 2 : big ? 7 : 3, nS = fam === 'small' ? 2 : big ? 7 : Math.max(1, 4 - Math.min(nA, ar.length));
     if (ar.length) {
       plabel(w, fam === 'small' ? 'AUTO' : 'AUTO · 10-MIN & WRAP', MUTE, 6); w.addSpacer(3);
-      for (const r of ar.slice(0, nA)) { autoLine(w, A[r], sz, (l) => { ico(l, RICON[r], rc(r), sz); if (!sm) { const nm = l.addStack(); nm.size = new Size(sz * 5, 0); txt(nm, r, sz, rc(r), 'room'); } }, sm); w.addSpacer(big ? 5 : 2); }
+      for (const r of ar.slice(0, nA)) { autoLine(w, A[r], sz, (l) => { ico(l, RICON[r], rc(r), sz); if (!sm) { const nm = l.addStack(); nm.size = new Size(sz * 6.8, 0); txt(nm, r, sz, rc(r), 'room'); } }, sm); w.addSpacer(big ? 5 : 2); }
       w.addSpacer(big ? 10 : 5);
     }
     if (S.length) { plabel(w, 'SCHEDULED', MUTE, 6); w.addSpacer(3); for (const m of S.slice(0, nS)) { schedLine(w, m, sz, !sm, !sm); w.addSpacer(big ? 5 : 2); } }
