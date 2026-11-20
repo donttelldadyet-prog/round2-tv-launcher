@@ -4625,7 +4625,7 @@ static int wake_login_main(void) {
    program restarts (the starter brings a fresh one); in GoldHEN's shared program it can only note it (exiting there would
    take the blocker down too). Every action is written to slow.log. */
 extern volatile int r2tls_fd;
-double r2_where_age(void); const char *r2_where_now(void); void r2_where_shift(double secs); void r2_where_flush(double min_age);
+double r2_where_age(void); const char *r2_where_now(void); void r2_where_shift(double secs); void r2_where_flush(double min_age); void r2_where_alive(void);
 static void wd_note(const char *fmt, ...) {
   FILE *f = fopen("/data/round2/slow.log", "a"); if (!f) return;
   time_t x = time(0) + 8 * 3600; struct tm tm; gmtime_r(&x, &tm);
@@ -4673,6 +4673,7 @@ static void *watchdog(void *arg) {
     { double t = mono_s(), slept = t - last - 15; last = t;
       if (slept > 30) { r2_where_shift(slept); cuts = 0; noted = 0; wd_note("woke from rest after about %d s - not counted as stuck", (int)slept); bpop("Woke up after %d min %d s asleep - carrying on", (int)slept / 60, (int)slept % 60); } }
     r2_where_flush(10); /* 1.1.71: where.txt only for a step that lasts */
+    { static double la = 0; double t = mono_s(); if (t - la >= 60) { la = t; r2_where_alive(); } } /* 1.1.114: last minute alive */
     double age = r2_where_age(); const char *st = r2_where_now();
     if (age < 300) { cuts = 0; noted = 0; continue; }
     int net = !strcmp(st, "read") || !strcmp(st, "send") || !strcmp(st, "connect") || !strcmp(st, "handshake") || !strcmp(st, "lookup");
@@ -4789,6 +4790,15 @@ int main(void) {
   drift0 = (long long)time(0) - (long long)mono_s();
   write_status("started, first report in about 10 seconds");
   r2_where_start(R2_VERSION); /* 1.1.26: slow.log gets "the run before was last in: <step>" */
+  { /* 1.1.114 (owner 20 Nov, Kai: switched off or crashed?): the PS4's own power notes at every start, read-only - compared over
+       known events (rest, menu power-off, power button held, power cut) they should tell a switch-off from a crash */
+    int ph = -1, ss = -1; unsigned char sb[8] = { 0 }; unsigned long long sbv = 0;
+    int r1 = sceRegMgrGetInt(0x2820b00, &ph), r2 = sceRegMgrGetInt(0x2820e00, &ss), r3 = sceRegMgrGetBin(0x2820900, sb, 8);
+    for (int j = 7; j >= 0; j--) sbv = (sbv << 8) | sb[j];
+    FILE *f = fopen("/data/round2/slow.log", "a");
+    char ts[24]; { time_t x = time(0) + 8 * 3600; struct tm tm; gmtime_r(&x, &tm); strftime(ts, sizeof ts, "%d/%m %H:%M:%S", &tm); }
+    if (f) { fprintf(f, "%s power notes at start: power_history %d%s, shutdown_status %d%s, standby_start %llu%s\n", ts, ph, r1 ? "(err)" : "", ss, r2 ? "(err)" : "", sbv, r3 ? "(err)" : ""); fclose(f); }
+  }
   { pthread_t wt; if (pthread_create(&wt, 0, watchdog, 0) == 0) pthread_detach(wt); else wd_note("could not start"); } /* 1.1.42 */
   { pthread_t bt; if (pthread_create(&bt, 0, bpop_thread, 0) == 0) pthread_detach(bt); } /* 1.1.75 */
   { pthread_t at; if (pthread_create(&at, 0, alive_thread, 0) == 0) pthread_detach(at); else wd_note("check-in thread could not start"); } /* 1.1.112 */

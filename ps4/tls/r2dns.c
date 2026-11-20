@@ -122,6 +122,14 @@ void r2_where_flush(double min_age) {
   w_written = 1;
   FILE *f = fopen("/data/round2/where.txt", "w"); if (f) { char s[24]; stamp(s, sizeof s, w_wall); fprintf(f, "%s %s\n", s, w_name); fclose(f); }
 }
+/* 1.1.114 (owner 20 Nov 6:38pm, Kai): a PS4 switched fully off mid-session (Kai 3:25pm) left where.txt at 06:25am – it was
+   only written for steps over 10 s. Now the watchdog also writes it once a minute ("alive"), so the start line says the last
+   minute the helper ran and its step (~1,440 small writes a day; the 1.1.71 slimming removed ~8,600). */
+void r2_where_alive(void) {
+  long long now = (long long)time(0); FILE *f = fopen("/data/round2/where.txt", "w");
+  if (f) { char s[24], st[24]; stamp(s, sizeof s, now); stamp(st, sizeof st, w_wall); fprintf(f, "%s %s (alive; step since %s)\n", s, w_name, st + 6); fclose(f); }
+  w_written = 1;
+}
 double r2_where_age(void) { return w_mono ? mono_now() - w_mono : 0; }   /* 1.1.42: for the watchdog */
 /* 1.1.70 (Bella 19 Nov): the running clock does NOT stand still in rest mode (Bella 44261 s, Atlas 23491 s, Kaeden 810 s after
    a sleep) – the watchdog moves the step's start on by the time the PS4 slept, so a wake never looks like a freeze. */
