@@ -940,6 +940,26 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <p class="hint">Offline = the PS4 hasn’t checked for jobs for 3 minutes (off, rest mode, or not jailbroken since it was switched on – the helper starts with the jailbreak).</p>
   </section>
 
+  <section id="tab-pkgs" hidden>
+    <div class="row" style="justify-content:space-between;align-items:flex-end"><h1 style="margin:0">PS4 games</h1><button class="btn ghost" type="button" id="pkRefresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
+    <p class="sub">Install games, patches and DLC from your laptop (or the external HD) onto the room PS4s, remove them, and keep every room on the same version. Open this page <b>on the laptop</b> with <b>Round2 PKG server</b> running (round2-tv › pkg-server › Start Round2 PKG server.bat). The PS4 downloads straight from the laptop over the shop Wi-Fi, one file at a time, only when the room has no guest for the next hour.</p>
+    <div class="banner warn" id="pkKeyBox" hidden><div class="grow">Add the <b>staff code</b> (Keys) first.</div></div>
+    <div class="card" id="pkLap" style="padding:10px 12px"></div>
+    <div id="pkDrop" class="card" style="margin-top:10px;padding:18px;text-align:center;border:2px dashed var(--line2)">Drop a game PKG here (or tick files in the list below)</div>
+    <div class="card" style="margin-top:10px;padding:10px 12px"><b>Send to</b>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0"><button class="btn" type="button" data-pktier="netflix">Netflix tier → all rooms</button><button class="btn" type="button" data-pktier="deluxe">Deluxe tier → Deluxe + VIP</button><button class="btn" type="button" data-pktier="vip">VIP tier → Max</button><button class="btn ghost" type="button" data-pktier="none">Clear</button></div>
+      <div id="pkRooms" class="row" style="gap:10px;flex-wrap:wrap"></div>
+      <div id="pkBasket" style="margin-top:8px;font-size:13px"></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center"><label><input type="checkbox" id="pkRest"> Put the PS4s to rest when their queue is done</label><span class="grow"></span>
+        <button class="btn primary" type="button" id="pkSend">Install on the ticked rooms</button><button class="btn" type="button" id="pkRm">Uninstall from the ticked rooms</button></div>
+      <p class="hint" id="pkMsg" style="margin:6px 0 0"></p></div>
+    <div class="card" style="margin-top:10px;padding:10px 12px"><b>Queue</b> <span class="hint">– what each PS4 is doing (refreshes every 20 s)</span><div id="pkQueue" style="margin-top:6px;font-size:12px;line-height:1.5"></div></div>
+    <div class="card" style="margin-top:10px;padding:10px 12px"><b>Games: your files and each room's version</b> <span class="hint">– green = same as your newest file, orange = older, – = not installed</span>
+      <div class="row" style="gap:6px;margin:6px 0"><input id="pkFind" placeholder="Search" style="flex:1;min-width:160px"><button class="btn" type="button" id="pkOld">Tick every newer patch for rooms that are behind</button></div>
+      <div id="pkList" style="overflow:auto"></div></div>
+    <p class="hint">Atlas and Bella are on the other Wi-Fi (round2-ps4) and can't reach the laptop yet. Firmware: a PKG needs the PS4's firmware or newer (9.00 Max · Kai · Atlas, 11.00 Bella · Scarlett · Vale, 13.50 Kaeden) – older rooms need a backport.</p>
+  </section>
+
   <section id="tab-tests" hidden>
     <h1>TV tests</h1>
     <p class="sub">Check any room's TV from here: send a test message or a test food alert and watch it arrive. Nothing reaches the kitchen, and the test order isn't real.</p>
@@ -3382,6 +3402,117 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     };
   })();
 
+  /* ===== PS4 GAMES (owner 20 Nov 2026 10:38pm): install / uninstall PKGs from the laptop's "Round2 PKG server" (folders or the
+     external HD) on single rooms or tiers; drop a game → offer its patch + DLC from that folder; each room's installed version
+     next to the newest file. The engine keeps one queue per PS4 (pkgsend / pkglist / pkgcancel) and hands out one job at a time. */
+  var PKG = (function () {
+    var GM = 'https://round2-book.donttelldadyet.workers.dev/gm', LAP = 'http://localhost:8890', timer = null, lap = null, rooms = {}, q = {}, pick = {}, sel = {};
+    var ROOMS = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'], TIER = { netflix: ROOMS, deluxe: ['kai', 'bella', 'atlas', 'max'], vip: ['max'] };
+    var FW = { max: '9.00', kai: '9.00', atlas: '9.00', bella: '11.00', scarlett: '11.00', vale: '11.00', kaeden: '13.50' }, FAR = { atlas: 1, bella: 1 };
+    var CAT = { gd: 'Game', gp: 'Patch', ac: 'DLC' };
+    function sKey() { return ls('r2.guestStaff') || ''; }
+    function gm(o) { return fetch(GM, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: sKey() }, o)) }).then(function (r) { return r.json(); }); }
+    function $(i) { return document.getElementById(i); }
+    function vnum(v) { var p = String(v || '').split('.'); return (+p[0] || 0) * 1000 + (+p[1] || 0); }
+    function gb(b) { return (b / 1073741824).toFixed(b > 10737418240 ? 0 : 1) + ' GB'; }
+    function dir(p) { return String(p || '').replace(/[\\/][^\\/]*$/, ''); }
+    function ip() { var s = $('pkIp'); return s ? s.value : (lap && lap.ips[0] && lap.ips[0].ip) || ''; }
+    function lapLoad(u) {
+      return fetch(LAP + (u || '/api/list')).then(function (r) { return r.json(); }).then(function (j) { lap = j; drawLap(); drawList(); }).catch(function () { lap = null; drawLap(); drawList(); });
+    }
+    function drawLap() {
+      var el = $('pkLap'); if (!lap) { el.innerHTML = '<b>Laptop PKG server: not found.</b> On this laptop open round2-tv › pkg-server › <b>Start Round2 PKG server.bat</b> and keep its window open. <button class="btn" type="button" id="pkRetry">Try again</button>'; $('pkRetry').onclick = function () { lapLoad(); }; return; }
+      var ips = lap.ips.slice().sort(function (a, b) { return (/^192\.168\./.test(b.ip) ? 1 : 0) - (/^192\.168\./.test(a.ip) ? 1 : 0); });
+      el.innerHTML = '<b>Laptop PKG server</b> ✅ ' + lap.pkgs.length + ' PKG files · shared at <select id="pkIp">' + ips.map(function (x) { return '<option value="' + esc(x.ip) + '">' + esc(x.ip) + ' (' + esc(x.nic) + ')</option>'; }).join('') + '</select> port ' + lap.port +
+        ' · downloads now ' + lap.active + ' · sent ' + lap.servedMB + ' MB<div style="margin-top:6px">' + lap.folders.map(function (f) { return '<div>📁 ' + esc(f.path) + (f.there ? '' : ' <span style="color:#f88">(not connected)</span>') + ' <button class="btn ghost" type="button" data-pkrmf="' + esc(f.path) + '" style="padding:2px 8px;font-size:11px">remove</button></div>'; }).join('') +
+        '</div><div class="row" style="gap:6px;margin-top:6px"><button class="btn" type="button" id="pkPick">+ Add folder or drive</button><button class="btn" type="button" id="pkScan">Scan again</button></div>';
+      $('pkPick').onclick = function () { $('pkPick').textContent = 'Pick it in the window on the laptop…'; lapLoad('/api/pick'); };
+      $('pkScan').onclick = function () { lapLoad('/api/scan'); };
+      [].forEach.call(el.querySelectorAll('[data-pkrmf]'), function (b) { b.onclick = function () { fetch(LAP + '/api/remove', { method: 'POST', body: b.getAttribute('data-pkrmf') }).then(function (r) { return r.json(); }).then(function (j) { lap = j; drawLap(); drawList(); }); }; });
+    }
+    function groups() {   /* title id → { game files, patch files, dlc files } */
+      var G = {}; if (!lap) return G;
+      lap.pkgs.forEach(function (p) { if (p.err || !p.tid) return; var g = G[p.tid] || (G[p.tid] = { tid: p.tid, title: '', gd: [], gp: [], ac: [] }); (g[p.cat] || (g[p.cat] = [])).push(p); if (p.cat === 'gd' || !g.title) g.title = p.title || p.name; });
+      for (var k in G) ['gd', 'gp', 'ac'].forEach(function (c) { G[k][c].sort(function (a, b) { return vnum(b.appver || b.ver) - vnum(a.appver || a.ver); }); });
+      return G;
+    }
+    function inst(room, tid) { var r = rooms[room]; if (!r || !r.games) return null; for (var i = 0; i < r.games.length; i++) if (r.games[i].id === tid) return r.games[i]; return null; }
+    function drawList() {
+      var el = $('pkList'); if (!lap) { el.innerHTML = '<p class="hint">Start the laptop PKG server to see your files.</p>'; return; }
+      var G = groups(), f = ($('pkFind').value || '').toLowerCase(), ks = Object.keys(G).sort(function (a, b) { return String(G[a].title).localeCompare(G[b].title); });
+      var h = '<table style="border-collapse:collapse;font-size:12px;width:100%"><tr><th></th><th style="text-align:left">Game</th><th>Your files</th>' + ROOMS.map(function (r) { return '<th>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '</th>'; }).join('') + '</tr>';
+      ks.forEach(function (k) { var g = G[k]; if (f && (g.title + ' ' + k).toLowerCase().indexOf(f) < 0) return;
+        var newest = g.gp[0] ? (g.gp[0].appver || g.gp[0].ver) : g.gd[0] ? (g.gd[0].appver || g.gd[0].ver) : '';
+        var files = ['gd', 'gp', 'ac'].map(function (c) { return g[c].map(function (p) { return '<label style="white-space:nowrap;display:block"><input type="checkbox" data-pkf="' + p.id + '"' + (pick[p.id] ? ' checked' : '') + '> ' + CAT[c] + ' ' + esc(p.appver || p.ver || '') + ' <span class="hint">' + gb(p.size) + ' · FW ' + esc(p.fw || '?') + '</span></label>'; }).join(''); }).join('');
+        h += '<tr style="border-top:1px solid var(--line2);vertical-align:top"><td></td><td><b>' + esc(g.title) + '</b><br><span class="hint">' + k + '</span></td><td>' + files + '</td>' + ROOMS.map(function (r) { var x = inst(r, k), v = x ? (x.pv || x.v) : ''; var c = !x ? '' : vnum(v) >= vnum(newest) ? 'color:#7d7' : 'color:#fa5'; return '<td style="text-align:center;' + c + '">' + (x ? esc(v) : '–') + '</td>'; }).join('') + '</tr>'; });
+      el.innerHTML = h + '</table>';
+      [].forEach.call(el.querySelectorAll('[data-pkf]'), function (c) { c.onchange = function () { var id = c.getAttribute('data-pkf'); if (c.checked) pick[id] = 1; else delete pick[id]; drawBasket(); }; });
+      drawBasket();
+    }
+    function byId(id) { if (!lap) return null; for (var i = 0; i < lap.pkgs.length; i++) if (lap.pkgs[i].id === id) return lap.pkgs[i]; return null; }
+    function drawRooms() {
+      $('pkRooms').innerHTML = ROOMS.map(function (r) { var o = rooms[r], on = o && Date.now() - (o.poll || 0) < 3 * 60e3; return '<label style="white-space:nowrap"><input type="checkbox" data-pkr="' + r + '"' + (sel[r] ? ' checked' : '') + '> ' + r.charAt(0).toUpperCase() + r.slice(1) + ' <span class="hint">' + (on ? 'on' : 'off') + ' · FW ' + (o && o.fw || FW[r]) + (FAR[r] ? ' · other Wi-Fi' : '') + '</span></label>'; }).join('');
+      [].forEach.call($('pkRooms').querySelectorAll('[data-pkr]'), function (c) { c.onchange = function () { if (c.checked) sel[c.getAttribute('data-pkr')] = 1; else delete sel[c.getAttribute('data-pkr')]; drawBasket(); }; });
+    }
+    function drawBasket() {
+      var ids = Object.keys(pick), rs = Object.keys(sel), warn = [];
+      ids.forEach(function (id) { var p = byId(id); if (!p) return; rs.forEach(function (r) { var fw = (rooms[r] && rooms[r].fw) || FW[r]; if (p.fw && vnum(p.fw) > vnum(fw)) warn.push(esc(p.title || p.name) + ' needs FW ' + p.fw + ' – ' + r + ' has ' + fw + ' (needs a backport)'); }); });
+      rs.forEach(function (r) { if (FAR[r]) warn.push(r + ' is on the other Wi-Fi – it can\'t reach the laptop yet'); });
+      $('pkBasket').innerHTML = ids.length ? '<b>' + ids.length + ' file(s):</b> ' + ids.map(function (id) { var p = byId(id); return p ? esc((p.title || p.name) + ' ' + (CAT[p.cat] || p.cat) + ' ' + (p.appver || p.ver || '')) : ''; }).join(' · ') + (warn.length ? '<div style="color:#fa5;margin-top:4px">⚠ ' + warn.join('<br>⚠ ') + '</div>' : '') : '<span class="hint">No files ticked yet.</span>';
+    }
+    function offer(p) {   /* a game was dropped: tick it, and offer its patch + DLC from that folder */
+      pick[p.id] = 1; var G = groups()[p.tid], d = dir(p.path), extra = [];
+      if (G) ['gp', 'ac'].forEach(function (c) { G[c].forEach(function (x, i) { if (dir(x.path).indexOf(d) === 0 && (c === 'ac' || i === 0)) extra.push(x); }); });
+      if (extra.length && confirm('Also install ' + extra.map(function (x) { return (CAT[x.cat] || x.cat) + ' ' + (x.appver || x.ver || '') + (x.cat === 'ac' ? ' (' + (x.title || x.name) + ')' : ''); }).join(', ') + ' found in that folder for ' + (p.title || p.name) + '?')) extra.forEach(function (x) { pick[x.id] = 1; });
+      $('pkFind').value = p.tid; drawList();
+    }
+    function send(op) {
+      var rs = Object.keys(sel), ids = Object.keys(pick), items = [], m = $('pkMsg');
+      if (!rs.length) { m.textContent = 'Tick at least one room.'; return; }
+      if (!ids.length) { m.textContent = op === 'rm' ? 'Tick the game (or patch) to remove.' : 'Tick at least one file.'; return; }
+      if (op !== 'rm' && !ip()) { m.textContent = 'The laptop PKG server isn\'t reachable.'; return; }
+      var order = { gd: 0, gp: 1, ac: 2 };
+      ids.map(byId).filter(Boolean).sort(function (a, b) { return order[a.cat] - order[b.cat]; }).forEach(function (p) { rs.forEach(function (r) {
+        if (op === 'rm') { if (p.cat !== 'ac') items.push({ room: r, op: 'rm', tid: p.tid, cat: p.cat, title: p.title, name: p.name }); return; }
+        items.push({ room: r, op: 'install', ip: ip(), port: lap.port, code: lap.token, fid: p.id, cat: p.cat, cid: p.cid, tid: p.tid, title: p.title, name: p.name, ver: p.appver || p.ver, mb: Math.ceil(p.size / 1048576) }); }); });
+      if (op === 'rm' && !confirm('Uninstall ' + items.length + ' item(s)? The game and its saves on the PS4 stay in the members\' cloud, but the game itself has to be installed again.')) return;
+      m.textContent = 'Sending…';
+      gm({ action: 'pkgsend', items: JSON.stringify(items), rest: $('pkRest').checked ? '1' : '', by: 'control centre' }).then(function (j) { m.textContent = j.error ? j.error : '✅ ' + j.queued + ' job(s) queued on ' + j.rooms + ' PS4(s). Each PS4 starts when its room is free for the next hour.'; if (!j.error) { pick = {}; drawList(); } loadQ(); });
+    }
+    function loadQ() {
+      return Promise.all([gm({ action: 'pkglist' }), gm({ action: 'ps4list', g: '1' })]).then(function (a) {
+        q = (a[0] && a[0].rooms) || {}; rooms = {}; ((a[1] && a[1].list) || []).forEach(function (p) { if (p.room) rooms[p.room] = p; });
+        var h = ''; ROOMS.forEach(function (r) { var L = q[r] || [], o = rooms[r], pk = o && o.pkg; if (!L.length && !(pk && pk.on)) return;
+          h += '<div style="margin-top:4px"><b>' + r.charAt(0).toUpperCase() + r.slice(1) + '</b>' + (pk && pk.last ? ' <span class="hint">' + esc(pk.last) + '</span>' : '') + L.map(function (j) {
+            var c = j.state === 'done' ? '#7d7' : j.state === 'failed' ? '#f88' : j.state === 'running' || j.state === 'sent' ? '#7cf' : '#ccc';
+            return '<div style="margin-left:12px"><span style="color:' + c + '">' + esc(j.state) + '</span> ' + (j.op === 'rm' ? 'remove ' : '') + esc((j.title || j.name) + ' ' + (CAT[j.cat] || '') + ' ' + (j.ver || '')) + (j.why ? ' <span class="hint">' + esc(j.why) + '</span>' : '') + (j.state !== 'done' && j.state !== 'failed' ? ' <button class="btn ghost" type="button" data-pkc="' + r + '|' + j.jid + '" style="padding:1px 8px;font-size:11px">cancel</button>' : '') + '</div>'; }).join('') + '</div>'; });
+        $('pkQueue').innerHTML = h || '<span class="hint">Nothing queued.</span>';
+        [].forEach.call($('pkQueue').querySelectorAll('[data-pkc]'), function (b) { b.onclick = function () { var x = b.getAttribute('data-pkc').split('|'); gm({ action: 'pkgcancel', room: x[0], jid: x[1], by: 'control centre' }).then(loadQ); }; });
+        drawRooms(); drawList();
+      });
+    }
+    function wire() {
+      if (wire.done) return; wire.done = true;
+      $('pkRefresh').onclick = function () { lapLoad(); loadQ(); };
+      $('pkFind').oninput = drawList;
+      $('pkSend').onclick = function () { send('install'); };
+      $('pkRm').onclick = function () { send('rm'); };
+      [].forEach.call(document.querySelectorAll('[data-pktier]'), function (b) { b.onclick = function () { var t = b.getAttribute('data-pktier'); sel = {}; (TIER[t] || []).forEach(function (r) { sel[r] = 1; }); drawRooms(); drawBasket(); }; });
+      $('pkOld').onclick = function () { var G = groups(); for (var k in G) { var p = G[k].gp[0] || null; if (!p) continue; ROOMS.forEach(function (r) { var x = inst(r, k); if (x && vnum(x.pv || x.v) < vnum(p.appver || p.ver)) { pick[p.id] = 1; sel[r] = 1; } }); } drawRooms(); drawList(); };
+      var d = $('pkDrop');
+      d.ondragover = function (e) { e.preventDefault(); d.style.borderColor = 'var(--accent)'; };
+      d.ondragleave = function () { d.style.borderColor = ''; };
+      d.ondrop = function (e) { e.preventDefault(); d.style.borderColor = ''; if (!lap) { d.textContent = 'Start the laptop PKG server first.'; return; }
+        [].forEach.call(e.dataTransfer.files || [], function (fl) { var m = lap.pkgs.filter(function (p) { return p.name === fl.name && p.size === fl.size; })[0] || lap.pkgs.filter(function (p) { return p.name === fl.name; })[0];
+          if (!m) { d.textContent = fl.name + ' isn\'t in your PKG folders – add its folder above first.'; return; }
+          d.textContent = 'Added: ' + (m.title || m.name); if (m.cat === 'gd') offer(m); else { pick[m.id] = 1; drawList(); } }); };
+    }
+    return {
+      open: function () { wire(); $('pkKeyBox').hidden = !!sKey(); lapLoad(); loadQ(); clearInterval(timer); timer = setInterval(function () { loadQ(); lapLoad(); }, 20000); },
+      close: function () { clearInterval(timer); timer = null; }
+    };
+  })();
+
   var Tests = (function () {
     var timer = null;
     function key() { return ls('r2m.msgKey') || ''; }
@@ -3513,7 +3644,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
        them asks SimplyBook anything. A new step is NOT in the light check until its name is added here (safe by default). */
     var LIGHT = false, sb0 = null;
     function autoQ() { return LIGHT ? { action: 'auto', lite: '1' } : { action: 'auto' }; }   /* lite: counters only, no SimplyBook */
-    var LIGHT_OK = ['Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
+    var LIGHT_OK = ['PS4 games queue', 'Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
       'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'PS4 clean slate after each session', 'Phone widgets', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
     function step(name, fn) {
       if (LIGHT && !LIGHT_OK.some(function (p) { return name.indexOf(p) === 0; })) return Promise.resolve();
@@ -3877,6 +4008,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           warnIf(missed.length, 'Resets the engine missed in the last 24 h: ' + missed.map(function (x) { return x.room + ' (' + x.why + ')'; }).join('; '));
           warnIf(bad.length, 'Clean slate runs with problems (see PS4s › Clean slate): ' + bad.slice(0, 3).join(' · '));
           return 'Automatic: ' + (A && A.on ? 'ON' + (A.from > now ? ' from ' + new Date(A.from).toISOString().slice(0, 16) + 'Z' : '') : 'off') + ' · ' + v53.length + ' PS4(s) on 1.1.53+ · ' + j.resetLog.length + ' engine log entries';
+        });
+      }); })
+      .then(function () { return step('PS4 games queue: answers, refuses bad jobs, nothing stuck', function () {
+        /* 20 Nov (PKG installs from the laptop): the engine lists each PS4's queue, refuses a job with a bad file link (nothing is
+           queued), and no job may sit "sent" for more than 15 min or have failed in the last day without being looked at. */
+        return Promise.all([gm({ action: 'pkglist' }), gm({ action: 'pkgsend', items: JSON.stringify([{ room: 'kaeden', op: 'install', ip: 'x', code: 'bad', fid: 'bad', cat: 'gd', cid: 'bad' }]) })]).then(function (r) {
+          must(r[0].ok && r[0].rooms, 'The PS4 games queue doesn’t answer: ' + (r[0].error || ''));
+          must(r[1].error, 'A job with a bad file link was NOT refused');
+          var stuck = [], failed = [], n = 0; for (var k in r[0].rooms) r[0].rooms[k].forEach(function (j) { n++; if (j.state === 'sent' && Date.now() - j.sentAt > 15 * 60e3) stuck.push(k); if (j.state === 'failed' && j.end > Date.now() - 86400e3) failed.push(k + ': ' + (j.title || j.name) + ' – ' + (j.why || '')); });
+          warnIf(stuck.length, 'Stuck jobs on ' + stuck.join(', '));
+          warnIf(failed.length, 'Failed in the last day: ' + failed.slice(0, 3).join(' · '));
+          return n + ' job(s) in the queues · a bad job is refused';
         });
       }); })
       .then(function () { return step('PS4 blocker settings: bad files refused, nothing sent (dry run)', function () {
@@ -4483,14 +4626,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 
   /* Messages, TV tests, Food menu, Help and If stuck work without GitHub (Messages and tests need the TV messages key);
      Events, Rooms, Sounds and Settings change the GitHub project, so they ask to connect first. */
-  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'move', 'resched', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'ps4s', 'tests', 'website', 'bookstats', 'alertlog', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
+  var TABS = ['autowrap', 'late', 'alerts', 'home', 'insession', 'move', 'resched', 'tonight', 'messages', 'calendar', 'guestlink', 'tvs', 'ps4s', 'pkgs', 'tests', 'website', 'bookstats', 'alertlog', 'foodmenu', 'simorder', 'schedule', 'rooms', 'sounds', 'settings', 'systems', 'planned', 'syscheck', 'testbench', 'keys', 'help', 'tvhelp', 'stuck'], GH_TABS = ['schedule', 'rooms', 'sounds', 'settings'];
   /* the areas (main tabs) and their pages. Related jobs sit together: everything about messages on the TVs,
      everything about how the TVs look, everything for checking things work. */
   var GROUPS = {
     home: [['home', 'Overview'], ['alertlog', 'Alert history']],
     sess: [['insession', 'In session'], ['late', 'Add a session'], ['move', 'Move a booking'], ['resched', 'Rescheduling']],
     notif: [['tonight', 'Tonight'], ['messages', 'Send'], ['guestlink', 'Guest links'], ['calendar', 'Calendar'], ['autowrap', 'Auto wrap-up']],
-    tvs: [['tvs', 'Status'], ['ps4s', 'PS4s'], ['tests', 'Test a TV']],
+    tvs: [['tvs', 'Status'], ['ps4s', 'PS4s'], ['pkgs', 'PS4 games'], ['tests', 'Test a TV']],
     themes: [['schedule', 'Events'], ['rooms', 'Rooms'], ['sounds', 'Sounds'], ['settings', 'TV settings']],
     menu: [['foodmenu', 'Edit the menu'], ['simorder', 'Test an order']],
     web: [['website', 'Visitors'], ['bookstats', 'Booking page']],
@@ -4600,6 +4743,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     if (n === 'messages') Msgs.open(); else Msgs.close();
     if (n === 'tvs') Msgs.tvsOpen(); else Msgs.tvsClose();
     if (n === 'ps4s') PS4.open(); else PS4.close();
+    if (n === 'pkgs') PKG.open(); else PKG.close();
     if (n === 'tonight' || n === 'calendar') { Cal.open(n); Msgs.live(); } else Msgs.unlive();
     if (n === 'home') { homeTvs(); homeHuman(); homeAlerts(); }
     if (n === 'tests') Tests.open(); else Tests.close();

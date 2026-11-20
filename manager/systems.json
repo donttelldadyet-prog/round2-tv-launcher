@@ -1,461 +1,467 @@
 {
-  "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
-  "updated": "2026-11-20",
-  "areas": [
+ "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
+ "updated": "2026-11-20",
+ "areas": [
+  {
+   "name": "Website & booking",
+   "items": [
     {
-      "name": "Website & booking",
-      "items": [
-        {
-          "name": "Round2 website (game menu)",
-          "status": "live",
-          "what": "The game-style homepage shown on www.round2.sg.",
-          "runs": "GitHub Pages, shown inside Wix",
-          "code": "round2sg-home · index.html"
-        },
-        {
-          "name": "Website visitor stats",
-          "status": "live",
-          "what": "Counts what visitors tap (numbers only) for the Website tab here.",
-          "runs": "Firebase /web",
-          "code": "round2sg-home · index.html, round2-tv-launcher docs/site-stats.md"
-        },
-        {
-          "name": "New booking page",
-          "status": "live",
-          "check": "payments",
-          "what": "Guests pick a room, time and length, pay with HitPay, and it goes straight into SimplyBook. Pays live once the live HitPay key is in Cloudflare; the Test bench always uses the HitPay sandbox. Safe mode (Systems › Switches) shows the old SimplyBook calendar instead.",
-          "runs": "round2sg-home/slots (GitHub Pages) + booking engine · opened from the website’s Book screen",
-          "code": "round2sg-home · slots/index.html, HANDOFF.md"
-        },
-        {
-          "name": "Booking engine (Cloudflare)",
-          "status": "live",
-          "check": "engine",
-          "what": "The fast back end: free slots, 10-min holds, HitPay, putting bookings in SimplyBook, TV message timer, menu payments.",
-          "runs": "Cloudflare Worker round2-book",
-          "code": "round2sg-home · worker/round2-book.js"
-        },
-        {
-          "name": "Background timers (3, each with its own allowance)",
-          "status": "test",
-          "what": "Cloudflare's free plan lets one run of the engine make only 50 requests to the outside (SimplyBook, HitPay, the TVs, Apple). Since 14 Nov the background jobs are split over three timers so they can't starve each other: main, every 5 min (1-hour reminders, alert re-sends, tonight's calendar: Auto wrap-up, noise rule for tonight + tomorrow); side, every 5 min a minute later (TV OKs, paid-but-not-booked, keys); sweep, every 10 min (after-midnight notes, noise rule further ahead). If a timer goes missing the main one does its jobs as before and the System check says so. New background jobs (PS4 game-save prep and clean-up, membership reminders, Madd payout) go in side or sweep, or get their own timer – 5 allowed, 3 used. Alerts themselves are sent from the engine's store, outside all of this.",
-          "runs": "Cloudflare › round2-book › Triggers (3 schedules)",
-          "code": "round2sg-home · worker/round2-book.js (scheduled) · System check step 'Background jobs: 3 timers'"
-        },
-        {
-          "name": "SimplyBook booking page",
-          "status": "live",
-          "what": "The calendar behind everything, and the safe-mode fallback (Systems › Switches shows it on the booking page). Walk-in, WhatsApp and staff bookings still go in here.",
-          "runs": "SimplyBook"
-        },
-        {
-          "name": "SimplyBook phone alerts",
-          "status": "broken",
-          "what": "Push alerts in the SimplyBook app stopped on every phone on 29 Oct, 5:50pm – also for bookings on SimplyBook's own page. Logging out/in didn't help. Ask SimplyBook support.",
-          "runs": "SimplyBook app"
-        },
-        {
-          "name": "Mirror rooms (Atlas ↔ Vale blocks)",
-          "status": "live",
-          "what": "Since 11 Nov 2026 run by the booking engine instead of Make (Make [BACKEND] SYSTEM BLOCKS MIRROR ROOMS switched off 11 Nov, 8:18pm). When Atlas or Vale is booked (online, by staff or in SimplyBook), the other room is blocked for the same time, cleaning included; the block moves and goes with the booking. Since 14 Nov 2026 a new block is a time-blocked note (“SYSTEM BLOCK · TWIN · Vale is booked (name) · removed automatically”), the same kind as the noise-rule block, the hold while a guest pays and the +h copies – so twin blocks no longer count as bookings in SimplyBook. Blocks made before that are still SYSTEM BLOCK bookings and stay that way until their booking is cancelled or moved through Round2. If the other room already has real guests at that time, or the block can't be made, staff get a “needs a human” alert. The System check confirms every Vale/Atlas booking has its block (a note deleted by hand shows up there). Switch: engine gm mirror do=on / off (off = back to Make, which would need switching on again).",
-          "runs": "SimplyBook callback → booking engine (/sb/notify) → mirrorOnSb",
-          "code": "round2sg-home · worker/round2-book.js (mirrorOnSb, mirAdopt)"
-        },
-        {
-          "name": "Noise rule (Max/Atlas 4+ → Bella, Bella 4 → Atlas)",
-          "status": "live",
-          "what": "A session with 4 or more guests in Max or Atlas blocks Bella for the same time (with cleaning and extensions); 4 guests in Bella blocks Atlas. Max is never blocked. Works for online bookings, SimplyBook bookings (guest count field) and control-centre sessions (\"4 pax\" in the note). The block shows in SimplyBook as “SYSTEM BLOCK · NOISE” and goes away by itself when the session is cancelled, shortened or drops below 4 guests. If the other room is already booked, the booking still goes ahead and staff get an alert (phone + Telegram).",
-          "runs": "booking engine (Cloudflare) · on every SimplyBook change, after In session / Add a session, every 10 min (tonight + tomorrow), hourly (week ahead)",
-          "code": "round2sg-home · worker/round2-book.js (noiseSync)"
-        },
-        {
-          "name": "Confirmation email link (TV message)",
-          "status": "live",
-          "what": "A line in SimplyBook's confirmation email (book.round2.sg/b/<booking code>) opens the guest's booking page. Pasted into the template and tested by the owner 9 Nov; Round2-styled email pictures added 10 Nov.",
-          "runs": "SimplyBook email template + engine /b/<code>"
-        },
-        {
-          "name": "Online rescheduling",
-          "status": "live",
-          "what": "BETA, live 12 Nov 2026. Guests move their own booking from their booking page (book.round2.sg/b/<code> › Reschedule, or the MANAGE YOUR BOOKING button in the emails). Rules: up to 2 moves; 3+ days ahead any free slot; under 3 days new times from 2:15pm; under 24h same-day upgrades only; under 3h no rescheduling; new time at least 3h away; free in the first 15 min after booking or a move. Fee: MOVE $15, or UPGRADE / PEAK TIME $5 (they pay the price difference too), plus POPULAR +$5 to +$20 in $5 steps; some popular slots $5 OFF; 2nd move +$10; early-bird bookings always $15. Paid on HitPay; the move happens only after payment, with a fresh check that the time is still free (if not, staff are alerted to move or refund). The page and the engine use the very same rules file, so the price shown is the price charged. Cheaper slots: no refund. Calendar read from SimplyBook once and kept 3 minutes, so it doesn't eat the SimplyBook limit. Switch: engine mode gResched=false turns it off (guests then see 'WhatsApp us'). The way in is the booking link only (email button or the link staff send); a homepage LOAD SAVE / SAVE FOUND was tried 12 Nov and removed (a forwarded link would show on another phone). 14 Nov: adding hours to the same slot has no change fee (only the extra hours) and doesn't use a move; $5 only for a bigger kind of room or a dearer rate. While a guest pays, the new time is held 10 minutes like a new booking (ONLINE HOLD note in SimplyBook).",
-          "code": "round2sg-home · docs/rescheduling-plan.md"
-        },
-        {
-          "name": "Move a booking (staff)",
-          "status": "live",
-          "what": "Control centre › Bookings › Move a booking (12 Nov). Staff pick a booking, a new room/day/time (only free times shown), and see the fee in two parts: the move (Move $15, or Upgrade / Peak time $5 + the price difference) plus Popular time +$10/+$20 when the slot is in demand (Vale/Atlas straight after a session in the same room +$10). Staff can lower or waive it (reason logged). Payment: PayNow QR on the screen, a HitPay link for WhatsApp, or Paid in shop (Tap to Pay). The move is a SimplyBook edit; the Vale/Atlas block, TV messages and wrap-up messages follow; the guest's booking page shows the new time. Bookings › Rescheduling lists every move. A booking's +h (EXT) extension moves with it (12 Nov). Since 12 Nov the popular-time part goes in $5 steps (+$5 to +$20), same as the guest page.",
-          "code": "round2sg-home · worker/round2-book.js (mv…) · round2-tv-launcher manager/index.html (Move)"
-        },
-        {
-          "name": "Round2 addresses for guest links (round2.sg)",
-          "status": "live",
-          "what": "Since 31 Oct guests see round2.sg addresses, not 'donttelldadyet': booking confirmation after paying and 'View your booking' → book.round2.sg (/done, /find, /b/<code>); room food menu → menu.round2.sg/<room> (e.g. menu.round2.sg/vale). TV message links were already cue.round2.sg. DNS stays in Wix (CNAME book / menu → donttelldadyet-prog.github.io); domain registered at Vodien. Old links still work. Still to do: owner points each room's Wix links page (valelinks etc.) at menu.round2.sg/<room>; the SimplyBook confirmation-email line should use book.round2.sg/b/<code>.",
-          "runs": "GitHub Pages repos round2-book and round2-menu (DNS in Wix) · booking engine PUBLIC_BOOK / PUBLIC_MENU",
-          "code": "round2sg-home · HANDOFF.md (TO DO at the top)"
-        },
-        {
-          "name": "Booking page safety (HitPay is the truth)",
-          "status": "live",
-          "what": "A time is never let go without asking HitPay; a paid booking is always made (Malia, 5 Nov). Payment pages close when the guest's 10 minutes end; a 5-minute check books anyone who paid but isn't booked.",
-          "runs": "Booking engine",
-          "code": "round2sg-home · worker/round2-book.js (hpPaid, safeRelease, paidSweep)"
-        },
-        {
-          "name": "Booking page numbers",
-          "status": "live",
-          "what": "Control centre › Website › Booking page: how long guests take to pay, latest attempts with the session date (Fri 6 Nov, 11am), sorted by Paid / why they left before paying (came back from paying, changed their mind, 10 minutes ran out, picked another time, checkout error) / booked by hand. Reasons are noted since 5 Nov.",
-          "runs": "Booking engine (gm paytimes) + control centre"
-        }
-      ]
+     "name": "Round2 website (game menu)",
+     "status": "live",
+     "what": "The game-style homepage shown on www.round2.sg.",
+     "runs": "GitHub Pages, shown inside Wix",
+     "code": "round2sg-home · index.html"
     },
     {
-      "name": "Members & game saves",
-      "items": [
-        {
-          "name": "Membership (3 / 6 / 12 months)",
-          "status": "planned",
-          "what": "One member per phone number (the booker; group saves sit under them). Pitched at That's a wrap with the guest's own game and time played. Draft prices: 3 months S$15, 6 months S$25, 12 months S$30 'Best value' (pre-selected); each gives the same amount back as booking credit ('pays for itself on your next visit'). One-off payment via HitPay + renewal reminder; no auto-renew at first. Lapsed: saves frozen ~3 months, then deleted. Prices not final – watch sign-ups, plan picked and return visits for a month.",
-          "runs": "Booking engine (members table) + sign-up page + control centre › Members (owner key)",
-          "code": "not started · plan in chat 5 Nov 2026"
-        },
-        {
-          "name": "Guest game saves (PS4)",
-          "status": "build",
-          "what": "Members continue their PS4 games on a later visit, in any room. One membership = up to 2 personal PS4 profiles (member + partner) next to the room's main profile. At login their profiles appear with their saves; at session end the saves go to the cloud and the profiles are removed. Non-members: their saves are parked (kept, tied to the booking) so they can still be given back if the guest signs up; the next guest starts clean. Never touched: Gran Turismo Sport's save in Max's main profile (fully unlocked – the racing-sim draw). Saves prepared on each PS4 ahead of the day's bookings so a dropped internet connection can't block a login.",
-          "runs": "Round2 PS4 helper (round2d, on every room PS4) · booking engine · Cloudflare storage (bucket round2-saves)",
-          "code": "round2-tv-launcher branch ps4-helper folder ps4/ · round2sg-home worker/round2-book.js (ps4*) · full log: project doc ps4-game-saves.md"
-        },
-        {
-          "name": "Game saves – proven so far (13–17 Nov 2026)",
-          "status": "test",
-          "what": "All done remotely by the helper on Max: rename a spare profile; sign a profile in and out; open a save decrypted (read-only); back a save up to the cloud; restore it into another profile (Gran Turismo Sport, Max → User4, checked on the TV by the owner); put the PS4 into rest mode. Saves load in profiles that are not activated. The real game data is small (KBs to ~32 MB). 16 Nov: a save from an 11.00 PS4 loads on a 9.00 PS4 (Moving Out 2, Vale → Kai, checked by the owner); the helper keeps running after the PS4 wakes from rest (1.1.13, Kai). 17 Nov (helper 1.1.34–1.1.40, Max + Vale): three copies of every save (the save on the PS4, a prep copy on the PS4, the cloud) with a save log; a save part is replaced cleanly instead of mixed with the old one (PlateUp Max → Vale, identical to the byte); clear messages when the room lacks the game or the profile never played it; a save part can be removed properly (backed up first; the PS4's saved-data list keeps no broken entry); a whole game moves between profiles – every part, the receiving profile backed up first, leftovers from earlier players removed only after all the member's parts are in (owner 17 Nov) – Mortal Kombat 11, Vale → Max. Study of 62 games: a save is 1 to 17 parts, names chosen by each game.",
-          "runs": "Staff actions ps4prof, ps4look (/_save, /_sback, /_srest, /_sdel, /_sparts, /_gback, /_gmove, /_rest), ps4saves · System check step 'PS4 helpers + game-save storage'"
-        },
-        {
-          "name": "Clean slate after each session (from 18 Nov)",
-          "status": "test",
-          "what": "After a real guest session ends (twin/noise blocks and 'room blocked' notes don't count) the room's PS4 resets at guest end + 10 min (setting 5/10/12). 5 min before, guests get PS4 pop-ups (5 min, 1 min, 30 s, 10 s – over the game). Failsafes: SimplyBook is checked live when the countdown starts, every 2 min during it and 20 s before the end – an extension, the next guest already in, the switch off or no answer = nothing closed or cleared; staff 'Stop reset' on the tile. The PS4: closes the game left open (waits while it's still saving) · signs out the spare profiles · copies every save on every profile to its own storage with a fingerprint per file, then removes it (a game that didn't copy stays and is reported) · deletes profiles guests created (keeps the main + 4 spares; fewer than 4 = 'add by hand') · spares named Player 1–4, default pictures, main profile first. Never: GT Sport on Max's main profile, PS Vue, homebrew settings. Staff can press 'Clean slate now'. Every run and every problem is in PS4s › Clean slate. Cloud upload of the copies is built but OFF until membership. 17 Nov: launch clear done on Kai, Max, Atlas (day0 restore points first); tested on Max + Atlas. 18 Nov: CONTROLLER DETECTOR – TESTING ON MAX (Street Fighter 6 only): a small GoldHEN plugin inside the game, asleep except during the reset countdown, tells the helper when the controller was last used; someone still playing moves the reset to 2 min after their last press. Tested with the owner: sees play 20/20 s, no play 0/20 s, real 1-min countdown closed SF6 and ran the clean slate. Test pop-ups ('Round2 test: …') are on for Max only while testing. Other PS4s: not yet (helper 1.1.61, timer only).",
-          "runs": "Engine (10-min tick, kv ps4resetAuto – ON from 7am 18 Nov; staff ps4reset / ps4resetauto) · PS4 helper 1.1.55+ (staff button 1.1.53+) (/_reset, /_purge, /_cloud) · System check step 'PS4 clean slate after each session'",
-          "code": "round2sg-home worker/round2-book.js ps4ResetRun · round2-tv-launcher ps4/helper/main.c (look_reset, clean_step) · manager/index.html PS4s › Clean slate"
-        },
-        {
-          "name": "Game saves – still to build, in order",
-          "status": "planned",
-          "what": "Done: restore 11.00 → 9.00 (16 Nov); game versions per room checked (16 Nov); whole-game move + removing leftovers (17 Nov). Next: 2) Make a save part the receiving profile doesn't have yet – most games add parts as people play (Minecraft Dungeons characters, Spider-Man snapshots, FC 24 settings), so a member's game often has parts the room's profile lacks; until then such a move is refused and nothing is written. 4) Member profile from start to end (name → sign in → restore → play → back up → sign out → remove). 5) Parking non-members' saves; clean slate (the removal step now exists). 6) Back up during the session + a to-do list on the PS4 that survives rest mode. 7) Prepare the day's saves from the bookings (one job at a time per PS4 – a new command replaces one not yet taken). 8) Guest login on the PS4 (QR). 9) Morning wake-up of booked rooms. Saves filed by member, not by PS4, so a second outlet works.",
-          "runs": "PS4 helper + engine; owner at a PS4 for the checks on the TV"
-        },
-        {
-          "name": "Game saves – later: other branches / PC room",
-          "status": "parked",
-          "what": "Works across branches if every PS4 uses the same Apollo account ID and the engine gets a branch label. A Steam Machine / PC room would keep its own set of saves (Steam Cloud off, Ludusavi + our upload) – check game licences for commercial use first. Only when a second branch is found.",
-          "runs": "—"
-        },
-        {
-          "name": "PS4 helper – speed-up and slimming (to do, owner 19 Nov)",
-          "status": "planned",
-          "what": "Score 19 Nov: starter 8/10, controller detector 9/10, helper 5/10. In order: 1) timing logs first (how long check-ins, handshakes and the 15-min report really take on a PS4). 2) Slim the helper 2.4 → ~1.6 MB: only the 2–3 certificates our engine needs (not ~140), drop a leftover test program, compiler settings for unused code; free ~620 KB of memory that big buffers hold all the time; stop ~8,000 diagnostic disk writes a day; the 15-min report skips what hasn't changed. 3) Fast encryption (the PS4's AES/maths instructions) – Kaeden first. 4) Keep one connection to the engine open instead of a new secure connection every minute (fewer stalls, commands in seconds instead of up to 60 s). Detector: sleep 5 s instead of 1 s while asleep. Blockers: only live room PS4s to test on (use Kaeden's idle PS4 as the test bench), helper updates capped at 5 switches per PS4 start, the starter can only be changed by FTP at each PS4, no profiler on the PS4, Cloudflare free-plan limits."
-        },
-        {
-          "name": "PS4 stays on before and during bookings (keep-awake)",
-          "status": "build",
-          "what": "Owner 19 Nov 2:10pm: a PS4 that is on stays awake from 2 hours before a booking until 15 min after the guest end (time for the auto reset). If the next booking is more than 2 hours away, or there is none left, the PS4 follows its own power-save settings, so a long gap is not spent switched on. Back-to-back bookings less than 2 hours apart keep it on. Live 19 Nov 2:12pm (engine only; PS4s on helper 1.1.68+). Next: the shop wakes a sleeping PS4 15 min before its booking (works on Kai, Vale, Max, Scarlett, Kaeden; Bella and Atlas need a LAN cable or staff)."
-        },
-        {
-          "name": "PS4 menu add-on: lock during save loads, then everyone logged out",
-          "status": "test",
-          "what": "A small Round2 add-on inside the PS4's own menu (round2_shell6). While the tile loads a member's saves it locks the PS button (staff unlock: hold L2+R2+L3+R3 for 2 s; never longer than 10 min). When the load is done it uses the menu's own Log Out, so guests land on the profile picker and choose their profile. 20 Nov evening on Kaeden (test helper 1.1.118, loads it at every start): self-tests and a real member load all worked; buttons read live. Next: confirm on screen, then one room at a time.",
-          "runs": "PS4 system menu (GoldHEN add-on round2_shell4), loaded by the PS4 helper",
-          "code": "round2-tv-launcher · ps4/plugin/round2_shell, ps4/helper/main.c (shell_auto, /_shtest), docs/ps4-shellui.md"
-        }
-      ]
+     "name": "Website visitor stats",
+     "status": "live",
+     "what": "Counts what visitors tap (numbers only) for the Website tab here.",
+     "runs": "Firebase /web",
+     "code": "round2sg-home · index.html, round2-tv-launcher docs/site-stats.md"
     },
     {
-      "name": "Food menu",
-      "items": [
-        {
-          "name": "Room food menu (QR on the TV)",
-          "status": "test",
-          "check": "payments",
-          "what": "Guests order food from their room and pay with HitPay (live once the live key is in). Test an order: skip HitPay or the full HitPay-sandbox flow. Waiting for Madd Pizza's PayNow confirmation. The $0.50 test item only shows in Test an order; real guests can't buy it. To do before launch: kitchen opening/closing hours, and items that stop after the main kitchen closes (owner getting the times from Madd); per-room QR codes.",
-          "runs": "round2sg-home/menu + booking engine",
-          "code": "round2sg-home · menu/"
-        },
-        {
-          "name": "Kitchen Telegram slip",
-          "status": "test",
-          "what": "Paid orders post to the Madd Pizza kitchen group with a 'food is at the pickup point' button.",
-          "runs": "Booking engine"
-        },
-        {
-          "name": "Order record, Drive slip, accounts sheet",
-          "status": "test",
-          "what": "Saves each paid order, writes the print slip to Google Drive and adds the row to the accounts sheet.",
-          "runs": "Make: [BACKEND] ROOM MENU PAID ORDER"
-        },
-        {
-          "name": "Kitchen printing",
-          "status": "live",
-          "what": "An Android phone syncs the Drive folder and a printing app prints each slip. Works but basic – ideas on the shelf.",
-          "runs": "Kitchen phone"
-        },
-        {
-          "name": "Madd nightly settlement",
-          "status": "live",
-          "what": "Totals the day's Madd payable at 11pm.",
-          "runs": "Make: [BACKEND] MADD NIGHTLY SETTLEMENT LOG"
-        },
-        {
-          "name": "Madd payout (Telegram buttons)",
-          "status": "live",
-          "what": "Telegram buttons to mark Madd as paid.",
-          "runs": "Make: [CONTROL] MADD PAYOUT TELEGRAM"
-        },
-        {
-          "name": "Automatic payout to Madd Pizza",
-          "status": "planned",
-          "what": "Next project. Nightly/weekly total → owner gets Approve/Skip on Telegram → HitPay pays Madd's saved bank account/PayNow from the HitPay wallet → confirmation in the shared Madd + Round2 group with a 'Received and tallied' button for Madd's manager. Needs HitPay to switch on Payouts and Madd's bank details or UEN.",
-          "runs": "Booking engine (Cloudflare) + HitPay Payouts"
-        },
-        {
-          "name": "Old Wix food orders",
-          "status": "off",
-          "what": "The old Wix checkout. The Make scenario is still switched on but gets no orders.",
-          "runs": "Make: [BACKEND] WIX PAID FOOD ORDER"
-        },
-        {
-          "name": "Food menu off Make (hybrid)",
-          "status": "planned",
-          "what": "Next: test orders and the 'Loot dropped' ack → Telegram move into the engine. The accounts-sheet row and the Drive print file stay on Make. Saves Make operations.",
-          "runs": "Booking engine – replaces Make 8214565 / 8216677"
-        }
-      ]
+     "name": "New booking page",
+     "status": "live",
+     "check": "payments",
+     "what": "Guests pick a room, time and length, pay with HitPay, and it goes straight into SimplyBook. Pays live once the live HitPay key is in Cloudflare; the Test bench always uses the HitPay sandbox. Safe mode (Systems › Switches) shows the old SimplyBook calendar instead.",
+     "runs": "round2sg-home/slots (GitHub Pages) + booking engine · opened from the website’s Book screen",
+     "code": "round2sg-home · slots/index.html, HANDOFF.md"
     },
     {
-      "name": "TVs",
-      "items": [
-        {
-          "name": "Round2 Home (Android/Google TV)",
-          "status": "live",
-          "check": "release",
-          "what": "The home screen on Kai (TCL), Kaeden and Maximillion (Sony) and Atlas (Prism+).",
-          "runs": "Android app, updates from GitHub releases",
-          "code": "round2-tv-launcher · web/, app/"
-        },
-        {
-          "name": "Round2 Home (LG)",
-          "status": "live",
-          "what": "The same menu on Scarlett, Vale and Bella (rooted LG).",
-          "runs": "webOS app (.ipk)",
-          "code": "round2-tv-launcher · webos/"
-        },
-        {
-          "name": "AirPlay on Bella's LG",
-          "status": "build",
-          "what": "A custom AirPlay receiver, because Bella's TV can't get LG's own.",
-          "runs": "Bella's TV",
-          "code": "round2-tv-launcher · airplay-webos/"
-        },
-        {
-          "name": "Themes, event backgrounds, sounds",
-          "status": "live",
-          "what": "Backgrounds and sounds per room and for events, from the Themes tab.",
-          "runs": "GitHub (themes/)",
-          "code": "round2-tv-launcher · themes/"
-        },
-        {
-          "name": "Round2 messages to TVs",
-          "status": "live",
-          "what": "Birthday, '10 minutes left', 'that's a wrap' etc. from TV messages › Round2 messages. Each message is tagged by who made it: gold ROUND2 (by hand, +1h, Late session), blue ⚙ AUTO WRAP-UP, grey GUEST. Messages 12am–6am count as the night before.",
-          "runs": "Booking engine (messages + timer) + Firebase"
-        },
-        {
-          "name": "Guest messages (cue.round2.sg)",
-          "status": "live",
-          "check": "cue",
-          "what": "Guests write their own TV message from a link; staff approve; it pops up on time. Each link is tied to its booking or note when made (moved → moves, deleted → cancelled); a link made first waits and ties itself, Late session ties it straight away, Pair fixes a wrong time, and a phone heads-up comes 3 h before if it's still not tied (2 Nov).",
-          "runs": "cue.round2.sg + booking engine /gm (messages kept in the engine since 1 Nov; Make scenario off, kept as fallback)",
-          "code": "round2-tv-launcher · cue/, manager/msg/, docs/guest-messages.md"
-        },
-        {
-          "name": "Message timer",
-          "status": "live",
-          "what": "Sends each queued message to its TV a minute before its time.",
-          "runs": "Booking engine (replaced Make's GUEST MESSAGE TIMER, now off)"
-        },
-        {
-          "name": "Messages follow their booking",
-          "status": "live",
-          "check": "engine",
-          "what": "When staff move a booking in SimplyBook (new time, day or room), its guest message moves too; if the booking is cancelled, the message is cancelled. Happens the moment SimplyBook reports the change (and is checked again right before the message shows). Moving a message by hand still works and isn't undone.",
-          "runs": "Booking engine (Cloudflare)",
-          "code": "round2-tv-launcher · docs/guest-messages.md \"Follows the booking\""
-        },
-        {
-          "name": "In session: extend a session (+1/+2/+3h)",
-          "status": "live",
-          "check": "engine",
-          "what": "Control centre › In session shows today's bookings and notes per room – after 5pm also tonight's after-midnight sessions. +1h/+2h/+3h: a booking or ordinary note gets ONE EXT note after it ('EXT till 1am · Amanda'), stretched on each +1h; a Late session note is stretched itself and its text changed ('late till 2am'). Vale/Atlas: the twin gets a SYSTEM BLOCK. Moves or adds 'About 10 minutes to go' / 'That's a wrap!', TV shows '+N CREDITS ADDED'. Undo for 30 min.",
-          "runs": "Booking engine (Cloudflare) + TV app",
-          "code": "round2-tv-launcher · docs/guest-messages.md \"In session\""
-        },
-        {
-          "name": "Add a session (was Late session)",
-          "status": "live",
-          "what": "16 Nov (later): ONE SimplyBook contact per mobile number for online bookings and Add a session – reused, renamed to the newest name, a real email replaces the placeholder. 16 Nov: no email no longer makes a note – a random placeholder email (example.com, nobody gets emails) lets the real booking through; notes (late / odd length / clash / no mobile) get the same 4-box booking page (book.round2.sg/c/<code> → /move), changed on WhatsApp. Since 12 Nov: a daytime session (start 11am–8:15pm, guest leaves by 11:15pm, 3–6 whole hours, nothing in the way) with the guest's MOBILE and EMAIL becomes a REAL SimplyBook booking (15 Nov: no email, or SimplyBook refuses the guest's contact → a note; the shared 'Round2 online guest' contact only if the note is refused too): its own contact (the name typed), pax, Vale/Atlas twin blocked, and a booking-page link to copy or WhatsApp to the guest (TV message, receipt, rescheduling). Email is optional – with it, the guest also gets the confirmation email. Everything else (late, other lengths, clashes, no mobile, Change) stays a note as before. In session › Add a session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too). TESTING (owner, 2 Nov): the form asks for “Night of” + arrival (times after 12am show their real date, a red box confirms it; before 7am the page opens on last night). Waiting for the admin's feedback: keep “Night of”, or pick the real date instead? (Out of testing 11 Nov 2026.)",
-          "runs": "Booking engine + SimplyBook notes",
-          "code": "round2sg-home · docs/booking-times.md"
-        },
-        {
-          "name": "Upcoming sessions keyed in here (change / cancel)",
-          "status": "live",
-          "what": "16 Nov: sessions saved as a NOTE get a booking link too (book.round2.sg/c/<code>, same You're booked page, read live from the note; Copy link / WhatsApp it in the result and the list; Get booking link for older notes). Under Add a session: everything keyed in there (and other notes that start before 7am or run past midnight), 45 days ahead; 🌙 Late only on sessions late by their times (from 11pm, or past 11:15pm). Change (time, night, room) or Cancel (tap twice) – the note, its TV messages and its SimplyBook label follow. Real bookings are changed in SimplyBook.",
-          "runs": "Booking engine"
-        },
-        {
-          "name": "Alert history",
-          "status": "live",
-          "what": "Home › Alert history: every phone alert of the last 24 hours (rolling, so overnight bookings are still there in the morning); problems stay until marked sorted; tap one for its details page (swipe from the left edge to go back). Home shows a one-line Last 24 hours summary. New-booking alerts say 🆕 1st visit or 🔁 Nth visit (matched by phone or email over all bookings since Sep 2025; kept up to date with each booking and cancellation). Pages are kept 3 days so a late-tapped notification still opens.",
-          "runs": "Booking engine (alert log) + control centre"
-        },
-        {
-          "name": "After-midnight labels in SimplyBook",
-          "status": "live",
-          "what": "SimplyBook only shows 11am–12am. A session starting after 12am gets '↓ AFTER 12AM · name · times' at 11:30pm the night before; one running past 12am gets '↓ TILL 1AM · name'. Labels block nothing and nothing reads them; they follow every change.",
-          "runs": "Booking engine (every 30 min + on each change)"
-        },
-        {
-          "name": "Auto wrap-up",
-          "status": "live",
-          "what": "Switch in TV messages › Auto wrap-up (on since 2 Nov). Every session today gets 'About 10 minutes to go' and 'That's a wrap!' by itself, kept in step with new bookings, extensions, moves and cancellations; uses messages already set by hand instead of doubling; one session can be switched off. Switching off removes everything it scheduled; hand-made ones stay. (Out of testing 11 Nov 2026.)",
-          "runs": "Booking engine – as Round2 messages (blue ⚙ tag)"
-        },
-        {
-          "name": "Clean-up of orphan wrap-up messages",
-          "status": "live",
-          "what": "Every 10 min and when SimplyBook reports a change: a '10 minutes to go' / 'That's a wrap!' whose booking or note no longer exists is cancelled (max 4 at once, as a safety stop).",
-          "runs": "Booking engine"
-        },
-        {
-          "name": "Food alerts on the TV",
-          "status": "test",
-          "what": "'Order locked in' and 'Loot dropped' on the room's TV.",
-          "runs": "Firebase"
-        },
-        {
-          "name": "TV tiles say what's on screen",
-          "status": "live",
-          "what": "Round2 messages › On the TVs now shows what each TV has in front (PS4, YouTube, Round2 menu…) and for how long. Built 2 Nov (TV app 1.0.225); each TV shows it once it's updated. Same update fixes LG TVs reporting the wrong message as 'shown'. (Out of testing 11 Nov 2026.)",
-          "runs": "LG helper + Android app check-ins → control centre",
-          "code": "round2-tv-launcher · webos/service/round2d.sh, app/…/HomeWatch.java, manager/index.html"
-        },
-        {
-          "name": "iPhone widgets (home screen + lock screen)",
-          "status": "test",
-          "what": "Built 20 Nov (owner: 'useful iOS lock screen and home screen widgets'). Run in the free Scriptable app; control centre › Tests & systems › Phone alerts & widgets copies the script with this shop's widget key. Small: rooms in use, next in/out with a live countdown. Medium: every room (in till / cleaning till / next / free). Large: each room with guest, next guest and turnover, plus warnings. Lock screen: inline line by the clock (next out / next in), rectangular (3 lines), circular (rooms in use). Warning when a room with guests (or due within 45 min) has a TV not reporting 20 min. Parameter tv / msgs / times / money / health / tomorrow / count / rooms / nonames / room:Kai. 20 Nov: Round2 look (the real white logo, the website fonts Press Start 2P + Chakra Petch from an installable font profile manager/widget/round2-fonts.mobileconfig, save-slot frames, room icons, room name on its own line); today's bookings + money (from the New booking alerts), tomorrow once tonight's last guest has left, a health light on every widget (SimplyBook use, timers, payments to sort, TVs not reporting), live countdown on the round lock widget. No SimplyBook requests: the engine keeps a copy of the 10-minute calendar read; one storage call per widget refresh.",
-          "runs": "Scriptable on the iPhone → engine GET /w?k=… (copy of tonight from the main timer, TVs from the side timer)",
-          "code": "round2-tv-launcher · manager/widget/round2-widget.js, manager/index.html (wgCard, System check step 'Phone widgets'); round2sg-home worker · widgetApi / widgetSnap / widgetkey"
-        },
-        {
-          "name": "PC toolkit finds each TV by itself (connect kai)",
-          "status": "test",
-          "what": "Built 15 Nov (owner: 'connect kai should read the IP the homescreen app reports'). Android TVs on app 1.0.286+ send their shop-network address with every 5-minute check-in; the TVs page shows it ('ADB 192.168.88.x:5555') and round2tv.ps1 connect <room> uses it first, falling back to the address typed in Theme manager › Rooms › Advanced. The PC asks once for the TV messages key and keeps it in its round2-tv folder. LG TVs don't use ADB.",
-          "runs": "Android app check-in → Firebase → PC toolkit / control centre",
-          "code": "round2-tv-launcher · app/…/FoodAlerts.java (lanIp), tv-tools/round2tv.ps1 (Resolve-Room), manager/index.html (TV tile)"
-        },
-        {
-          "name": "Remote TV updates (Update now from the control centre)",
-          "status": "live",
-          "what": "Built 2 Nov (TV app 1.0.226; works on a TV once it has 1.0.226). Update now on each TV tile (Round2 messages › On the TVs now), refused while the TV is off, locked in its Staff tools, or its room has a session now or within 10 min. LG installs by itself (download + SHA-256 check first, 'don't switch off' notice, progress on the tile, reinstalls itself on start-up if cut off). Android only gets it ready – staff press Install in Staff tools › Update app. (Out of testing 11 Nov 2026.)",
-          "runs": "Engine (tvupdate) + LG helper / Android app (cmd, update in Firebase)",
-          "code": "round2sg-home worker (tvUpdate) · round2-tv-launcher webos/service/round2d.sh, app/…/FoodAlerts.java, manager/index.html"
-        },
-        {
-          "name": "TV messages: Tonight / Send / Guest links / Calendar + TVs tab",
-          "status": "live",
-          "what": "Built 2 Nov (owner's Plan A). Tonight = every message tonight (guest, Round2, Auto wrap-up) per room and booking, finished bookings folded away; Send = the form only; Guest links = make + list on one page; Calendar = later days. TVs tab = status tiles + Update now + Test a TV; Home shows 'x of 7 TVs on'. (Out of testing 11 Nov 2026.)",
-          "runs": "Control centre (manager/index.html: Cal.tonight, Msgs.status)",
-          "code": "round2-tv-launcher manager/index.html"
-        },
-        {
-          "name": "Kai: remote presses multiplied when TCL closes the Home-button helper – on hold",
-          "status": "planned",
-          "what": "14 Nov 2026: after a long session Kai's remote registered presses several times; TCL's Safety Guard had closed the Home-button helper (tile: killed · tguard-kill). Fixed at the TV: Settings › Accessibility › Round2 Home button off, then on. Owner: keep logged, hold off. Options written up, none chosen: (1) the helper stops listening to the remote on Kai and reacts to the TV's home screen instead (brief flash of the Google home on Home); (2) switch Safety Guard off from the laptop; (3) self-repair + a Restart helper button on the tile. 'Home screen manager' apps use the same trick as ours and wouldn't help. Next time it happens: run the toolkit's diag on the laptop BEFORE fixing.",
-          "runs": "TV app (HomeGuard) · PC toolkit",
-          "code": "round2-tv-launcher · README 'Kai: remote presses multiplied'"
-        },
-        {
-          "name": "Smoother transitions",
-          "status": "planned",
-          "what": "Owner is thinking it over (2 Nov). Ideas, best first: 1) pause the background while a transition plays (test on one LG first); 2) Rise moves the menu as one piece instead of ~15 parts; 3) each TV checks its own smoothness at start-up and switches itself to Fade if it drops frames ('lite mode' on its TV tile); 4) open the app at the same moment as the animation (with 3). Warp, Flash and Lightning + ship were removed 2 Nov for being heavy/unused.",
-          "runs": "TV app (web/index.html: dive/arrive, Home animations)",
-          "code": "round2-tv-launcher web/index.html"
-        },
-        {
-          "name": "PS4 remote tools: read a file, blocker settings (helper 1.1.16)",
-          "status": "test",
-          "what": "Control centre › PS4s: 'Read a file on a PS4' shows the last lines of a log or settings file (blocker log, starter log, GoldHEN AutoRun list…) or the running programs – read-only, Round2/nanoDNS/GoldHEN folders only. 'Blocker settings' sends new nanoDNS settings: checked by the engine and again by the PS4 (block-everything line stays, nothing Sony-looking, no catch-alls, engine allowed), typed SEND, never to a room with guests within 10 minutes; the PS4 keeps the old file, restarts the blocker, tests Sony is blocked and the engine answers, and puts the old settings back by itself if not. Not tried on a real PS4 yet (rooms get 1.1.16 in quiet time).",
-          "runs": "Helper 1.1.16 (/_tail, /_ps, dns job) · engine ps4dns / ps4dnsget / /ps4/dnsini · System check step 'PS4 blocker settings: bad files refused, nothing sent (dry run)'"
-        },
-        {
-          "name": "PS4 remote wake + sleep (helper 1.1.21+, Remote Play key)",
-          "status": "test",
-          "what": "Wakes a resting PS4 from another awake PS4 on the shop network – no Sony, no app. Each PS4 is registered once (Settings › Remote Play Connection Settings › Add Device, the 8-digit number; NOT Mobile App Connection Settings) through its main profile; the engine keeps the key. Needs the PS4's Power Save › rest-mode settings to match Kai's (Stay Connected, Turn On from Network, USB power Always). 16 Nov: Wake all woke Kai, Vale, Max, Scarlett with two different senders; Atlas and Bella drop off the network in rest (Wi-Fi – to sort). Control centre › PS4s: Wake early-bird / Wake all / Sleep all / Wake per room; morning trigger (staff switch one PS4 on 7–11:15am → rooms with an 11:00 booking wake) not yet tried. A PS4 woken with nobody using it goes back to rest after ~30 min.",
-          "runs": "Helper /_rpreg, /_wakerp, /_rest · engine ps4wake / ps4wakekey, kv ps4wake, ps4MorningWake"
-        }
-      ]
+     "name": "Booking engine (Cloudflare)",
+     "status": "live",
+     "check": "engine",
+     "what": "The fast back end: free slots, 10-min holds, HitPay, putting bookings in SimplyBook, TV message timer, menu payments.",
+     "runs": "Cloudflare Worker round2-book",
+     "code": "round2sg-home · worker/round2-book.js"
     },
     {
-      "name": "This control centre",
-      "items": [
-        {
-          "name": "Control centre",
-          "status": "live",
-          "what": "staff.round2.sg – this page (Home Screen app, locked until the keys are pasted): sessions, messages, themes, menu, website stats, systems and tests.",
-          "runs": "GitHub Pages",
-          "code": "round2-tv-launcher · manager/"
-        },
-        {
-          "name": "Staff phone alerts (push)",
-          "status": "test",
-          "what": "Alerts tab: new / changed / cancelled bookings and a 1-hour reminder (bookings and notes) on this phone, with the room's character icon. Needs the app opened from the Home Screen (iOS 16.4+). Since 14 Nov: an alert a phone hasn’t shown is sent again after about a minute (then twice more), the copies can land together on an iPhone (it doesn’t merge them – opening the app clears the extras); Phone alert setup › “Did the alerts arrive?” shows how fast each phone got each alert. A sign-up that has shown nothing for a week is removed by itself (old sign-ups left behind when the app was re-added); if that phone is still in use it signs up again when the control centre is opened on it.",
-          "runs": "Booking engine (Web Push) + staff.round2.sg",
-          "code": "round2-tv-launcher · docs/staff-alerts.md"
-        },
-        {
-          "name": "Alerts shown by the iPhone itself (Declarative Web Push) – tried, switched off",
-          "status": "planned",
-          "what": "Tried on the owner's iPhone 14 Nov 2026, 4pm–11pm, then switched off. The idea: the alert tells the iPhone what to show, so it doesn't have to start the control centre's background helper first. Result: no gain – his phone still only showed a booking alert when our re-send arrived (about 50 s late, 2 copies), while staff phones had it in 3–4 s; and a phone on it can't report to \"Did the alerts arrive?\". Nothing merges copies on an iPhone, so the trade stays: re-send = within about a minute but 2+ copies, no re-send = one copy, later. The engine still has the switch (KV push:decl) if a later iOS makes it worth another try.",
-          "runs": "Booking engine (Web Push) – KV push:decl",
-          "code": "round2-tv-launcher · docs/staff-alerts.md 'Declarative Web Push'"
-        },
-        {
-          "name": "Telegram = food workflow only (rule)",
-          "status": "live",
-          "what": "Owner’s rule (14 Nov 2026): the Telegram chat is only for the Madd Pizza ↔ Round2 food workflow (kitchen slip, pickup button). Nothing about bookings ever goes to Telegram – Madd Pizza doesn’t need to know them. The engine’s old unused booking-to-Telegram road is switched off in the code. Booking alerts reach staff through the control centre’s phone alerts only.",
-          "runs": "Booking engine (kitchen slip only) + Telegram kitchen bot",
-          "code": "round2-tv-launcher · docs/staff-alerts.md"
-        },
-        {
-          "name": "One staff code for TV setup",
-          "status": "planned",
-          "what": "TV setup (Events, Rooms, Sounds, TV settings) asks for a GitHub key today. Replace it with one constant code through the engine, like every other tab."
-        },
-        {
-          "name": "Round2 vs Guest messages – review",
-          "status": "planned",
-          "what": "After a few days of use: do the two message lists still feel awkward? (Since 2 Nov: separate lists, colour tags, night-based dates.)"
-        },
-        {
-          "name": "New TV messages key",
-          "status": "planned",
-          "what": "Swap the Firebase TV messages key for a new one (security tidy-up, not urgent)."
-        },
-        {
-          "name": "Staff roll-out",
-          "status": "planned",
-          "what": "Give staff the control centre (Home Screen app + keys) once the owners are happy everything is stable."
-        }
-      ]
+     "name": "Background timers (3, each with its own allowance)",
+     "status": "test",
+     "what": "Cloudflare's free plan lets one run of the engine make only 50 requests to the outside (SimplyBook, HitPay, the TVs, Apple). Since 14 Nov the background jobs are split over three timers so they can't starve each other: main, every 5 min (1-hour reminders, alert re-sends, tonight's calendar: Auto wrap-up, noise rule for tonight + tomorrow); side, every 5 min a minute later (TV OKs, paid-but-not-booked, keys); sweep, every 10 min (after-midnight notes, noise rule further ahead). If a timer goes missing the main one does its jobs as before and the System check says so. New background jobs (PS4 game-save prep and clean-up, membership reminders, Madd payout) go in side or sweep, or get their own timer – 5 allowed, 3 used. Alerts themselves are sent from the engine's store, outside all of this.",
+     "runs": "Cloudflare › round2-book › Triggers (3 schedules)",
+     "code": "round2sg-home · worker/round2-book.js (scheduled) · System check step 'Background jobs: 3 timers'"
+    },
+    {
+     "name": "SimplyBook booking page",
+     "status": "live",
+     "what": "The calendar behind everything, and the safe-mode fallback (Systems › Switches shows it on the booking page). Walk-in, WhatsApp and staff bookings still go in here.",
+     "runs": "SimplyBook"
+    },
+    {
+     "name": "SimplyBook phone alerts",
+     "status": "broken",
+     "what": "Push alerts in the SimplyBook app stopped on every phone on 29 Oct, 5:50pm – also for bookings on SimplyBook's own page. Logging out/in didn't help. Ask SimplyBook support.",
+     "runs": "SimplyBook app"
+    },
+    {
+     "name": "Mirror rooms (Atlas ↔ Vale blocks)",
+     "status": "live",
+     "what": "Since 11 Nov 2026 run by the booking engine instead of Make (Make [BACKEND] SYSTEM BLOCKS MIRROR ROOMS switched off 11 Nov, 8:18pm). When Atlas or Vale is booked (online, by staff or in SimplyBook), the other room is blocked for the same time, cleaning included; the block moves and goes with the booking. Since 14 Nov 2026 a new block is a time-blocked note (“SYSTEM BLOCK · TWIN · Vale is booked (name) · removed automatically”), the same kind as the noise-rule block, the hold while a guest pays and the +h copies – so twin blocks no longer count as bookings in SimplyBook. Blocks made before that are still SYSTEM BLOCK bookings and stay that way until their booking is cancelled or moved through Round2. If the other room already has real guests at that time, or the block can't be made, staff get a “needs a human” alert. The System check confirms every Vale/Atlas booking has its block (a note deleted by hand shows up there). Switch: engine gm mirror do=on / off (off = back to Make, which would need switching on again).",
+     "runs": "SimplyBook callback → booking engine (/sb/notify) → mirrorOnSb",
+     "code": "round2sg-home · worker/round2-book.js (mirrorOnSb, mirAdopt)"
+    },
+    {
+     "name": "Noise rule (Max/Atlas 4+ → Bella, Bella 4 → Atlas)",
+     "status": "live",
+     "what": "A session with 4 or more guests in Max or Atlas blocks Bella for the same time (with cleaning and extensions); 4 guests in Bella blocks Atlas. Max is never blocked. Works for online bookings, SimplyBook bookings (guest count field) and control-centre sessions (\"4 pax\" in the note). The block shows in SimplyBook as “SYSTEM BLOCK · NOISE” and goes away by itself when the session is cancelled, shortened or drops below 4 guests. If the other room is already booked, the booking still goes ahead and staff get an alert (phone + Telegram).",
+     "runs": "booking engine (Cloudflare) · on every SimplyBook change, after In session / Add a session, every 10 min (tonight + tomorrow), hourly (week ahead)",
+     "code": "round2sg-home · worker/round2-book.js (noiseSync)"
+    },
+    {
+     "name": "Confirmation email link (TV message)",
+     "status": "live",
+     "what": "A line in SimplyBook's confirmation email (book.round2.sg/b/<booking code>) opens the guest's booking page. Pasted into the template and tested by the owner 9 Nov; Round2-styled email pictures added 10 Nov.",
+     "runs": "SimplyBook email template + engine /b/<code>"
+    },
+    {
+     "name": "Online rescheduling",
+     "status": "live",
+     "what": "BETA, live 12 Nov 2026. Guests move their own booking from their booking page (book.round2.sg/b/<code> › Reschedule, or the MANAGE YOUR BOOKING button in the emails). Rules: up to 2 moves; 3+ days ahead any free slot; under 3 days new times from 2:15pm; under 24h same-day upgrades only; under 3h no rescheduling; new time at least 3h away; free in the first 15 min after booking or a move. Fee: MOVE $15, or UPGRADE / PEAK TIME $5 (they pay the price difference too), plus POPULAR +$5 to +$20 in $5 steps; some popular slots $5 OFF; 2nd move +$10; early-bird bookings always $15. Paid on HitPay; the move happens only after payment, with a fresh check that the time is still free (if not, staff are alerted to move or refund). The page and the engine use the very same rules file, so the price shown is the price charged. Cheaper slots: no refund. Calendar read from SimplyBook once and kept 3 minutes, so it doesn't eat the SimplyBook limit. Switch: engine mode gResched=false turns it off (guests then see 'WhatsApp us'). The way in is the booking link only (email button or the link staff send); a homepage LOAD SAVE / SAVE FOUND was tried 12 Nov and removed (a forwarded link would show on another phone). 14 Nov: adding hours to the same slot has no change fee (only the extra hours) and doesn't use a move; $5 only for a bigger kind of room or a dearer rate. While a guest pays, the new time is held 10 minutes like a new booking (ONLINE HOLD note in SimplyBook).",
+     "code": "round2sg-home · docs/rescheduling-plan.md"
+    },
+    {
+     "name": "Move a booking (staff)",
+     "status": "live",
+     "what": "Control centre › Bookings › Move a booking (12 Nov). Staff pick a booking, a new room/day/time (only free times shown), and see the fee in two parts: the move (Move $15, or Upgrade / Peak time $5 + the price difference) plus Popular time +$10/+$20 when the slot is in demand (Vale/Atlas straight after a session in the same room +$10). Staff can lower or waive it (reason logged). Payment: PayNow QR on the screen, a HitPay link for WhatsApp, or Paid in shop (Tap to Pay). The move is a SimplyBook edit; the Vale/Atlas block, TV messages and wrap-up messages follow; the guest's booking page shows the new time. Bookings › Rescheduling lists every move. A booking's +h (EXT) extension moves with it (12 Nov). Since 12 Nov the popular-time part goes in $5 steps (+$5 to +$20), same as the guest page.",
+     "code": "round2sg-home · worker/round2-book.js (mv…) · round2-tv-launcher manager/index.html (Move)"
+    },
+    {
+     "name": "Round2 addresses for guest links (round2.sg)",
+     "status": "live",
+     "what": "Since 31 Oct guests see round2.sg addresses, not 'donttelldadyet': booking confirmation after paying and 'View your booking' → book.round2.sg (/done, /find, /b/<code>); room food menu → menu.round2.sg/<room> (e.g. menu.round2.sg/vale). TV message links were already cue.round2.sg. DNS stays in Wix (CNAME book / menu → donttelldadyet-prog.github.io); domain registered at Vodien. Old links still work. Still to do: owner points each room's Wix links page (valelinks etc.) at menu.round2.sg/<room>; the SimplyBook confirmation-email line should use book.round2.sg/b/<code>.",
+     "runs": "GitHub Pages repos round2-book and round2-menu (DNS in Wix) · booking engine PUBLIC_BOOK / PUBLIC_MENU",
+     "code": "round2sg-home · HANDOFF.md (TO DO at the top)"
+    },
+    {
+     "name": "Booking page safety (HitPay is the truth)",
+     "status": "live",
+     "what": "A time is never let go without asking HitPay; a paid booking is always made (Malia, 5 Nov). Payment pages close when the guest's 10 minutes end; a 5-minute check books anyone who paid but isn't booked.",
+     "runs": "Booking engine",
+     "code": "round2sg-home · worker/round2-book.js (hpPaid, safeRelease, paidSweep)"
+    },
+    {
+     "name": "Booking page numbers",
+     "status": "live",
+     "what": "Control centre › Website › Booking page: how long guests take to pay, latest attempts with the session date (Fri 6 Nov, 11am), sorted by Paid / why they left before paying (came back from paying, changed their mind, 10 minutes ran out, picked another time, checkout error) / booked by hand. Reasons are noted since 5 Nov.",
+     "runs": "Booking engine (gm paytimes) + control centre"
     }
-  ]
+   ]
+  },
+  {
+   "name": "Members & game saves",
+   "items": [
+    {
+     "name": "Membership (3 / 6 / 12 months)",
+     "status": "planned",
+     "what": "One member per phone number (the booker; group saves sit under them). Pitched at That's a wrap with the guest's own game and time played. Draft prices: 3 months S$15, 6 months S$25, 12 months S$30 'Best value' (pre-selected); each gives the same amount back as booking credit ('pays for itself on your next visit'). One-off payment via HitPay + renewal reminder; no auto-renew at first. Lapsed: saves frozen ~3 months, then deleted. Prices not final – watch sign-ups, plan picked and return visits for a month.",
+     "runs": "Booking engine (members table) + sign-up page + control centre › Members (owner key)",
+     "code": "not started · plan in chat 5 Nov 2026"
+    },
+    {
+     "name": "Guest game saves (PS4)",
+     "status": "build",
+     "what": "Members continue their PS4 games on a later visit, in any room. One membership = up to 2 personal PS4 profiles (member + partner) next to the room's main profile. At login their profiles appear with their saves; at session end the saves go to the cloud and the profiles are removed. Non-members: their saves are parked (kept, tied to the booking) so they can still be given back if the guest signs up; the next guest starts clean. Never touched: Gran Turismo Sport's save in Max's main profile (fully unlocked – the racing-sim draw). Saves prepared on each PS4 ahead of the day's bookings so a dropped internet connection can't block a login.",
+     "runs": "Round2 PS4 helper (round2d, on every room PS4) · booking engine · Cloudflare storage (bucket round2-saves)",
+     "code": "round2-tv-launcher branch ps4-helper folder ps4/ · round2sg-home worker/round2-book.js (ps4*) · full log: project doc ps4-game-saves.md"
+    },
+    {
+     "name": "Game saves – proven so far (13–17 Nov 2026)",
+     "status": "test",
+     "what": "All done remotely by the helper on Max: rename a spare profile; sign a profile in and out; open a save decrypted (read-only); back a save up to the cloud; restore it into another profile (Gran Turismo Sport, Max → User4, checked on the TV by the owner); put the PS4 into rest mode. Saves load in profiles that are not activated. The real game data is small (KBs to ~32 MB). 16 Nov: a save from an 11.00 PS4 loads on a 9.00 PS4 (Moving Out 2, Vale → Kai, checked by the owner); the helper keeps running after the PS4 wakes from rest (1.1.13, Kai). 17 Nov (helper 1.1.34–1.1.40, Max + Vale): three copies of every save (the save on the PS4, a prep copy on the PS4, the cloud) with a save log; a save part is replaced cleanly instead of mixed with the old one (PlateUp Max → Vale, identical to the byte); clear messages when the room lacks the game or the profile never played it; a save part can be removed properly (backed up first; the PS4's saved-data list keeps no broken entry); a whole game moves between profiles – every part, the receiving profile backed up first, leftovers from earlier players removed only after all the member's parts are in (owner 17 Nov) – Mortal Kombat 11, Vale → Max. Study of 62 games: a save is 1 to 17 parts, names chosen by each game.",
+     "runs": "Staff actions ps4prof, ps4look (/_save, /_sback, /_srest, /_sdel, /_sparts, /_gback, /_gmove, /_rest), ps4saves · System check step 'PS4 helpers + game-save storage'"
+    },
+    {
+     "name": "Clean slate after each session (from 18 Nov)",
+     "status": "test",
+     "what": "After a real guest session ends (twin/noise blocks and 'room blocked' notes don't count) the room's PS4 resets at guest end + 10 min (setting 5/10/12). 5 min before, guests get PS4 pop-ups (5 min, 1 min, 30 s, 10 s – over the game). Failsafes: SimplyBook is checked live when the countdown starts, every 2 min during it and 20 s before the end – an extension, the next guest already in, the switch off or no answer = nothing closed or cleared; staff 'Stop reset' on the tile. The PS4: closes the game left open (waits while it's still saving) · signs out the spare profiles · copies every save on every profile to its own storage with a fingerprint per file, then removes it (a game that didn't copy stays and is reported) · deletes profiles guests created (keeps the main + 4 spares; fewer than 4 = 'add by hand') · spares named Player 1–4, default pictures, main profile first. Never: GT Sport on Max's main profile, PS Vue, homebrew settings. Staff can press 'Clean slate now'. Every run and every problem is in PS4s › Clean slate. Cloud upload of the copies is built but OFF until membership. 17 Nov: launch clear done on Kai, Max, Atlas (day0 restore points first); tested on Max + Atlas. 18 Nov: CONTROLLER DETECTOR – TESTING ON MAX (Street Fighter 6 only): a small GoldHEN plugin inside the game, asleep except during the reset countdown, tells the helper when the controller was last used; someone still playing moves the reset to 2 min after their last press. Tested with the owner: sees play 20/20 s, no play 0/20 s, real 1-min countdown closed SF6 and ran the clean slate. Test pop-ups ('Round2 test: …') are on for Max only while testing. Other PS4s: not yet (helper 1.1.61, timer only).",
+     "runs": "Engine (10-min tick, kv ps4resetAuto – ON from 7am 18 Nov; staff ps4reset / ps4resetauto) · PS4 helper 1.1.55+ (staff button 1.1.53+) (/_reset, /_purge, /_cloud) · System check step 'PS4 clean slate after each session'",
+     "code": "round2sg-home worker/round2-book.js ps4ResetRun · round2-tv-launcher ps4/helper/main.c (look_reset, clean_step) · manager/index.html PS4s › Clean slate"
+    },
+    {
+     "name": "Game saves – still to build, in order",
+     "status": "planned",
+     "what": "Done: restore 11.00 → 9.00 (16 Nov); game versions per room checked (16 Nov); whole-game move + removing leftovers (17 Nov). Next: 2) Make a save part the receiving profile doesn't have yet – most games add parts as people play (Minecraft Dungeons characters, Spider-Man snapshots, FC 24 settings), so a member's game often has parts the room's profile lacks; until then such a move is refused and nothing is written. 4) Member profile from start to end (name → sign in → restore → play → back up → sign out → remove). 5) Parking non-members' saves; clean slate (the removal step now exists). 6) Back up during the session + a to-do list on the PS4 that survives rest mode. 7) Prepare the day's saves from the bookings (one job at a time per PS4 – a new command replaces one not yet taken). 8) Guest login on the PS4 (QR). 9) Morning wake-up of booked rooms. Saves filed by member, not by PS4, so a second outlet works.",
+     "runs": "PS4 helper + engine; owner at a PS4 for the checks on the TV"
+    },
+    {
+     "name": "Game saves – later: other branches / PC room",
+     "status": "parked",
+     "what": "Works across branches if every PS4 uses the same Apollo account ID and the engine gets a branch label. A Steam Machine / PC room would keep its own set of saves (Steam Cloud off, Ludusavi + our upload) – check game licences for commercial use first. Only when a second branch is found.",
+     "runs": "—"
+    },
+    {
+     "name": "PS4 helper – speed-up and slimming (to do, owner 19 Nov)",
+     "status": "planned",
+     "what": "Score 19 Nov: starter 8/10, controller detector 9/10, helper 5/10. In order: 1) timing logs first (how long check-ins, handshakes and the 15-min report really take on a PS4). 2) Slim the helper 2.4 → ~1.6 MB: only the 2–3 certificates our engine needs (not ~140), drop a leftover test program, compiler settings for unused code; free ~620 KB of memory that big buffers hold all the time; stop ~8,000 diagnostic disk writes a day; the 15-min report skips what hasn't changed. 3) Fast encryption (the PS4's AES/maths instructions) – Kaeden first. 4) Keep one connection to the engine open instead of a new secure connection every minute (fewer stalls, commands in seconds instead of up to 60 s). Detector: sleep 5 s instead of 1 s while asleep. Blockers: only live room PS4s to test on (use Kaeden's idle PS4 as the test bench), helper updates capped at 5 switches per PS4 start, the starter can only be changed by FTP at each PS4, no profiler on the PS4, Cloudflare free-plan limits."
+    },
+    {
+     "name": "PS4 stays on before and during bookings (keep-awake)",
+     "status": "build",
+     "what": "Owner 19 Nov 2:10pm: a PS4 that is on stays awake from 2 hours before a booking until 15 min after the guest end (time for the auto reset). If the next booking is more than 2 hours away, or there is none left, the PS4 follows its own power-save settings, so a long gap is not spent switched on. Back-to-back bookings less than 2 hours apart keep it on. Live 19 Nov 2:12pm (engine only; PS4s on helper 1.1.68+). Next: the shop wakes a sleeping PS4 15 min before its booking (works on Kai, Vale, Max, Scarlett, Kaeden; Bella and Atlas need a LAN cable or staff)."
+    },
+    {
+     "name": "PS4 menu add-on: lock during save loads, then everyone logged out",
+     "status": "test",
+     "what": "A small Round2 add-on inside the PS4's own menu (round2_shell6). While the tile loads a member's saves it locks the PS button (staff unlock: hold L2+R2+L3+R3 for 2 s; never longer than 10 min). When the load is done it uses the menu's own Log Out, so guests land on the profile picker and choose their profile. 20 Nov evening on Kaeden (test helper 1.1.118, loads it at every start): self-tests and a real member load all worked; buttons read live. Next: confirm on screen, then one room at a time.",
+     "runs": "PS4 system menu (GoldHEN add-on round2_shell4), loaded by the PS4 helper",
+     "code": "round2-tv-launcher · ps4/plugin/round2_shell, ps4/helper/main.c (shell_auto, /_shtest), docs/ps4-shellui.md"
+    }
+   ]
+  },
+  {
+   "name": "Food menu",
+   "items": [
+    {
+     "name": "Room food menu (QR on the TV)",
+     "status": "test",
+     "check": "payments",
+     "what": "Guests order food from their room and pay with HitPay (live once the live key is in). Test an order: skip HitPay or the full HitPay-sandbox flow. Waiting for Madd Pizza's PayNow confirmation. The $0.50 test item only shows in Test an order; real guests can't buy it. To do before launch: kitchen opening/closing hours, and items that stop after the main kitchen closes (owner getting the times from Madd); per-room QR codes.",
+     "runs": "round2sg-home/menu + booking engine",
+     "code": "round2sg-home · menu/"
+    },
+    {
+     "name": "Kitchen Telegram slip",
+     "status": "test",
+     "what": "Paid orders post to the Madd Pizza kitchen group with a 'food is at the pickup point' button.",
+     "runs": "Booking engine"
+    },
+    {
+     "name": "Order record, Drive slip, accounts sheet",
+     "status": "test",
+     "what": "Saves each paid order, writes the print slip to Google Drive and adds the row to the accounts sheet.",
+     "runs": "Make: [BACKEND] ROOM MENU PAID ORDER"
+    },
+    {
+     "name": "Kitchen printing",
+     "status": "live",
+     "what": "An Android phone syncs the Drive folder and a printing app prints each slip. Works but basic – ideas on the shelf.",
+     "runs": "Kitchen phone"
+    },
+    {
+     "name": "Madd nightly settlement",
+     "status": "live",
+     "what": "Totals the day's Madd payable at 11pm.",
+     "runs": "Make: [BACKEND] MADD NIGHTLY SETTLEMENT LOG"
+    },
+    {
+     "name": "Madd payout (Telegram buttons)",
+     "status": "live",
+     "what": "Telegram buttons to mark Madd as paid.",
+     "runs": "Make: [CONTROL] MADD PAYOUT TELEGRAM"
+    },
+    {
+     "name": "Automatic payout to Madd Pizza",
+     "status": "planned",
+     "what": "Next project. Nightly/weekly total → owner gets Approve/Skip on Telegram → HitPay pays Madd's saved bank account/PayNow from the HitPay wallet → confirmation in the shared Madd + Round2 group with a 'Received and tallied' button for Madd's manager. Needs HitPay to switch on Payouts and Madd's bank details or UEN.",
+     "runs": "Booking engine (Cloudflare) + HitPay Payouts"
+    },
+    {
+     "name": "Old Wix food orders",
+     "status": "off",
+     "what": "The old Wix checkout. The Make scenario is still switched on but gets no orders.",
+     "runs": "Make: [BACKEND] WIX PAID FOOD ORDER"
+    },
+    {
+     "name": "Food menu off Make (hybrid)",
+     "status": "planned",
+     "what": "Next: test orders and the 'Loot dropped' ack → Telegram move into the engine. The accounts-sheet row and the Drive print file stay on Make. Saves Make operations.",
+     "runs": "Booking engine – replaces Make 8214565 / 8216677"
+    }
+   ]
+  },
+  {
+   "name": "TVs",
+   "items": [
+    {
+     "name": "Round2 Home (Android/Google TV)",
+     "status": "live",
+     "check": "release",
+     "what": "The home screen on Kai (TCL), Kaeden and Maximillion (Sony) and Atlas (Prism+).",
+     "runs": "Android app, updates from GitHub releases",
+     "code": "round2-tv-launcher · web/, app/"
+    },
+    {
+     "name": "Round2 Home (LG)",
+     "status": "live",
+     "what": "The same menu on Scarlett, Vale and Bella (rooted LG).",
+     "runs": "webOS app (.ipk)",
+     "code": "round2-tv-launcher · webos/"
+    },
+    {
+     "name": "AirPlay on Bella's LG",
+     "status": "build",
+     "what": "A custom AirPlay receiver, because Bella's TV can't get LG's own.",
+     "runs": "Bella's TV",
+     "code": "round2-tv-launcher · airplay-webos/"
+    },
+    {
+     "name": "Themes, event backgrounds, sounds",
+     "status": "live",
+     "what": "Backgrounds and sounds per room and for events, from the Themes tab.",
+     "runs": "GitHub (themes/)",
+     "code": "round2-tv-launcher · themes/"
+    },
+    {
+     "name": "Round2 messages to TVs",
+     "status": "live",
+     "what": "Birthday, '10 minutes left', 'that's a wrap' etc. from TV messages › Round2 messages. Each message is tagged by who made it: gold ROUND2 (by hand, +1h, Late session), blue ⚙ AUTO WRAP-UP, grey GUEST. Messages 12am–6am count as the night before.",
+     "runs": "Booking engine (messages + timer) + Firebase"
+    },
+    {
+     "name": "Guest messages (cue.round2.sg)",
+     "status": "live",
+     "check": "cue",
+     "what": "Guests write their own TV message from a link; staff approve; it pops up on time. Each link is tied to its booking or note when made (moved → moves, deleted → cancelled); a link made first waits and ties itself, Late session ties it straight away, Pair fixes a wrong time, and a phone heads-up comes 3 h before if it's still not tied (2 Nov).",
+     "runs": "cue.round2.sg + booking engine /gm (messages kept in the engine since 1 Nov; Make scenario off, kept as fallback)",
+     "code": "round2-tv-launcher · cue/, manager/msg/, docs/guest-messages.md"
+    },
+    {
+     "name": "Message timer",
+     "status": "live",
+     "what": "Sends each queued message to its TV a minute before its time.",
+     "runs": "Booking engine (replaced Make's GUEST MESSAGE TIMER, now off)"
+    },
+    {
+     "name": "Messages follow their booking",
+     "status": "live",
+     "check": "engine",
+     "what": "When staff move a booking in SimplyBook (new time, day or room), its guest message moves too; if the booking is cancelled, the message is cancelled. Happens the moment SimplyBook reports the change (and is checked again right before the message shows). Moving a message by hand still works and isn't undone.",
+     "runs": "Booking engine (Cloudflare)",
+     "code": "round2-tv-launcher · docs/guest-messages.md \"Follows the booking\""
+    },
+    {
+     "name": "In session: extend a session (+1/+2/+3h)",
+     "status": "live",
+     "check": "engine",
+     "what": "Control centre › In session shows today's bookings and notes per room – after 5pm also tonight's after-midnight sessions. +1h/+2h/+3h: a booking or ordinary note gets ONE EXT note after it ('EXT till 1am · Amanda'), stretched on each +1h; a Late session note is stretched itself and its text changed ('late till 2am'). Vale/Atlas: the twin gets a SYSTEM BLOCK. Moves or adds 'About 10 minutes to go' / 'That's a wrap!', TV shows '+N CREDITS ADDED'. Undo for 30 min.",
+     "runs": "Booking engine (Cloudflare) + TV app",
+     "code": "round2-tv-launcher · docs/guest-messages.md \"In session\""
+    },
+    {
+     "name": "Add a session (was Late session)",
+     "status": "live",
+     "what": "16 Nov (later): ONE SimplyBook contact per mobile number for online bookings and Add a session – reused, renamed to the newest name, a real email replaces the placeholder. 16 Nov: no email no longer makes a note – a random placeholder email (example.com, nobody gets emails) lets the real booking through; notes (late / odd length / clash / no mobile) get the same 4-box booking page (book.round2.sg/c/<code> → /move), changed on WhatsApp. Since 12 Nov: a daytime session (start 11am–8:15pm, guest leaves by 11:15pm, 3–6 whole hours, nothing in the way) with the guest's MOBILE and EMAIL becomes a REAL SimplyBook booking (15 Nov: no email, or SimplyBook refuses the guest's contact → a note; the shared 'Round2 online guest' contact only if the note is refused too): its own contact (the name typed), pax, Vale/Atlas twin blocked, and a booking-page link to copy or WhatsApp to the guest (TV message, receipt, rescheduling). Email is optional – with it, the guest also gets the confirmation email. Everything else (late, other lengths, clashes, no mobile, Change) stays a note as before. In session › Add a session, or its own Home Screen button (staff.round2.sg/late/). Key in a WhatsApp or walk-in session, also past midnight, in 15-min steps: one SimplyBook note with name and pax, clash check first, optional wrap-up messages (untick = none, Auto wrap-up skips it too). TESTING (owner, 2 Nov): the form asks for “Night of” + arrival (times after 12am show their real date, a red box confirms it; before 7am the page opens on last night). Waiting for the admin's feedback: keep “Night of”, or pick the real date instead? (Out of testing 11 Nov 2026.)",
+     "runs": "Booking engine + SimplyBook notes",
+     "code": "round2sg-home · docs/booking-times.md"
+    },
+    {
+     "name": "Upcoming sessions keyed in here (change / cancel)",
+     "status": "live",
+     "what": "16 Nov: sessions saved as a NOTE get a booking link too (book.round2.sg/c/<code>, same You're booked page, read live from the note; Copy link / WhatsApp it in the result and the list; Get booking link for older notes). Under Add a session: everything keyed in there (and other notes that start before 7am or run past midnight), 45 days ahead; 🌙 Late only on sessions late by their times (from 11pm, or past 11:15pm). Change (time, night, room) or Cancel (tap twice) – the note, its TV messages and its SimplyBook label follow. Real bookings are changed in SimplyBook.",
+     "runs": "Booking engine"
+    },
+    {
+     "name": "Alert history",
+     "status": "live",
+     "what": "Home › Alert history: every phone alert of the last 24 hours (rolling, so overnight bookings are still there in the morning); problems stay until marked sorted; tap one for its details page (swipe from the left edge to go back). Home shows a one-line Last 24 hours summary. New-booking alerts say 🆕 1st visit or 🔁 Nth visit (matched by phone or email over all bookings since Sep 2025; kept up to date with each booking and cancellation). Pages are kept 3 days so a late-tapped notification still opens.",
+     "runs": "Booking engine (alert log) + control centre"
+    },
+    {
+     "name": "After-midnight labels in SimplyBook",
+     "status": "live",
+     "what": "SimplyBook only shows 11am–12am. A session starting after 12am gets '↓ AFTER 12AM · name · times' at 11:30pm the night before; one running past 12am gets '↓ TILL 1AM · name'. Labels block nothing and nothing reads them; they follow every change.",
+     "runs": "Booking engine (every 30 min + on each change)"
+    },
+    {
+     "name": "Auto wrap-up",
+     "status": "live",
+     "what": "Switch in TV messages › Auto wrap-up (on since 2 Nov). Every session today gets 'About 10 minutes to go' and 'That's a wrap!' by itself, kept in step with new bookings, extensions, moves and cancellations; uses messages already set by hand instead of doubling; one session can be switched off. Switching off removes everything it scheduled; hand-made ones stay. (Out of testing 11 Nov 2026.)",
+     "runs": "Booking engine – as Round2 messages (blue ⚙ tag)"
+    },
+    {
+     "name": "Clean-up of orphan wrap-up messages",
+     "status": "live",
+     "what": "Every 10 min and when SimplyBook reports a change: a '10 minutes to go' / 'That's a wrap!' whose booking or note no longer exists is cancelled (max 4 at once, as a safety stop).",
+     "runs": "Booking engine"
+    },
+    {
+     "name": "Food alerts on the TV",
+     "status": "test",
+     "what": "'Order locked in' and 'Loot dropped' on the room's TV.",
+     "runs": "Firebase"
+    },
+    {
+     "name": "TV tiles say what's on screen",
+     "status": "live",
+     "what": "Round2 messages › On the TVs now shows what each TV has in front (PS4, YouTube, Round2 menu…) and for how long. Built 2 Nov (TV app 1.0.225); each TV shows it once it's updated. Same update fixes LG TVs reporting the wrong message as 'shown'. (Out of testing 11 Nov 2026.)",
+     "runs": "LG helper + Android app check-ins → control centre",
+     "code": "round2-tv-launcher · webos/service/round2d.sh, app/…/HomeWatch.java, manager/index.html"
+    },
+    {
+     "name": "iPhone widgets (home screen + lock screen)",
+     "status": "test",
+     "what": "Built 20 Nov (owner: 'useful iOS lock screen and home screen widgets'). Run in the free Scriptable app; control centre › Tests & systems › Phone alerts & widgets copies the script with this shop's widget key. Small: rooms in use, next in/out with a live countdown. Medium: every room (in till / cleaning till / next / free). Large: each room with guest, next guest and turnover, plus warnings. Lock screen: inline line by the clock (next out / next in), rectangular (3 lines), circular (rooms in use). Warning when a room with guests (or due within 45 min) has a TV not reporting 20 min. Parameter tv / msgs / times / money / health / tomorrow / count / rooms / nonames / room:Kai. 20 Nov: Round2 look (the real white logo, the website fonts Press Start 2P + Chakra Petch from an installable font profile manager/widget/round2-fonts.mobileconfig, save-slot frames, room icons, room name on its own line); today's bookings + money (from the New booking alerts), tomorrow once tonight's last guest has left, a health light on every widget (SimplyBook use, timers, payments to sort, TVs not reporting), live countdown on the round lock widget. No SimplyBook requests: the engine keeps a copy of the 10-minute calendar read; one storage call per widget refresh.",
+     "runs": "Scriptable on the iPhone → engine GET /w?k=… (copy of tonight from the main timer, TVs from the side timer)",
+     "code": "round2-tv-launcher · manager/widget/round2-widget.js, manager/index.html (wgCard, System check step 'Phone widgets'); round2sg-home worker · widgetApi / widgetSnap / widgetkey"
+    },
+    {
+     "name": "PC toolkit finds each TV by itself (connect kai)",
+     "status": "test",
+     "what": "Built 15 Nov (owner: 'connect kai should read the IP the homescreen app reports'). Android TVs on app 1.0.286+ send their shop-network address with every 5-minute check-in; the TVs page shows it ('ADB 192.168.88.x:5555') and round2tv.ps1 connect <room> uses it first, falling back to the address typed in Theme manager › Rooms › Advanced. The PC asks once for the TV messages key and keeps it in its round2-tv folder. LG TVs don't use ADB.",
+     "runs": "Android app check-in → Firebase → PC toolkit / control centre",
+     "code": "round2-tv-launcher · app/…/FoodAlerts.java (lanIp), tv-tools/round2tv.ps1 (Resolve-Room), manager/index.html (TV tile)"
+    },
+    {
+     "name": "Remote TV updates (Update now from the control centre)",
+     "status": "live",
+     "what": "Built 2 Nov (TV app 1.0.226; works on a TV once it has 1.0.226). Update now on each TV tile (Round2 messages › On the TVs now), refused while the TV is off, locked in its Staff tools, or its room has a session now or within 10 min. LG installs by itself (download + SHA-256 check first, 'don't switch off' notice, progress on the tile, reinstalls itself on start-up if cut off). Android only gets it ready – staff press Install in Staff tools › Update app. (Out of testing 11 Nov 2026.)",
+     "runs": "Engine (tvupdate) + LG helper / Android app (cmd, update in Firebase)",
+     "code": "round2sg-home worker (tvUpdate) · round2-tv-launcher webos/service/round2d.sh, app/…/FoodAlerts.java, manager/index.html"
+    },
+    {
+     "name": "TV messages: Tonight / Send / Guest links / Calendar + TVs tab",
+     "status": "live",
+     "what": "Built 2 Nov (owner's Plan A). Tonight = every message tonight (guest, Round2, Auto wrap-up) per room and booking, finished bookings folded away; Send = the form only; Guest links = make + list on one page; Calendar = later days. TVs tab = status tiles + Update now + Test a TV; Home shows 'x of 7 TVs on'. (Out of testing 11 Nov 2026.)",
+     "runs": "Control centre (manager/index.html: Cal.tonight, Msgs.status)",
+     "code": "round2-tv-launcher manager/index.html"
+    },
+    {
+     "name": "Kai: remote presses multiplied when TCL closes the Home-button helper – on hold",
+     "status": "planned",
+     "what": "14 Nov 2026: after a long session Kai's remote registered presses several times; TCL's Safety Guard had closed the Home-button helper (tile: killed · tguard-kill). Fixed at the TV: Settings › Accessibility › Round2 Home button off, then on. Owner: keep logged, hold off. Options written up, none chosen: (1) the helper stops listening to the remote on Kai and reacts to the TV's home screen instead (brief flash of the Google home on Home); (2) switch Safety Guard off from the laptop; (3) self-repair + a Restart helper button on the tile. 'Home screen manager' apps use the same trick as ours and wouldn't help. Next time it happens: run the toolkit's diag on the laptop BEFORE fixing.",
+     "runs": "TV app (HomeGuard) · PC toolkit",
+     "code": "round2-tv-launcher · README 'Kai: remote presses multiplied'"
+    },
+    {
+     "name": "Smoother transitions",
+     "status": "planned",
+     "what": "Owner is thinking it over (2 Nov). Ideas, best first: 1) pause the background while a transition plays (test on one LG first); 2) Rise moves the menu as one piece instead of ~15 parts; 3) each TV checks its own smoothness at start-up and switches itself to Fade if it drops frames ('lite mode' on its TV tile); 4) open the app at the same moment as the animation (with 3). Warp, Flash and Lightning + ship were removed 2 Nov for being heavy/unused.",
+     "runs": "TV app (web/index.html: dive/arrive, Home animations)",
+     "code": "round2-tv-launcher web/index.html"
+    },
+    {
+     "name": "PS4 remote tools: read a file, blocker settings (helper 1.1.16)",
+     "status": "test",
+     "what": "Control centre › PS4s: 'Read a file on a PS4' shows the last lines of a log or settings file (blocker log, starter log, GoldHEN AutoRun list…) or the running programs – read-only, Round2/nanoDNS/GoldHEN folders only. 'Blocker settings' sends new nanoDNS settings: checked by the engine and again by the PS4 (block-everything line stays, nothing Sony-looking, no catch-alls, engine allowed), typed SEND, never to a room with guests within 10 minutes; the PS4 keeps the old file, restarts the blocker, tests Sony is blocked and the engine answers, and puts the old settings back by itself if not. Not tried on a real PS4 yet (rooms get 1.1.16 in quiet time).",
+     "runs": "Helper 1.1.16 (/_tail, /_ps, dns job) · engine ps4dns / ps4dnsget / /ps4/dnsini · System check step 'PS4 blocker settings: bad files refused, nothing sent (dry run)'"
+    },
+    {
+     "name": "PS4 remote wake + sleep (helper 1.1.21+, Remote Play key)",
+     "status": "test",
+     "what": "Wakes a resting PS4 from another awake PS4 on the shop network – no Sony, no app. Each PS4 is registered once (Settings › Remote Play Connection Settings › Add Device, the 8-digit number; NOT Mobile App Connection Settings) through its main profile; the engine keeps the key. Needs the PS4's Power Save › rest-mode settings to match Kai's (Stay Connected, Turn On from Network, USB power Always). 16 Nov: Wake all woke Kai, Vale, Max, Scarlett with two different senders; Atlas and Bella drop off the network in rest (Wi-Fi – to sort). Control centre › PS4s: Wake early-bird / Wake all / Sleep all / Wake per room; morning trigger (staff switch one PS4 on 7–11:15am → rooms with an 11:00 booking wake) not yet tried. A PS4 woken with nobody using it goes back to rest after ~30 min.",
+     "runs": "Helper /_rpreg, /_wakerp, /_rest · engine ps4wake / ps4wakekey, kv ps4wake, ps4MorningWake"
+    },
+    {
+     "name": "PS4 games: install / uninstall from the laptop",
+     "status": "test",
+     "what": "Control centre › TVs › PS4 games (on the owner's laptop, with Round2 PKG server running): pick PKG files from folders or the external HD, drop a game to add its patch + DLC, send to single rooms or a tier (Netflix = all, Deluxe = Deluxe + VIP, VIP = Max), uninstall, see each room's version. The PS4 downloads straight from the laptop, one job at a time, only with the room free for the next hour; the main profile is signed in for the job and logged out after; optional rest when done. Kaeden only (helper 1.1.133 test).",
+     "runs": "Laptop PKG server (tools/pkg-server) + booking engine queue (pkgq) + PS4 helper /_pkgjob"
+    }
+   ]
+  },
+  {
+   "name": "This control centre",
+   "items": [
+    {
+     "name": "Control centre",
+     "status": "live",
+     "what": "staff.round2.sg – this page (Home Screen app, locked until the keys are pasted): sessions, messages, themes, menu, website stats, systems and tests.",
+     "runs": "GitHub Pages",
+     "code": "round2-tv-launcher · manager/"
+    },
+    {
+     "name": "Staff phone alerts (push)",
+     "status": "test",
+     "what": "Alerts tab: new / changed / cancelled bookings and a 1-hour reminder (bookings and notes) on this phone, with the room's character icon. Needs the app opened from the Home Screen (iOS 16.4+). Since 14 Nov: an alert a phone hasn’t shown is sent again after about a minute (then twice more), the copies can land together on an iPhone (it doesn’t merge them – opening the app clears the extras); Phone alert setup › “Did the alerts arrive?” shows how fast each phone got each alert. A sign-up that has shown nothing for a week is removed by itself (old sign-ups left behind when the app was re-added); if that phone is still in use it signs up again when the control centre is opened on it.",
+     "runs": "Booking engine (Web Push) + staff.round2.sg",
+     "code": "round2-tv-launcher · docs/staff-alerts.md"
+    },
+    {
+     "name": "Alerts shown by the iPhone itself (Declarative Web Push) – tried, switched off",
+     "status": "planned",
+     "what": "Tried on the owner's iPhone 14 Nov 2026, 4pm–11pm, then switched off. The idea: the alert tells the iPhone what to show, so it doesn't have to start the control centre's background helper first. Result: no gain – his phone still only showed a booking alert when our re-send arrived (about 50 s late, 2 copies), while staff phones had it in 3–4 s; and a phone on it can't report to \"Did the alerts arrive?\". Nothing merges copies on an iPhone, so the trade stays: re-send = within about a minute but 2+ copies, no re-send = one copy, later. The engine still has the switch (KV push:decl) if a later iOS makes it worth another try.",
+     "runs": "Booking engine (Web Push) – KV push:decl",
+     "code": "round2-tv-launcher · docs/staff-alerts.md 'Declarative Web Push'"
+    },
+    {
+     "name": "Telegram = food workflow only (rule)",
+     "status": "live",
+     "what": "Owner’s rule (14 Nov 2026): the Telegram chat is only for the Madd Pizza ↔ Round2 food workflow (kitchen slip, pickup button). Nothing about bookings ever goes to Telegram – Madd Pizza doesn’t need to know them. The engine’s old unused booking-to-Telegram road is switched off in the code. Booking alerts reach staff through the control centre’s phone alerts only.",
+     "runs": "Booking engine (kitchen slip only) + Telegram kitchen bot",
+     "code": "round2-tv-launcher · docs/staff-alerts.md"
+    },
+    {
+     "name": "One staff code for TV setup",
+     "status": "planned",
+     "what": "TV setup (Events, Rooms, Sounds, TV settings) asks for a GitHub key today. Replace it with one constant code through the engine, like every other tab."
+    },
+    {
+     "name": "Round2 vs Guest messages – review",
+     "status": "planned",
+     "what": "After a few days of use: do the two message lists still feel awkward? (Since 2 Nov: separate lists, colour tags, night-based dates.)"
+    },
+    {
+     "name": "New TV messages key",
+     "status": "planned",
+     "what": "Swap the Firebase TV messages key for a new one (security tidy-up, not urgent)."
+    },
+    {
+     "name": "Staff roll-out",
+     "status": "planned",
+     "what": "Give staff the control centre (Home Screen app + keys) once the owners are happy everything is stable."
+    }
+   ]
+  }
+ ]
 }
