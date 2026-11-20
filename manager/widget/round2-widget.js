@@ -4,7 +4,8 @@
 // "Parameter" on a widget (optional, words can be combined, e.g. "tv nonames"):
 //   (empty)   rooms board: who's in till when, what's on the TV and PS4, next TV message
 //   tv        what each room's TV is showing and which PS4 game is running
-//   msgs      TV messages coming up (10-minute warnings, wrap-ups, guest messages), in time order
+//   msgs      TV messages: the automatic 10-min warning + That's a wrap per room, then scheduled messages (birthdays, house
+//             reminders, guest messages) – grey coming up · orange on the TV, waiting for its OK · green OK'd
 //   times     tonight's start and end times, in time order
 //   money     today's bookings: how many were made today, paid / not paid, cancelled, the latest one
 //   health    the health light in full (SimplyBook use, background timers, payments to sort, TVs not reporting)
@@ -107,6 +108,26 @@ function nextLine(r) {   /* after the current guests: who comes next, and how lo
 function tvOf(r) { const t = r.tv; return !t ? '' : t.off ? 'TV off' : t.quiet ? 'TV not reporting' : t.app || 'TV on'; }
 function ps4Of(r) { const p = r.ps4; return !p ? '' : !p.on ? 'PS4 asleep' : p.g || 'PS4 menu'; }
 function msgName(m) { return m.k === 'wrapup' ? '10-min warning' : m.k === 'timeup' ? 'That’s a wrap' : m.ti || 'TV message'; }
+/* automatic (10-min warning, That's a wrap – the engine runs them itself) vs scheduled (birthdays, house reminders, guests'
+   own) – owner 20 Nov: "needs to be separate … turn a different colour when acknowledged" */
+const W_ROOMS = ['Vale', 'Kaeden', 'Scarlett', 'Kai', 'Bella', 'Atlas', 'Max'];
+function isAuto(m) { return m.k === 'wrapup' || m.k === 'timeup'; }
+function mState(m) { return m.ok ? 'ok' : m.at > Date.now() ? 'next' : m.ak === 0 ? 'shown' : 'wait'; }
+function mCol(m) { const x = mState(m); return x === 'ok' ? OK : x === 'wait' ? WARN : x === 'shown' ? MUTE : INK; }
+function mIcon(m) { return isAuto(m) ? 'bell' : /birthday|bday|anniv|congrat/i.test(m.ti || '') ? 'cake' : 'sparkle'; }
+function cks(ms) { const d = new Date(ms + 8 * 3600e3); return ((d.getUTCHours() + 11) % 12 + 1) + ':' + String(d.getUTCMinutes()).padStart(2, '0'); }   /* 8:13 – no am/pm, for tight spots */
+function autoTag(m, short) { return (m.k === 'wrapup' ? '10m ' : 'wrap ') + (short ? cks(m.at) : clk(m.at)) + (m.ok ? ' ✓' : mState(m) === 'wait' ? ' …' : ''); }
+/* one line: the room's automatic pair as coloured tags */
+function autoLine(parent, L, sz, lead, short) {
+  const l = line(parent); l.spacing = 6; if (lead) lead(l); else ico(l, 'bell', MUTE, sz * 0.95);
+  for (const m of L.slice(0, 2)) txt(l, autoTag(m, short !== false), sz, mCol(m), 'time');
+  l.addSpacer(); return l;
+}
+function schedLine(parent, m, sz, withRoom, long) {
+  const l = line(parent); l.spacing = 4; ico(l, mIcon(m), mState(m) === 'next' ? ACC : mCol(m), sz * 0.95);
+  txt(l, long ? clk(m.at) : cks(m.at), sz, mCol(m), 'time'); if (withRoom) { ico(l, RICON[m.r], rc(m.r), sz * 0.9); txt(l, m.r, sz, rc(m.r), 'room'); }
+  txt(l, (m.ti || 'TV message') + (m.ok ? ' ✓' : ''), sz, mState(m) === 'next' ? INK : mCol(m)); l.addSpacer(); return l;
+}
 function allMsgs(j) { const L = []; for (const r of j.rooms || []) for (const m of r.msgs || []) L.push(Object.assign({ r: r.r }, m)); return L.sort((a, b) => a.at - b.at); }
 /* when to look again: the next change (an end, a start, cleaning done, a TV message), at least 2 min, at most 15 */
 function refreshAt(j) {
@@ -207,12 +228,14 @@ function box(parent, r, w, h, wide) {
   if (r.st === 'in' && r.till) leftLine(b, r, 10.5);
   if (tv) it(b, 'tv', tvTone(r) === WARN ? WARN : MUTE, tv, 10, tvTone(r));
   if (ps) it(b, 'pad', MUTE, ps, 10, INK);
-  const m = (r.msgs || [])[0]; if (m) it(b, /birthday|anniv|congrat/i.test(m.ti || '') ? 'cake' : 'bell', MUTE, clk(m.at) + ' ' + msgName(m), 9.5, MUTE);
+  const A = (r.msgs || []).filter(isAuto), S = (r.msgs || []).filter((m) => !isAuto(m));
+  if (A.length) autoLine(b, A, 9.5);
+  if (S.length) schedLine(b, S.find((m) => mState(m) !== 'ok') || S[S.length - 1], 9.5);
   const nl = nextLine(r); if (nl) it(b, 'clock', MUTE, nl.replace(/^then /, 'next '), 9.5, MUTE);
   b.addSpacer();
 }
 /* how many detail lines a big box will show – rows of busy rooms get the room, rows of two free rooms stay short */
-function boxLines(r) { const s = stateOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : ''; return (r.st === 'in' && r.till ? 1 : 0) + (names && s.who ? 1 : 0) + (tvOf(r) ? 1 : 0) + (ps ? 1 : 0) + ((r.msgs || []).length ? 1 : 0) + (nextLine(r) ? 1 : 0); }
+function boxLines(r) { const s = stateOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : ''; return (r.st === 'in' && r.till ? 1 : 0) + (names && s.who ? 1 : 0) + (tvOf(r) ? 1 : 0) + (ps ? 1 : 0) + ((r.msgs || []).some(isAuto) ? 1 : 0) + ((r.msgs || []).some((m) => !isAuto(m)) ? 1 : 0) + (nextLine(r) ? 1 : 0); }
 function boxGrid(w, L, h, wide) {
   const gap = 6, bw = Math.floor((widgetW() - 20 - gap) / 2), rows = [];
   for (let i = 0; i < L.length; i += 2) rows.push(L.slice(i, i + 2));
@@ -284,7 +307,7 @@ async function build() {
   }
   if (fam === 'accessoryInline' && view === 'count' && cd) { w.addText(cd.r + ' ' + cd.t + ' ' + clk(cd.at)); return w; }
   if (fam === 'accessoryInline') {
-    const e = j.nextEnd, s = j.nextStart, m = msgs[0], x = ev[0];
+    const e = j.nextEnd, s = j.nextStart, m = msgs.filter((q) => q.at > Date.now())[0], x = ev[0];
     w.addText(one ? one.r + ' ' + stateOf(one).short + (tvOf(one) ? ' · ' + tvOf(one) : '')
       : view === 'money' ? (j.money ? j.money.n + ' booked today · ' + sgd(j.money.paid) + ' paid' : 'Money: update the engine')
       : view === 'health' ? (hl(j).list[0] ? '⚠︎ ' + hl(j).list[0].t.replace(/^[^\w"]+/, '') : 'Round2: all systems OK')
@@ -304,13 +327,13 @@ async function build() {
   }
   if (fam === 'accessoryRectangular') {
     if (one) {
-      const s = stateOf(one), m = (one.msgs || [])[0];
+      const s = stateOf(one), m = (one.msgs || []).filter((q) => q.at > Date.now())[0];
       txt(w, one.r + ' ' + s.short, 13, INK, true);
       txt(w, [tvOf(one), one.ps4 && one.ps4.on ? ps4Of(one) : ''].filter(Boolean).join(' · ') || nextLine(one) || '–', 12, INK);
       txt(w, m ? '🔔 ' + clk(m.at) + ' ' + msgName(m) : nextLine(one) || (one.next && one.st !== 'next' ? 'next ' + clk(one.next) : ''), 11, MUTE);
       return w;
     }
-    if (view === 'msgs') { txt(w, 'TV messages', 12, INK, true); for (const m of msgs.slice(0, 2)) txt(w, clk(m.at) + ' ' + m.r + ' · ' + msgName(m), 12, INK); if (!msgs.length) txt(w, 'None coming up', 12, MUTE); return w; }
+    if (view === 'msgs') { const L = msgs.filter((q) => q.at > Date.now() - 5 * 60e3 && !q.ok).slice(0, 3); for (const m of L) txt(w, clk(m.at) + ' ' + m.r + ' · ' + (isAuto(m) ? (m.k === 'wrapup' ? '10 min' : 'wrap') : msgName(m)) + (mState(m) === 'wait' ? ' …' : ''), 12, INK, isAuto(m) ? '' : true); if (!L.length) txt(w, 'No TV messages waiting', 12, MUTE); return w; }
     if (view === 'times') { for (const x of ev.slice(0, 3)) txt(w, clk(x.at) + ' ' + x.r + ' ' + (x.t === 'in' ? 'in' : 'out'), 12, INK); if (!ev.length) txt(w, 'Nothing else tonight', 12, MUTE); return w; }
     if (view === 'tv') { for (const r of open.filter((r) => r.st === 'in').slice(0, 3)) txt(w, r.r + ' · ' + (tvOf(r) || '–') + (r.ps4 && r.ps4.on ? ' · ' + ps4Of(r) : ''), 12, INK); if (!c.in) txt(w, 'No rooms in use', 12, MUTE); return w; }
     if (over(j)) { txt(w, 'R2 · tonight done', 13, INK, true); const T = j.tomorrow; txt(w, T.first ? 'Tomorrow ' + clk(T.first.at) + ' · ' + T.first.r : 'Nothing booked tomorrow', 12, INK); txt(w, T.n ? T.n + ' sessions tomorrow' : '', 11, MUTE); return w; }
@@ -332,7 +355,7 @@ async function build() {
     w.addSpacer(4); txt(w, s.big, big ? 16 : 13.5, s.c === MUTE ? INK : s.c, 'time'); if (one.st === 'in' && one.till) leftLine(w, one, big ? 14 : 12); if (names && s.who) it(w, 'user', MUTE, s.who, 11, INK, true);
     if (fam !== 'small' || one.st === 'in') { if (tvOf(one)) it(w, 'tv', MUTE, tvOf(one) + (one.tv && one.tv.at && !one.tv.off && fam !== 'small' ? ' · since ' + clk(one.tv.at) : ''), 11, tvTone(one)); if (ps4Of(one)) it(w, 'pad', MUTE, ps4Of(one), 11, INK); }
     w.addSpacer();
-    for (const m of (one.msgs || []).slice(0, fam === 'small' ? 1 : 3)) it(w, /birthday|anniv|congrat/i.test(m.ti || '') ? 'cake' : 'bell', MUTE, clk(m.at) + ' ' + msgName(m), 10.5, MUTE);
+    { const A = (one.msgs || []).filter(isAuto), S = (one.msgs || []).filter((m) => !isAuto(m)); if (A.length) autoLine(w, A, 10.5); for (const m of S.slice(0, fam === 'small' ? 1 : 2)) schedLine(w, m, 10.5); }
     const nl = nextLine(one); if (nl) it(w, 'clock', MUTE, nl.replace(/^then /, 'next '), 10.5, MUTE);
     return w;
   }
@@ -370,11 +393,22 @@ async function build() {
     if (big) { w.addSpacer(6); warnLine(w, j, 10.5, 3); }
     return w;
   }
-  if (view === 'msgs') {   /* TV messages coming up, every room, in time order */
-    header(w, j, fam === 'small' ? 10 : 12, fam === 'small' ? 'MSGS' : 'TV MESSAGES'); w.addSpacer(6);
-    for (const m of msgs.slice(0, n)) { timeRow(w, m.at, m.r, msgName(m), fam === 'small' ? 10 : 11.5); w.addSpacer(3); }
-    if (!msgs.length) txt(w, 'Nothing scheduled', 11, MUTE);
-    w.addSpacer(); return w;
+  if (view === 'msgs') {   /* AUTO (10-min warning + That's a wrap, one row per room) and SCHEDULED, coloured by the TV's OK */
+    const sz = fam === 'small' ? 10 : big ? 13 : 11.5, A = {}, S = msgs.filter((m) => !isAuto(m)), sm = fam === 'small';
+    for (const m of msgs.filter(isAuto)) (A[m.r] = A[m.r] || []).push(m);
+    const ar = W_ROOMS.filter((r) => A[r]);
+    header(w, j, fam === 'small' ? 10 : 12, fam === 'small' ? 'MSGS' : 'TV MESSAGES'); w.addSpacer(5);
+    const nA = fam === 'small' ? 2 : big ? 7 : 3, nS = fam === 'small' ? 2 : big ? 7 : Math.max(1, 4 - Math.min(nA, ar.length));
+    if (ar.length) {
+      plabel(w, fam === 'small' ? 'AUTO' : 'AUTO · 10-MIN & WRAP', MUTE, 6); w.addSpacer(3);
+      for (const r of ar.slice(0, nA)) { autoLine(w, A[r], sz, (l) => { ico(l, RICON[r], rc(r), sz); if (!sm) { const nm = l.addStack(); nm.size = new Size(sz * 5, 0); txt(nm, r, sz, rc(r), 'room'); } }, sm); w.addSpacer(big ? 5 : 2); }
+      w.addSpacer(big ? 10 : 5);
+    }
+    if (S.length) { plabel(w, 'SCHEDULED', MUTE, 6); w.addSpacer(3); for (const m of S.slice(0, nS)) { schedLine(w, m, sz, !sm, !sm); w.addSpacer(big ? 5 : 2); } }
+    if (!ar.length && !S.length) txt(w, 'No TV messages tonight', 11, MUTE);
+    w.addSpacer();
+    if (fam !== 'small') { const k = line(w); k.spacing = 8; txt(k, '● coming', 9, INK); txt(k, '● on TV, waiting for OK', 9, WARN); txt(k, '● OK’d', 9, OK); k.addSpacer(); }
+    return w;
   }
   if (view === 'times') {   /* tonight's starts and ends still to come */
     header(w, j, fam === 'small' ? 10 : 12, 'TONIGHT'); w.addSpacer(6);
