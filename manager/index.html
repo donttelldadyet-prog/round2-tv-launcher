@@ -3473,7 +3473,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var order = { gd: 0, gp: 1, ac: 2 };
       ids.map(byId).filter(Boolean).sort(function (a, b) { return order[a.cat] - order[b.cat]; }).forEach(function (p) { rs.forEach(function (r) {
         if (op === 'rm') { if (p.cat !== 'ac') items.push({ room: r, op: 'rm', tid: p.tid, cat: p.cat, title: p.title, name: p.name }); return; }
-        items.push({ room: r, op: 'install', ip: ip(), port: lap.port, code: lap.token, fid: p.id, cat: p.cat, cid: p.cid, tid: p.tid, title: p.title, name: p.name, ver: p.appver || p.ver, mb: Math.ceil(p.size / 1048576) }); }); });
+        items.push({ room: r, op: 'install', ip: ip(), port: lap.port, code: lap.token, fid: p.id, cat: p.cat, cid: p.cid, tid: p.tid, title: p.title, name: p.name, ver: p.appver || p.ver, mb: p.size });   /* exact bytes (helper 1.1.134+: the PS4 checks the size) */ }); });
       if (op === 'rm' && !confirm('Uninstall ' + items.length + ' item(s)? The game and its saves on the PS4 stay in the members\' cloud, but the game itself has to be installed again.')) return;
       m.textContent = 'Sending…';
       gm({ action: 'pkgsend', items: JSON.stringify(items), rest: $('pkRest').checked ? '1' : '', by: 'control centre' }).then(function (j) { m.textContent = j.error ? j.error : '✅ ' + j.queued + ' job(s) queued on ' + j.rooms + ' PS4(s). Each PS4 starts when its room is free for the next hour.'; if (!j.error) { pick = {}; drawList(); } loadQ(); });
