@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.132"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.133"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -5231,6 +5231,7 @@ int main(void) {
       }
     }
     if (g_awake_until) { if ((long long)time(0) < g_awake_until) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } else g_awake_until = 0; }
+    if (file_exists(PKGJOB)) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } /* 1.1.132: stay awake while a PKG downloads */
     if (g_awake_engine) { if ((long long)time(0) < g_awake_engine) { sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } else g_awake_engine = 0; }
     if (selfown_after) { selfown_after = 0; sleep(2); do_selfown(); } /* 1.1.33: act on auto-promote here, not only after a look job */
     r2_where("check-in", 1);
