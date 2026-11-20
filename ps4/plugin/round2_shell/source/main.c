@@ -7,6 +7,10 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 6.00 (20 Nov 7:35pm): self-test #2 showed m_curGeneralButtons IS live (d-pad 0x1/0x2/0x4/0x8, square 0x10) but it is PSM's
+//   simplified list – no L2/R2/L3/R3, so the combo could never match. 6.00 also reads each slot's m_curButtons (Orbis SystemButtons,
+//   the raw reading) and logs "gen 0x.. sys 0x.." on every change in the self-test, to learn the raw numbers of L2/R2/L3/R3.
+//   Same proven Mono functions only.
 // 5.00 (20 Nov 7:25pm, after 4.00 crashed Kaeden's menu on load at 7:10pm): round2_padprobe1 (read-only, 7:23pm) showed m_padInfo
 //   IS a List<PadInfo> of objects (_items PadInfo[32], _size 24) – shell3's read failed only because it refused more than 8 entries.
 //   5.00 drops the 5 Mono imports 4.00 added (never used inside the menu before – the likely crash), reads up to 32 entries with
@@ -41,12 +45,12 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#define R2SH_VER "5.00"
-#define R2SH_NAME "round2_shell5"
+#define R2SH_VER "6.00"
+#define R2SH_NAME "round2_shell6"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000500;
+attr_public u32 g_pluginVersion = 0x00000600;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -79,7 +83,8 @@ static void lg(const char *fmt, ...) {
 static int exists_(const char *p) { struct stat st; return !stat(p, &st); }
 static void put_(const char *p, const char *s) { int fd = open(p, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (fd >= 0) { write(fd, s, strlen(s)); close(fd); } }
 
-static void *g_dom, *g_img, *mSuspend, *mResume, *mIsSusp, *mLogoutAll, *cLocker, *mLockerCtor, *mDispose, *mPadInst, *fPadInfo, *fButtons;
+static void *g_dom, *g_img, *mSuspend, *mResume, *mIsSusp, *mLogoutAll, *cLocker, *mLockerCtor, *mDispose, *mPadInst, *fPadInfo, *fButtons, *fSysButtons;
+static unsigned long long g_sys;   /* 6.00: OR of every slot's m_curButtons (raw), set by held_buttons() */
 static int g_quiet_calls; /* 2.00: the button reads every few 100 ms don't get a breadcrumb line each */
 static int inv(const char *what, void *m, void *obj, void **args, void **ret) {   /* 0 = ok; the menu's own error is logged, never thrown */
   if (!g_quiet_calls) lg("calling: %s", what);   /* 2.00 (20 Nov, after the pwrprobe1 crash): breadcrumb BEFORE every call into the menu */
@@ -103,7 +108,7 @@ static int resolve(void) {
   cLocker = mono_class_from_name(g_img, "Sce.Vsh.ShellUI.PadInternal", "Locker");
   if (cLocker) { mLockerCtor = mono_class_get_method_from_name(cLocker, ".ctor", 2); void *p = mono_class_get_parent(cLocker); if (p) mDispose = mono_class_get_method_from_name(p, "Dispose", 0); }
   void *pm = mono_class_from_name(g_img, "Sce.Vsh.ShellUI.PadInternal", "PadManager"); if (pm) { mPadInst = mono_class_get_method_from_name(pm, "get_Instance", 0); fPadInfo = mono_class_get_field_from_name(pm, "m_padInfo"); }
-  void *pi = mono_class_from_name(g_img, "Sce.Vsh.ShellUI.PadInternal", "PadInfo"); if (pi) fButtons = mono_class_get_field_from_name(pi, "m_curGeneralButtons");
+  void *pi = mono_class_from_name(g_img, "Sce.Vsh.ShellUI.PadInternal", "PadInfo"); if (pi) { fButtons = mono_class_get_field_from_name(pi, "m_curGeneralButtons"); fSysButtons = mono_class_get_field_from_name(pi, "m_curButtons"); }
   lg("found: suspend %d resume %d is-suspended %d logout-all %d locker %d/%d/%d pads %d/%d/%d", !!mSuspend, !!mResume, !!mIsSusp, !!mLogoutAll, !!cLocker, !!mLockerCtor, !!mDispose, !!mPadInst, !!fPadInfo, !!fButtons);
   return 0;
 }
@@ -124,8 +129,8 @@ static int held_buttons(void) {
   if (!arr) return 0;
   int len = (int)mono_array_length(arr); if (n > len) n = len;
   if (n < 0 || n > 32) { snprintf(g_padwhy, sizeof g_padwhy, "m_padInfo says %d entries", n); return -1; }
-  int all = 0, set = 0; char e[200] = "";
-  for (int i = 0; i < n; i++) { void *p = *(void **)mono_array_addr_with_size(arr, sizeof(void *), i); int b = 0; if (p) { mono_field_get_value(p, fButtons, &b); set++; }
+  int all = 0, set = 0; char e[200] = ""; g_sys = 0;
+  for (int i = 0; i < n; i++) { void *p = *(void **)mono_array_addr_with_size(arr, sizeof(void *), i); int b = 0; if (p) { mono_field_get_value(p, fButtons, &b); set++; if (fSysButtons) { unsigned long long sb = 0; mono_field_get_value(p, fSysButtons, &sb); g_sys |= sb; } }
     all |= b; if (b && strlen(e) < 150) { size_t l = strlen(e); snprintf(e + l, sizeof e - l, " #%d=0x%x", i, b); } }
   if (!g_paddesc) { g_paddesc = 1; lg("pad list: %d entries (%d filled), buttons held now:%s", n, set, e[0] ? e : " none"); }
   return all;
@@ -170,7 +175,8 @@ static void self_test(void) {
   lock_on("self-test");
   int since = 0, last = -2; time_t t0 = time(0);
   while (time(0) - t0 < 60) {
-    int b = held_buttons(); if (b != last) { if (b < 0) lg("buttons: can't read - %s", g_padwhy); else lg("buttons: 0x%x%s", b, (b & COMBO) == COMBO ? " (unlock combo held)" : ""); last = b; }
+    static unsigned long long lsys = ~0ULL;
+    int b = held_buttons(); if (b != last || g_sys != lsys) { if (b < 0) lg("buttons: can't read - %s", g_padwhy); else lg("buttons: gen 0x%x sys 0x%llx%s", b, g_sys, (b & COMBO) == COMBO ? " (unlock combo held)" : ""); last = b; lsys = g_sys; }
     if (combo_held(&since)) { lg("unlock combo L2+R2+L3+R3 held 1 s"); break; } usleep(100000);
   }
   lock_off("self-test over");

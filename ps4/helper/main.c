@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.117"   /* 1.1.117: round2_shell5 (4.00 crashed the menu) + no retry after a failed load */
+#define R2_VERSION "1.1.118"   /* 1.1.117: round2_shell5 (4.00 crashed the menu) + no retry after a failed load; 1.1.118: round2_shell6 (raw buttons), /_shtest waits for THIS run's end */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2705,7 +2705,7 @@ static void look_shmod(const char *key, const char *spec) {
      so a helper update doesn't load it twice (a module path loads only once per menu start anyway);
    - at most 3 tries per helper run, 10 min apart; every try and result goes to save.log (owner: log everything).
    The add-on's own self-test (60 s lock, then log-out) only runs on "/_shtest" - never at start-up. */
-#define SHELL_ADDON "round2_shell5"
+#define SHELL_ADDON "round2_shell6"
 static int shell_tries = 0; static time_t shell_last_try = 0;
 static int shell_alive(void) {
   char g[24] = ""; FILE *f = fopen("/data/round2/shell.gen", "r"); if (f) { if (!fgets(g, sizeof g, f)) g[0] = 0; fclose(f); }
@@ -2741,7 +2741,8 @@ static void look_shtest(const char *key) {
   if (!shell_alive()) { char res[220]; int r = shell_load(key, res, sizeof res); look_kv("shtest/load", res); sv_log("shtest: load %s: %s", SHELL_ADDON, res); if (r) return; }
   else look_kv("shtest/load", "already running");
   char lp[120]; snprintf(lp, sizeof lp, "/data/round2/%s.txt", SHELL_ADDON); int fin = 0;
-  for (int i = 0; i < 100 && !fin; i++) { sleep(1); size_t n = 0; char *b = read_all(lp, &n, 4 * 1024 * 1024); if (b) { char *q = strstr(b, "SELF-TEST"); fin = q && strstr(q, "3 s after log-out"); free(b); } }
+  size_t n0 = 0; { char *b0 = read_all(lp, &n0, 4 * 1024 * 1024); free(b0); }   /* 1.1.118: only look at what this run adds (the 7:30pm test "finished" at once on the 7:27 test's lines) */
+  for (int i = 0; i < 100 && !fin; i++) { sleep(1); size_t n = 0; char *b = read_all(lp, &n, 4 * 1024 * 1024); if (b) { char *q = n > n0 ? strstr(b + n0, "SELF-TEST") : 0; fin = q && strstr(q, "3 s after log-out"); free(b); } }
   look_kv("shtest/result", fin ? "self-test finished" : "not finished in 100 s");
   size_t n = 0; char *b = read_all(lp, &n, 4 * 1024 * 1024);
   if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/%s-%s.txt", SHELL_ADDON, console_id); int u = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shtest/upload", u ? "failed" : k); }
