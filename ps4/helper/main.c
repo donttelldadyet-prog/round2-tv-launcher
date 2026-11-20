@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.135"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.136"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2788,6 +2788,22 @@ static int shell_alive(void) {
   char g[24] = ""; FILE *f = fopen("/data/round2/shell.gen", "r"); if (f) { if (!fgets(g, sizeof g, f)) g[0] = 0; fclose(f); }
   struct stat st; return !strncmp(g, SHELL_ADDON, strlen(SHELL_ADDON)) && !stat("/data/round2/shell.alive", &st) && time(0) - st.st_mtime < 180;
 }
+/* 1.1.136 (owner 21 Nov 2:26am: "why clean slates and logout don't use the shell UI's function instead of the raw logout – it blocks
+   the controller from reconnecting"): ONE way to sign people out when the menu add-on runs – ask it (LogoutAll 13, the PS menu's
+   own Log Out; the controllers re-link). Returns 1 if the add-on did it. The raw sceUserServiceLogout is only the fallback for
+   PS4s without the add-on (release rooms). */
+static int menu_logout(const char *why) {
+  if (!(R2_SHELL && shell_alive())) return 0;
+  UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l); int n = 0;
+  for (int i = 0; i < 4; i++) if (l.userId[i] != -1 && l.userId[i]) n++;
+  if (!n) return 1;   /* nobody in - nothing to do */
+  unlink("/data/round2/shell-logout-now.done"); put_file("/data/round2/shell-logout-now", "1\n"); int ok = 0;
+  for (int w = 0; w < 40 && !(ok = file_exists("/data/round2/shell-logout-now.done")); w++) usleep(200000);
+  unlink("/data/round2/shell-logout-now"); unlink("/data/round2/shell-logout-now.done");
+  if (ok) sleep(3);
+  sv_log("menu log-out (%s): %s", why, ok ? "everyone logged out by the menu add-on" : "the add-on didn't answer in 8 s - falling back to the raw sign-out");
+  return ok;
+}
 static int shell_load(const char *key, char *res, size_t rl) {   /* download + load into SceShellUI; 0 = loaded */
   char path[120], up[120], hdr[200], err[160]; snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\n", key); snprintf(path, sizeof path, "/ps4/prx?name=%s", SHELL_ADDON);
   unsigned char *d = 0; size_t len = 0; int st = r2tls_fetch(ENGINE_HOST, "GET", path, hdr, 0, 0, &d, &len, 4 * 1024 * 1024, err, sizeof err);
@@ -3073,7 +3089,7 @@ static void look_memplay(const char *key, const char *spec) {
       int games = prof_games(u), tagd = 0; { char tb[64] = ""; FILE *tf = fopen(op, "r"); if (tf) { if (fgets(tb, sizeof tb, tf)) tagd = !strstr(tb, "/x"); else tagd = 1; fclose(tf); } }   /* 1.1.125: an "extra slot" link (x<k>) alone isn't worth a release */
       int dirty = games || tagd || (i >= 0 && strcmp(have, want));
       if (!dirty) continue;
-      if (user_signed_in(pu) && pu != mainu) { sceUserServiceLogout((int32_t)pu); sleep(2); }
+      if (user_signed_in(pu) && pu != mainu && !menu_logout("profile switch - releasing a signed-in profile")) { sceUserServiceLogout((int32_t)pu); sleep(2); }   /* 1.1.136 */
       size_t l = strlen(rel); snprintf(rel + l, sizeof rel - l, "%s %d\n", u, i < 0 ? 0 : i + 1); nrel++;
       if (games && td) { char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f; static char nm[64][32];
         while (g && (f = readdir(g))) { if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name)) continue; if (!sv_disk_parts(u, f->d_name, nm, 64)) continue; fprintf(td, "%s %s\n", u, f->d_name); ng++; }
@@ -3223,6 +3239,7 @@ static void reset_profiles(char *out, size_t on) {
   for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
   for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
   int del = 0, ren = 0, pic = 0, bad = 0; char s1[64];
+  { int anyin = 0; for (int i = 0; i < ns; i++) if (user_signed_in(sp[i])) anyin = 1; if (anyin) menu_logout("clean slate - before renaming the spares"); }   /* 1.1.136 */
   for (int i = 4; i < ns; i++) {
     if (user_signed_in(sp[i])) { sceUserServiceLogout((int32_t)sp[i]); sleep(3); }
     snprintf(s1, sizeof s1, "/_udel.%08x", sp[i]); look_mute = 1; look_last[0] = 0; look_udel(s1); look_mute = 0;
