@@ -45,7 +45,9 @@
 #ifndef R2_SHELL
 #define R2_SHELL 0
 #endif
-#if R2_SHELL
+#if defined(R2_V116)
+#define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
+#elif R2_SHELL
 #define R2_VERSION "1.1.115"
 #else
 #define R2_VERSION "1.1.114"
