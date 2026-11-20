@@ -7,6 +7,10 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 11.00 (owner 20 Nov 10:25pm: "for the automatic cleanslate, the detector should be the trigger, no key triggers on the menu or
+//   game"): the MENU half of the button detector. While a reset countdown is armed (/data/round2/input/arm = a future time, the
+//   same switch the in-game detector round2_input uses), every change of the controller buttons writes the time to
+//   /data/round2/input/menu_last (at most every 2 s). The helper combines it with the in-game detector. Proven functions only.
 // 10.00 (owner 20 Nov 10:14pm: "can the clean slate also follow the logout logic … we can logout controllers to go into ps button"):
 //   the PS button is also locked during a clean slate / session reset, and everyone is logged out the menu's way at the end;
 //   the helper can ask for that log-out at the START of a reset (/data/round2/shell-logout-now -> .done) instead of signing
@@ -57,12 +61,12 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#define R2SH_VER "10.00"
-#define R2SH_NAME "round2_shell10"
+#define R2SH_VER "11.00"
+#define R2SH_NAME "round2_shell11"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00001000;
+attr_public u32 g_pluginVersion = 0x00001100;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -211,6 +215,10 @@ static void *shell_thread(void *a) {
   while (still_me()) {
     if (time(0) - alive >= 30) { char t[24]; snprintf(t, sizeof t, "%ld\n", (long)time(0)); put_(DIR_U "/shell.alive", t); alive = time(0); }
     int l = loading();
+    { static time_t chk, armed_until, wrote; static int pb = -1; time_t n = time(0);   /* 11.00: menu button detector, only while armed */
+      if (n - chk >= 10) { chk = n; char a[24] = ""; rd_(DIR_U "/input/arm", a, sizeof a); long v = 0; for (char *q = a; *q >= '0' && *q <= '9'; q++) v = v * 10 + (*q - '0'); armed_until = (time_t)v; }
+      if (armed_until > n) { int b = held_buttons(); if (b >= 0) { if (pb >= 0 && b != pb && n - wrote >= 2) { char t[24]; snprintf(t, sizeof t, "%ld\n", (long)n); put_(DIR_U "/input/menu_last", t); wrote = n; } pb = b; } }
+      else pb = -1; }
     if (exists_(DIR_U "/shell-logout-now")) { unlink(DIR_U "/shell-logout-now"); log_all_out("the helper asked (clean slate starting)"); put_(DIR_U "/shell-logout-now.done", "1\n"); }   /* 10.00 */
     if (!l && !was && exists_(DIR_U "/shell-selftest")) self_test();
     if (l && !was) { lg("%s started", l == 2 ? "clean slate" : "member load"); lt = time(0); lock_on(l == 2 ? "clean slate" : "member load"); }

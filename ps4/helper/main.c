@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.129"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.130"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2779,7 +2779,7 @@ static void look_shmod(const char *key, const char *spec) {
      so a helper update doesn't load it twice (a module path loads only once per menu start anyway);
    - at most 3 tries per helper run, 10 min apart; every try and result goes to save.log (owner: log everything).
    The add-on's own self-test (60 s lock, then log-out) only runs on "/_shtest" - never at start-up. */
-#define SHELL_ADDON "round2_shell10"
+#define SHELL_ADDON "round2_shell11"
 static int shell_tries = 0; static time_t shell_last_try = 0;
 static int shell_alive(void) {
   char g[24] = ""; FILE *f = fopen("/data/round2/shell.gen", "r"); if (f) { if (!fgets(g, sizeof g, f)) g[0] = 0; fclose(f); }
@@ -3264,19 +3264,14 @@ static void reset_go(const char *lab) {
     snprintf(v, sizeof v, "closed: %s", res); look_kv("reset/close", v); }
   RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
   uint32_t mainu = r2_main_user(); int so = 0;
-  /* 1.1.129 (owner 20 Nov 10:14pm: the clean slate should log out "the way we wanted" – controllers back to the PS-button screen):
-     with the menu add-on (round2_shell10+) running, the menu logs EVERYONE out its own way (LogoutAll 13; the controllers re-link),
-     keeps the PS button locked during the reset and logs out again at the end. Without it: the old way (spares only, via
-     sceUserServiceLogout – that one can leave a controller stuck). */
-  int via_menu = 0;
-  if (R2_SHELL && shell_alive()) { for (int i = 0; i < 16; i++) if (L.userId[i] != -1 && L.userId[i] && user_signed_in((uint32_t)L.userId[i])) so++;
-    unlink("/data/round2/shell-logout-now.done"); put_file("/data/round2/shell-logout-now", "1\n");
-    for (int w = 0; w < 40 && !file_exists("/data/round2/shell-logout-now.done"); w++) usleep(200000);
-    via_menu = file_exists("/data/round2/shell-logout-now.done"); unlink("/data/round2/shell-logout-now"); unlink("/data/round2/shell-logout-now.done");
-    sv_log("session reset: %s", via_menu ? "everyone logged out by the menu add-on (PS menu's own Log Out)" : "the menu add-on didn't answer in 8 s - signing spares out the old way");
-    if (via_menu) sleep(3); else so = 0; }
-  if (!via_menu) { for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i] || (uint32_t)L.userId[i] == mainu) continue; if (user_signed_in((uint32_t)L.userId[i])) { sceUserServiceLogout(L.userId[i]); so++; } }
+  /* 1.1.130 (owner 20 Nov 10:25pm: "why is this needed" – the log-out at the START): with the menu add-on running nobody is signed
+     out at the start any more – the add-on locks the PS button + pauses the profile picker while the reset runs and logs everyone
+     out the menu's way at the END. Pop-up first ("a forced clean slate should show popup that clean slate will run"; automatic:
+     close the game, pop-up, lock, log-out). Without the add-on (release rooms): the old way, spares signed out here. */
+  notify("Round2: clean slate starting - this PS4 is being reset for the next guests. Please don't press anything.");
+  if (!(R2_SHELL && shell_alive())) { for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i] || (uint32_t)L.userId[i] == mainu) continue; if (user_signed_in((uint32_t)L.userId[i])) { sceUserServiceLogout(L.userId[i]); so++; } }
     if (so) sleep(3); }
+  else sv_log("session reset: nobody signed out at the start - the menu add-on locks the PS button now and logs everyone out at the end");
   FILE *td = fopen(CLND "/todo", "w"); if (!td) { cl_err("reset: can't write the list"); look_kv("reset/error", "can't write the list"); return; }
   int ng = 0, nu = 0, skip = 0; static char nm[64][32];
   for (int i = 0; i < 16; i++) {
@@ -3694,6 +3689,11 @@ static void countdown_tick(const char *key) {
   long long now = (long long)time(0);
   /* 1.1.56: buttons pressed = the deadline moves to 2 min after the last press (pop-ups start over) */
   in_open(); int a = in_activity(0, 0);
+  /* 1.1.130 (owner 10:25pm: "the detector should be the trigger, no key triggers on the menu or game"): the menu add-on
+     (round2_shell11+) writes /data/round2/input/menu_last on every button change in the PS menu while the countdown is armed. */
+  { static long long ml_seen = -1; char b[24] = ""; FILE *f = fopen(INP_DIR "/menu_last", "r"); long long ml = 0; if (f) { if (fgets(b, sizeof b, f)) ml = atoll(b); fclose(f); }
+    if (ml_seen < 0) ml_seen = ml; else if (ml > ml_seen) { ml_seen = ml; a = 1; }
+    if (a < 0 && R2_SHELL && shell_alive()) { char rt[32] = ""; running_title(rt, sizeof rt); if (!rt[0] || !strcmp(rt, "RTWO00001")) a = 0; } }   /* in the menu: the add-on is the detector */
   if (a != cd_input && (a < 0 || cd_input < 0)) { sv_log("countdown: controllers %s", a < 0 ? "NOT readable - timer only" : "readable - waiting for 2 min without play"); if (cd_input != -2 || a >= 0) inp_pop("%s", a < 0 ? "controller NOT readable - reset runs on its timer" : "controller readable - reset waits for 2 min without play"); }
   cd_input = a;
   if (a == 1) {
