@@ -13,6 +13,7 @@
 //   count     lock screen: the next rooms to start or finish (rooms at the same time together), counting down live
 //             (the round lock widget does this without a word); then the group after it
 //   room:Kai  just one room, in detail          nonames   hide guest names
+//   notap     tapping the widget doesn't open the control centre (iPhone then just opens Scriptable – it can't do nothing)
 // Data refreshes every few minutes (iOS decides exactly when). Tap a widget to open the control centre.
 const KEY = '__KEY__', API = '__URL__', CC = 'https://staff.round2.sg/';
 const RC = { Vale: '#E8436A', Kaeden: '#4DB848', Scarlett: '#F2C21B', Bella: '#7A5BE0', Kai: '#24B49A', Atlas: '#E9E7EF', Max: '#E0402F' };
@@ -284,7 +285,7 @@ function timeRow(parent, at, room, what, sz) {
 /* ---------- widgets ---------- */
 async function build() {
   const j = await load(), w = new ListWidget();
-  w.url = CC + '?tab=' + (view === 'tv' ? 'tvs' : view === 'msgs' ? 'tonight' : 'insession');
+  if (!/\bnotap\b|nolink/.test(par)) w.url = CC + '?tab=' + (view === 'tv' ? 'tvs' : view === 'msgs' ? 'tonight' : 'insession');
   if (j.error) { if (!lock) w.backgroundColor = BG; { const l = line(w); logo(l, 14); l.addSpacer(); } txt(w, j.error, 11, WARN).lineLimit = 3; return w; }
   w.refreshAfterDate = refreshAt(j);
   const c = j.counts || {}, rooms = (j.rooms || []).filter((r) => !only || r.r.toLowerCase() === only), open = rooms.filter((r) => r.st !== 'closed');
