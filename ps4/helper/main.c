@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
-#define R2_VERSION "1.1.113"
+#define R2_VERSION "1.1.114"
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -2687,6 +2687,54 @@ static void look_shmod(const char *key, const char *spec) {
   struct stat ss; long sz = stat(out, &ss) ? -1 : (long)ss.st_size; snprintf(v, sizeof v, "%s, %ld bytes", done ? "finished" : "not finished in 30 s", sz); look_kv("shmod/result", v); sv_log("shmod: %s %s", name, v);
   if (sz > 0) { size_t n = 0; char *b = read_all(out, &n, 4 * 1024 * 1024); /* 1.1.111: was 1 MB - round2_sweep1 is 1.8 MB */ if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/%s-%s.txt", name, console_id); int u2 = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shmod/upload", u2 ? "failed" : k); } }
 }
+/* 1.1.114 (owner 20 Nov 3:16pm, after the Kaeden restart): the Round2 menu add-on (round2_shell: picker pause + PS button lock during
+   a member load, everyone logged out after it) is loaded at every PS4 start - no "/_shmod" by hand. Rules:
+   - skipped while /data/round2/shell-off exists, while a game is open (tried again next minute), and in the 5 min after a wake;
+   - skipped while the add-on of this name says it's alive (/data/round2/shell.alive less than 3 min old + shell.gen = the name) -
+     so a helper update doesn't load it twice (a module path loads only once per menu start anyway);
+   - at most 3 tries per helper run, 10 min apart; every try and result goes to save.log (owner: log everything).
+   The add-on's own self-test (60 s lock, then log-out) only runs on "/_shtest" - never at start-up. */
+#define SHELL_ADDON "round2_shell4"
+static int shell_tries = 0; static time_t shell_last_try = 0;
+static int shell_alive(void) {
+  char g[24] = ""; FILE *f = fopen("/data/round2/shell.gen", "r"); if (f) { if (!fgets(g, sizeof g, f)) g[0] = 0; fclose(f); }
+  struct stat st; return !strncmp(g, SHELL_ADDON, strlen(SHELL_ADDON)) && !stat("/data/round2/shell.alive", &st) && time(0) - st.st_mtime < 180;
+}
+static int shell_load(const char *key, char *res, size_t rl) {   /* download + load into SceShellUI; 0 = loaded */
+  char path[120], up[120], hdr[200], err[160]; snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\n", key); snprintf(path, sizeof path, "/ps4/prx?name=%s", SHELL_ADDON);
+  unsigned char *d = 0; size_t len = 0; int st = r2tls_fetch(ENGINE_HOST, "GET", path, hdr, 0, 0, &d, &len, 4 * 1024 * 1024, err, sizeof err);
+  if (st != 200 || !d || len < 64 || (memcmp(d, "\x7f" "ELF", 4) && memcmp(d, "\x4f\x15\x3d\x1d", 4))) { snprintf(res, rl, "download %d %s (%zu bytes)", st, err, len); free(d); return -1; }
+  mkdir("/data/GoldHEN", 0777); mkdir("/data/GoldHEN/plugins", 0777); snprintf(up, sizeof up, "/data/GoldHEN/plugins/%s.prx", SHELL_ADDON);
+  unlink(up); FILE *f = fopen(up, "wb"); int okw = f && fwrite(d, 1, len, f) == len; if (f) fclose(f); free(d); chmod(up, 0777);
+  if (!okw) { snprintf(res, rl, "could not save it"); return -1; }
+  struct r2_prx_load a; memset(&a, 0, sizeof a); snprintf(a.process_name, sizeof a.process_name, "SceShellUI"); snprintf(a.prx_path, sizeof a.prx_path, "/user/data/GoldHEN/plugins/%s.prx", SHELL_ADDON);
+  long r = r2_sdk(6, &a); int ok = 0; for (int i = 0; i < 15 && !(ok = shell_alive()); i++) sleep(1);
+  snprintf(res, rl, "%zu bytes, call %ld, result 0x%llx, %s", len, r, (unsigned long long)a.res, ok ? "running (alive)" : "not alive after 15 s");
+  return ok ? 0 : -1;
+}
+static void shell_auto(const char *key) {
+  if (!key[0] || file_exists("/data/round2/shell-off") || shell_alive()) return;
+  if (shell_tries >= 3 || (shell_last_try && time(0) - shell_last_try < 600)) return;
+  if (wake_at && time(0) - wake_at < 300) return;
+  if (sv_game_open()) return;
+  shell_tries++; shell_last_try = time(0); char res[220]; int r = shell_load(key, res, sizeof res);
+  sv_log("menu add-on %s auto-load (try %d of 3): %s", SHELL_ADDON, shell_tries, res); if (!r) shell_tries = 3;
+}
+/* 1.1.114: "/_shtest" = the add-on's 60-s self-test with the owner at the PS4 (picker paused + PS button locked, every button change
+   logged, L2+R2+L3+R3 held 1 s unlocks, then everyone logged out), then its log goes to R2 lib/probe/<add-on>-<console>.txt.
+   Loads the add-on first if it isn't running. Refused while a game is open. */
+static void look_shtest(const char *key) {
+  if (sv_game_open()) { look_kv("shtest/refused", "a game is open - close it first"); return; }
+  put_file("/data/round2/shell-selftest", "1\n");
+  if (!shell_alive()) { char res[220]; int r = shell_load(key, res, sizeof res); look_kv("shtest/load", res); sv_log("shtest: load %s: %s", SHELL_ADDON, res); if (r) return; }
+  else look_kv("shtest/load", "already running");
+  char lp[120]; snprintf(lp, sizeof lp, "/data/round2/%s.txt", SHELL_ADDON); int fin = 0;
+  for (int i = 0; i < 100 && !fin; i++) { sleep(1); size_t n = 0; char *b = read_all(lp, &n, 4 * 1024 * 1024); if (b) { char *q = strstr(b, "SELF-TEST"); fin = q && strstr(q, "3 s after log-out"); free(b); } }
+  look_kv("shtest/result", fin ? "self-test finished" : "not finished in 100 s");
+  size_t n = 0; char *b = read_all(lp, &n, 4 * 1024 * 1024);
+  if (b) { char k[120]; snprintf(k, sizeof k, "lib/probe/%s-%s.txt", SHELL_ADDON, console_id); int u = sv_put(key, k, (unsigned char *)b, n); free(b); look_kv("shtest/upload", u ? "failed" : k); }
+  sv_log("shtest: %s", fin ? "self-test finished" : "not finished in 100 s");
+}
 /* 1.1.111 (owner 20 Nov 6:01am, the one-time sweep of every PS4): "/_probeup.<name>" = upload an add-on's result file again
    (/data/round2/<name>.txt + its breadcrumb <name>.step) WITHOUT loading the add-on again – e.g. after a cut upload or a menu
    crash (the .step file says which step it died in). Read-only. */
@@ -4414,6 +4462,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_shprobe")) look_shprobe(key);
     else if (!strncmp(t, "/_shmod.", 8)) look_shmod(key, t); /* 1.1.109 */
     else if (!strncmp(t, "/_probeup.", 10)) look_probeup(key, t); /* 1.1.111 */
+    else if (!strcmp(t, "/_shtest")) look_shtest(key); /* 1.1.114 */
     else if (!strcmp(t, "/_pwrreg")) look_pwrreg(); /* 1.1.111 */
     else if (!strcmp(t, "/_renamesi.on")) { put_file("/data/round2/rename-signedin", "1"); look_kv("renamesi/result", "member loads now rename signed-in spares"); }
     else if (!strcmp(t, "/_renamesi.off")) { unlink("/data/round2/rename-signedin"); look_kv("renamesi/result", "signed-in spares keep their names"); }
@@ -4800,6 +4849,7 @@ int main(void) {
     if (key[0] && (m == 2 || (m && m % 30 == 0))) { r2_where("tile", 1); tile_check(key, 0); } /* 1.1.87: Round2 tile updates */
     if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
     if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
+    if (key[0]) { r2_where("job menu add-on", 1); shell_auto(key); } /* 1.1.114: Round2 menu add-on at every PS4 start */
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
     else if (key[0] && file_exists(PREPD "/cloud_on")) { r2_where("cloud", 1); cloud_step(key, 20); } /* 1.1.52: background cloud batch, off by default */
