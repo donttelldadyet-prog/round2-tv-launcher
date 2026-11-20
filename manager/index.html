@@ -4015,7 +4015,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         return Promise.all([gm({ action: 'pkglist' }), gm({ action: 'pkgsend', items: JSON.stringify([{ room: 'kaeden', op: 'install', ip: 'x', code: 'bad', fid: 'bad', cat: 'gd', cid: 'bad' }]) })]).then(function (r) {
           must(r[0].ok && r[0].rooms, 'The PS4 games queue doesn’t answer: ' + (r[0].error || ''));
           must(r[1].error, 'A job with a bad file link was NOT refused');
-          var stuck = [], failed = [], n = 0; for (var k in r[0].rooms) r[0].rooms[k].forEach(function (j) { n++; if (j.state === 'sent' && Date.now() - j.sentAt > 15 * 60e3) stuck.push(k); if (j.state === 'failed' && j.end > Date.now() - 86400e3) failed.push(k + ': ' + (j.title || j.name) + ' – ' + (j.why || '')); });
+          var stuck = [], failed = [], n = 0; for (var k in r[0].rooms) r[0].rooms[k].forEach(function (j) { n++; if (j.state === 'sent' && Date.now() - j.sentAt > 15 * 60e3) stuck.push(k); if (j.state === 'failed' && j.end > Date.now() - 86400e3) failed.push(k + ': ' + (j.title || j.name) + ' – ' + (j.why || '')); });   /* day-ok: a rolling 24 h window, not a calendar day */
           warnIf(stuck.length, 'Stuck jobs on ' + stuck.join(', '));
           warnIf(failed.length, 'Failed in the last day: ' + failed.slice(0, 3).join(' · '));
           return n + ' job(s) in the queues · a bad job is refused';
