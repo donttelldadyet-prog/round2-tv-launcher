@@ -1,4 +1,9 @@
-/* 0.10 (20 Nov 8:50pm, 3-player test: two GTA V loads failed, the engine said "Sorry" (status off + a title) instead of "done",
+/* 0.11 (owner 20 Nov 9:02pm: "the tile closed too soon, after 1 pulse"): the engine can say "Ready" for a moment BEFORE the
+   saves start loading (the phone's Load was accepted, the clean-slate state still showed the last run as done) – 0.10 took that as
+   the end and closed while Aliff's load (20:59:57–21:00:23) was still running. Now the end only counts after the tile has SEEN the
+   saves loading (a bar with games), and if it goes back to loading the ready card is cancelled. A load with nothing to copy (no
+   bar ever) ends after "Ready" has stayed 10 s.
+   0.10 (20 Nov 8:50pm, 3-player test: two GTA V loads failed, the engine said "Sorry" (status off + a title) instead of "done",
    so 0.09 never closed and the add-on waited its full 40 s): a load the tile watched that ends in "Sorry, …" closes the tile too
    (same "What happens next" card – players still pick their profiles).
    0.09 (owner 20 Nov 8:40pm on 0.08: "it doesnt pulse … very static … loading bar doesnt increase gradually its just 0 or 100 …
@@ -55,7 +60,7 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.10"
+#define TILE_V "0.11"
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
@@ -232,7 +237,7 @@ int main() {
   const int BX = 130, BY = 900, BW = 940, BH = 22;          /* progress bar */
   const int QX = 1270, QY = 230, QS = 480;                   /* QR card (0.07: right, clear of the text) */
   char pkk[8] = "", pnn[8] = "", pnw[32] = "";
-  int seen_loading = 0, howto = 0; double ready_t0 = 0;   /* 0.08 */
+  int seen_loading = 0, howto = 0, seen_bar = 0; double ready_t0 = 0, done_since = 0;   /* 0.08; 0.11: seen_bar, done_since */
   FT_Face fF = fMid;
   for (;;) {
     if (g_dirty > 0 && BASE && !howto) {   /* 0.08: the instruction card stays until the tile closes */
@@ -241,7 +246,10 @@ int main() {
       strcpy(co, g_color); strcpy(rn, g_rname); done = atoi(g_done); total = atoi(g_total); strcpy(pkk, g_pk); strcpy(pnn, g_pn); strcpy(pnw, g_pnow); g_dirty--;
       pthread_mutex_unlock(&mx);
       FB = BASE; AC = hexc(co, GOLD); busy = !strcmp(st, "loading") || !strcmp(st, "reset");
-      if (busy) seen_loading = 1; if ((!strcmp(st, "done") || (!strcmp(st, "off") && !strncmp(ti, "Sorry", 5))) && seen_loading && !ready_t0) ready_t0 = now_s();   /* 0.08; 0.10: a "Sorry" ending too */
+      if (busy) { seen_loading = 1; if (total > 0) seen_bar = 1; if (ready_t0 && !howto) ready_t0 = 0; done_since = 0; }   /* 0.11: back to loading = not the end */
+      { int fin = !strcmp(st, "done") || (!strcmp(st, "off") && !strncmp(ti, "Sorry", 5));
+        if (fin && seen_loading && !done_since) done_since = now_s();
+        if (fin && seen_loading && !ready_t0 && (seen_bar || now_s() - done_since >= 10)) ready_t0 = now_s(); }   /* 0.08/0.10/0.11 */
       for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {   /* background + the room-colour glow from the top right */
         int dx = x - 1650, dy = y + 150; float d = (float)(dx * dx + dy * dy) / (1350.f * 1350.f); float g = d < 1 ? (1 - d) * (1 - d) * 0.34f : 0;
         int r = BG.r + (int)((AC.r - BG.r) * g), gg = BG.g + (int)((AC.g - BG.g) * g), b = BG.b + (int)((AC.b - BG.b) * g);
@@ -278,6 +286,7 @@ int main() {
       char dots[8]; int n = (frame / 20) % 4; for (int i = 0; i < n; i++) dots[i] = '.'; dots[n] = 0; text(fSmall, dots, lx + 4, BY + 70, AC);
       { int ph = frame % 60 < 30 ? frame % 30 : 30 - frame % 30; logo_fx(130, 90, AC, 90 + ph * 5, (frame * 14) % (LOGO_W + 400) - 200, 160 - ph * 5); }   /* 0.09: breathes fast while loading */
     } else if (!strcmp(st, "done") && !howto) { shown = 0; rect(BX, BY, BW, BH, GREEN); text(fSmall, "All set - enjoy!", BX, BY + 70, GREEN); }
+    if (!ready_t0 && done_since && seen_loading && now_s() - done_since >= 10 && (!strcmp(st, "done") || !strcmp(st, "off"))) ready_t0 = now_s();   /* 0.11: nothing-to-load fallback */
     if (ready_t0) {   /* 0.08: ready burst, then "what happens next", then close */
       double e = now_s() - ready_t0;
       if (e < 1.5) { int cx = 130 + LOGO_W / 2, cy = 90 + LOGO_H / 2;
