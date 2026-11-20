@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.123"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load */
+#define R2_VERSION "1.1.124"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2776,7 +2776,7 @@ static void look_shmod(const char *key, const char *spec) {
      so a helper update doesn't load it twice (a module path loads only once per menu start anyway);
    - at most 3 tries per helper run, 10 min apart; every try and result goes to save.log (owner: log everything).
    The add-on's own self-test (60 s lock, then log-out) only runs on "/_shtest" - never at start-up. */
-#define SHELL_ADDON "round2_shell8"
+#define SHELL_ADDON "round2_shell9"
 static int shell_tries = 0; static time_t shell_last_try = 0;
 static int shell_alive(void) {
   char g[24] = ""; FILE *f = fopen("/data/round2/shell.gen", "r"); if (f) { if (!fgets(g, sizeof g, f)) g[0] = 0; fclose(f); }
@@ -2930,6 +2930,39 @@ static void memplay_next(const char *key) {
   sv_log("member play queue: %s %s -> %s", id, sl, look_last);
   if (!strncmp(look_last, "memplay/ready", 13) || !strncmp(look_last, "memplay/refused", 15) || !strncmp(look_last, "memplay/error", 13)) { if (file_exists(MEMQ)) memplay_next(key); else { unlink("/data/round2/memqn"); keep_order(1); } } /* nothing started - go on */
 }
+/* 1.1.124 (owner 20 Nov 9:03pm: loading only Aliff renamed Karen's profile to Aliff and left the old "Aliff Bozz" in Player 2 –
+   "its considered a switch profile, sometimes guest may want to do it too, so load their profiles and clean slate the rest"):
+   before a member load, every room profile NOT taking a ticked player is RELEASED: its games get the normal clean slate (internal
+   copy queued for the cloud of the member it belonged to, then removed – never PS Vue / the protected main-profile game), then
+   spares are renamed back to "Player k", pictures reset, member tags removed. The ticked players then load as before. While this
+   runs the queue file holds a placeholder line, so the engine/tile keep showing "Getting <name>'s profile ready...". */
+#define MEMAFTER "/data/round2/memplay-after"
+static int prof_games(const char *u) {   /* how many games this profile has saves for (not PS Vue / homebrew) */
+  char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f; static char nm[64][32]; int n = 0;
+  while (g && (f = readdir(g))) { if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name)) continue; if (sv_disk_parts(u, f->d_name, nm, 64)) n++; }
+  if (g) closedir(g); return n;
+}
+static void release_names(void) {   /* after the release clean slate: names, pictures, tags of the released profiles */
+  char b[400] = ""; FILE *f = fopen(CLND "/release", "r"); if (!f) return; size_t n = fread(b, 1, sizeof b - 1, f); b[n] = 0; fclose(f); unlink(CLND "/release");
+  uint32_t mainu = r2_main_user(); int ren = 0, pic = 0, tags = 0;
+  for (char *p = strtok(b, "\n"); p; p = strtok(0, "\n")) { char u[16] = ""; int k = 0; if (sscanf(p, "%15s %d", u, &k) < 1) continue; uint32_t uid = (uint32_t)strtoul(u, 0, 16);
+    char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); if (!unlink(op)) tags++;
+    if (uid == mainu || k < 1) continue;   /* the main profile keeps the room's name and picture */
+    char want[16], have[64] = ""; snprintf(want, sizeof want, "Player %d", k); sceUserServiceGetUserName((int32_t)uid, have, sizeof have);
+    if (strcmp(have, want) && !sceUserServiceSetUserName((int32_t)uid, want)) ren++;
+    char s1[48]; snprintf(s1, sizeof s1, "/_avreset.%s", u); int m0 = look_mute; look_mute = 1; look_last[0] = 0; look_avcopy(s1, 1); look_mute = m0; if (!strncmp(look_last, "avatar/result", 13)) pic++; }
+  sv_log("switch: released profiles - %d renamed, %d picture(s) reset, %d tag(s) removed", ren, pic, tags);
+}
+static void look_memplay(const char *key, const char *spec);
+static void cloud_step(const char *key, int budget);
+static void switch_resume(const char *key) {   /* the release is done: start the member load that was waiting */
+  release_names();
+  char sp[220] = ""; FILE *f = fopen(MEMAFTER, "r"); if (f) { if (!fgets(sp, sizeof sp, f)) sp[0] = 0; fclose(f); } unlink(MEMAFTER); unlink(MEMQ);
+  sp[strcspn(sp, "\r\n")] = 0; if (!sp[0]) { unlink("/data/round2/memqn"); return; }
+  sv_log("switch: release done - sending the released saves to the cloud first, then loading: %s", sp);
+  { double t0 = tm_now(); cloud_step(key, 120); sv_log("switch: cloud batch before the load took %.0f s", tm_now() - t0); }   /* newest copies up before anyone loads them */
+  int m0 = look_mute; look_mute = 1; look_memplay(key, sp); look_mute = m0;
+}
 static void look_memplay(const char *key, const char *spec) {
   char buf[200], *tok[12]; int nt = 0; snprintf(buf, sizeof buf, "%s", spec + 10);
   for (char *p = buf, *q; p && nt < 12; p = q) { q = strchr(p, '.'); if (q) *q++ = 0; tok[nt++] = p; }
@@ -2939,6 +2972,38 @@ static void look_memplay(const char *key, const char *spec) {
   char posv[6][2]; int k = 0, np = (nt - 1) / 2; char used[5][16]; memset(used, 0, sizeof used);
   for (int i = 0; i < np; i++) { const char *sl = tok[1 + 2 * i];
     if (!strcmp(sl, "main")) snprintf(posv[i], 2, "m"); else { snprintf(posv[i], 2, "%d", k + 1); if (k < 4) snprintf(used[k], 16, "%s", sl); k++; } }
+  /* 1.1.124: release the profiles that don't take a ticked player (see above) - once per load (MEMAFTER marks the second pass) */
+  if (!file_exists(MEMAFTER ".done")) {
+    RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+    uint32_t mainu = r2_main_user(), sp[16]; int ns = 0, mainticked = 0;
+    for (int i = 0; i < np; i++) if (!strcmp(tok[1 + 2 * i], "main")) mainticked = 1;
+    for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
+    for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
+    char rel[400] = ""; int nrel = 0; mkdir(CLND, 0777); FILE *td = fopen(CLND "/todo", "w"); int ng = 0;
+    for (int i = -1; i < ns && i < 4; i++) { uint32_t pu = i < 0 ? mainu : sp[i]; if (!pu) continue;
+      if (i < 0 ? mainticked : i < k) continue;   /* takes a ticked player: loaded over (old data kept as a backup first) */
+      char u[9]; snprintf(u, sizeof u, "%08x", pu); char op[120], want[16], have[64] = ""; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u);
+      snprintf(want, sizeof want, "Player %d", i + 1); if (i >= 0) sceUserServiceGetUserName((int32_t)pu, have, sizeof have);
+      int games = prof_games(u), dirty = games || file_exists(op) || (i >= 0 && strcmp(have, want));
+      if (!dirty) continue;
+      if (user_signed_in(pu) && pu != mainu) { sceUserServiceLogout((int32_t)pu); sleep(2); }
+      size_t l = strlen(rel); snprintf(rel + l, sizeof rel - l, "%s %d\n", u, i < 0 ? 0 : i + 1); nrel++;
+      if (games && td) { char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f; static char nm[64][32];
+        while (g && (f = readdir(g))) { if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name)) continue; if (!sv_disk_parts(u, f->d_name, nm, 64)) continue; fprintf(td, "%s %s\n", u, f->d_name); ng++; }
+        if (g) closedir(g); } }
+    if (td) fclose(td);
+    if (nrel) {
+      put_file(CLND "/release", rel); put_file(MEMAFTER, spec); put_file(MEMAFTER ".done", "1");
+      { FILE *qf = fopen("/data/round2/memqn", "w"); if (qf) { fprintf(qf, "%d %s\n", np, tok[2]); fclose(qf); } }
+      put_file(MEMQ, "release - - -\n");   /* keeps the engine/tile on "Getting <name>'s profile ready..." */
+      char v[160]; snprintf(v, sizeof v, "%08x releasing %d other profile(s) first (%d game(s) to clean)", r2_main_user(), nrel, ng); look_kv("memplay/loading", v);
+      sv_log("switch: %s for %s", v, spec);
+      if (ng) { cl_begin("switch", tok[2]); cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("mode", "clean\n"); cl_wr("state", "running\n"); clean_on = 1; }
+      else switch_resume(key);
+      return;
+    }
+  }
+  unlink(MEMAFTER ".done");
   /* link the whole room to the crew: main -> main, Player k -> the player loaded there, the others -> extra slots x<k> */
   { RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
     uint32_t mainu = r2_main_user(), sp[16]; int ns = 0;
@@ -3695,7 +3760,8 @@ static void clean_step(const char *key, int budget) {
       if (!strcmp(kd, "prep") && !file_exists(MEMQ)) { unlink("/data/round2/memqn"); keep_order(1); g_after_load = time(0); } /* 1.1.101: batch finished – profiles back in order; 1.1.119: pop-up once the tile is gone */
       if (!strcmp(kd, "prep")) { char s4[400]; report(key, s4, sizeof s4); } /* tell the tile at once (next player started, or all ready) */
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
-      if (strcmp(kd, "prep")) bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } } }
+      if (strcmp(kd, "prep")) bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } }
+    { char rn2[120] = "", kd2[16] = ""; cl_rd("run", rn2, sizeof rn2); sscanf(rn2, "%15s", kd2); if (!strcmp(kd2, "switch")) switch_resume(key); } }   /* 1.1.124 */
   if ((long long)time(0) - snap_hb >= 300 || !clean_on) { char s2[400]; snap_hb = (long long)time(0); report(key, s2, sizeof s2); write_status(s2); }
 }
 /* ---- 1.1.52 LAUNCH PURGE (owner 17 Nov 8:05pm: "clear all saves IF restore point succeeded"). "/_purge.<label>" = clean slate of
@@ -4746,6 +4812,24 @@ static void *alive_thread(void *arg) {
   }
   return 0;
 }
+/* 1.1.124 (owner 9:02pm: after the tile closed he could move in the menu ~4 s before the log-out): fg.txt (what's in front, for
+   the menu add-on) is written within 0.25 s while a member load runs or just finished (else every 2 s); the pop-up the moment
+   the tile is gone. */
+static void *fg_thread(void *arg) {
+  (void)arg; char last[32] = "-";
+  for (;;) {
+    int hot = g_after_load || file_exists("/data/round2/memqn");
+    char rt[32]; running_title(rt, sizeof rt);
+    if (strcmp(rt, last)) { snprintf(last, sizeof last, "%s", rt); put_file("/data/round2/fg.txt", rt); }
+    if (g_after_load && (strcmp(rt, "RTWO00001") || time(0) - g_after_load > 20)) {
+      int game = rt[0] && strcmp(rt, "RTWO00001") && strcmp(rt, VUE_ID);
+      notify("Saves loaded! Press the PS button and pick your profile.");
+      sv_log("after the member load: %s%s - pop-up shown", game ? "a game was opened, it closes with the log-out: " : strcmp(rt, "RTWO00001") ? "tile closed / not open" : "tile still open after 20 s", game ? rt : "");
+      g_after_load = 0; }
+    usleep(hot ? 250000 : 2000000);
+  }
+  return 0;
+}
 static void *watchdog(void *arg) {
   (void)arg; int cuts = 0, noted = 0; double last = mono_s();
   for (;;) {
@@ -4892,6 +4976,7 @@ int main(void) {
   { pthread_t wt; if (pthread_create(&wt, 0, watchdog, 0) == 0) pthread_detach(wt); else wd_note("could not start"); } /* 1.1.42 */
   { pthread_t bt; if (pthread_create(&bt, 0, bpop_thread, 0) == 0) pthread_detach(bt); } /* 1.1.75 */
   { pthread_t at; if (pthread_create(&at, 0, alive_thread, 0) == 0) pthread_detach(at); else wd_note("check-in thread could not start"); } /* 1.1.112 */
+  if (R2_SHELL) { pthread_t ft; if (pthread_create(&ft, 0, fg_thread, 0) == 0) pthread_detach(ft); } /* 1.1.124 */
   bpop("Helper started - connecting to Round2...");
   update_guard();
   { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
@@ -4959,14 +5044,7 @@ int main(void) {
       r2_where("guard", 0);
       countdown_tick(key); /* 1.1.55: reset pop-ups + the engine's last check, every 2 s */
       load_watch(); /* 1.1.108: someone signs in during a member load -> "hang on" */
-      { /* 1.1.119 (owner 8:05pm): what's in front, for the menu add-on (log out right after the tile closes, never over a game) */
-        static char lastfg[32] = "-"; char rt3[32]; running_title(rt3, sizeof rt3);
-        if (strcmp(rt3, lastfg)) { snprintf(lastfg, sizeof lastfg, "%s", rt3); put_file("/data/round2/fg.txt", rt3); }
-        if (g_after_load && (strcmp(rt3, "RTWO00001") || time(0) - g_after_load > 20)) {
-          int game = rt3[0] && strcmp(rt3, "RTWO00001") && strcmp(rt3, VUE_ID);
-          notify("Saves loaded! Press the PS button and pick your profile.");   /* owner 8:20pm: also when a game was opened – the add-on closes it */
-          sv_log("after the member load: %s%s - pop-up shown", game ? "a game was opened, it closes with the log-out: " : strcmp(rt3, "RTWO00001") ? "tile closed / not open" : "tile still open after 20 s", game ? rt3 : "");
-          g_after_load = 0; } }
+      /* 1.1.124: "what's in front" + the after-load pop-up moved to fg_thread (every 0.25 s while it matters) */
       if (t % 3 == 2 && key[0]) { char rt2[32]; running_title(rt2, sizeof rt2); /* 1.1.95 (owner: 20-30 s from "Load" to the PS4 starting): while the */
         if (!strcmp(rt2, "RTWO00001") && check_cmd(key)) { report(key, status, sizeof status); write_status(status); } } /* Round2 tile is open, look for jobs every 6 s */
       inp_watch(); /* 1.1.64: test pop-ups for the detector (only while switched on) */
