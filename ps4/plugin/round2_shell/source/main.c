@@ -216,7 +216,7 @@ static void *shell_thread(void *a) {
   if (exists_(DIR_U "/shell-selftest")) self_test();   /* loaded by "/_shtest" */
   /* WATCH */
   lg("WATCH: locks during member loads (max 10 min each), combo unlocks; self-test when asked (shell-selftest)");
-  int was = 0, since = 0; time_t lt = 0, alive = 0;
+  int was = 0, since = 0; time_t lt = 0, alive = 0, trace_until = 0, trace_at = 0;
   while (still_me()) {
     if (time(0) - alive >= 30) { char t[24]; snprintf(t, sizeof t, "%ld\n", (long)time(0)); put_(DIR_U "/shell.alive", t); alive = time(0); }
     int l = loading();
@@ -238,8 +238,8 @@ static void *shell_thread(void *a) {
       rd_(DIR_U "/fg.txt", fg, sizeof fg);   /* 9.00: no wait */
       if (fg[0] && strcmp(fg, "RTWO00001") && strcmp(fg, "CUSA00960")) lg("a game was opened before the log-out (%s) - it closes now (owner: just close)", fg);
       log_all_out(was == 2 ? "clean slate finished" : "member load finished");
-      lock_off("after the log-out - guests press PS and pick their profile");
-      for (int i = 0; i < 15; i++) { sleep(2); int b = held_buttons(); lg("after log-out +%ds: picker paused %d, buttons 0x%x%s", (i + 1) * 2, suspended(), b < 0 ? 0 : b, b < 0 ? " (pads unreadable)" : ""); } }   /* 12.00 probe */
+      lock_off("after the log-out - guests press PS and pick their profile"); trace_until = time(0) + 30; }
+    if (trace_until && time(0) <= trace_until && time(0) - trace_at >= 2) { trace_at = time(0); int b = held_buttons(); lg("after log-out: picker paused %d, buttons 0x%x%s", suspended(), b < 0 ? 0 : b, b < 0 ? " (pads unreadable)" : ""); }   /* 12.00 probe, without blocking the loop (log-out requests stay answered) */
     was = l; usleep(l ? 100000 : 1000000);
   }
   lock_off("a newer add-on took over"); lg("stopped - a newer add-on is running");

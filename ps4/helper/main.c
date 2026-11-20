@@ -3233,15 +3233,22 @@ static void look_clean(const char *spec) {
    4) profiles: main + the 4 oldest spares kept; spares created by guests deleted (their saves were just copied + removed);
       fewer than 4 spares = error "add by hand"; spares renamed Player 1-4, pictures back to default, order main first;
    5) one line in the clean-slate log (+ every problem in the error log). */
+static int g_no_raw_logout;
 static void reset_profiles(char *out, size_t on) {
+  g_no_raw_logout = 0;
   RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
   uint32_t mainu = r2_main_user(), sp[16]; int ns = 0;
   for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
   for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
   int del = 0, ren = 0, pic = 0, bad = 0; char s1[64];
-  { int anyin = 0; for (int i = 0; i < ns; i++) if (user_signed_in(sp[i])) anyin = 1; if (anyin) menu_logout("clean slate - before renaming the spares"); }   /* 1.1.136 */
+  /* 1.1.136 (advisor 21 Nov 2:35am: the run's state is "done" before this runs, so the add-on's own end-of-run LogoutAll and our raw
+     sign-out hit the same profile at the same moment – 2:24:07, the owner's stuck controller). With the add-on running: wait up to
+     12 s for ITS log-out to empty the login list, never sign out raw; every raw sign-out is logged. */
+  if (R2_SHELL && shell_alive()) { int w = 0, anyin = 1; for (; w < 60 && anyin; w++) { anyin = 0; for (int i = 0; i < ns; i++) if (user_signed_in(sp[i])) anyin = 1; if (anyin) usleep(200000); }
+    sv_log("clean slate: %s", anyin ? "a spare is still signed in 12 s after the menu's log-out - left signed in (not renamed if that fails)" : "spares signed out by the menu add-on");
+    g_no_raw_logout = 1; }
   for (int i = 4; i < ns; i++) {
-    if (user_signed_in(sp[i])) { sceUserServiceLogout((int32_t)sp[i]); sleep(3); }
+    if (user_signed_in(sp[i]) && !g_no_raw_logout) { sv_log("clean slate: RAW sign-out of extra profile %08x", sp[i]); sceUserServiceLogout((int32_t)sp[i]); sleep(3); }
     snprintf(s1, sizeof s1, "/_udel.%08x", sp[i]); look_mute = 1; look_last[0] = 0; look_udel(s1); look_mute = 0;
     if (!strncmp(look_last, "udel/result: deleted", 20)) del++; else { bad++; cl_err("extra profile %08x not deleted: %s", sp[i], look_last); }
   }
@@ -3249,7 +3256,7 @@ static void reset_profiles(char *out, size_t on) {
   if (ns < 4) { bad++; cl_err("only %d spare profile(s) - %d to add by hand (Settings > Users), the helper can't create profiles", ns, 4 - ns); }
   for (int i = 0; i < keep; i++) {
     char want[16], have[64] = ""; snprintf(want, sizeof want, "Player %d", i + 1);
-    if (user_signed_in(sp[i])) { sceUserServiceLogout((int32_t)sp[i]); sleep(3); if (user_signed_in(sp[i])) { bad++; cl_err("spare %08x would not sign out", sp[i]); } }
+    if (user_signed_in(sp[i]) && !g_no_raw_logout) { sv_log("clean slate: RAW sign-out of spare %08x", sp[i]); sceUserServiceLogout((int32_t)sp[i]); sleep(3); if (user_signed_in(sp[i])) { bad++; cl_err("spare %08x would not sign out", sp[i]); } }
     sceUserServiceGetUserName((int32_t)sp[i], have, sizeof have);
     if (strcmp(have, want)) { bpop_key("ren", "Room reset: renaming '%s' back to '%s'", have, want); int r = sceUserServiceSetUserName((int32_t)sp[i], want); if (r == 0) ren++; else { bad++; cl_err("spare %08x '%s' not renamed to %s (0x%08x)", sp[i], have, want, (unsigned)r); } }
     snprintf(s1, sizeof s1, "/_avreset.%08x", sp[i]); look_mute = 1; look_last[0] = 0; look_avcopy(s1, 1); look_mute = 0;
