@@ -2796,6 +2796,7 @@ static int shell_load(const char *key, char *res, size_t rl) {   /* download + l
 }
 static void shell_auto(const char *key) {
   if (!key[0] || file_exists("/data/round2/shell-off") || shell_alive()) return;
+  { struct stat st; if (!stat("/data/round2/shell.alive", &st) && time(0) - st.st_mtime < 90) { static int said; if (!said++) sv_log("menu add-on %s: an older add-on is still running in the menu - the new one loads at the next PS4 start", SHELL_ADDON); return; } } /* 1.1.125: shell8 + shell9 ran side by side on Kaeden 20 Nov 9:11pm */
   if (shell_tries >= 3 || (shell_last_try && time(0) - shell_last_try < 600)) return;
   if (wake_at && time(0) - wake_at < 300) return;
   if (sv_game_open()) return;
