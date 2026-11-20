@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.131"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.132"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -95,6 +95,8 @@ static int snap_on, snap_bg, look_mute, sv_noprep, clean_on;
 static int sv_defer; static char sv_defer_dir[300];
 static void cloud_report(void); /* 1.1.52 */
 static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
+static char pkg_last[200]; /* 1.1.132: last PKG job line for the report */
+static void look_pkgjob(const char *spec); static void look_pkgstop(void); static void look_pkgrm(const char *spec);
 static long long g_after_load; /* 1.1.119: a member load batch just finished (time) -> pop-up once the tile is gone */
 static long long cd_last_in, cd_play_from; static int cd_input = -2; /* 1.1.56: button detector (-2 not tried, -1 not readable, 0/1) */
 static int snap_covered(const char *u, const char *t, const char *nm, long long stamp); /* 1.1.52 */
@@ -623,6 +625,7 @@ static int report(const char *key, char *status, size_t slen) {
   { int left = 0, of = 0; char b[600] = "", nm[48] = ""; FILE *f = fopen("/data/round2/memq", "r"); if (f) { size_t n = fread(b, 1, sizeof b - 1, f); b[n] = 0; fclose(f); for (char *p = b; *p; p++) if (*p == '\n') left++; }
     f = fopen("/data/round2/memqn", "r"); if (f) { if (fscanf(f, "%d %47s", &of, nm) < 1) of = 0; fclose(f); } for (char *c = nm; *c; c++) if (*c == '_') *c = ' ';
     if (of > 0) { jadd(",\"memq\":{\"left\":%d,\"of\":%d,\"now\":", left, of); jstr(nm); jadd("}"); } } /* 1.1.101: players still waiting in a member load */
+  if (pkg_last[0]) { jadd(",\"pkg\":{\"on\":%d,\"last\":", file_exists("/data/round2/pkg-job")); jstr(pkg_last); jadd("}"); } /* 1.1.132 */
   cloud_report(); /* 1.1.52 */
   if (cd_on) { jadd(",\"countdown\":{\"left\":%lld,\"lab\":", cd_deadline - (long long)time(0)); jstr(cd_lab); jadd(",\"ok\":%d,\"input\":%d,\"play\":%lld}", cd_ok, cd_input, cd_play_from ? (long long)time(0) - cd_play_from : 0LL); } /* 1.1.55/56 */
   { char lab[24] = "", stp[24] = "", sst[16] = ""; int dn = 0, tt = 0, fl = 0; long long by = 0;
@@ -4738,6 +4741,9 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strncmp(t, "/_memtag.", 9)) look_memtag(t);
     else if (!strcmp(t, "/_pkgprep")) look_pkgprep();   /* 1.1.131 */
     else if (!strcmp(t, "/_pkgdone")) look_pkgdone();
+    else if (!strncmp(t, "/_pkgjob.", 9)) look_pkgjob(t);   /* 1.1.132 */
+    else if (!strcmp(t, "/_pkgstop")) look_pkgstop();
+    else if (!strncmp(t, "/_pkgrm.", 8)) look_pkgrm(t);
     else if (!strcmp(t, "/_pf.off")) { put_file("/data/round2/prefetch-off", "1"); look_kv("pf/result", "prefetch OFF"); }
     else if (!strcmp(t, "/_pf.on")) { unlink("/data/round2/prefetch-off"); look_kv("pf/result", "prefetch ON"); }
     else if (!strcmp(t, "/_bb.off")) { put_file("/data/round2/bigbundle-off", "1"); look_kv("bb/result", "big-file bundles OFF"); }
@@ -4985,7 +4991,7 @@ static char tile_tried[24];
 typedef struct { void *heap; size_t heapSize; } BgftInit;
 typedef struct { int32_t userId; int32_t entitlementType; const char *id; const char *contentUrl; const char *contentExUrl; const char *contentName;
   const char *iconPath; const char *skuId; int32_t option; const char *playgoScenarioId; const char *releaseDate; const char *packageType;
-  const char *packageSubType; uint32_t packageSize; } BgftParam;
+  const char *packageSubType; uint64_t packageSize; } BgftParam;   /* 1.1.132: 64-bit size (same layout; games are > 4 GB) */
 typedef struct { BgftParam params; uint32_t slot; } BgftParamEx;
 static int tile_install(char *why, size_t wn) {
   static int (*bInit)(BgftInit *), (*bReg)(BgftParamEx *, int *), (*bStart)(int); static int looked, inited, mh; static void *heap;
@@ -5009,6 +5015,88 @@ static int tile_install(char *why, size_t wn) {
   if (r) { snprintf(why, wn, "installer said 0x%08x", (unsigned)r); return -1; }
   r = bStart(task); if (r) { snprintf(why, wn, "install start 0x%08x (task %d)", (unsigned)r, task); return -1; }
   snprintf(why, wn, "install started (task %d)", task); return 0;
+}
+/* ---- 1.1.132 PKG INSTALL FROM THE OWNER'S LAPTOP (owner 20 Nov 10:38pm–10:49pm). The laptop runs "Round2 PKG server"
+   (round2-tv-launcher tools/pkg-server) which shares the PKG files on the shop Wi-Fi. "/_pkgjob.<jid>.<a-b-c-d>.<port>.<code>.<file>.
+   <gd|gp|ac>.<content id>.<MB>" = the safety checks of /_pkgprep (main profile signed in if nobody is), then the PS4's own download
+   manager (BGFT) downloads http://a.b.c.d:port/f/<code>/<file>/x.pkg STRAIGHT INTO PLACE (no copy on the PS4 first, no double
+   space). One job at a time; progress every ~10 s in the report ("pkg"). "/_pkgrm.<CUSA12345>.<gd|gp>" = uninstall a game / its
+   patch (never while it's running). "/_pkgstop" = cancel the running download. */
+typedef struct { uint32_t bits; int32_t err; uint64_t len, done, lenTotal, doneTotal; uint32_t idx, nTotal, rest, restTotal; int32_t prep, localCopy; char pad[64]; } BgftProg;
+static int (*bg_init)(BgftInit *), (*bg_reg)(BgftParamEx *, int *), (*bg_regdbg)(BgftParamEx *, int *), (*bg_start)(int), (*bg_prog)(int, BgftProg *), (*bg_stop)(int), (*bg_unreg)(int);
+static int bg_load(char *why, size_t wn) {
+  static int looked, inited, mh; static void *heap;
+  if (!looked) { looked = 1; mh = sceKernelLoadStartModule("/system/common/lib/libSceBgft.sprx", 0, 0, 0, 0, 0);
+    if (mh > 0) { sceKernelDlsym(mh, "sceBgftServiceIntInit", (void **)&bg_init); sceKernelDlsym(mh, "sceBgftServiceIntDownloadRegisterTaskByStorageEx", (void **)&bg_reg);
+      sceKernelDlsym(mh, "sceBgftServiceIntDebugDownloadRegisterPkg", (void **)&bg_regdbg); sceKernelDlsym(mh, "sceBgftServiceDownloadStartTask", (void **)&bg_start);
+      sceKernelDlsym(mh, "sceBgftServiceDownloadGetProgress", (void **)&bg_prog); sceKernelDlsym(mh, "sceBgftServiceDownloadStopTask", (void **)&bg_stop);
+      sceKernelDlsym(mh, "sceBgftServiceIntDownloadUnregisterTask", (void **)&bg_unreg); } }
+  if (!bg_init || !bg_reg || !bg_start) { snprintf(why, wn, "the PS4 installer isn't reachable (module 0x%08x)", (unsigned)mh); return -1; }
+  if (!inited) { if (!heap) heap = calloc(1, 1 << 20); BgftInit ip = { heap, 1 << 20 }; int r = bg_init(&ip); if (r && r != (int)0x80990001) { snprintf(why, wn, "installer start 0x%08x", (unsigned)r); return -1; } inited = 1; }
+  return 0;
+}
+#define PKGJOB "/data/round2/pkg-job"   /* "<jid> <task> <cat> <cid> <start> <MB>" while a download runs */
+static long long pkg_tick_at;
+static void look_pkgprep(void);
+static void look_pkgjob(const char *spec) {
+  char jid[24] = "", ip[20] = "", code[48] = "", fid[24] = "", cat[4] = "", cid[40] = "", v[300]; int port = 0, mb = 0;
+  if (sscanf(spec, "/_pkgjob.%23[A-Za-z0-9].%19[0-9-].%d.%47[a-z0-9].%23[a-z0-9].%3[a-z].%39[A-Za-z0-9_-].%d", jid, ip, &port, code, fid, cat, cid, &mb) < 7 || port <= 0 || port > 65535) { look_kv("pkgjob/error", "bad spec"); return; }
+  for (char *c = ip; *c; c++) if (*c == '-') *c = '.';
+  if (file_exists(PKGJOB)) { look_kv("pkgjob/refused", "- another download is still running"); return; }
+  look_mute = 1; look_last[0] = 0; look_pkgprep(); look_mute = 0;
+  if (strncmp(look_last, "pkgprep/ready", 13)) { snprintf(v, sizeof v, "- not safe now: %s", look_last); look_kv("pkgjob/refused", v); sv_log("pkg job %s refused: %s", jid, look_last); return; }
+  char why[160] = ""; if (bg_load(why, sizeof why)) { look_kv("pkgjob/error", why); return; }
+  UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l); int32_t uid = (int32_t)r2_main_user();
+  if (!user_signed_in((uint32_t)uid)) for (int i = 0; i < 4; i++) if (l.userId[i] != -1 && l.userId[i]) { uid = l.userId[i]; break; }
+  char url[220]; snprintf(url, sizeof url, "http://%s:%d/f/%s/%s/x.pkg", ip, port, code, fid);
+  BgftParamEx p; memset(&p, 0, sizeof p);
+  p.params.userId = uid; p.params.entitlementType = 5; p.params.id = cid; p.params.contentUrl = url; p.params.contentName = cid; p.params.iconPath = "";
+  p.params.playgoScenarioId = "0"; p.params.option = 0x10000; p.params.packageType = !strcmp(cat, "gp") ? "PS4GP" : !strcmp(cat, "ac") ? "PS4AC" : "PS4GD"; p.params.packageSubType = "";
+  p.params.packageSize = (uint64_t)mb << 20; p.slot = 0;
+  int task = -1, r = bg_reg(&p, &task), r2 = 0;
+  if (r && !strcmp(cat, "gp") && bg_regdbg) { r2 = r; task = -1; r = bg_regdbg(&p, &task); }   /* patches: the way flatz's Remote PKG Installer does it */
+  if (r) { snprintf(v, sizeof v, "installer refused: 0x%08x%s%s (user %08x, %s)", (unsigned)r, r2 ? " after 0x" : "", "", (unsigned)uid, url); if (r2) { size_t k = strlen(v); snprintf(v + k, sizeof v - k, " [first try 0x%08x]", (unsigned)r2); }
+    sv_log("pkg job %s %s %s: %s", jid, cat, cid, v); look_kv("pkgjob/error", v); return; }
+  r = bg_start(task);
+  if (r) { snprintf(v, sizeof v, "download start 0x%08x (task %d)", (unsigned)r, task); sv_log("pkg job %s: %s", jid, v); look_kv("pkgjob/error", v); return; }
+  char jl[200]; snprintf(jl, sizeof jl, "%s %d %s %s %lld %d\n", jid, task, cat, cid, (long long)time(0), mb); put_file(PKGJOB, jl);
+  snprintf(v, sizeof v, "download started: task %d, %s %s, %d MB from %s:%d (user %08x)", task, cat, cid, mb, ip, port, (unsigned)uid);
+  snprintf(pkg_last, sizeof pkg_last, "%s started", jid); pkg_tick_at = 0;
+  sv_log("pkg job %s: %s", jid, v); notify("Round2: installing a game update in the background - please leave the PS4 on."); look_kv("pkgjob/started", v);
+}
+static void pkg_tick(const char *key) {   /* every ~10 s while a download runs: progress, finish */
+  (void)key; char b[200] = ""; FILE *f = fopen(PKGJOB, "r"); if (!f) return; if (!fgets(b, sizeof b, f)) b[0] = 0; fclose(f);
+  if (time(0) - pkg_tick_at < 10) return; pkg_tick_at = time(0);
+  char jid[24] = "", cat[4] = "", cid[40] = ""; int task = -1, mb = 0; long long t0 = 0; sscanf(b, "%23s %d %3s %39s %lld %d", jid, &task, cat, cid, &t0, &mb);
+  char why[120]; if (bg_load(why, sizeof why) || !bg_prog) return;
+  BgftProg pr; memset(&pr, 0, sizeof pr); int r = bg_prog(task, &pr);
+  long long el = time(0) - t0; double gotMB = pr.doneTotal / 1048576.0, allMB = pr.lenTotal / 1048576.0;
+  snprintf(pkg_last, sizeof pkg_last, "%s %s %s: %.0f of %.0f MB (%.1f MB/s), %u s left, err 0x%08x, bits 0x%x, rc 0x%08x", jid, cat, cid, gotMB, allMB, el > 0 ? gotMB / el : 0.0, pr.restTotal, (unsigned)pr.err, pr.bits, (unsigned)r);
+  { static long long said; if (time(0) - said >= 300) { said = time(0); sv_log("pkg progress: %s", pkg_last); } }
+  int done = r == 0 && pr.lenTotal > 0 && pr.doneTotal >= pr.lenTotal, bad = r != 0 || pr.err != 0;
+  if (!done && !bad && el < 6 * 3600) return;
+  sv_log("pkg job %s %s: %s", jid, done ? "FINISHED" : "STOPPED", pkg_last);
+  { FILE *h = fopen("/data/round2/pkg-history.txt", "a"); if (h) { char ts[24]; cl_stamp(ts, sizeof ts, (long long)time(0)); fprintf(h, "%s %s %s\n", ts, done ? "OK" : "FAILED", pkg_last); fclose(h); } }
+  snprintf(pkg_last, sizeof pkg_last, "%s %s %s %s in %lld min", jid, done ? "finished" : "FAILED", cat, cid, el / 60);
+  unlink(PKGJOB); if (done) notify("Round2: game update installed.");
+}
+static void look_pkgstop(void) {
+  char b[200] = ""; FILE *f = fopen(PKGJOB, "r"); if (!f) { look_kv("pkgstop/result", "no download running"); return; } if (!fgets(b, sizeof b, f)) b[0] = 0; fclose(f);
+  char jid[24] = ""; int task = -1; sscanf(b, "%23s %d", jid, &task); char why[120], v[160]; int r1 = -1, r2 = -1;
+  if (!bg_load(why, sizeof why)) { if (bg_stop) r1 = bg_stop(task); if (bg_unreg) r2 = bg_unreg(task); }
+  unlink(PKGJOB); snprintf(v, sizeof v, "job %s task %d stopped (stop 0x%08x, unregister 0x%08x)", jid, task, (unsigned)r1, (unsigned)r2); sv_log("pkg: %s", v); look_kv("pkgstop/result", v);
+}
+static void look_pkgrm(const char *spec) {
+  char tid[16] = "", cat[4] = "gd", v[160], rt[32] = ""; if (sscanf(spec, "/_pkgrm.%9[A-Z0-9].%3[a-z]", tid, cat) < 1 || strlen(tid) != 9) { look_kv("pkgrm/error", "bad spec"); return; }
+  if (r2_protected(tid) || !strcmp(tid, VUE_ID) || !strcmp(tid, "RTWO00001")) { look_kv("pkgrm/refused", "- protected title"); return; }
+  running_title(rt, sizeof rt); if (!strcmp(rt, tid)) { look_kv("pkgrm/refused", "- that game is running"); return; }
+  static int (*aInit)(void), (*aUn)(const char *), (*aUnPat)(const char *); static int looked;
+  if (!looked) { looked = 1; int am = sceKernelLoadStartModule("/system/common/lib/libSceAppInstUtil.sprx", 0, 0, 0, 0, 0);
+    if (am > 0) { sceKernelDlsym(am, "sceAppInstUtilInitialize", (void **)&aInit); sceKernelDlsym(am, "sceAppInstUtilAppUnInstall", (void **)&aUn); sceKernelDlsym(am, "sceAppInstUtilAppUnInstallPat", (void **)&aUnPat); } }
+  int (*fn)(const char *) = !strcmp(cat, "gp") ? aUnPat : aUn;
+  if (!aInit || !fn) { look_kv("pkgrm/error", "the remover isn't reachable"); return; }
+  int ri = aInit(), r = fn(tid); snprintf(v, sizeof v, "%s %s removed: 0x%08x (init 0x%08x)", tid, !strcmp(cat, "gp") ? "patch" : "game", (unsigned)r, (unsigned)ri);
+  sv_log("pkg uninstall: %s", v); look_kv(r ? "pkgrm/error" : "pkgrm/result", v);
 }
 static void tile_ver(char *v, size_t n) { v[0] = 0; FILE *f = fopen("/data/round2/tile.ver", "r"); if (f) { if (fgets(v, (int)n, f)) v[strcspn(v, "\r\n")] = 0; fclose(f); } }
 static int tile_check(const char *key, int force) {
@@ -5154,6 +5242,7 @@ int main(void) {
     if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
     if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
     if (key[0]) defer_tick(key); /* 1.1.123: pre-load backups to the cloud after the load */
+    if (key[0]) pkg_tick(key); /* 1.1.132: PKG download progress */
     if (R2_SHELL && key[0]) { r2_where("job menu add-on", 1); shell_auto(key); } /* 1.1.115 (test build only): Round2 menu add-on at every PS4 start */
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
