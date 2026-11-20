@@ -205,13 +205,16 @@ static void *shell_thread(void *a) {
     if (l && !was) { lg("member load started"); lt = time(0); lock_on("member load"); }
     if (l && g_lock && (time(0) - lt > 600)) lock_off("10 min limit");
     if (l && g_lock && combo_held(&since)) lock_off("unlock combo");
-    if (!l && was) { lock_off("member load finished");
+    if (!l && was) {   /* 7.00 (owner 8:22pm "continue blocking controllers? then after logout"): the PS button stays LOCKED until
+                          after the log-out, so nobody can leave the tile for a game on the wrong profile; unlocked right after */
+      lg("member load finished - PS button stays locked until everyone is logged out");
       char fg[40]; time_t t0 = time(0); rd_(DIR_U "/fg.txt", fg, sizeof fg); int tile = !strcmp(fg, "RTWO00001");
-      while (!strcmp(fg, "RTWO00001") && time(0) - t0 < 40) { usleep(300000); rd_(DIR_U "/fg.txt", fg, sizeof fg); }   /* 7.00: until the tile closes */
+      while (!strcmp(fg, "RTWO00001") && time(0) - t0 < 40) { usleep(300000); rd_(DIR_U "/fg.txt", fg, sizeof fg); if (g_lock && combo_held(&since)) lock_off("unlock combo"); }   /* until the tile closes */
       lg("after the load: tile %s (%ld s)", !tile ? "wasn't open" : !strcmp(fg, "RTWO00001") ? "still open after 40 s" : "closed", (long)(time(0) - t0));
       sleep(2); rd_(DIR_U "/fg.txt", fg, sizeof fg);   /* the helper's pop-up first */
       if (fg[0] && strcmp(fg, "RTWO00001") && strcmp(fg, "CUSA00960")) lg("a game was opened before the log-out (%s) - it closes now (owner: just close)", fg);
-      log_all_out("member load finished"); }
+      log_all_out("member load finished");
+      lock_off("after the log-out - guests press PS and pick their profile"); }
     was = l; usleep(l ? 100000 : 1000000);
   }
   lock_off("a newer add-on took over"); lg("stopped - a newer add-on is running");
