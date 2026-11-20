@@ -28,7 +28,7 @@ public class R2Pkg {
 }
 
 public static class R2Srv {
-  public static string ConfigPath, Token, StaffPath, Version = "1.1";
+  public static string ConfigPath, Token, StaffPath, Version = "1.2";
   public static int Port;
   public static List<string> Folders = new List<string>();
   public static List<R2Pkg> Pkgs = new List<R2Pkg>();
@@ -219,6 +219,7 @@ public static class R2Srv {
       bool local = IPAddress.IsLoopback(((IPEndPoint)c.Client.RemoteEndPoint).Address);
       if (m == "OPTIONS") { Send(s, 204, "text/plain", null, null); return; }
       if (path.StartsWith("/f/")) { File_(s, m, path, hd, c); return; }
+      if (path.StartsWith("/j/")) { Manifest(s, path, hd); return; }
       if (!local) { Send(s, 403, "text/plain", Encoding.ASCII.GetBytes("this laptop only"), null); return; }
       string body = "";
       if (m == "POST") { int len = 0; string cl; if (hd.TryGetValue("Content-Length", out cl)) int.TryParse(cl, out len); if (len > 0 && len < 1 << 16) { byte[] b = new byte[len]; int n = 0; while (n < len) { int r = s.Read(b, n, len - n); if (r <= 0) break; n += r; } body = Encoding.UTF8.GetString(b, 0, n); } }
@@ -265,6 +266,23 @@ public static class R2Srv {
         while (left > 0) { int r = f.Read(buf, 0, (int)Math.Min(buf.Length, left)); if (r <= 0) break; s.Write(buf, 0, r); left -= r; Interlocked.Add(ref servedBytes, r); lastDl = DateTime.Now; }
       }
     } finally { Interlocked.Decrement(ref active); lastDl = DateTime.Now; }
+  }
+  // 1.2 (Kaeden 23:21: the PS4 took a DLC from a direct link but refused the game): the PS4's download manager wants what the
+  // PlayStation Store gives it - a small JSON "reference package" that lists the pieces of the PKG - like flatz's Remote Package
+  // Installer makes: originalFileSize + packageDigest from the PKG header, one piece = the whole file on this laptop.
+  static void Manifest(NetworkStream s, string path, Dictionary<string, string> hd) {
+    string[] seg = path.Split('/');   // "", "j", token, "<id>.json"
+    R2Pkg p = null; string id = seg.Length >= 4 ? seg[3].Replace(".json", "") : "";
+    if (seg.Length >= 4 && seg[2] == Token) lock (L) foreach (R2Pkg x in Pkgs) if (x.Id == id) { p = x; break; }
+    if (p == null || !File.Exists(p.Path)) { Send(s, 404, "text/plain", Encoding.ASCII.GetBytes("no such file"), null); return; }
+    byte[] h = new byte[0x1000];
+    using (FileStream f = new FileStream(p.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) ReadAt(f, 0, h);
+    ulong psize = 0; for (int i = 0; i < 8; i++) psize = (psize << 8) | h[0x430 + i];
+    StringBuilder dg = new StringBuilder(); for (int i = 0; i < 32; i++) dg.Append(h[0xFE0 + i].ToString("x2"));
+    long size = new FileInfo(p.Path).Length; string host; if (!hd.TryGetValue("Host", out host)) host = BestIp() + ":" + Port;
+    string js = "{\"originalFileSize\":" + (psize > 0 ? psize : (ulong)size) + ",\"packageDigest\":\"" + dg + "\",\"numberOfSplitFiles\":1,\"pieces\":[{\"url\":\"http://" + host + "/f/" + Token + "/" + p.Id + "/x.pkg\",\"fileOffset\":0,\"fileSize\":" + size + ",\"hashValue\":\"0000000000000000000000000000000000000000\"}]}";
+    Log("manifest for " + p.Name + " (" + (size >> 20) + " MB) sent");
+    Send(s, 200, "application/json", Encoding.ASCII.GetBytes(js), null);
   }
   static string Page() {
     return "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>Round2 PKG server</title>" +
