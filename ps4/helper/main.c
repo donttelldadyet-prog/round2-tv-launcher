@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.124"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.125"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2628,11 +2628,14 @@ static void look_memload(const char *key, const char *spec) {
   mkdir(CLND, 0777); { FILE *f = fopen(CLND "/memindex", "w"); if (!f) { free(ix); look_kv("memload/error", "can't write"); return; } fwrite(ix, 1, il, f); fclose(f); }
   FILE *td = fopen(CLND "/todo", "w"); if (!td) { free(ix); look_kv("memload/error", "can't write the list"); return; }
   int ng = 0; char seen[64][16]; int ns = 0;
+  char onlyp[140]; snprintf(onlyp, sizeof onlyp, "/data/round2/prep/only_%s.txt", u); size_t onl = 0; char *only = read_all(onlyp, &onl, 8192); unlink(onlyp);
   char *b = malloc(il + 1); if (b) { memcpy(b, ix, il); b[il] = 0;
     for (char *ln = b, *nx; ln && *ln; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a[16]; if (sscanf(ln, "%15s", a) != 1 || r2_protected(a) || r2_homebrew(a)) continue;
-      int dup = 0; for (int i = 0; i < ns; i++) if (!strcmp(seen[i], a)) dup = 1; if (dup || ns >= 64) continue; snprintf(seen[ns++], 16, "%s", a); fprintf(td, "%s %s\n", u, a); ng++; }
+      int dup = 0; for (int i = 0; i < ns; i++) if (!strcmp(seen[i], a)) dup = 1; if (dup || ns >= 64) continue; snprintf(seen[ns++], 16, "%s", a);
+      if (only && !strstr(only, a)) continue;   /* 1.1.125: kept player – only the games another room changed */
+      fprintf(td, "%s %s\n", u, a); ng++; }
     free(b); }
-  fclose(td); free(ix);
+  fclose(td); free(ix); free(only);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
   if (may_rename(uid)) { bpop_key("ren", "Naming the profile '%s'", shown); int rr = sceUserServiceSetUserName((int32_t)uid, shown); if (user_signed_in(uid)) sv_log("member load: signed-in profile %08x renamed to '%s' (0x%08x)", uid, shown, (unsigned)rr); } /* 1.1.100 */
   { char op[120], tv[80]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); snprintf(tv, sizeof tv, "%s/%s", id, sl); mkdir("/data/round2/prep", 0777); put_file(op, tv); }
@@ -2954,6 +2957,25 @@ static void release_names(void) {   /* after the release clean slate: names, pic
     char s1[48]; snprintf(s1, sizeof s1, "/_avreset.%s", u); int m0 = look_mute; look_mute = 1; look_last[0] = 0; look_avcopy(s1, 1); look_mute = m0; if (!strncmp(look_last, "avatar/result", 13)) pic++; }
   sv_log("switch: released profiles - %d renamed, %d picture(s) reset, %d tag(s) removed", ren, pic, tags);
 }
+static const unsigned char *mi_get(const char *key, const char *mtag, size_t *len);
+/* 1.1.125: a player kept in their profile – which of their games did ANOTHER room upload after they were loaded here (the time of
+   their member tag)? Those go in /data/round2/prep/only_<u>.txt (only they load); returns how many (0 = nothing to load).
+   An index entry that this PS4 uploaded itself (prep/<u>/<game>/<part>/cloud.txt) never counts. Index unreadable = load all (-1). */
+static int kept_newer(const char *key, uint32_t pu, const char *id, const char *sl) {
+  char u[9], op[120], mtag[64]; snprintf(u, sizeof u, "%08x", pu); snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); snprintf(mtag, sizeof mtag, "%s/%s", id, sl);
+  struct stat st; if (stat(op, &st)) return -1; long long at = (long long)st.st_mtime;
+  size_t il = 0; const unsigned char *ix = mi_get(key, mtag, &il); if (!ix || !il) return 0;   /* nothing in the cloud: nothing newer */
+  char *b = malloc(il + 1); if (!b) return -1; memcpy(b, ix, il); b[il] = 0;
+  char of[140]; snprintf(of, sizeof of, "/data/round2/prep/only_%s.txt", u); FILE *o = 0; int n = 0; char seen[64][16]; int nseen = 0;
+  for (char *ln = b, *nx; ln && *ln; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char t[16] = "", nm[64] = "", base[200] = "";
+    if (sscanf(ln, "%15s %63s %199s", t, nm, base) != 3 || r2_protected(t) || r2_homebrew(t)) continue;
+    const char *sl2 = strrchr(base, '/'); long long bt = sl2 ? atoll(sl2 + 1) : 0; if (bt <= at) continue;
+    char cp[300], mine[200] = ""; snprintf(cp, sizeof cp, "/data/round2/prep/%s/%s/%s/cloud.txt", u, t, nm); FILE *c = fopen(cp, "r"); if (c) { if (!fgets(mine, sizeof mine, c)) mine[0] = 0; fclose(c); mine[strcspn(mine, "\r\n")] = 0; }
+    if (!strcmp(mine, base)) continue;   /* uploaded from here */
+    int dup = 0; for (int i = 0; i < nseen; i++) if (!strcmp(seen[i], t)) dup = 1; if (dup || nseen >= 64) continue; snprintf(seen[nseen++], 16, "%s", t);
+    if (!o) o = fopen(of, "w"); if (o) fprintf(o, "%s\n", t); n++; sv_log("member play: %s game %s newer in the cloud (%lld, loaded here %lld)", mtag, t, bt, at); }
+  if (o) fclose(o); free(b); return n;
+}
 static void look_memplay(const char *key, const char *spec);
 static void cloud_step(const char *key, int budget);
 static void switch_resume(const char *key) {   /* the release is done: start the member load that was waiting */
@@ -2969,10 +2991,24 @@ static void look_memplay(const char *key, const char *spec) {
   for (char *p = buf, *q; p && nt < 12; p = q) { q = strchr(p, '.'); if (q) *q++ = 0; tok[nt++] = p; }
   if (nt < 3 || !(nt % 2) || !mem_ok(tok[0])) { look_kv("memplay/error", "bad spec"); return; }
   { char st[16] = ""; cl_rd("state", st, sizeof st); if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("memplay/waits", "- the room is being reset first"); return; } }
-  /* 1.1.97: positions – main -> main profile, the k-th ticked player -> Player k (spares in id order) */
-  char posv[6][2]; int k = 0, np = (nt - 1) / 2; char used[5][16]; memset(used, 0, sizeof used);
-  for (int i = 0; i < np; i++) { const char *sl = tok[1 + 2 * i];
-    if (!strcmp(sl, "main")) snprintf(posv[i], 2, "m"); else { snprintf(posv[i], 2, "%d", k + 1); if (k < 4) snprintf(used[k], 16, "%s", sl); k++; } }
+  /* positions. 1.1.97: main -> main profile, the k-th ticked player -> Player k (spares in id order).
+     1.1.125 (owner 20 Nov 9:27pm: "if second player enters alone, then later first player comes … the loaded profile holds the
+     latest saves … its a waste of time to copy and delete"): a ticked player who already has a profile here (its member tag) STAYS
+     in it – nothing copied, removed or downloaded – unless another room uploaded one of their games after they were loaded here
+     (then only those games load). The other ticked players take the lowest free spares. */
+  char posv[6][2]; int k = 0, np = (nt - 1) / 2; char used[5][16]; memset(used, 0, sizeof used); int keep[6] = {0}, taken[5] = {0};
+  uint32_t sp_[16], mainu_ = r2_main_user(); int ns_ = 0; char tg_[5][64]; memset(tg_, 0, sizeof tg_); char mtg[64] = "";
+  { RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+    for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu_) sp_[ns_++] = (uint32_t)L.userId[i]; }
+    for (int i = 0; i < ns_; i++) for (int j = i + 1; j < ns_; j++) if (sp_[j] < sp_[i]) { uint32_t x = sp_[i]; sp_[i] = sp_[j]; sp_[j] = x; }
+    for (int i = -1; i < ns_ && i < 4; i++) { char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", i < 0 ? mainu_ : sp_[i]); FILE *f = fopen(op, "r");
+      char *d = i < 0 ? mtg : tg_[i]; if (f) { if (!fgets(d, 64, f)) d[0] = 0; fclose(f); d[strcspn(d, "\r\n ")] = 0; } } }
+  for (int i = 0; i < np && i < 6; i++) { const char *sl = tok[1 + 2 * i]; char want[64]; snprintf(want, sizeof want, "%s/%s", tok[0], sl); posv[i][0] = 0;
+    if (!strcmp(sl, "main")) { snprintf(posv[i], 2, "m"); keep[i] = !strcmp(mtg, want); continue; }
+    for (int j = 0; j < ns_ && j < 4; j++) if (!taken[j] && !strcmp(tg_[j], want)) { taken[j] = 1; snprintf(posv[i], 2, "%d", j + 1); snprintf(used[j], 16, "%s", sl); keep[i] = 1; k++; break; } }
+  for (int i = 0; i < np && i < 6; i++) { const char *sl = tok[1 + 2 * i]; if (posv[i][0]) continue;
+    int j = 0; while (j < 4 && j < ns_ && taken[j]) j++;
+    snprintf(posv[i], 2, "%d", j + 1); if (j < 4 && j < ns_) { taken[j] = 1; snprintf(used[j], 16, "%s", sl); } k++; }
   /* 1.1.124: release the profiles that don't take a ticked player (see above) - once per load (MEMAFTER marks the second pass) */
   if (!file_exists(MEMAFTER ".done")) {
     RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
@@ -2982,10 +3018,11 @@ static void look_memplay(const char *key, const char *spec) {
     for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
     char rel[400] = ""; int nrel = 0; mkdir(CLND, 0777); FILE *td = fopen(CLND "/todo", "w"); int ng = 0;
     for (int i = -1; i < ns && i < 4; i++) { uint32_t pu = i < 0 ? mainu : sp[i]; if (!pu) continue;
-      if (i < 0 ? mainticked : i < k) continue;   /* takes a ticked player: loaded over (old data kept as a backup first) */
+      if (i < 0 ? mainticked : taken[i]) continue;   /* takes a ticked player (1.1.125: kept players stay where they are) */
       char u[9]; snprintf(u, sizeof u, "%08x", pu); char op[120], want[16], have[64] = ""; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u);
       snprintf(want, sizeof want, "Player %d", i + 1); if (i >= 0) sceUserServiceGetUserName((int32_t)pu, have, sizeof have);
-      int games = prof_games(u), dirty = games || file_exists(op) || (i >= 0 && strcmp(have, want));
+      int games = prof_games(u), tagd = 0; { char tb[64] = ""; FILE *tf = fopen(op, "r"); if (tf) { if (fgets(tb, sizeof tb, tf)) tagd = !strstr(tb, "/x"); else tagd = 1; fclose(tf); } }   /* 1.1.125: an "extra slot" link (x<k>) alone isn't worth a release */
+      int dirty = games || tagd || (i >= 0 && strcmp(have, want));
       if (!dirty) continue;
       if (user_signed_in(pu) && pu != mainu) { sceUserServiceLogout((int32_t)pu); sleep(2); }
       size_t l = strlen(rel); snprintf(rel + l, sizeof rel - l, "%s %d\n", u, i < 0 ? 0 : i + 1); nrel++;
@@ -3013,11 +3050,23 @@ static void look_memplay(const char *key, const char *spec) {
     mkdir("/data/round2/prep", 0777);
     for (int i = -1; i < ns && i < 4; i++) { uint32_t pu = i < 0 ? mainu : sp[i]; if (!pu) continue; char op[120], tv[80];
       if (i < 0) snprintf(tv, sizeof tv, "%s/main", tok[0]); else if (used[i][0]) snprintf(tv, sizeof tv, "%s/%s", tok[0], used[i]); else snprintf(tv, sizeof tv, "%s/x%d", tok[0], i + 1);
-      snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", pu); put_file(op, tv); sv_log("member link: profile %08x -> %s", pu, tv); } }
+      snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", pu); { char ob[80] = ""; FILE *of = fopen(op, "r"); if (of) { if (!fgets(ob, sizeof ob, of)) ob[0] = 0; fclose(of); ob[strcspn(ob, "\r\n ")] = 0; }
+        if (strcmp(ob, tv)) { put_file(op, tv); sv_log("member link: profile %08x -> %s", pu, tv); } } } }   /* 1.1.125: unchanged = untouched (its time says when the player was loaded) */
   unlink(MEMQ);
-  { FILE *qf = fopen("/data/round2/memqn", "w"); if (qf) { fprintf(qf, "%d %s\n", np, tok[2]); fclose(qf); } } /* 1.1.101 */
-  if (np > 1) { FILE *f = fopen(MEMQ, "w"); if (f) { for (int i = 1; i < np; i++) fprintf(f, "%s %s %s %s\n", tok[0], tok[1 + 2 * i], tok[2 + 2 * i], posv[i]); fclose(f); } }
-  char one[160]; snprintf(one, sizeof one, "/_memplay.%s.%s.%s.%s", tok[0], tok[1], tok[2], posv[0]);
+  int go[6] = {0}, ngo = 0; char keptmsg[160] = "";
+  for (int i = 0; i < np && i < 6; i++) { go[i] = 1;
+    if (!keep[i]) { ngo++; continue; }
+    uint32_t pu = posv[i][0] == 'm' ? mainu_ : sp_[posv[i][0] - '1']; int n = kept_newer(key, pu, tok[0], tok[1 + 2 * i]);
+    char shown[40]; snprintf(shown, sizeof shown, "%s", tok[2 + 2 * i]); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
+    if (n == 0) { go[i] = 0; size_t l = strlen(keptmsg); snprintf(keptmsg + l, sizeof keptmsg - l, "%s%s", l ? ", " : "", shown);
+      sv_log("member play: %s/%s '%s' already on profile %08x with the newest saves - nothing copied, removed or loaded", tok[0], tok[1 + 2 * i], shown, pu); }
+    else { ngo++; sv_log("member play: %s/%s '%s' stays on profile %08x; %d game(s) were played in another room since - only those load", tok[0], tok[1 + 2 * i], shown, pu, n); } }
+  if (keptmsg[0]) bpop("%s: already on this PS4 - saves kept as they are", keptmsg);
+  if (!ngo) { char v[200]; snprintf(v, sizeof v, "%08x %s already on this PS4 - nothing to load", mainu_, keptmsg); look_kv("memplay/ready", v); unlink("/data/round2/memqn"); keep_order(1); return; }
+  { FILE *qf = fopen("/data/round2/memqn", "w"); if (qf) { fprintf(qf, "%d %s\n", ngo, tok[2]); fclose(qf); } } /* 1.1.101 */
+  int first = -1; for (int i = 0; i < np && i < 6; i++) if (go[i]) { first = i; break; }
+  { FILE *f = 0; for (int i = first + 1; i < np && i < 6; i++) if (go[i]) { if (!f) f = fopen(MEMQ, "w"); if (f) fprintf(f, "%s %s %s %s\n", tok[0], tok[1 + 2 * i], tok[2 + 2 * i], posv[i]); } if (f) fclose(f); }
+  char one[160]; snprintf(one, sizeof one, "/_memplay.%s.%s.%s.%s", tok[0], tok[1 + 2 * first], tok[2 + 2 * first], posv[first]);
   memplay_one(key, one, 1);
   { char st[16] = ""; cl_rd("state", st, sizeof st); if (strcmp(st, "running") && strcmp(st, "paused")) memplay_next(key); } /* first one didn't start a load: go on now */
 }
