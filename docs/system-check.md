@@ -116,3 +116,6 @@ run 8 times in one afternoon (before and after each PS4 helper change) and the d
 Light + Full: `Phone widgets: the widget summary answers with its key and refuses a wrong one` – gets the widget key (staff
 `widgetkey`), asks `GET /w?k=…` (must answer 7 rooms, copy of tonight ≤ 25 min old) and checks a wrong key gets 403. The copy is
 refreshed by the main timer's 10-minute tick (`widgetSnap`, no extra SimplyBook reads); TVs' check-ins by the side timer (`wtv`).
+20 Nov: it also must carry `tomorrow`, the health light (`health.lv`) and `money` (side timer `widgetDay`, minute %10 = 1, reads
+the alert log / needs-a-human / timer records / SimplyBook count in one storage call) – a missing money part means widgetDay
+hasn't run this shop day.

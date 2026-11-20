@@ -1017,7 +1017,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     <!-- iPhone widgets (owner, 20 Nov): run in the free Scriptable app; the script carries this shop's widget key -->
     <div class="card" id="wgCard" style="margin-top:16px">
       <h2 style="margin:0 0 6px">iPhone widgets</h2>
-      <p class="hint" style="margin:0 0 10px">Rooms at a glance on your <b>home screen</b> and <b>lock screen</b>, each in its room colour: who's in and till when, cleaning, who's next and the turnover, what each TV is showing and which PS4 game is on, the TV messages coming up, tonight's start and end times, and a warning when a room's TV stops reporting. Updates every few minutes (iPhone decides exactly when). Tap a widget to open the control centre.</p>
+      <p class="hint" style="margin:0 0 10px">Rooms at a glance on your <b>home screen</b> and <b>lock screen</b>, each in its room colour: who's in and till when, cleaning, who's next and the turnover, what each TV is showing and which PS4 game is on, the TV messages coming up, tonight's start and end times, today's bookings and money, tomorrow (by itself once tonight's last guest has left), and a health light (green / orange / red) on every widget. Updates every few minutes (iPhone decides exactly when). Tap a widget to open the control centre.</p>
       <ol class="hint" style="margin:0 0 10px;padding-left:18px;line-height:1.6">
         <li>Install <b>Scriptable</b> from the App Store (free).</li>
         <li>Press <b>Copy widget script</b> below.</li>
@@ -1028,6 +1028,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           <code>tv</code> – every room's TV app and PS4 game ·
           <code>msgs</code> – TV messages coming up, in time order ·
           <code>times</code> – tonight's starts and ends ·
+          <code>money</code> – bookings made today, paid / not paid, cancelled, the latest one ·
+          <code>health</code> – the health light in full ·
+          <code>tomorrow</code> – tomorrow's sessions ·
+          <code>count</code> – lock screen: the next room out, counting down live (the round lock widget does this on its own; <code>rooms</code> brings back rooms in use) ·
           <code>room:Kai</code> – one room in detail (great on the lock screen, one per room) ·
           <code>nonames</code> – hide guest names. Words can be combined, e.g. <code>tv nonames</code>. Every room shows in its own colour.</li>
       </ol>
@@ -3670,7 +3674,13 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(j.ok && j.rooms && j.rooms.length === 7, 'The widget summary didn’t answer properly: ' + (j.error || JSON.stringify(j).slice(0, 80)));
           must(x[1] === 403, 'A wrong widget key wasn’t refused (' + x[1] + ').');
           must(j.age <= 25, 'The widget’s copy of tonight is ' + j.age + ' min old – the 10-minute timer tick isn’t updating it.');
-          return j.counts.in + ' in, ' + j.counts.left + ' to come · copy ' + j.age + ' min old' + (j.warn.length ? ' · warnings: ' + j.warn.join('; ') : '');
+          /* 20 Nov: money today, tomorrow and the health light (side timer's widgetDay, every 10 min) */
+          must(j.tomorrow && typeof j.tomorrow.n === 'number', 'The widget summary has no "tomorrow" part (older engine?).');
+          must(j.health && typeof j.health.lv === 'number', 'The widget summary has no health light (older engine?).');
+          must(j.money, 'The widget summary has no money part – the side timer’s 10-minute widget copy (widgetDay) hasn’t run for this shop day.');
+          var hl = ['green', 'orange', 'red'][j.health.lv];
+          return j.counts.in + ' in, ' + j.counts.left + ' to come · copy ' + j.age + ' min old · ' + j.money.n + ' booked today · tomorrow ' + j.tomorrow.n + ' · health ' + hl
+            + (j.health.list.length ? ' (' + j.health.list.map(function (x) { return x.t; }).join('; ') + ')' : '');
         }); }); })
       /* SimplyBook's shared servers allow about 5,000 API requests a day (owner, 2 Nov: "is that too intensive?"). The engine
          counts every request it makes (bookings page, alerts, timer, screens); this run itself adds a few hundred. */

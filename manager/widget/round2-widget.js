@@ -6,16 +6,21 @@
 //   tv        what each room's TV is showing and which PS4 game is running
 //   msgs      TV messages coming up (10-minute warnings, wrap-ups, guest messages), in time order
 //   times     tonight's start and end times, in time order
+//   money     today's bookings: how many were made today, paid / not paid, cancelled, the latest one
+//   health    the health light in full (SimplyBook use, background timers, payments to sort, TVs not reporting)
+//   tomorrow  tomorrow's first session and rooms (the board shows this by itself once tonight's last guest has left)
+//   count     lock screen: the next room to finish, counting down live (the round lock widget does this without a word)
 //   room:Kai  just one room, in detail          nonames   hide guest names
 // Data refreshes every few minutes (iOS decides exactly when). Tap a widget to open the control centre.
 const KEY = '__KEY__', API = '__URL__', CC = 'https://staff.round2.sg/';
 const RC = { Vale: '#E8436A', Kaeden: '#4DB848', Scarlett: '#F2C21B', Bella: '#7A5BE0', Kai: '#24B49A', Atlas: '#E9E7EF', Max: '#E0402F' };
-const BG = new Color('#0b0914'), INK = new Color('#f4f1fb'), MUTE = new Color('#8d84a6'), ACC = new Color('#F2C21B'), WARN = new Color('#ff9f43'), OK = new Color('#4DB848');
+const BG = new Color('#0b0914'), INK = new Color('#f4f1fb'), MUTE = new Color('#8d84a6'), ACC = new Color('#F2C21B'), WARN = new Color('#ff9f43'), OK = new Color('#4DB848'), BAD = new Color('#ff4d5e');
 const fam = config.widgetFamily || 'large';
 const par = String(args.widgetParameter || '').toLowerCase();
 const lock = /^accessory/.test(fam), names = !/nonames/.test(par) && !lock;
 const only = (par.match(/room:\s*([a-z]+)/) || [])[1];
-const view = /\btv\b/.test(par) ? 'tv' : /\bmsgs?\b|notif/.test(par) ? 'msgs' : /\btimes?\b/.test(par) ? 'times' : 'board';
+const view = /\btv\b/.test(par) ? 'tv' : /\bmsgs?\b|notif/.test(par) ? 'msgs' : /\btimes?\b/.test(par) ? 'times' : /\bmoney|sales|\$/.test(par) ? 'money'
+  : /\bhealth|status\b/.test(par) ? 'health' : /\btomorrow|tmr\b/.test(par) ? 'tomorrow' : /\bcount|timer\b/.test(par) ? 'count' : /\brooms\b/.test(par) ? 'rooms' : 'board';
 const big = fam === 'large' || fam === 'extraLarge';
 
 /* Round2's own pixel icons (the same ones as the booking page) – each room's character icon, plus TV, PS4 pad, bell, cake … */
@@ -102,18 +107,62 @@ function refreshAt(j) {
   return new Date(Math.max(t, Date.now() + 2 * 60e3));
 }
 
+function sgd(v) { return 'S$' + (Math.round(+v * 100) / 100).toFixed(2).replace(/\.00$/, ''); }
+function dayName(ms) { const d = new Date(ms + 8 * 3600e3); return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] + ' ' + d.getUTCDate(); }
+function ago(t) { const m = Math.round((Date.now() - t) / 60e3); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + 'h ago'; }
+/* the health light (owner 20 Nov): green all fine · orange keep an eye · red needs someone now */
+function hl(j) { return j.health || { lv: (j.warn || []).length ? 1 : 0, list: (j.warn || []).map((t) => ({ lv: 1, t })) }; }
+function hcol(lv) { return lv >= 2 ? BAD : lv ? WARN : OK; }
+function dot(st, color, sz) {
+  const ctx = new DrawContext(), s = 3; ctx.size = new Size(sz * s, sz * s); ctx.opaque = false; ctx.respectScreenScale = true;
+  ctx.setFillColor(new Color(color.hex, 0.3)); ctx.fillEllipse(new Rect(0, 0, sz * s, sz * s)); ctx.setFillColor(color); ctx.fillEllipse(new Rect(sz * 0.75, sz * 0.75, sz * 1.5, sz * 1.5));
+  const i = st.addImage(ctx.getImage()); i.imageSize = new Size(sz, sz); return i;
+}
+/* tonight is over: nobody in, nobody cleaning, nothing more before 7am (late-night bookings count as tonight) */
+function over(j) { return !!(j.tomorrow && j.tomorrow.over); }
+
 /* ---------- pieces ---------- */
 function header(w, j, sz, label) {
   const h = line(w); h.spacing = 5;
   plabel(h, 'ROUND2', ACC, sz * 0.75);
   const c = j.counts || {}; plabel(h, label || (c.in + ' IN · ' + c.left + ' TO COME'), INK, sz * 0.62);
   segBar(h, ACC, fam === 'small' ? 14 : 40, sz * 0.55); h.addSpacer();
+  dot(h, hcol(hl(j).lv), sz * 0.7);
   txt(h, (j.offline ? 'offline · ' : '') + clk(j.now), sz - 2, j.offline ? WARN : MUTE, 'time');
 }
-function warnLine(w, j, sz, n) {
-  const L = j.warn || [];
-  if (!L.length) { it(w, 'check', OK, 'All TVs reporting', sz, OK); return; }
-  for (const x of L.slice(0, n || 1)) it(w, 'warn', WARN, x, sz, WARN, true);
+function warnLine(w, j, sz, n) {   /* the health light's top lines (or "all fine") */
+  const H = hl(j);
+  if (!H.list.length) { it(w, 'check', OK, j.health ? 'All systems OK' : 'All TVs reporting', sz, OK); return; }
+  for (const x of H.list.slice(0, n || 1)) it(w, 'warn', hcol(x.lv), x.t.replace(/^[^\w"]+/, ''), sz, hcol(x.lv), true);
+}
+/* (3) money today: one line for the board, a block for the money widget */
+function moneyLine(w, j, sz) {
+  const M = j.money; if (!M) return;
+  const l = line(w); l.spacing = 4; ico(l, 'sparkle', ACC, sz);
+  txt(l, M.n + ' new today', sz, INK, true); if (M.paid) txt(l, '· ' + sgd(M.paid) + ' paid', sz, OK, true);
+  if (M.nUnpaid) txt(l, '· ' + M.nUnpaid + ' unpaid', sz, WARN, true); l.addSpacer();
+}
+/* (4) tomorrow: first session, how many, which rooms */
+function tomorrowBlock(w, j, sz) {
+  const T = j.tomorrow; if (!T) return;
+  if (!T.n) { it(w, 'moon', MUTE, 'Nothing booked tomorrow yet', sz, MUTE); return; }
+  const f = T.first;
+  if (fam === 'small') {   /* first in, big; then the day, count and room icons */
+    txt(w, clk(f.at), 22, INK, 'time'); const a = line(w); a.spacing = 4; ico(a, RICON[f.r], rc(f.r), 13); txt(a, f.r + ' first', 12, rc(f.r), 'room'); a.addSpacer();
+    w.addSpacer(3); const b = line(w); b.spacing = 3; txt(b, dayName(f.at) + ' · ' + T.n, 10.5, INK, true); for (const r of (T.rooms || []).slice(0, 4)) ico(b, RICON[r], rc(r), 10); b.addSpacer(); return;
+  }
+  if (big && T.list && T.list.length > 1) {   /* large: tomorrow's sessions in time order */
+    const b = line(w); b.spacing = 3; txt(b, dayName(f.at) + ' · ' + T.n + ' session' + (T.n === 1 ? '' : 's'), sz, INK, true); b.addSpacer(); w.addSpacer(4);
+    for (const x of T.list.slice(0, 8)) { timeRow(w, x.at, x.r, 'till ' + clk(x.e) + (names && x.n ? ' · ' + x.n : ''), sz); w.addSpacer(3); }
+    return;
+  }
+  const a = line(w); a.spacing = 5;
+  txt(a, clk(f.at), sz * 1.5, INK, 'time'); ico(a, RICON[f.r], rc(f.r), sz * 1.3); txt(a, f.r, sz * 1.3, rc(f.r), 'room'); if (names && f.n) txt(a, f.n, sz, MUTE); a.addSpacer();
+  w.addSpacer(3);
+  const b = line(w); b.spacing = 3; txt(b, dayName(f.at) + ' · ' + T.n + ' session' + (T.n === 1 ? '' : 's'), sz, INK, true); b.addSpacer(4);
+  for (const r of T.rooms || []) ico(b, RICON[r], rc(r), sz);
+  b.addSpacer();
+  if (T.last && T.n > 1) it(w, 'clock', MUTE, 'last out ' + clk(T.last), sz * 0.9, MUTE);
 }
 /* ---------- colour boxes (owner 20 Nov: "box them into their colours – this layout isn't efficient") ----------
    Two columns of boxes tinted in each room's colour. Box widths come from the screen size (widgets don't say their own size). */
@@ -184,16 +233,49 @@ async function build() {
   const evWhat = (e) => (e.t === 'in' ? '▶ in' : '■ out') + (names && e.n ? ' · ' + e.n : '');
 
   /* ----- lock screen (one colour, no names) ----- */
+  /* (6) countdown (owner 20 Nov): the next room to finish, live – iOS counts the seconds itself, no refresh needed */
+  const cd = one ? (one.st === 'in' ? { r: one.r, at: one.till, t: 'out' } : one.next ? { r: one.r, at: one.next, t: 'in' } : null)
+    : j.nextEnd ? { r: j.nextEnd.r, at: j.nextEnd.at, t: 'out' } : j.nextStart ? { r: j.nextStart.r, at: j.nextStart.at, t: 'in' } : null;
+  const timer = (st, at, sz, color) => { const d = st.addDate(new Date(at)); d.applyTimerStyle(); d.font = fnt(sz, 'time'); d.textColor = color || INK; d.lineLimit = 1; d.minimumScaleFactor = 0.5; return d; };
+  if (fam === 'accessoryCircular' && view !== 'rooms') {
+    w.addAccessoryWidgetBackground = true;
+    const st = w.addStack(); st.layoutVertically(); st.centerAlignContent();
+    if (!cd) { const a = line(st); a.addSpacer(); if (one) ico(a, RICON[one.r], rc(one.r), 18); else txt(a, c.in + '/' + c.open, 18, INK, true); a.addSpacer(); const b = line(st); b.addSpacer(); txt(b, one ? one.st.toUpperCase() : over(j) ? 'DONE' : 'IN', 10, MUTE); b.addSpacer(); return w; }
+    const a = line(st); a.addSpacer(); ico(a, RICON[cd.r], rc(cd.r), 15); a.addSpacer();
+    const b = line(st); b.addSpacer(); timer(b, cd.at, 13); b.addSpacer();
+    const e = line(st); e.addSpacer(); txt(e, cd.t === 'out' ? 'OUT' : 'IN', 8, MUTE, true); e.addSpacer();
+    return w;
+  }
+  if (fam === 'accessoryRectangular' && view === 'count') {
+    if (!cd) { txt(w, over(j) ? 'Tonight done' : 'Nobody in', 13, INK, true); const T = j.tomorrow; if (T && T.first) txt(w, 'Tomorrow ' + clk(T.first.at) + ' ' + T.first.r, 12, INK); return w; }
+    const a = line(w); a.spacing = 4; ico(a, RICON[cd.r], rc(cd.r), 14); txt(a, cd.r + (cd.t === 'out' ? ' out ' : ' in ') + clk(cd.at), 13, INK, 'room'); a.addSpacer();
+    timer(w, cd.at, 22);
+    const nx = cd.t === 'out' && j.nextStart ? j.nextStart : null; if (nx) txt(w, 'then ' + nx.r + ' in ' + clk(nx.at), 11, MUTE);
+    return w;
+  }
+  if (fam === 'accessoryRectangular' && view === 'money') {
+    const M = j.money; if (!M) { txt(w, 'Money: update the engine', 12, INK); return w; }
+    txt(w, M.n + ' booked today', 14, INK, true); txt(w, sgd(M.paid) + ' paid' + (M.nUnpaid ? ' · ' + M.nUnpaid + ' not paid' : ''), 12, INK);
+    txt(w, M.last ? 'Last: ' + M.last.r + ' ' + ago(M.last.t) : M.cx ? M.cx + ' cancelled' : 'No new bookings yet', 11, MUTE); return w;
+  }
+  if (fam === 'accessoryRectangular' && view === 'health') {
+    const H = hl(j); txt(w, H.lv >= 2 ? '● Needs someone' : H.lv ? '● Keep an eye' : '● All systems OK', 13, INK, true);
+    for (const x of H.list.slice(0, 2)) txt(w, x.t.replace(/^[^\w"]+/, ''), 11, INK); if (!H.list.length && j.health && j.health.sb != null) txt(w, j.health.sb + ' SimplyBook requests today', 11, MUTE); return w;
+  }
+  if (fam === 'accessoryInline' && view === 'count' && cd) { w.addText(cd.r + ' ' + cd.t + ' ' + clk(cd.at)); return w; }
   if (fam === 'accessoryInline') {
     const e = j.nextEnd, s = j.nextStart, m = msgs[0], x = ev[0];
     w.addText(one ? one.r + ' ' + stateOf(one).short + (tvOf(one) ? ' · ' + tvOf(one) : '')
+      : view === 'money' ? (j.money ? j.money.n + ' booked today · ' + sgd(j.money.paid) + ' paid' : 'Money: update the engine')
+      : view === 'health' ? (hl(j).list[0] ? '⚠︎ ' + hl(j).list[0].t.replace(/^[^\w"]+/, '') : 'Round2: all systems OK')
+      : over(j) && j.tomorrow.first ? 'Tonight done · tomorrow ' + clk(j.tomorrow.first.at) + ' ' + j.tomorrow.first.r
       : view === 'msgs' ? (m ? clk(m.at) + ' ' + m.r + ' ' + msgName(m) : 'No TV messages coming')
       : view === 'times' ? (x ? clk(x.at) + ' ' + x.r + ' ' + (x.t === 'in' ? 'in' : 'out') : 'Nothing else tonight')
       : e && (!s || e.at <= s.at) ? e.r + ' out ' + clk(e.at) + (s ? ' · ' + s.r + ' in ' + clk(s.at) : '')
       : s ? s.r + ' in ' + clk(s.at) + ' · ' + c.in + ' in now' : c.in + ' in · nothing else tonight');
     return w;
   }
-  if (fam === 'accessoryCircular') {
+  if (fam === 'accessoryCircular') {   /* parameter "rooms": how many rooms are in */
     w.addAccessoryWidgetBackground = true;
     const st = w.addStack(); st.layoutVertically(); st.centerAlignContent();
     const a = line(st); a.addSpacer(); txt(a, one ? one.r.slice(0, 4) : c.in + '/' + c.open, 18, INK, true); a.addSpacer();
@@ -211,6 +293,7 @@ async function build() {
     if (view === 'msgs') { txt(w, 'TV messages', 12, INK, true); for (const m of msgs.slice(0, 2)) txt(w, clk(m.at) + ' ' + m.r + ' · ' + msgName(m), 12, INK); if (!msgs.length) txt(w, 'None coming up', 12, MUTE); return w; }
     if (view === 'times') { for (const x of ev.slice(0, 3)) txt(w, clk(x.at) + ' ' + x.r + ' ' + (x.t === 'in' ? 'in' : 'out'), 12, INK); if (!ev.length) txt(w, 'Nothing else tonight', 12, MUTE); return w; }
     if (view === 'tv') { for (const r of open.filter((r) => r.st === 'in').slice(0, 3)) txt(w, r.r + ' · ' + (tvOf(r) || '–') + (r.ps4 && r.ps4.on ? ' · ' + ps4Of(r) : ''), 12, INK); if (!c.in) txt(w, 'No rooms in use', 12, MUTE); return w; }
+    if (over(j)) { txt(w, 'R2 · tonight done', 13, INK, true); const T = j.tomorrow; txt(w, T.first ? 'Tomorrow ' + clk(T.first.at) + ' · ' + T.first.r : 'Nothing booked tomorrow', 12, INK); txt(w, T.n ? T.n + ' sessions tomorrow' : '', 11, MUTE); return w; }
     txt(w, 'R2 · ' + c.in + ' in · ' + c.left + ' to come', 13, INK, true);
     const e = j.nextEnd, s = j.nextStart;
     txt(w, e ? 'Out ' + clk(e.at) + ' · ' + e.r : 'Nobody in now', 12, INK);
@@ -234,6 +317,39 @@ async function build() {
     return w;
   }
 
+  if (view === 'money') {   /* (3) today's bookings and money */
+    header(w, j, fam === 'small' ? 10 : 12, 'TODAY'); w.addSpacer(fam === 'small' ? 4 : 8);
+    const M = j.money; if (!M) { txt(w, 'Waiting for the engine update', 11, MUTE); return w; }
+    const a = line(w); a.bottomAlignContent(); a.spacing = 4; txt(a, String(M.n), fam === 'small' ? 30 : 34, INK, 'big'); txt(a, 'booked', 12, MUTE, true);
+    if (fam !== 'small') { a.addSpacer(); const p = a.addStack(); p.layoutVertically(); txt(p, sgd(M.paid), 20, OK, 'big'); txt(p, 'paid', 10, MUTE, true); }
+    if (fam === 'small') it(w, 'check', OK, sgd(M.paid) + ' paid', 11, OK, true);
+    if (M.nUnpaid) it(w, 'warn', WARN, M.nUnpaid + ' not paid · ' + sgd(M.unpaid), fam === 'small' ? 10.5 : 11.5, WARN, true);
+    if (M.list && fam !== 'small') it(w, 'clock', MUTE, sgd(M.list) + ' booked by staff / WhatsApp (price list)', 10.5, MUTE);
+    if (M.cx) it(w, 'warn', MUTE, M.cx + ' cancelled today', 10.5, MUTE);
+    if (big) w.addSpacer(8); else w.addSpacer();
+    if (M.last) { const x = M.last, l = line(w); l.spacing = 4; ico(l, RICON[x.r], rc(x.r), 11); txt(l, (fam === 'small' ? x.r : 'Latest: ' + x.r + (names && x.n ? ' · ' + x.n : '') + (x.s ? ' · ' + dayName(x.s) : '')), 10.5, INK, true); txt(l, ago(x.t), 10, MUTE); l.addSpacer(); }
+    if (big) { w.addSpacer(12); plabel(w, 'TOMORROW', MUTE, 7); w.addSpacer(5); tomorrowBlock(w, j, 11); w.addSpacer(); plabel(w, 'HEALTH', MUTE, 7); w.addSpacer(5); warnLine(w, j, 10.5, 3); }
+    return w;
+  }
+  if (view === 'health') {   /* (5) the health light in full */
+    const H = hl(j); header(w, j, fam === 'small' ? 10 : 12, 'HEALTH'); w.addSpacer(6);
+    const a = line(w); a.spacing = 6; dot(a, hcol(H.lv), fam === 'small' ? 14 : 16); txt(a, H.lv >= 2 ? 'Needs someone' : H.lv ? 'Keep an eye' : 'All OK', fam === 'small' ? 14 : 16, hcol(H.lv), 'big'); a.addSpacer();
+    w.addSpacer(4);
+    for (const x of H.list.slice(0, fam === 'small' ? 3 : big ? 8 : 4)) { it(w, 'warn', hcol(x.lv), x.t.replace(/^[^\w"]+/, ''), fam === 'small' ? 9.5 : 10.5, hcol(x.lv), true); w.addSpacer(2); }
+    w.addSpacer();
+    if (j.health && j.health.sb != null) it(w, 'check', MUTE, j.health.sb + (fam === 'small' ? ' SimplyBook calls' : ' SimplyBook requests today · limit ~10,000'), 9.5, MUTE);
+    return w;
+  }
+  if (view === 'tomorrow' || (view === 'board' && over(j))) {   /* (4) tomorrow – by itself once tonight's last guest has left */
+    header(w, j, fam === 'small' ? 10 : 12, 'TOMORROW'); w.addSpacer(fam === 'small' ? 5 : 8);
+    if (!j.tomorrow) { txt(w, 'Waiting for the engine update', 11, MUTE); return w; }
+    if (view === 'board') { it(w, 'moon', MUTE, fam === 'small' ? 'Tonight done' : 'Tonight done · ' + c.done + ' session' + (c.done === 1 ? '' : 's'), fam === 'small' ? 10 : 11, MUTE, true); w.addSpacer(4); }
+    tomorrowBlock(w, j, fam === 'small' ? 10 : 11.5);
+    w.addSpacer();
+    if (fam !== 'small') moneyLine(w, j, 10.5);
+    if (big) { w.addSpacer(6); warnLine(w, j, 10.5, 3); }
+    return w;
+  }
   if (view === 'msgs') {   /* TV messages coming up, every room, in time order */
     header(w, j, fam === 'small' ? 10 : 12, fam === 'small' ? 'MSGS' : 'TV MESSAGES'); w.addSpacer(6);
     for (const m of msgs.slice(0, n)) { timeRow(w, m.at, m.r, msgName(m), fam === 'small' ? 10 : 11.5); w.addSpacer(3); }
@@ -254,25 +370,26 @@ async function build() {
 
   /* board (default) */
   if (fam === 'small') {   /* how busy, and the next two things that happen */
-    const hd = line(w); hd.spacing = 4; plabel(hd, 'ROUND2', ACC, 8); segBar(hd, ACC, 40, 6); w.addSpacer(4);
+    const hd = line(w); hd.spacing = 4; plabel(hd, 'ROUND2', ACC, 8); segBar(hd, ACC, 32, 6); hd.addSpacer(); dot(hd, hcol(hl(j).lv), 8); w.addSpacer(4);
     const bg = line(w); bg.bottomAlignContent(); txt(bg, String(c.in), 36, INK, 'big'); txt(bg, ' / ' + c.open + ' in', 13, MUTE, true);
     plabel(w, c.done + ' DONE · ' + c.left + ' TO COME', MUTE, 6); w.addSpacer();
     const e = j.nextEnd, s = j.nextStart;
     for (const [lab, x] of [['out', e], ['in', s]]) if (x) { const l = line(w); l.spacing = 3; ico(l, RICON[x.r], rc(x.r), 11); txt(l, x.r + ' ' + lab, 11, rc(x.r), 'room'); const d = l.addDate(new Date(x.at)); d.applyRelativeStyle(); d.font = fnt(11, 'time'); d.textColor = INK; }
-    if ((j.warn || []).length) it(w, 'warn', WARN, j.warn[0], 10, WARN);
+    if (hl(j).list.length) { const x = hl(j).list[0]; it(w, 'warn', hcol(x.lv), x.t.replace(/^[^\w"]+/, ''), 10, hcol(x.lv)); }
     return w;
   }
   w.setPadding(10, 10, 10, 10);
   if (fam === 'medium') {   /* every room as a small colour box: name, status, TV / PS4 */
     header(w, j, 11); w.addSpacer(5);
     boxGrid(w, open, open.length > 4 ? 36 : 54, false);
-    w.addSpacer(); if ((j.warn || []).length) warnLine(w, j, 9.5);
+    w.addSpacer(); if (hl(j).list.length) warnLine(w, j, 9.5);
     return w;
   }
   header(w, j, 12); w.addSpacer(6);
   /* large: the rows share what's left after the header and the warning line */
-  const warnH = (j.warn || []).length ? 30 : 0; boxGrid(w, open, widgetH() - 20 - 24 - warnH - 6 * (Math.ceil(open.length / 2) - 1), true);
-  w.addSpacer(); warnLine(w, j, 10.5, 2);
+  const nW = Math.min(2, Math.max(1, hl(j).list.length)), footH = 15 * nW + (j.money ? 16 : 0);
+  boxGrid(w, open, widgetH() - 20 - 24 - footH - 6 * (Math.ceil(open.length / 2) - 1), true);
+  w.addSpacer(); if (j.money) moneyLine(w, j, 10); warnLine(w, j, 10.5, 2);
   return w;
 }
 
