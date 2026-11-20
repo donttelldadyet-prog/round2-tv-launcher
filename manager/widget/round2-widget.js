@@ -478,7 +478,12 @@ async function build() {
   return w;
 }
 
+/* tapped on a widget set to When Interacting › Run Script (it has a Parameter but isn't drawing a widget): do nothing – no preview
+   pops up, the script just ends (iPhone still brings Scriptable to the front; it can't stay on the home screen) */
+if (!config.runsInWidget && args.widgetParameter != null && /\bnotap\b|nolink/.test(par)) Script.complete();
+else {
 const widget = await build();
 if (config.runsInWidget) Script.setWidget(widget);
 else await (fam === 'small' ? widget.presentSmall() : fam === 'medium' ? widget.presentMedium() : widget.presentLarge());
 Script.complete();
+}
