@@ -69,6 +69,13 @@ so names are read from the running menu with Mono reflection. Nothing is called 
   skips with /data/round2/shell-off, a game open, the 5 min after a wake, or the add-on alive; max 3 tries 10 min apart; each try
   in save.log). `/_shtest` = self-test + log to R2 `lib/probe/round2_shell4-<console>.txt`.
 
+### 20 Nov evening (Kaeden 13.50)
+- 7:10pm round2_shell4 crash (see crash log). 7:23pm **round2_padprobe1** (read-only) OK: m_padInfo = `List<PadInfo>` of objects,
+  `_items` PadInfo[32], `_size` 24. PadInfo: m_port, m_readTime, m_curInfo (Orbis.Input.ControllerInfo), m_curButtons
+  (Orbis.Input.SystemButtons), m_curGeneralButtons (Core.Input.GamePadButtons), m_buttonState (List<ButtonState>).
+- 7:25pm **round2_shell5** auto-loaded by helper 1.1.117 – no crash, "24 entries (24 filled)". 7:27 self-test: lock, pause, unlock,
+  log-out all ✅; m_curGeneralButtons read 0x0 the whole minute (owner asked whether he pressed).
+
 ## Redo on another firmware (9.00 = Max, Kai, Atlas; 11.00 = Scarlett, Vale, Bella) – checklist
 1. Helper ≥ 1.1.110 on that PS4 (count the switches since its last restart).
 2. No game open, staff at the TV. `look /_ghver` → GoldHEN SDK present?
