@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.121"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads */
+#define R2_VERSION "1.1.122"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2545,7 +2545,9 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
   double tmk0 = tm_now(); int fails = 0;
   int made[64] = { 0 };
   for (int i = 0; i < np; i++) { int have = 0; for (int j = 0; j < nr; j++) if (!strcmp(pn[i], recv[j])) have = 1;
-    if (!have) { char w2[200] = ""; if (sv_make_part(key, u, t, pn[i], pb[i], w2, sizeof w2)) { fails++; sv_log("member load: making %s %s %s failed: %s", u, t, pn[i], w2); } else made[i] = 1; } }
+    if (!have) { char w2[200] = ""; if (sv_make_part(key, u, t, pn[i], pb[i], w2, sizeof w2)) {
+      if (!strcmp(w2, "part already exists")) { sv_log("member load: %s %s %s is already on the disk - using it (1.1.122: GTA V sce_bu_ backup part, Kaeden 20 Nov 8:36pm)", u, t, pn[i]); /* NOT marked made: a failed load must never delete it */ }
+      else { fails++; sv_log("member load: making %s %s %s failed: %s", u, t, pn[i], w2); } } else made[i] = 1; } }
   g_t_mk += tm_now() - tmk0;
   if (fails) { snprintf(why, wn, "%d part(s) could not be made", fails); return -1; }
   int okp[64] = { 0 };
