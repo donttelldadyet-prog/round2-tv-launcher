@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.126"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.127"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2994,6 +2994,13 @@ static void look_memplay(const char *key, const char *spec) {
   for (char *p = buf, *q; p && nt < 12; p = q) { q = strchr(p, '.'); if (q) *q++ = 0; tok[nt++] = p; }
   if (nt < 3 || !(nt % 2) || !mem_ok(tok[0])) { look_kv("memplay/error", "bad spec"); return; }
   { char st[16] = ""; cl_rd("state", st, sizeof st); if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("memplay/waits", "- the room is being reset first"); return; } }
+  /* 1.1.127 (owner 20 Nov 9:56pm: "a handshake … pressing load profile on phone checks whether ps4 tile is running in foreground"):
+     a NEW load from the phone only goes ahead while the Round2 tile is in front on the TV. Otherwise refused + a TV pop-up. */
+  if (!look_mute && !file_exists(MEMAFTER ".done")) { char rt[32] = ""; running_title(rt, sizeof rt);
+    if (strcmp(rt, "RTWO00001")) { char shown[40]; snprintf(shown, sizeof shown, "%s", tok[2]); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
+      sv_log("member play refused: %s pressed Load but the Round2 tile isn't in front (front: %s)", shown, rt[0] ? rt : "home screen");
+      bpop("%s: open the Round2 tile first, then press Load on your phone again", shown);
+      look_kv("memplay/refused", "- Open the Round2 tile on the TV first, then press Load on your phone again."); return; } }
   /* positions. 1.1.97: main -> main profile, the k-th ticked player -> Player k (spares in id order).
      1.1.125 (owner 20 Nov 9:27pm: "if second player enters alone, then later first player comes … the loaded profile holds the
      latest saves … its a waste of time to copy and delete"): a ticked player who already has a profile here (its member tag) STAYS
