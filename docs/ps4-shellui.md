@@ -102,6 +102,10 @@ the menu calls. Result: R2 `lib/probe/round2_sweep2-<console>.txt` + helper 1.1.
 ## round2_shell9 + helper 1.1.124 (20 Nov 9:10pm, Kaeden)
 - shell9 = shell8 without the 2-s wait: logs everyone out the moment the tile leaves the front (fg.txt checked every 0.1 s; the
   helper writes it within 0.25 s during a load). Owner had ~4 s of usable menu with shell8.
-- **Quirk logged:** a new add-on name loads NEXT TO the old one if the menu is already running the old one (helper checked only its
-  own name). shell8 + shell9 ran together on Kaeden from 21:11:14 – menu fine. Fixed for the next helper build (wait for the next
-  PS4 start while any add-on heartbeat is fresh). Until then: restart the PS4 after an add-on change.
+- ~~Quirk~~ **Corrected 10:18pm:** the old add-on stops itself when the new one starts (shell8 log "21:11:15 stopped - a newer
+  add-on is running"), so add-on updates need no restart. The 1.1.125 guard was removed in 1.1.129.
+
+## round2_shell10 + helper 1.1.129 (20 Nov 10:16pm, Kaeden)
+- Clean slate / session reset now works like a member load: PS + Share locked, picker paused, everyone logged out the menu's
+  way (LogoutAll 13) at the start (helper asks via /data/round2/shell-logout-now → .done) and again at the end, then unlocked.
+  No new Mono functions.
