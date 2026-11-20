@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.118"   /* 1.1.117: round2_shell5 (4.00 crashed the menu) + no retry after a failed load; 1.1.118: round2_shell6 (raw buttons), /_shtest waits for THIS run's end */
+#define R2_VERSION "1.1.119"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -91,6 +91,7 @@ static double tm_now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, 
 static int snap_on, snap_bg, look_mute, sv_noprep, clean_on;
 static void cloud_report(void); /* 1.1.52 */
 static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
+static long long g_after_load; /* 1.1.119: a member load batch just finished (time) -> pop-up once the tile is gone */
 static long long cd_last_in, cd_play_from; static int cd_input = -2; /* 1.1.56: button detector (-2 not tried, -1 not readable, 0/1) */
 static int snap_covered(const char *u, const char *t, const char *nm, long long stamp); /* 1.1.52 */
 static int clean_status(char *st, int *done, int *total, int *fails, int *parts);
@@ -2705,7 +2706,7 @@ static void look_shmod(const char *key, const char *spec) {
      so a helper update doesn't load it twice (a module path loads only once per menu start anyway);
    - at most 3 tries per helper run, 10 min apart; every try and result goes to save.log (owner: log everything).
    The add-on's own self-test (60 s lock, then log-out) only runs on "/_shtest" - never at start-up. */
-#define SHELL_ADDON "round2_shell6"
+#define SHELL_ADDON "round2_shell7"
 static int shell_tries = 0; static time_t shell_last_try = 0;
 static int shell_alive(void) {
   char g[24] = ""; FILE *f = fopen("/data/round2/shell.gen", "r"); if (f) { if (!fgets(g, sizeof g, f)) g[0] = 0; fclose(f); }
@@ -3621,7 +3622,7 @@ static void clean_step(const char *key, int budget) {
       if (!strcmp(kd, "prep")) { for (char *c = lb; *c; c++) if (*c == '_') *c = ' ';
         sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "%s is READY: %d game%s loaded%s (%.0f s)", lb, done - fails, done - fails == 1 ? "" : "s", fails ? " - some failed, staff will check" : "", atof(tb)); }
       if (!strcmp(kd, "prep") && file_exists(MEMQ)) memplay_next(key); /* 1.1.94: next ticked player */
-      if (!strcmp(kd, "prep") && !file_exists(MEMQ)) { unlink("/data/round2/memqn"); keep_order(1); } /* 1.1.101: batch finished – profiles back in order */
+      if (!strcmp(kd, "prep") && !file_exists(MEMQ)) { unlink("/data/round2/memqn"); keep_order(1); g_after_load = time(0); } /* 1.1.101: batch finished – profiles back in order; 1.1.119: pop-up once the tile is gone */
       if (!strcmp(kd, "prep")) { char s4[400]; report(key, s4, sizeof s4); } /* tell the tile at once (next player started, or all ready) */
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
       if (strcmp(kd, "prep")) bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } } }
@@ -4881,6 +4882,14 @@ int main(void) {
       r2_where("guard", 0);
       countdown_tick(key); /* 1.1.55: reset pop-ups + the engine's last check, every 2 s */
       load_watch(); /* 1.1.108: someone signs in during a member load -> "hang on" */
+      { /* 1.1.119 (owner 8:05pm): what's in front, for the menu add-on (log out right after the tile closes, never over a game) */
+        static char lastfg[32] = "-"; char rt3[32]; running_title(rt3, sizeof rt3);
+        if (strcmp(rt3, lastfg)) { snprintf(lastfg, sizeof lastfg, "%s", rt3); put_file("/data/round2/fg.txt", rt3); }
+        if (g_after_load && (strcmp(rt3, "RTWO00001") || time(0) - g_after_load > 40)) {
+          int game = rt3[0] && strcmp(rt3, "RTWO00001") && strcmp(rt3, VUE_ID);
+          if (game) sv_log("after the member load: a game is open (%s) - no pop-up, the add-on leaves everyone signed in", rt3);
+          else { notify("Saves loaded! Press the PS button and pick your profile."); sv_log("after the member load: tile %s - pop-up shown", strcmp(rt3, "RTWO00001") ? "closed / not open" : "still open after 40 s"); }
+          g_after_load = 0; } }
       if (t % 3 == 2 && key[0]) { char rt2[32]; running_title(rt2, sizeof rt2); /* 1.1.95 (owner: 20-30 s from "Load" to the PS4 starting): while the */
         if (!strcmp(rt2, "RTWO00001") && check_cmd(key)) { report(key, status, sizeof status); write_status(status); } } /* Round2 tile is open, look for jobs every 6 s */
       inp_watch(); /* 1.1.64: test pop-ups for the detector (only while switched on) */

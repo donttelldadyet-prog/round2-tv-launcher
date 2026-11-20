@@ -7,6 +7,10 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 7.00 (owner 20 Nov 8:05pm): log out "immediately after close of ps4 tile", and never while a game is open. After a load the
+//   add-on waits (max 40 s) until the helper's /data/round2/fg.txt (what's in front: "" / RTWO00001 / a game) no longer says the
+//   tile, waits 2 s for the helper's pop-up ("press the PS button and pick your profile"), then logs everyone out – unless a game
+//   is open, then it leaves everyone signed in (the game would close without saving). Tile 0.08 closes itself after "Ready".
 // 6.00 (20 Nov 7:35pm): self-test #2 showed m_curGeneralButtons IS live (d-pad 0x1/0x2/0x4/0x8, square 0x10) but it is PSM's
 //   simplified list – no L2/R2/L3/R3, so the combo could never match. 6.00 also reads each slot's m_curButtons (Orbis SystemButtons,
 //   the raw reading) and logs "gen 0x.. sys 0x.." on every change in the self-test, to learn the raw numbers of L2/R2/L3/R3.
@@ -45,12 +49,12 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#define R2SH_VER "6.00"
-#define R2SH_NAME "round2_shell6"
+#define R2SH_VER "7.00"
+#define R2SH_NAME "round2_shell7"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000600;
+attr_public u32 g_pluginVersion = 0x00000700;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -81,6 +85,7 @@ static void lg(const char *fmt, ...) {
   int fd = open(g_log, O_WRONLY | O_CREAT | O_APPEND, 0666); if (fd >= 0) { write(fd, b, n); close(fd); }
 }
 static int exists_(const char *p) { struct stat st; return !stat(p, &st); }
+static void rd_(const char *p, char *b, int n) { b[0] = 0; int fd = open(p, O_RDONLY); if (fd < 0) return; int k = read(fd, b, n - 1); close(fd); if (k < 0) k = 0; b[k] = 0; for (int i = 0; b[i]; i++) if (b[i] == '\n' || b[i] == '\r') { b[i] = 0; break; } }
 static void put_(const char *p, const char *s) { int fd = open(p, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (fd >= 0) { write(fd, s, strlen(s)); close(fd); } }
 
 static void *g_dom, *g_img, *mSuspend, *mResume, *mIsSusp, *mLogoutAll, *cLocker, *mLockerCtor, *mDispose, *mPadInst, *fPadInfo, *fButtons, *fSysButtons;
@@ -199,7 +204,13 @@ static void *shell_thread(void *a) {
     if (l && !was) { lg("member load started"); lt = time(0); lock_on("member load"); }
     if (l && g_lock && (time(0) - lt > 600)) lock_off("10 min limit");
     if (l && g_lock && combo_held(&since)) lock_off("unlock combo");
-    if (!l && was) { lock_off("member load finished"); sleep(8); /* the tile shows "Ready, <name>!" */ log_all_out("member load finished"); }
+    if (!l && was) { lock_off("member load finished");
+      char fg[40]; time_t t0 = time(0); rd_(DIR_U "/fg.txt", fg, sizeof fg); int tile = !strcmp(fg, "RTWO00001");
+      while (!strcmp(fg, "RTWO00001") && time(0) - t0 < 40) { usleep(300000); rd_(DIR_U "/fg.txt", fg, sizeof fg); }   /* 7.00: until the tile closes */
+      lg("after the load: tile %s (%ld s)", !tile ? "wasn't open" : !strcmp(fg, "RTWO00001") ? "still open after 40 s" : "closed", (long)(time(0) - t0));
+      sleep(2); rd_(DIR_U "/fg.txt", fg, sizeof fg);   /* the helper's pop-up first */
+      if (fg[0] && strcmp(fg, "RTWO00001") && strcmp(fg, "CUSA00960")) lg("a game is open (%s) - NOT logging out (it would close without saving)", fg);
+      else log_all_out("member load finished"); }
     was = l; usleep(l ? 100000 : 1000000);
   }
   lock_off("a newer add-on took over"); lg("stopped - a newer add-on is running");
