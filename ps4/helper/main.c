@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.133"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.134"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -5039,9 +5039,10 @@ static int bg_load(char *why, size_t wn) {
 static long long pkg_tick_at;
 static void look_pkgprep(void);
 static void look_pkgjob(const char *spec) {
-  char jid[24] = "", ip[20] = "", code[48] = "", fid[24] = "", cat[4] = "", cid[40] = "", v[300]; int port = 0, mb = 0;
-  if (sscanf(spec, "/_pkgjob.%23[A-Za-z0-9].%19[0-9-].%d.%47[a-z0-9].%23[a-z0-9].%3[a-z].%39[A-Za-z0-9_-].%d", jid, ip, &port, code, fid, cat, cid, &mb) < 7 || port <= 0 || port > 65535) { look_kv("pkgjob/error", "bad spec"); return; }
+  char jid[24] = "", ip[20] = "", code[48] = "", fid[24] = "", cat[4] = "", cid[40] = "", v[300]; int port = 0, mb = 0; long long sz = 0;
+  if (sscanf(spec, "/_pkgjob.%23[A-Za-z0-9].%19[0-9-].%d.%47[a-z0-9].%23[a-z0-9].%3[a-z].%39[A-Za-z0-9_-].%lld", jid, ip, &port, code, fid, cat, cid, &sz) < 7 || port <= 0 || port > 65535) { look_kv("pkgjob/error", "bad spec"); return; }
   for (char *c = ip; *c; c++) if (*c == '-') *c = '.';
+  if (sz > 1048576) mb = (int)(sz >> 20); else { mb = (int)sz; sz = (long long)mb << 20; }   /* 1.1.134: exact bytes (the PS4 checks the size), MB still understood */
   if (file_exists(PKGJOB)) { look_kv("pkgjob/refused", "- another download is still running"); return; }
   look_mute = 1; look_last[0] = 0; look_pkgprep(); look_mute = 0;
   if (strncmp(look_last, "pkgprep/ready", 13)) { snprintf(v, sizeof v, "- not safe now: %s", look_last); look_kv("pkgjob/refused", v); sv_log("pkg job %s refused: %s", jid, look_last); return; }
@@ -5052,11 +5053,16 @@ static void look_pkgjob(const char *spec) {
   BgftParamEx p; memset(&p, 0, sizeof p);
   p.params.userId = uid; p.params.entitlementType = 5; p.params.id = cid; p.params.contentUrl = url; p.params.contentName = cid; p.params.iconPath = "";
   p.params.playgoScenarioId = "0"; p.params.option = 0x10000; p.params.packageType = !strcmp(cat, "gp") ? "PS4GP" : !strcmp(cat, "ac") ? "PS4AC" : "PS4GD"; p.params.packageSubType = "";
-  p.params.packageSize = (uint64_t)mb << 20; p.slot = 0;
-  int task = -1, r = bg_reg(&p, &task), r2 = 0;
-  if (r && !strcmp(cat, "gp") && bg_regdbg) { r2 = r; task = -1; r = bg_regdbg(&p, &task); }   /* patches: the way flatz's Remote PKG Installer does it */
-  if (r) { snprintf(v, sizeof v, "installer refused: 0x%08x%s%s (user %08x, %s)", (unsigned)r, r2 ? " after 0x" : "", "", (unsigned)uid, url); if (r2) { size_t k = strlen(v); snprintf(v + k, sizeof v - k, " [first try 0x%08x]", (unsigned)r2); }
-    sv_log("pkg job %s %s %s: %s", jid, cat, cid, v); look_kv("pkgjob/error", v); return; }
+  p.params.packageSize = (uint64_t)sz; p.slot = 0;
+  /* 1.1.134 (Kaeden 23:05: 0x8099006a on the first try): try the known ways one after the other and log every answer –
+     1 typed + exact size, 2 like the tile (no type, no size, no id), 3 the debug way (flatz uses it for patches), 4 debug untyped */
+  int task = -1, r = bg_reg(&p, &task), tries[4] = { r, 0, 0, 0 }, way = 1;
+  if (r) { BgftParamEx p2 = p; p2.params.packageType = 0; p2.params.packageSubType = 0; p2.params.packageSize = 0; p2.params.id = ""; task = -1; r = tries[1] = bg_reg(&p2, &task); way = 2;
+    if (r && bg_regdbg) { task = -1; r = tries[2] = bg_regdbg(&p, &task); way = 3; }
+    if (r && bg_regdbg) { task = -1; r = tries[3] = bg_regdbg(&p2, &task); way = 4; } }
+  sv_log("pkg job %s %s %s: register tries 0x%08x 0x%08x 0x%08x 0x%08x -> %s (way %d, user %08x, %lld bytes, %s)", jid, cat, cid, (unsigned)tries[0], (unsigned)tries[1], (unsigned)tries[2], (unsigned)tries[3], r ? "REFUSED" : "ok", way, (unsigned)uid, sz, url);
+  if (r) { snprintf(v, sizeof v, "installer refused: 0x%08x / 0x%08x / 0x%08x / 0x%08x", (unsigned)tries[0], (unsigned)tries[1], (unsigned)tries[2], (unsigned)tries[3]);
+    look_kv("pkgjob/error", v); return; }
   r = bg_start(task);
   if (r) { snprintf(v, sizeof v, "download start 0x%08x (task %d)", (unsigned)r, task); sv_log("pkg job %s: %s", jid, v); look_kv("pkgjob/error", v); return; }
   char jl[200]; snprintf(jl, sizeof jl, "%s %d %s %s %lld %d\n", jid, task, cat, cid, (long long)time(0), mb); put_file(PKGJOB, jl);
