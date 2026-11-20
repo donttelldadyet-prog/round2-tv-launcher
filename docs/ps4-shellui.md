@@ -80,6 +80,7 @@ so names are read from the running menu with Mono reflection. Nothing is called 
 ## Crash log
 | When | PS4 | What | Cause | Fix |
 |---|---|---|---|---|
+| 20 Nov 7:10pm | Kaeden 13.50 | `round2_shell4` loaded by helper 1.1.115 auto-load → menu crash (owner); no log line, no .step; load "call 0, result 0x0, not alive after 15 s" | most likely an import the menu's Mono doesn't export: shell4 added 5 never-used ones (mono_class_get_rank, mono_class_get_element_class, mono_class_is_valuetype, mono_array_element_size, mono_field_get_offset) | Kaeden → helper 1.1.116 (no auto-load). Rule: add-ons import only Mono functions proven in an earlier run; new ones via sceKernelDlsym. `round2_padprobe1` (read-only) checks the 5 by name |
 | 20 Nov 5:50am | Kaeden 13.50 | `round2_pwrprobe1` → menu error CE-36329-3 (helper + jailbreak survived) | read Mono's "Constant" metadata table as 3 columns; Mono has 4 and aborts on a column-count mismatch (`mono_metadata_decode_row`). Also suspect: setting up methods of every class | removed from ps4-shell; `round2_sweep1` checks each table's column count from Mono's table header first, reads method names from metadata, writes a breadcrumb `/data/round2/<name>.step` before every step |
 
 ## The sweep (owner 20 Nov 5:49am)

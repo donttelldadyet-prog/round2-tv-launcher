@@ -73,3 +73,12 @@ round2-ps4 = extra SSID on the main unit, its own subnet 192.168.120.x (devices 
   engine / control centre.
 - **Cause of the 2pm rest (owner): the guest turned the TV off and the TV sent "rest" to the PS4 over HDMI (HDMI Device Link /
   CEC).** TV off = PS4 rest on Atlas. Matters because Atlas (2.4 GHz) does not wake remotely after a long rest.
+
+## Atlas long-sleep wake test, 20 Nov 6:08–7:20pm (owner: "remote on atlas and bella… test a long sleep wake")
+- First test from INSIDE round2-ps4 (earlier "Atlas didn't wake" tries came from the round2 network = other subnet).
+- Atlas `/_rest` 6:08:35pm; Bella kept awake as sender (`/_keepawake.600`).
+- 7:16pm (~68 min asleep) broadcast WAKEUP from Bella: no wake. 7:19pm direct to 192.168.120.4: status "no answer in 4 s" before
+  and 25 s after, WAKEUP sent 3× – **no wake**. So Atlas in long rest answers nothing even on its own network: the subnet is NOT the
+  cause; points back at the 2.4 GHz chip/router side in rest. Atlas left asleep; Bella keep-awake cancelled + rested 7:20pm.
+- Next: find the minute it goes deaf (wake at 10 / 20 min), then router binding (owner OK) or keep-awake on booking days.
+
