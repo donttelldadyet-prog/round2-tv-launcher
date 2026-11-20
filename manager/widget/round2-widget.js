@@ -33,19 +33,21 @@ const PIX = {"tv":["..#.....#...","...#...#....","....#.#.....","############","
 const PFONT = {"A":[".###.","#...#","#...#","#####","#...#","#...#","#...#"],"B":["####.","#...#","#...#","####.","#...#","#...#","####."],"C":[".####","#....","#....","#....","#....","#....",".####"],"D":["####.","#...#","#...#","#...#","#...#","#...#","####."],"E":["#####","#....","#....","####.","#....","#....","#####"],"F":["#####","#....","#....","####.","#....","#....","#...."],"G":[".####","#....","#....","#.###","#...#","#...#",".####"],"H":["#...#","#...#","#...#","#####","#...#","#...#","#...#"],"I":["#####","..#..","..#..","..#..","..#..","..#..","#####"],"J":["..###","...#.","...#.","...#.","...#.","#..#.",".##.."],"K":["#...#","#..#.","#.#..","##...","#.#..","#..#.","#...#"],"L":["#....","#....","#....","#....","#....","#....","#####"],"M":["#...#","##.##","#.#.#","#.#.#","#...#","#...#","#...#"],"N":["#...#","##..#","#.#.#","#..##","#...#","#...#","#...#"],"O":[".###.","#...#","#...#","#...#","#...#","#...#",".###."],"P":["####.","#...#","#...#","####.","#....","#....","#...."],"Q":[".###.","#...#","#...#","#...#","#.#.#","#..#.",".##.#"],"R":["####.","#...#","#...#","####.","#.#..","#..#.","#...#"],"S":[".####","#....","#....",".###.","....#","....#","####."],"T":["#####","..#..","..#..","..#..","..#..","..#..","..#.."],"U":["#...#","#...#","#...#","#...#","#...#","#...#",".###."],"V":["#...#","#...#","#...#","#...#","#...#",".#.#.","..#.."],"W":["#...#","#...#","#...#","#.#.#","#.#.#","##.##","#...#"],"X":["#...#","#...#",".#.#.","..#..",".#.#.","#...#","#...#"],"Y":["#...#","#...#",".#.#.","..#..","..#..","..#..","..#.."],"Z":["#####","....#","...#.","..#..",".#...","#....","#####"],"0":[".###.","#...#","#..##","#.#.#","##..#","#...#",".###."],"1":["..#..",".##..","..#..","..#..","..#..","..#..",".###."],"2":[".###.","#...#","....#","...#.","..#..",".#...","#####"],"3":["####.","....#","....#",".###.","....#","....#","####."],"4":["...#.","..##.",".#.#.","#..#.","#####","...#.","...#."],"5":["#####","#....","####.","....#","....#","#...#",".###."],"6":[".###.","#....","#....","####.","#...#","#...#",".###."],"7":["#####","....#","...#.","..#..",".#...",".#...",".#..."],"8":[".###.","#...#","#...#",".###.","#...#","#...#",".###."],"9":[".###.","#...#","#...#",".####","....#","....#",".###."]," ":[".....",".....",".....",".....",".....",".....","....."],"·":[".....",".....",".....","..#..",".....",".....","....."],":":[".....","..#..",".....",".....",".....","..#..","....."],"/":["....#","....#","...#.","..#..",".#...","#....","#...."],"-":[".....",".....",".....",".###.",".....",".....","....."],"&":[".##..","#..#.",".##..",".#...","#.#.#","#..#.",".##.#"]};
 function pixText(text, color, h) {   /* a pixel-font label as a picture, h points tall */
   const T = String(text).toUpperCase().split('').filter((c) => PFONT[c]), s = 3, ctx = new DrawContext();
-  ctx.size = new Size(Math.max(1, T.length * 6 - 1) * s, 7 * s); ctx.opaque = false; ctx.respectScreenScale = true; ctx.setFillColor(color);
+  ctx.size = new Size(Math.max(1, T.length * 6 - 1) * s, 7 * s); ctx.opaque = false; ctx.respectScreenScale = false; ctx.setFillColor(color);
   T.forEach((c, i) => PFONT[c].forEach((row, y) => { for (let x = 0; x < 5; x++) if (row[x] === '#') ctx.fillRect(new Rect((i * 6 + x) * s, y * s, s, s)); }));
   return { img: ctx.getImage(), w: (Math.max(1, T.length * 6 - 1) / 7) * h, h };
 }
 function plabel(st, text, color, h) { const p = pixText(text, color, h), i = st.addImage(p.img); i.imageSize = new Size(p.w, p.h); return i; }
 function segBar(st, color, w, h) {   /* the yellow dashed strip next to SLOT SELECT */
-  const ctx = new DrawContext(), s = 2; ctx.size = new Size(w * s, h * s); ctx.opaque = false; ctx.respectScreenScale = true;
+  const ctx = new DrawContext(), s = 3; ctx.size = new Size(w * s, h * s); ctx.opaque = false; ctx.respectScreenScale = false;
   ctx.setFillColor(new Color(color.hex, 0.55)); for (let x = 0; x + 10 <= w * s; x += 14) ctx.fillRect(new Rect(x, 0, 10, h * s));
   const i = st.addImage(ctx.getImage()); i.imageSize = new Size(w, h); return i;
 }
 /* a save-slot frame: tinted fill, thin room-colour edge, bright corner brackets top-left and bottom-right */
 function frameImg(room, w, h, strong) {
-  const s = 3, W = w * s, H = h * s, ctx = new DrawContext(), col = new Color(RC[room] || room); ctx.size = new Size(W, H); ctx.opaque = false; ctx.respectScreenScale = true;
+  /* (owner's large widget came up blank white, 20 Nov 8:32am: with the screen's ×3 on top of ×3, six big frames were ~80 MB –
+     iPhone stops a widget past ~30 MB. Now ×2 pixels and no screen scaling: ~4 MB in all) */
+  const s = 2, W = w * s, H = h * s, ctx = new DrawContext(), col = new Color(RC[room] || room); ctx.size = new Size(W, H); ctx.opaque = false; ctx.respectScreenScale = false;
   ctx.setFillColor(mix(room, strong ? 0.3 : 0.13)); ctx.fillRect(new Rect(0, 0, W, H));
   ctx.setStrokeColor(new Color(col.hex, strong ? 0.75 : 0.4)); ctx.setLineWidth(s); ctx.strokeRect(new Rect(s / 2, s / 2, W - s, H - s));
   ctx.setFillColor(col); const L = 9 * s, T = 2 * s;
@@ -64,7 +66,7 @@ const RICON = { Vale: 'cat', Kaeden: 'leaf', Scarlett: 'saturn', Kai: 'mount', B
 const PIXC = {};
 function pixImg(name, color) {
   const k = name + (color ? color.hex : ''), P = PIX[name]; if (PIXC[k]) return PIXC[k]; if (!P) return null;
-  const s = 4, ctx = new DrawContext(); ctx.size = new Size(P[0].length * s, P.length * s); ctx.opaque = false; ctx.respectScreenScale = true; ctx.setFillColor(color || INK);
+  const s = 4, ctx = new DrawContext(); ctx.size = new Size(P[0].length * s, P.length * s); ctx.opaque = false; ctx.respectScreenScale = false; ctx.setFillColor(color || INK);
   P.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === '#') ctx.fillRect(new Rect(x * s, y * s, s, s)); });
   return (PIXC[k] = ctx.getImage());
 }
@@ -143,7 +145,7 @@ function ago(t) { const m = Math.round((Date.now() - t) / 60e3); return m < 1 ? 
 function hl(j) { return j.health || { lv: (j.warn || []).length ? 1 : 0, list: (j.warn || []).map((t) => ({ lv: 1, t })) }; }
 function hcol(lv) { return lv >= 2 ? BAD : lv ? WARN : OK; }
 function dot(st, color, sz) {
-  const ctx = new DrawContext(), s = 3; ctx.size = new Size(sz * s, sz * s); ctx.opaque = false; ctx.respectScreenScale = true;
+  const ctx = new DrawContext(), s = 3; ctx.size = new Size(sz * s, sz * s); ctx.opaque = false; ctx.respectScreenScale = false;
   ctx.setFillColor(new Color(color.hex, 0.3)); ctx.fillEllipse(new Rect(0, 0, sz * s, sz * s)); ctx.setFillColor(color); ctx.fillEllipse(new Rect(sz * 0.75, sz * 0.75, sz * 1.5, sz * 1.5));
   const i = st.addImage(ctx.getImage()); i.imageSize = new Size(sz, sz); return i;
 }
