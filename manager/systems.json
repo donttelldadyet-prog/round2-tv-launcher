@@ -162,8 +162,8 @@
         },
         {
           "name": "PS4 menu add-on: lock during save loads, then everyone logged out",
-          "status": "build",
-          "what": "A small Round2 add-on inside the PS4's own menu. While the tile loads a member's saves it pauses the profile picker and blocks the PS button (staff unlock: hold L2+R2+L3+R3 for 1 s; never longer than 10 min). When the load is done it uses the menu's own Log Out, so guests land on the profile picker and choose their profile. Self-test proved lock, pause and log-out on Kaeden (20 Nov 8am). Next: helper 1.1.114 loads it at every PS4 start (Kaeden first, with the owner there), the unlock buttons read with a controller on, then one room at a time.",
+          "status": "test",
+          "what": "A small Round2 add-on inside the PS4's own menu (round2_shell6). While the tile loads a member's saves it locks the PS button (staff unlock: hold L2+R2+L3+R3 for 2 s; never longer than 10 min). When the load is done it uses the menu's own Log Out, so guests land on the profile picker and choose their profile. 20 Nov evening on Kaeden (test helper 1.1.118, loads it at every start): self-tests and a real member load all worked; buttons read live. Next: confirm on screen, then one room at a time.",
           "runs": "PS4 system menu (GoldHEN add-on round2_shell4), loaded by the PS4 helper",
           "code": "round2-tv-launcher · ps4/plugin/round2_shell, ps4/helper/main.c (shell_auto, /_shtest), docs/ps4-shellui.md"
         }
