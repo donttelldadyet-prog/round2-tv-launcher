@@ -40,7 +40,16 @@
 #include <sys/ioctl.h>
 #include <sys/user.h>
 
+/* 20 Nov 6:41pm (owner: "split to get logs faster … once test bench is flawless we can merge"): two builds from one source.
+   R2_SHELL=1 (test channel, Kaeden) = 1.1.115 with the menu add-on auto-load + /_shtest; the release (rooms) = 1.1.114 without. */
+#ifndef R2_SHELL
+#define R2_SHELL 0
+#endif
+#if R2_SHELL
+#define R2_VERSION "1.1.115"
+#else
 #define R2_VERSION "1.1.114"
+#endif
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 #define VUE_ID "CUSA00960" /* PS Vue + its half-downloaded update keep the Vue jailbreak working – never touch, never count */
 #define REPORT_EVERY 15     /* minutes */
@@ -4462,7 +4471,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_shprobe")) look_shprobe(key);
     else if (!strncmp(t, "/_shmod.", 8)) look_shmod(key, t); /* 1.1.109 */
     else if (!strncmp(t, "/_probeup.", 10)) look_probeup(key, t); /* 1.1.111 */
-    else if (!strcmp(t, "/_shtest")) look_shtest(key); /* 1.1.114 */
+    else if (R2_SHELL && !strcmp(t, "/_shtest")) look_shtest(key); /* 1.1.115 test build */
     else if (!strcmp(t, "/_pwrreg")) look_pwrreg(); /* 1.1.111 */
     else if (!strcmp(t, "/_renamesi.on")) { put_file("/data/round2/rename-signedin", "1"); look_kv("renamesi/result", "member loads now rename signed-in spares"); }
     else if (!strcmp(t, "/_renamesi.off")) { unlink("/data/round2/rename-signedin"); look_kv("renamesi/result", "signed-in spares keep their names"); }
@@ -4859,7 +4868,7 @@ int main(void) {
     if (key[0] && (m == 2 || (m && m % 30 == 0))) { r2_where("tile", 1); tile_check(key, 0); } /* 1.1.87: Round2 tile updates */
     if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
     if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
-    if (key[0]) { r2_where("job menu add-on", 1); shell_auto(key); } /* 1.1.114: Round2 menu add-on at every PS4 start */
+    if (R2_SHELL && key[0]) { r2_where("job menu add-on", 1); shell_auto(key); } /* 1.1.115 (test build only): Round2 menu add-on at every PS4 start */
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
     else if (key[0] && file_exists(PREPD "/cloud_on")) { r2_where("cloud", 1); cloud_step(key, 20); } /* 1.1.52: background cloud batch, off by default */

@@ -52,7 +52,7 @@ if [ ! -f "$D/libmbedtls-ps4-gc.a" ]; then
 fi
 [ -f "$D/sqlite3-gc.o" ] || $CC $GCF -c "$D/sqlite/sqlite3.c" -o "$D/sqlite3-gc.o" -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_OMIT_WAL -DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_OMIT_DEPRECATED -DSQLITE_OMIT_SHARED_CACHE -DHAVE_USLEEP=1
 # 1.1.39: the helper links SQLite (the PS4 save-list database, for deleting/creating save parts the way Apollo does)
-$CC -Wall -O2 -mstackrealign -I"$D/mbedtls/include" -Itls -I"$D/inc" -DMBEDTLS_USER_CONFIG_FILE='"r2_mbedtls_config.h"' \
+$CC -Wall -O2 -mstackrealign ${R2DEF:-} -I"$D/mbedtls/include" -Itls -I"$D/inc" -DMBEDTLS_USER_CONFIG_FILE='"r2_mbedtls_config.h"' \
   -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -Wl,--gc-sections \
   -o out/round2d.elf helper/main.c tls/r2tls.c tls/r2dns.c "$D/ca_bundle.c" "$D/sp-elfldr.o" "$D/sp-pt.o" "$D/sp-r2spawn.o" "$D/rp-rpcrypt.o" "$D/rp-r2rp.o" "$D/libmbedtls-ps4-gc.a" "$D/sqlite3-gc.o" \
   -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl -lpthread
