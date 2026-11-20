@@ -7,6 +7,10 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 3.00 (owner 20 Nov 8:01am, decision 4 "definitely implement": guests are greeted by the profile picker after the tile has loaded
+//   their saves): after EVERY member load, 8 s after it finishes (the tile shows "Ready"), the menu's own Log Out for everyone
+//   (LogoutAll 13) – no switch file needed any more (/data/round2/shell-nologout turns it off). The self-test ends with the same
+//   log-out, so the owner sees where a PS4 lands (profile picker?) with and without a controller connected.
 // 2.00 (20 Nov 7:50am): finds the loaded app.exe like round2_sweep2 did on all 6 PS4s; a "calling: X" breadcrumb line BEFORE every
 //   call into the menu (pwrprobe1 crash lesson). The calls it uses exist identically on 9.00 / 11.00 / 13.50 (sweep 20 Nov).
 // 1.00 = SELF-TEST + WATCH:
@@ -26,12 +30,12 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#define R2SH_VER "1.00"
-#define R2SH_NAME "round2_shell2"
+#define R2SH_VER "3.00"
+#define R2SH_NAME "round2_shell3"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000200;
+attr_public u32 g_pluginVersion = 0x00000300;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -124,6 +128,16 @@ static int loading(void) {
 }
 static int still_me(void) { char g[16] = ""; int fd = open(DIR_U "/shell.gen", O_RDONLY); if (fd >= 0) { int n = read(fd, g, sizeof g - 1); if (n > 0) g[n] = 0; close(fd); } return !strcmp(g, R2SH_NAME); }
 
+/* 3.00: the PS menu's own Log Out for everyone (LogoutAll, LogoutFromPsImposeMenuV400 = 13) – controllers re-link and the PS4 shows
+   the profile picker, so each player picks their (renamed) profile. Off only with /data/round2/shell-nologout. */
+static void log_all_out(const char *why) {
+  if (exists_(DIR_U "/shell-nologout")) { lg("log-out skipped (%s): shell-nologout is set", why); return; }
+  if (!mLogoutAll) { lg("log-out skipped (%s): LogoutAll not found", why); return; }
+  lg("buttons before log-out: 0x%x; picker paused now: %d", held_buttons(), suspended());
+  int ty = 13; void *a1[1] = { &ty };
+  if (!inv("log everyone out (PS menu's own Log Out)", mLogoutAll, 0, a1, 0)) lg("logged everyone out (%s) - the profile picker should show now", why);
+  sleep(3); lg("3 s after log-out: picker paused %d", suspended());
+}
 static void *shell_thread(void *a) {
   (void)a; sleep(2); snprintf(g_log, sizeof g_log, DIR_U "/%s.txt", R2SH_NAME);
   put_(DIR_U "/shell.gen", R2SH_NAME); lg("round2_shell %s started inside the system menu", R2SH_VER);
@@ -135,6 +149,7 @@ static void *shell_thread(void *a) {
   int since = 0; time_t t0 = time(0);
   while (time(0) - t0 < 60) { if (combo_held(&since)) { lg("unlock combo L2+R2+L3+R3 seen"); break; } usleep(100000); }
   lock_off("self-test over");
+  log_all_out("self-test");
   /* WATCH */
   lg("WATCH: locks during member loads (max 10 min each), combo unlocks");
   int was = 0, tries = 0; time_t lt = 0; int combo_out = 0;
@@ -143,7 +158,7 @@ static void *shell_thread(void *a) {
     if (l && !was) { lg("member load started"); combo_out = 0; lt = time(0); lock_on("member load"); }
     if (l && g_lock && (time(0) - lt > 600)) { lock_off("10 min limit"); combo_out = 1; }
     if (l && g_lock && combo_held(&since)) { lock_off("unlock combo"); combo_out = 1; }
-    if (!l && was) { lock_off("member load finished"); if (exists_(DIR_U "/shell-logout") && mLogoutAll) { int ty = 13; void *a1[1] = { &ty }; sleep(2); if (!inv("log everyone out", mLogoutAll, 0, a1, 0)) lg("logged everyone out (PS menu's own Log Out)"); } }
+    if (!l && was) { lock_off("member load finished"); sleep(8); /* the tile shows "Ready, <name>!" */ log_all_out("member load finished"); }
     was = l; (void)combo_out; (void)tries; usleep(l ? 100000 : 1000000);
   }
   lock_off("a newer add-on took over"); lg("stopped - a newer add-on is running");
