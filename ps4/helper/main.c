@@ -870,27 +870,25 @@ static void do_update(const char *key, const char *cid, const char *body) {
   notify(msg);
   snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
   int n = snprintf(req, sizeof req, "{\"id\":\"%s\",\"v\":\"%s\"}", console_id, v);
-  unsigned char *d = 0;
-  size_t len = 0;
-  int st = r2tls_fetch(ENGINE_HOST, "POST", "/ps4/app", hdr, req, n, &d, &len, 16 * 1024 * 1024, err, sizeof err);
-  char why[200] = "";
-  unsigned char h[32];
-  char hx[65];
-  if (st != 200 || !d) snprintf(why, sizeof why, "download failed (%d %s)", st, err);
+  /* 1.1.134 (Kaeden 23:08: the 2.1 MB helper came down cut at ~2 MB twice – the in-memory buffer couldn't grow in a helper that
+     had been running for hours): straight into the file, then size, SHA-256 and the ELF mark checked from the file */
+  size_t len = 0; char why[200] = "";
+  FILE *f = fopen(APP "/new.elf.tmp", "wb");
+  int st = f ? r2tls_fetch_file(ENGINE_HOST, "POST", "/ps4/app", hdr, req, n, f, &len, err, sizeof err) : -1;
+  if (f) { fflush(f); fsync(fileno(f)); fclose(f); }
+  if (!f) snprintf(why, sizeof why, "couldn't save it");
+  else if (st != 200) snprintf(why, sizeof why, "download failed (%d %s)", st, err);
   else if (len != (size_t)atoi_safe(sz)) snprintf(why, sizeof why, "download size %zu, expected %s", len, sz);
-  else {
-    mbedtls_sha256(d, len, h, 0);
+  else { unsigned char h[32], hd[4] = { 0 }; char hx[65]; mbedtls_sha256_context c; mbedtls_sha256_init(&c); mbedtls_sha256_starts(&c, 0);
+    FILE *g = fopen(APP "/new.elf.tmp", "rb"); static unsigned char buf[65536]; size_t k, tot = 0;
+    if (g) { while ((k = fread(buf, 1, sizeof buf, g)) > 0) { if (!tot) memcpy(hd, buf, k < 4 ? k : 4); mbedtls_sha256_update(&c, buf, k); tot += k; } fclose(g); }
+    mbedtls_sha256_finish(&c, h); mbedtls_sha256_free(&c);
     for (int i = 0; i < 32; i++) sprintf(hx + i * 2, "%02x", h[i]);
-    if (strcasecmp(hx, sha)) snprintf(why, sizeof why, "file check failed (SHA-256)");
-    else if (memcmp(d, "\x7f" "ELF", 4)) snprintf(why, sizeof why, "not a PS4 program");
+    if (tot != len) snprintf(why, sizeof why, "saved file reads back %zu bytes", tot);
+    else if (strcasecmp(hx, sha)) snprintf(why, sizeof why, "file check failed (SHA-256)");
+    else if (memcmp(hd, "\x7f" "ELF", 4)) snprintf(why, sizeof why, "not a PS4 program");
   }
-  if (!why[0]) {
-    FILE *f = fopen(APP "/new.elf.tmp", "wb");
-    if (!f || fwrite(d, 1, len, f) != len) snprintf(why, sizeof why, "couldn't save it");
-    if (f) { fflush(f); fsync(fileno(f)); fclose(f); }
-    if (!why[0] && rename(APP "/new.elf.tmp", APP "/new.elf")) snprintf(why, sizeof why, "couldn't save it (rename)");
-  }
-  free(d);
+  if (!why[0] && rename(APP "/new.elf.tmp", APP "/new.elf")) snprintf(why, sizeof why, "couldn't save it (rename)");
   if (why[0]) { unlink(APP "/new.elf.tmp"); cmd_done(key, cid, 0, 0, 0, 0, 0, why); notify("Round2 helper: update not done - still on the old version."); return; }
   if (g_own) { do_own_update(key, cid, v); return; } /* 1.1.32: an own-program helper updates itself without BinLoader (no sleeping copy, no RAM creep) */
   /* 1.1.15 (16 Nov, Max 2:12pm): let go FIRST, then report and show the pop-up. Before, the old helper reported and showed

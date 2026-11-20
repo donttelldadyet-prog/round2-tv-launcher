@@ -56,6 +56,9 @@ $CC -Wall -O2 -mstackrealign ${R2DEF:-} -I"$D/mbedtls/include" -Itls -I"$D/inc" 
   -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -Wl,--gc-sections \
   -o out/round2d.elf helper/main.c tls/r2tls.c tls/r2dns.c "$D/ca_bundle.c" "$D/sp-elfldr.o" "$D/sp-pt.o" "$D/sp-r2spawn.o" "$D/rp-rpcrypt.o" "$D/rp-r2rp.o" "$D/libmbedtls-ps4-gc.a" "$D/sqlite3-gc.o" \
   -lSceUserService -lSceRandom -lSceRegMgr -lSceSystemService -lSceNetCtl -lpthread
+# 1.1.134 (Kaeden 23:08: a helper that has run for hours could only take ~2 MB into memory, the 2.1 MB update came down cut):
+# drop the link-time symbol table (not loaded, not used: program headers, .dynamic and .dynsym stay byte-identical) -> ~1.96 MB
+llvm-strip --strip-all out/round2d.elf
 $CC -Wall -O2 -o out/round2-boot.elf boot/main.c   # the starter (AutoRun) – no network, no TLS
 # Round2 build of the blocker (nanoDNS + settings reload without a restart) – see nanodns/main.c
 $CC -Wall -Wextra -Werror -O2 -std=c11 -DPLATFORM_PS4=1 -o out/nanodns-r2.elf nanodns/main.c -lSceNet
