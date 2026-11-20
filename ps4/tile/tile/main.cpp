@@ -1,4 +1,8 @@
-/* 0.08 (owner 20 Nov 8:05pm: "animation before and after ready, maybe use round2 logo … give instructions for the controllers next
+/* 0.09 (owner 20 Nov 8:40pm on 0.08: "it doesnt pulse … very static … loading bar doesnt increase gradually its just 0 or 100 …
+   huge gap after ready"): the logo now visibly breathes ALL the time (fades towards the background and back, room colour + a wide
+   white shine), faster while loading; the bar creeps forward inside each game (eases towards ~90 % of the next step, then jumps
+   when the game is really done); after Ready: 1.5 s burst + 6 s "What happens next" (was 3 + 9).
+   0.08 (owner 20 Nov 8:05pm: "animation before and after ready, maybe use round2 logo … give instructions for the controllers next
    screen cos they dont know whats gonna happen … immediately after close of ps4 tile"):
    - while saves load the Round2 logo pulses in the room's colour with a white shine sweeping across it;
    - when a load this tile watched finishes: 3 s "ready" burst (rings from the logo, logo flashes green), then 9 s of "What happens
@@ -48,7 +52,7 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.08"
+#define TILE_V "0.09"
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
@@ -166,9 +170,10 @@ static int wrap(FT_Face f, const char *s, int x, int y, int maxw, int lh, Color 
 }
 static void logo(int x, int y, Color c) { for (int j = 0; j < LOGO_H; j++) for (int i = 0; i < LOGO_W; i++) blend(x + i, y + j, c, LOGO_A[j * LOGO_W + i]); }
 /* 0.08: the logo in colour c at strength a (0-255), plus a white shine band centred at sx (logo x) */
-static void logo_fx(int x, int y, Color c, int a, int sx) {
+static void logo_fx(int x, int y, Color c, int a, int sx, int fade = 0) {   /* 0.09: fade = how far the logo sinks into the background */
   for (int j = 0; j < LOGO_H; j++) for (int i = 0; i < LOGO_W; i++) { int la = LOGO_A[j * LOGO_W + i]; if (!la) continue;
-    blend(x + i, y + j, c, la * a / 255); int d = abs(i - sx + (j - LOGO_H / 2) / 3); if (d < 50) blend(x + i, y + j, WHITE, la * (50 - d) / 60); } }
+    if (fade) blend(x + i, y + j, BG, la * fade / 255);
+    blend(x + i, y + j, c, la * a / 255); int d = abs(i - sx + (j - LOGO_H / 2) / 3); if (d < 70) blend(x + i, y + j, WHITE, la * (70 - d) / 75); } }
 static void ring(int cx, int cy, int r, int t, Color c, int a) {
   if (r <= 0 || a <= 0) return; int r2o = (r + t) * (r + t), r2i = r * r;
   for (int y = cy - r - t; y <= cy + r + t; y++) for (int x = cx - r - t; x <= cx + r + t; x++) { int d = (x - cx) * (x - cx) + (y - cy) * (y - cy); if (d >= r2i && d <= r2o) blend(x, y, c, a); } }
@@ -259,21 +264,23 @@ int main() {
     FB = scene->Buf(); if (BASE) memcpy(FB, BASE, W * H * 4);
     if (busy) {
       char lab[96]; int lx;
-      if (total > 0) { float want = (float)done / total; shown += (want - shown) * 0.06f; if (shown > want) shown = want;
+      if (total > 0) { static int lastdone = -1; static double since = 0; if (done != lastdone) { lastdone = done; since = now_s(); }
+        double t = now_s() - since; float creep = done < total ? (float)(0.9 * (1.0 - 1.0 / (1.0 + t / 20.0))) : 0;   /* 0.09: inside a game */
+        float want = ((float)done + creep) / total; shown += (want - shown) * 0.06f; if (shown > want) shown = want;
         int fw = BW * shown; if (fw < 26) fw = 26; rect(BX, BY, fw, BH, AC);
         int sx = (frame * 9) % (fw + 160) - 160; for (int x = sx; x < sx + 160; x++) if (x >= 0 && x < fw) { int a = 90 - abs(x - sx - 80) * 90 / 80; for (int j = 0; j < BH; j++) blend(BX + x, BY + j, WHITE, a); }
         if (pnn[0] && atoi(pnn) > 1) snprintf(lab, sizeof lab, "%s (player %s of %s)  -  %d of %d games", pnw, pkk, pnn, done, total); else snprintf(lab, sizeof lab, "%d of %d games  -  %d%%", done, total, done * 100 / total); }
       else { int span = BW - 220, p = (frame * 7) % (2 * span), x = p < span ? p : 2 * span - p; rect(BX + x, BY, 220, BH, AC); snprintf(lab, sizeof lab, "Getting ready"); }
       lx = text(fSmall, lab, BX, BY + 70, INK);
       char dots[8]; int n = (frame / 20) % 4; for (int i = 0; i < n; i++) dots[i] = '.'; dots[n] = 0; text(fSmall, dots, lx + 4, BY + 70, AC);
-      logo_fx(130, 90, AC, 110 + (int)(110 * (frame % 90 < 45 ? frame % 45 : 45 - frame % 45) / 45), (frame * 10) % (LOGO_W + 300) - 150);   /* 0.08 */
+      { int ph = frame % 60 < 30 ? frame % 30 : 30 - frame % 30; logo_fx(130, 90, AC, 90 + ph * 5, (frame * 14) % (LOGO_W + 400) - 200, 160 - ph * 5); }   /* 0.09: breathes fast while loading */
     } else if (!strcmp(st, "done") && !howto) { shown = 0; rect(BX, BY, BW, BH, GREEN); text(fSmall, "All set - enjoy!", BX, BY + 70, GREEN); }
     if (ready_t0) {   /* 0.08: ready burst, then "what happens next", then close */
       double e = now_s() - ready_t0;
-      if (e < 3.0) { int cx = 130 + LOGO_W / 2, cy = 90 + LOGO_H / 2;
-        for (int k = 0; k < 3; k++) { double q = e - k * 0.45; if (q > 0) ring(cx, cy, (int)(q * 520), 6, k == 1 ? AC : GREEN, (int)(200 * (1 - q / 3.0))); }
-        logo_fx(130, 90, GREEN, 120 + (int)(120 * (1 - (e - (int)e))), (int)(e * 400) % (LOGO_W + 300) - 150); }
-      else if (e < 12.0) {
+      if (e < 1.5) { int cx = 130 + LOGO_W / 2, cy = 90 + LOGO_H / 2;
+        for (int k = 0; k < 3; k++) { double q = e - k * 0.25; if (q > 0) ring(cx, cy, (int)(q * 1000), 6, k == 1 ? AC : GREEN, (int)(200 * (1 - q / 1.5))); }
+        logo_fx(130, 90, GREEN, 120 + (int)(120 * (1 - (e / 1.5))), (int)(e * 800) % (LOGO_W + 300) - 150); }
+      else if (e < 7.5) {
         if (!howto && BASE) { howto = 1; FB = BASE;   /* compose the instruction card once */
           rect(0, 0, W, H, BG); rect(0, 0, W, 12, AC); logo(130, 90, WHITE);
           int y = wrap(fBig, "What happens next", 130, 380, 1660, 84, GREEN);
@@ -281,13 +288,14 @@ int main() {
                               "4.  Pick your profile - it has your name and picture.", "5.  More players? Each one presses PS on their own controller and picks theirs." };
           y += 20; for (int i = 0; i < 5; i++) y = wrap(fF, L[i], 150, y + 18, 1620, 56, i == 2 || i == 3 ? INK : DIM);
           FB = scene->Buf(); memcpy(FB, BASE, W * H * 4); }
-        double left = 12.0 - e; int bw = (int)(1660 * left / 9.0); if (bw < 0) bw = 0;
+        double left = 7.5 - e; int bw = (int)(1660 * left / 6.0); if (bw < 0) bw = 0;
         rect(130, 960, 1660, 18, CARD); rect(130, 960, bw, 18, AC);
         char cl[48]; snprintf(cl, sizeof cl, "Closing in %d", (int)left + 1); text(fSmall, cl, 130, 1030, DIM);
         logo_fx(130, 90, AC, 60, (frame * 10) % (LOGO_W + 300) - 150); }
       else { sceSystemServiceLoadExec("exit", NULL); exit(0); }
     }
-    else { shown = 0; int a = 110 + (int)(100 * (frame % 120 < 60 ? frame % 60 : 60 - frame % 60) / 60); frame_box(QX - 20, QY - 20, QS + 40, QS + 40, 4, AC, a); }
+    else { shown = 0; int a = 110 + (int)(100 * (frame % 120 < 60 ? frame % 60 : 60 - frame % 60) / 60); frame_box(QX - 20, QY - 20, QS + 40, QS + 40, 4, AC, a);
+      if (!ready_t0) { int ph = frame % 180 < 90 ? frame % 90 : 90 - frame % 90; logo_fx(130, 90, AC, ph * 2, (frame * 6) % (LOGO_W + 900) - 300, ph); } }   /* 0.09: gentle breathing when idle */
     scene->SubmitFlip(frame); scene->FrameWait(frame); scene->FrameBufferSwap(); frame++;
   }
   return 0;

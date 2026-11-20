@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.120"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file */
+#define R2_VERSION "1.1.121"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -593,7 +593,12 @@ static int report(const char *key, char *status, size_t slen) {
   jstr(run);
   add_users();
   add_wifi();
-  { double t = tm_now(); add_storage(); r2_timing("report: disk + folders", tm_now() - t); }
+  int fastrep = file_exists("/data/round2/memqn"); /* 1.1.121: a member load runs - reports every few s for the tile's bar; Kaeden's
+     disk scan (2.2 s) + games list (1.4 s) made each one ~4 s and slowed the load. Reuse the last ones (max 2 min old). */
+  { double t = tm_now(); static char *stc; static long long stat_at;
+    if (fastrep && stc && time(0) - stat_at < 120) jadd("%s", stc);
+    else { size_t a0 = Jn; add_storage(); free(stc); stc = malloc(Jn - a0 + 1); if (stc) { memcpy(stc, J + a0, Jn - a0); stc[Jn - a0] = 0; stat_at = time(0); } }
+    r2_timing("report: disk + folders", tm_now() - t); }
   jadd(",\"updGuard\":{\"blocked\":%d,\"lastMB\":%d,\"agoS\":%lld,\"discUpd\":%d}", upd_blocked, upd_last_mb,
        upd_last ? (long long)(time(0) - upd_last) : -1LL, disc_pup);
   { char bv[16] = "", rb[200] = "";
@@ -623,12 +628,14 @@ static int report(const char *key, char *status, size_t slen) {
   jadd(",\"played\":{");
   for (int k = 0; k < nplayed; k++) jadd("%s\"%s\":%d", k ? "," : "", played_id[k], played_min[k]);
   jadd("}");
+  uint64_t gh = games_sent_hash;
+  if (!fastrep) { /* 1.1.121: no games list while a member load runs (it doesn't change then) */
   char *g = 0;
   double tgj = tm_now();
-  uint64_t gh = games_json(&g);
+  gh = games_json(&g);
   r2_timing("report: games list", tm_now() - tgj);
   if (gh != games_sent_hash) jadd(",\"games\":%s", g);
-  free(g);
+  free(g); }
   if (g_tm_since) { /* 1.1.69: timings so far - name: [count, average ms, worst ms, last ms] */
     jadd(",\"tm\":{\"since\":%lld", g_tm_since);
     for (int i = 0; i < TM_MAX && g_tm[i].name; i++) jadd(",\"%s\":[%u,%.0f,%.0f,%.0f]", g_tm[i].name, g_tm[i].n, g_tm[i].sum / g_tm[i].n * 1000, g_tm[i].max * 1000, g_tm[i].last * 1000);
@@ -1326,23 +1333,28 @@ static int sv_getm_net(const char *key, const char **ks, int n, unsigned char **
     for (const char *c = ks[i]; *c; c++) { if (*c == '"' || *c == '\\') body[bn++] = '\\'; body[bn++] = *c; } body[bn++] = '"'; }
   bn += (size_t)snprintf(body + bn, bc - bn, "]}");
   char hdr[200], err[120]; snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\nContent-Type: application/json\r\n", key);
-  unsigned char *d = 0; size_t dl = 0; int st = -1;
-  for (int a = 0; a < 3; a++) { d = 0; dl = 0; err[0] = 0; st = r2tls_fetch(ENGINE_HOST, "POST", "/ps4/sgetm", hdr, body, bn, &d, &dl, 12u << 20, err, sizeof err); if (st == 200 || st == 404) break; free(d); d = 0; sleep(2); }
+  /* 1.1.121 (owner 20 Nov 8:40pm "what happened to our optimisations"): the bundle (up to 6 MB) came into memory, and the reply
+     buffer's 4 MB -> 8 MB step failed on Kaeden ("bundle download -1 no memory" -> piece by piece, 36 s for 32 MB). Now the
+     bundle goes into a file and each piece (1 MB) is read back on its own - no big memory needed. */
+  const char *bf = "/data/round2/bundle.tmp"; int st = -1; size_t dl = 0;
+  for (int a = 0; a < 3; a++) { err[0] = 0; dl = 0; FILE *f = fopen(bf, "wb"); if (!f) { st = -1; snprintf(err, sizeof err, "can't create %s", bf); break; }
+    st = r2tls_fetch_file(ENGINE_HOST, "POST", "/ps4/sgetm", hdr, body, bn, f, &dl, err, sizeof err); fclose(f); if (st == 200 || st == 404) break; sleep(1); }
   free(body);
-  if (st == 404) { free(d); return -2; }
-  if (st != 200 || !d) { free(d); if (why) snprintf(why, wn, "bundle download %d %s", st, err); return -1; }
-  size_t p = 0; int cnt = -1;
-  if (dl < 6 || memcmp(d, "R2M ", 4)) { free(d); if (why) snprintf(why, wn, "bundle: bad answer"); return -1; }
-  cnt = atoi_safe((const char *)d + 4); while (p < dl && d[p] != '\n') p++; p++;
-  if (cnt != n) { free(d); if (why) snprintf(why, wn, "bundle: %d of %d", cnt, n); return -1; }
+  if (st == 404) { unlink(bf); return -2; }
+  if (st != 200) { unlink(bf); if (why) snprintf(why, wn, "bundle download %d %s", st, err); return -1; }
+  FILE *f = fopen(bf, "rb"); if (!f) { if (why) snprintf(why, wn, "bundle: can't read it back"); return -1; }
+  char line[32]; int cnt = -1;
+  if (!fgets(line, sizeof line, f) || memcmp(line, "R2M ", 4)) { fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: bad answer"); return -1; }
+  cnt = atoi_safe(line + 4);
+  if (cnt != n) { fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: %d of %d", cnt, n); return -1; }
   for (int i = 0; i < n; i++) {
-    char lb[24]; int q = 0; while (p < dl && d[p] != '\n' && q < 23) lb[q++] = (char)d[p++]; lb[q] = 0; p++;
-    long long L = atoll(lb); if (L < 0) continue;
-    if ((size_t)L > dl - p) { for (int j = 0; j <= i; j++) { free(data[j]); data[j] = 0; } free(d); if (why) snprintf(why, wn, "bundle: cut short"); return -1; }
-    data[i] = malloc((size_t)L + 1); if (!data[i]) { for (int j = 0; j < i; j++) { free(data[j]); data[j] = 0; } free(d); return -1; }
-    memcpy(data[i], d + p, (size_t)L); lens[i] = (size_t)L; p += (size_t)L;
+    if (!fgets(line, sizeof line, f)) { for (int j = 0; j < i; j++) { free(data[j]); data[j] = 0; } fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: cut short"); return -1; }
+    long long L = atoll(line); if (L < 0) continue;
+    data[i] = malloc((size_t)L + 1); if (!data[i]) { for (int j = 0; j < i; j++) { free(data[j]); data[j] = 0; } fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: no memory for a piece"); return -1; }
+    if (fread(data[i], 1, (size_t)L, f) != (size_t)L) { for (int j = 0; j <= i; j++) { free(data[j]); data[j] = 0; } fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: cut short"); return -1; }
+    lens[i] = (size_t)L;
   }
-  free(d); return 0;
+  fclose(f); unlink(bf); (void)dl; return 0;
 }
 static int sv_get_raw(const char *key, const char *k, unsigned char **data, size_t *len, char *why, size_t wn) {
   char path[900], hdr[200], err[120];
