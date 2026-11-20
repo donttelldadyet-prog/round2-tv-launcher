@@ -56,6 +56,19 @@ so names are read from the running menu with Mono reflection. Nothing is called 
   Not done (yet): memory patching such as HEN's `CheckRunningOnMainThread` → ret. If the menu refuses calls from our thread,
   that's the next step.
 
+## Add-on runs and versions (log everything – owner 20 Nov)
+- **round2_shell3, Kaeden 13.50, 20 Nov 8:09am (self-test, owner there, controller off):** found suspend/resume/is-suspended/
+  logout-all/locker/pads all 1; **buttons read 0xffffffff = "can't read"** although the pad fields were found; lock + picker pause
+  worked (check said 1); after the log-out the TV showed "Press PS button" (the profile picker – owner: acceptable). Conclusion:
+  `m_padInfo` is NOT the List<> assumed above (3.00 gave -1 before reading any controller) – exact type unknown.
+- **round2_shell4 (4.00, ps4-shell 3ce2e32, 20 Nov 3:19pm, not run yet):** reads `m_padInfo` as an array OR a list, of objects OR
+  structs; "no controller" = 0, -1 only with a reason; logs ONE line describing the pad list (type, element type, struct/object,
+  size, field offset, each pad's buttons) + PadInfo's field names/offsets. Self-test only on request (`/data/round2/shell-selftest`,
+  helper `/_shtest`), every button change logged during it. `/data/round2/shell.alive` heartbeat every 30 s.
+- **Helper 1.1.114 (ps4-test 41b5a51, not on any PS4 yet):** loads round2_shell4 at every PS4 start (`shell_auto`, once a minute:
+  skips with /data/round2/shell-off, a game open, the 5 min after a wake, or the add-on alive; max 3 tries 10 min apart; each try
+  in save.log). `/_shtest` = self-test + log to R2 `lib/probe/round2_shell4-<console>.txt`.
+
 ## Redo on another firmware (9.00 = Max, Kai, Atlas; 11.00 = Scarlett, Vale, Bella) – checklist
 1. Helper ≥ 1.1.110 on that PS4 (count the switches since its last restart).
 2. No game open, staff at the TV. `look /_ghver` → GoldHEN SDK present?

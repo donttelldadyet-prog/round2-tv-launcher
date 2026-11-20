@@ -64,3 +64,12 @@ round2-ps4 = extra SSID on the main unit, its own subnet 192.168.120.x (devices 
 - Settings read with helper 1.1.111 `/_pwrreg` (Kaeden): rest mode 1 · stay connected 1 · turn on from network 1 · USB power 2 ·
   Wi-Fi band 0 · Remote Play 1. **Next: the same read on Bella, Atlas and Kai** – a different value there would explain the wake
   problem (Kai wakes, Bella/Atlas don't).
+
+## Atlas, 20 Nov 2:00–2:50pm (guest watch + rest)
+- Guest session 11:12–2:00pm: 0 network fails, check-ins every minute, signal 82–98% on round2-ps4 ch6, new address 192.168.120.4.
+- ~2:00:30pm rested at session end (40 s after its last check-in) – a rest, not a drop: the same helper run survived, no netfail.
+  Owner turned it on ~2:30pm; it then auto-updated to 1.1.113 (~2:37).
+- **Quirk: Atlas's own PS4 clock is ~8 min 17 s fast.** Its log stamps are PS4 time – subtract ~8 min to line them up with the
+  engine / control centre.
+- **Cause of the 2pm rest (owner): the guest turned the TV off and the TV sent "rest" to the PS4 over HDMI (HDMI Device Link /
+  CEC).** TV off = PS4 rest on Atlas. Matters because Atlas (2.4 GHz) does not wake remotely after a long rest.
