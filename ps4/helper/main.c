@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.125"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.126"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2980,11 +2980,14 @@ static void look_memplay(const char *key, const char *spec);
 static void cloud_step(const char *key, int budget);
 static void switch_resume(const char *key) {   /* the release is done: start the member load that was waiting */
   release_names();
-  char sp[220] = ""; FILE *f = fopen(MEMAFTER, "r"); if (f) { if (!fgets(sp, sizeof sp, f)) sp[0] = 0; fclose(f); } unlink(MEMAFTER); unlink(MEMQ);
-  sp[strcspn(sp, "\r\n")] = 0; if (!sp[0]) { unlink("/data/round2/memqn"); return; }
-  sv_log("switch: release done - sending the released saves to the cloud first, then loading: %s", sp);
-  { double t0 = tm_now(); cloud_step(key, 120); sv_log("switch: cloud batch before the load took %.0f s", tm_now() - t0); }   /* newest copies up before anyone loads them */
+  char sp[220] = ""; FILE *f = fopen(MEMAFTER, "r"); if (f) { if (!fgets(sp, sizeof sp, f)) sp[0] = 0; fclose(f); } unlink(MEMAFTER);
+  sp[strcspn(sp, "\r\n")] = 0; if (!sp[0]) { unlink(MEMQ); unlink("/data/round2/memqn"); return; }
+  /* 1.1.126 (Kaeden 9:35pm): no cloud batch here any more (it took 111 s and nobody loads a RELEASED player's saves now – the normal
+     cloud batch sends them later), and the queue placeholder stays until look_memplay rewrites the queue: with it gone the
+     engine said "Ready" and the tile closed a minute before the load was really over. */
+  sv_log("switch: release done - loading now: %s", sp);
   int m0 = look_mute; look_mute = 1; look_memplay(key, sp); look_mute = m0;
+  { char s5[400]; report(key, s5, sizeof s5); }   /* tell the tile at once (loading, or all ready) */
 }
 static void look_memplay(const char *key, const char *spec) {
   char buf[200], *tok[12]; int nt = 0; snprintf(buf, sizeof buf, "%s", spec + 10);
@@ -3036,6 +3039,7 @@ static void look_memplay(const char *key, const char *spec) {
       put_file(MEMQ, "release - - -\n");   /* keeps the engine/tile on "Getting <name>'s profile ready..." */
       char v[160]; snprintf(v, sizeof v, "%08x releasing %d other profile(s) first (%d game(s) to clean)", r2_main_user(), nrel, ng); look_kv("memplay/loading", v);
       sv_log("switch: %s for %s", v, spec);
+      { char s6[400]; report(key, s6, sizeof s6); }   /* 1.1.126: the engine must see "more to come" before this result, else it says Ready */
       if (ng) { cl_begin("switch", tok[2]); cl_wr("pos", "0\n"); cl_wr("stat", "0 %d 0 0\n", ng); cl_wr("index", ""); cl_wr("mode", "clean\n"); cl_wr("state", "running\n"); clean_on = 1; }
       else switch_resume(key);
       return;
@@ -3794,7 +3798,7 @@ static void clean_step(const char *key, int budget) {
     if (copyonly) sv_log("copy only: user %s game %s: internal copy %s (nothing removed)", u, t, br ? "FAILED" : "ok");
     else sv_log("clean slate: user %s game %s: internal copy %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
     cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
-    { static long long lr; char rk2[16] = ""; cl_rd("run", rk2, sizeof rk2); if (!strncmp(rk2, "prep", 4) && time(0) - lr >= 4) { char s3[400]; lr = time(0); report(key, s3, sizeof s3); } } /* 1.1.101: the tile's bar follows each game */
+    { static long long lr; char rk2[16] = ""; cl_rd("run", rk2, sizeof rk2); if ((!strncmp(rk2, "prep", 4) || !strncmp(rk2, "switch", 6)) && time(0) - lr >= 4) { char s3[400]; lr = time(0); report(key, s3, sizeof s3); } } /* 1.1.101: the tile's bar follows each game */
     { char gn[64], pn[40]; sw_game_name(t, gn, sizeof gn); pname(u, pn, sizeof pn);
       if (br) bpop_key("clprog", "%s: %s's save could NOT be copied - left on the profile (%d of %d)", gn, pn, done, total);
       else if (copyonly) bpop_key("clprog", "%s: %s's save is safe on this PS4 (%d of %d)", gn, pn, done, total);
