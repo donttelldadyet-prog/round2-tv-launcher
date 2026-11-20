@@ -158,11 +158,14 @@ function dot(st, color, sz) {
 function over(j) { return !!(j.tomorrow && j.tomorrow.over); }
 
 /* ---------- pieces ---------- */
+/* iPhone rounds the widget's corners (~22 pt): the header and the bottom lines sit a little further in than the boxes, so the
+   logo, the time and the warnings never run into the curve (owner 20 Nov: "account for rounded edges too") */
+const EDGE = 6;
 function header(w, j, sz, label) {
-  const h = line(w); h.spacing = 5;
+  const h = line(w); h.spacing = 5; h.setPadding(0, fam === 'small' ? 0 : EDGE, 0, fam === 'small' ? 0 : EDGE);
   logo(h, sz * 1.3);
-  const c = j.counts || {}; plabel(h, label || (c.in + ' IN · ' + c.left + ' TO COME'), INK, sz * 0.62);
-  segBar(h, ACC, fam === 'small' ? 14 : 40, sz * 0.55); h.addSpacer();
+  const c = j.counts || {}; plabel(h, label || (c.in + ' IN · ' + c.left + ' TO COME'), INK, sz * 0.52);
+  segBar(h, ACC, fam === 'small' ? 14 : 22, sz * 0.5); h.addSpacer();
   dot(h, hcol(hl(j).lv), sz * 0.7);
   txt(h, (j.offline ? 'offline · ' : '') + clk(j.now), sz - 2, j.offline ? WARN : MUTE, 'time');
 }
@@ -218,7 +221,7 @@ function leftLine(parent, r, sz, extra) {
 }
 function tvTone(r) { return r.st === 'in' && r.tv && (r.tv.quiet || r.tv.off) ? WARN : r.tv && (r.tv.off || r.tv.quiet) ? MUTE : INK; }   /* an empty room's TV being off is normal */
 function box(parent, r, w, h, wide) {
-  const s = stateOf(r), b = parent.addStack(); b.layoutVertically(); b.size = new Size(w, h); b.setPadding(5, 7, 5, 6); b.spacing = 1;
+  const s = stateOf(r), b = parent.addStack(); b.layoutVertically(); b.size = new Size(w, h); if (wide) b.setPadding(5, 7, 5, 6); else b.setPadding(3, 7, 3, 6); b.spacing = 1;
   b.backgroundImage = frameImg(r.r, w, h, r.st === 'in');
   const top = line(b); top.spacing = 4; ico(top, RICON[r.r], rc(r.r), wide ? 13 : 11); txt(top, r.r, wide ? 13.5 : 11.5, rc(r.r), 'room'); top.addSpacer();
   if (wide) {   /* large: the room name on its own line, then how it stands (owner 20 Nov: "line break after each room name") */
@@ -249,7 +252,7 @@ function box(parent, r, w, h, wide) {
 /* how many detail lines a big box will show – rows of busy rooms get the room, rows of two free rooms stay short */
 function boxLines(r) { const s = stateOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : ''; return 1 + (names && s.who ? 1 : 0) + (tvOf(r) && (r.st === 'in' || (r.tv && !r.tv.off && !r.tv.quiet)) ? 1 : 0) + (ps ? 1 : 0) + ((r.msgs || []).some(isAuto) ? 1 : 0) + ((r.msgs || []).some((m) => !isAuto(m)) ? 1 : 0) + (nextLine(r) ? 1 : 0); }
 function boxGrid(w, L, h, wide) {
-  const gap = 6, bw = Math.floor((widgetW() - 20 - gap) / 2), rows = [];
+  const gap = 6, vgap = wide ? 6 : 4, bw = Math.floor((widgetW() - 20 - gap) / 2), rows = [];
   for (let i = 0; i < L.length; i += 2) rows.push(L.slice(i, i + 2));
   let hs = rows.map(() => h);
   if (wide) {   /* h = the space for all rows; share it out by how much each row has to say */
@@ -260,7 +263,7 @@ function boxGrid(w, L, h, wide) {
   for (let i = 0; i < L.length; i += 2) {
     const row = w.addStack(), rh = hs[i / 2]; row.layoutHorizontally(); row.spacing = gap; h = rh;
     box(row, L[i], bw, h, wide); if (L[i + 1]) box(row, L[i + 1], bw, h, wide); else { const e = row.addStack(); e.size = new Size(bw, h); }
-    if (i + 2 < L.length) w.addSpacer(gap);
+    if (i + 2 < L.length) w.addSpacer(vgap);
   }
 }
 /* tv row: Room · TV app (since) · PS4 game */
@@ -357,7 +360,7 @@ async function build() {
   }
 
   /* ----- home screen ----- */
-  w.backgroundColor = BG; w.setPadding(12, 12, 12, 12);
+  w.backgroundColor = BG; w.setPadding(14, 14, 14, 14);
   { const g = new LinearGradient(); g.colors = [new Color('#15111f'), new Color('#0b0914')]; g.locations = [0, 1]; w.backgroundGradient = g; }
   const n = fam === 'small' ? 4 : fam === 'medium' ? 5 : 13;
 
@@ -444,18 +447,19 @@ async function build() {
     if (hl(j).list.length) { const x = hl(j).list[0]; it(w, 'warn', hcol(x.lv), x.t.replace(/^[^\w"]+/, ''), 10, hcol(x.lv)); }
     return w;
   }
-  w.setPadding(10, 10, 10, 10);
+  w.setPadding(11, 10, 11, 10);
+  const foot = () => { const f = w.addStack(); f.layoutVertically(); f.setPadding(0, EDGE, 0, EDGE); return f; };
   if (fam === 'medium') {   /* every room as a small colour box: name, status, TV / PS4 */
-    header(w, j, 11); w.addSpacer(5);
-    boxGrid(w, open, open.length > 4 ? 36 : 54, false);
-    w.addSpacer(); if (hl(j).list.length) warnLine(w, j, 9.5);
+    header(w, j, 11); w.addSpacer(4);
+    boxGrid(w, open, open.length > 4 ? 32 : 50, false);
+    w.addSpacer(); if (hl(j).list.length) warnLine(foot(), j, 9.5);
     return w;
   }
   header(w, j, 12); w.addSpacer(6);
   /* large: the rows share what's left after the header and the warning line */
   const nW = Math.min(2, Math.max(1, hl(j).list.length)), footH = 15 * nW + (j.money ? 16 : 0);
-  boxGrid(w, open, widgetH() - 20 - 24 - footH - 6 * (Math.ceil(open.length / 2) - 1), true);
-  w.addSpacer(); if (j.money) moneyLine(w, j, 10); warnLine(w, j, 10.5, 2);
+  boxGrid(w, open, widgetH() - 22 - 24 - footH - 6 * (Math.ceil(open.length / 2) - 1), true);
+  w.addSpacer(); { const f = foot(); if (j.money) moneyLine(f, j, 10); warnLine(f, j, 10.5, 2); }
   return w;
 }
 
