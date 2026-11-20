@@ -7,6 +7,10 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 5.00 (20 Nov 7:25pm, after 4.00 crashed Kaeden's menu on load at 7:10pm): round2_padprobe1 (read-only, 7:23pm) showed m_padInfo
+//   IS a List<PadInfo> of objects (_items PadInfo[32], _size 24) – shell3's read failed only because it refused more than 8 entries.
+//   5.00 drops the 5 Mono imports 4.00 added (never used inside the menu before – the likely crash), reads up to 32 entries with
+//   proven functions only, and keeps 4.00's self-test-on-request + shell.alive. Rule: only Mono functions proven by an earlier run.
 // 4.00 (owner 20 Nov 3:16pm, after the Kaeden restart): (1) the button read: 3.00 read "can't read" (0xffffffff) at 8:09am
 //   although the pad fields were found (pads 1/1/1) - so m_padInfo is not the List<> 3.00 assumed. 4.00 writes ONE description of it
 //   (type, array or list, element type, struct or object, size, PadInfo's own fields) and reads arrays and lists, of objects or
@@ -37,12 +41,12 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#define R2SH_VER "4.00"
-#define R2SH_NAME "round2_shell4"
+#define R2SH_VER "5.00"
+#define R2SH_NAME "round2_shell5"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000400;
+attr_public u32 g_pluginVersion = 0x00000500;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -63,13 +67,6 @@ extern uintptr_t mono_array_length(void *);
 extern void *mono_object_to_string(void *, void **);
 extern char *mono_string_to_utf8(void *);
 extern const char *mono_class_get_name(void *);
-extern int mono_class_get_rank(void *);
-extern void *mono_class_get_element_class(void *);
-extern int mono_class_is_valuetype(void *);
-extern int mono_array_element_size(void *);
-extern unsigned int mono_field_get_offset(void *);
-extern void *mono_class_get_fields(void *, void **);
-extern const char *mono_field_get_name(void *);
 
 #define DIR_U "/user/data/round2"
 static char g_log[96];
@@ -112,39 +109,25 @@ static int resolve(void) {
 }
 extern void *mono_object_unbox(void *);
 static int suspended(void) { void *r = 0; if (inv("is-suspended", mIsSusp, 0, 0, &r) || !r) return -1; return *(unsigned char *)mono_object_unbox(r) ? 1 : 0; }
-/* 4.00: buttons held on any connected controller (OR of all). 0 = none held or no controller; -1 = can't read (why -> g_padwhy).
-   m_padInfo may be an array or a List<>, of objects or of structs - handled. */
+/* 5.00: buttons held on any controller (OR of all). m_padInfo = List<PadInfo> (objects), seen with 24 entries (padprobe1, 20 Nov
+   7:23pm) – read up to 32. 0 = none held / no controller; -1 = can't read (why -> g_padwhy). Proven Mono functions only. */
 static char g_padwhy[200];
 static int g_paddesc = 0;
-static int pad_at(void *arr, int i, int vt, int esz, unsigned int off) {   /* buttons of element i */
-  int b = 0;
-  if (vt) { if (esz <= 0 || off < 16) return 0; char *e = mono_array_addr_with_size(arr, esz, i); if (e) memcpy(&b, e + (off - 16), sizeof b); }   /* struct: field offsets count the 16-byte object header */
-  else { void *p = *(void **)mono_array_addr_with_size(arr, sizeof(void *), i); if (p) mono_field_get_value(p, fButtons, &b); }
-  return b;
-}
 static int held_buttons(void) {
   if (!mPadInst || !fPadInfo || !fButtons) { snprintf(g_padwhy, sizeof g_padwhy, "pad functions not found"); return -1; }
   void *pmi = 0; g_quiet_calls = 1; int bad = inv("pads", mPadInst, 0, 0, &pmi); g_quiet_calls = 0;
   if (bad || !pmi) { snprintf(g_padwhy, sizeof g_padwhy, "PadManager.Instance gave nothing"); return -1; }
   void *v = 0; mono_field_get_value(pmi, fPadInfo, &v); if (!v) { snprintf(g_padwhy, sizeof g_padwhy, "m_padInfo is empty (null)"); return -1; }
-  void *vc = mono_object_get_class(v); const char *vn = vc ? mono_class_get_name(vc) : "?";
-  void *arr = 0, *ac = 0; int n = 0;
-  if (vc && mono_class_get_rank(vc) > 0) { arr = v; ac = vc; n = (int)mono_array_length(arr); }
-  else { void *fi = vc ? mono_class_get_field_from_name(vc, "_items") : 0, *fs = vc ? mono_class_get_field_from_name(vc, "_size") : 0;
-    if (!fi || !fs) { snprintf(g_padwhy, sizeof g_padwhy, "m_padInfo is a %.60s - not an array or list", vn ? vn : "?"); return -1; }
-    mono_field_get_value(v, fi, &arr); mono_field_get_value(v, fs, &n); if (arr) { ac = mono_object_get_class(arr); if (n > (int)mono_array_length(arr)) n = (int)mono_array_length(arr); } }
-  if (!arr || !ac) return 0;   /* an empty list = no controller */
-  if (n < 0 || n > 16) { snprintf(g_padwhy, sizeof g_padwhy, "m_padInfo (%.40s) says %d entries", vn ? vn : "?", n); return -1; }
-  void *ec = mono_class_get_element_class(ac); int vt = ec ? mono_class_is_valuetype(ec) : 0, esz = mono_array_element_size(ac); unsigned int off = mono_field_get_offset(fButtons);
-  int all = 0, each[16] = { 0 };
-  for (int i = 0; i < n; i++) { each[i] = pad_at(arr, i, vt, esz, off); all |= each[i]; }
-  if (!g_paddesc) {   /* once per menu start: what the pad list really is (owner 20 Nov: log everything) */
-    g_paddesc = 1; char e[120] = ""; for (int i = 0; i < n && i < 8; i++) { size_t l = strlen(e); snprintf(e + l, sizeof e - l, "%s0x%x", i ? " " : "", each[i]); }
-    lg("pad list: %s, %s of %s (%s, %d bytes each), %d entries, buttons field at %u: %s", vn ? vn : "?", mono_class_get_rank(vc) > 0 ? "array" : "list",
-       ec ? mono_class_get_name(ec) : "?", vt ? "struct" : "object", esz, n, off, e[0] ? e : "-");
-    if (ec) { char f[300] = ""; void *it = 0, *fl; int k = 0; while ((fl = mono_class_get_fields(ec, &it)) && k < 24) { size_t l = strlen(f); const char *fn = mono_field_get_name(fl); snprintf(f + l, sizeof f - l, "%s%s@%u", k++ ? " " : "", fn ? fn : "?", mono_field_get_offset(fl)); }
-      lg("PadInfo fields: %s", f); }
-  }
+  void *vc = mono_object_get_class(v), *fi = vc ? mono_class_get_field_from_name(vc, "_items") : 0, *fs = vc ? mono_class_get_field_from_name(vc, "_size") : 0;
+  if (!fi || !fs) { snprintf(g_padwhy, sizeof g_padwhy, "m_padInfo has no _items/_size"); return -1; }
+  void *arr = 0; int n = 0; mono_field_get_value(v, fi, &arr); mono_field_get_value(v, fs, &n);
+  if (!arr) return 0;
+  int len = (int)mono_array_length(arr); if (n > len) n = len;
+  if (n < 0 || n > 32) { snprintf(g_padwhy, sizeof g_padwhy, "m_padInfo says %d entries", n); return -1; }
+  int all = 0, set = 0; char e[200] = "";
+  for (int i = 0; i < n; i++) { void *p = *(void **)mono_array_addr_with_size(arr, sizeof(void *), i); int b = 0; if (p) { mono_field_get_value(p, fButtons, &b); set++; }
+    all |= b; if (b && strlen(e) < 150) { size_t l = strlen(e); snprintf(e + l, sizeof e - l, " #%d=0x%x", i, b); } }
+  if (!g_paddesc) { g_paddesc = 1; lg("pad list: %d entries (%d filled), buttons held now:%s", n, set, e[0] ? e : " none"); }
   return all;
 }
 #define COMBO (0x1000 | 0x2000 | 0x4000 | 0x8000)   /* L2 + R2 + L3 + R3 */

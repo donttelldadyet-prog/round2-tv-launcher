@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.115"
+#define R2_VERSION "1.1.117"   /* 1.1.117: round2_shell5 (4.00 crashed the menu) + no retry after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2705,7 +2705,7 @@ static void look_shmod(const char *key, const char *spec) {
      so a helper update doesn't load it twice (a module path loads only once per menu start anyway);
    - at most 3 tries per helper run, 10 min apart; every try and result goes to save.log (owner: log everything).
    The add-on's own self-test (60 s lock, then log-out) only runs on "/_shtest" - never at start-up. */
-#define SHELL_ADDON "round2_shell4"
+#define SHELL_ADDON "round2_shell5"
 static int shell_tries = 0; static time_t shell_last_try = 0;
 static int shell_alive(void) {
   char g[24] = ""; FILE *f = fopen("/data/round2/shell.gen", "r"); if (f) { if (!fgets(g, sizeof g, f)) g[0] = 0; fclose(f); }
@@ -2729,7 +2729,8 @@ static void shell_auto(const char *key) {
   if (wake_at && time(0) - wake_at < 300) return;
   if (sv_game_open()) return;
   shell_tries++; shell_last_try = time(0); char res[220]; int r = shell_load(key, res, sizeof res);
-  sv_log("menu add-on %s auto-load (try %d of 3): %s", SHELL_ADDON, shell_tries, res); if (!r) shell_tries = 3;
+  sv_log("menu add-on %s auto-load (try %d): %s%s", SHELL_ADDON, shell_tries, res, r ? " - NOT tried again until the helper restarts (a failed load can mean a menu crash)" : "");
+  shell_tries = 3; /* 1.1.117 (Kaeden 7:10pm crash): one try per helper run, whatever happened */
 }
 /* 1.1.114: "/_shtest" = the add-on's 60-s self-test with the owner at the PS4 (picker paused + PS button locked, every button change
    logged, L2+R2+L3+R3 held 1 s unlocks, then everyone logged out), then its log goes to R2 lib/probe/<add-on>-<console>.txt.
