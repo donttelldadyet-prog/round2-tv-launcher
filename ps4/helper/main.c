@@ -4887,8 +4887,8 @@ int main(void) {
         if (strcmp(rt3, lastfg)) { snprintf(lastfg, sizeof lastfg, "%s", rt3); put_file("/data/round2/fg.txt", rt3); }
         if (g_after_load && (strcmp(rt3, "RTWO00001") || time(0) - g_after_load > 40)) {
           int game = rt3[0] && strcmp(rt3, "RTWO00001") && strcmp(rt3, VUE_ID);
-          if (game) sv_log("after the member load: a game is open (%s) - no pop-up, the add-on leaves everyone signed in", rt3);
-          else { notify("Saves loaded! Press the PS button and pick your profile."); sv_log("after the member load: tile %s - pop-up shown", strcmp(rt3, "RTWO00001") ? "closed / not open" : "still open after 40 s"); }
+          notify("Saves loaded! Press the PS button and pick your profile.");   /* owner 8:20pm: also when a game was opened – the add-on closes it */
+          sv_log("after the member load: %s%s - pop-up shown", game ? "a game was opened, it closes with the log-out: " : strcmp(rt3, "RTWO00001") ? "tile closed / not open" : "tile still open after 40 s", game ? rt3 : "");
           g_after_load = 0; } }
       if (t % 3 == 2 && key[0]) { char rt2[32]; running_title(rt2, sizeof rt2); /* 1.1.95 (owner: 20-30 s from "Load" to the PS4 starting): while the */
         if (!strcmp(rt2, "RTWO00001") && check_cmd(key)) { report(key, status, sizeof status); write_status(status); } } /* Round2 tile is open, look for jobs every 6 s */

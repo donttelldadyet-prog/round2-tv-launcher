@@ -9,8 +9,9 @@
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
 // 7.00 (owner 20 Nov 8:05pm): log out "immediately after close of ps4 tile", and never while a game is open. After a load the
 //   add-on waits (max 40 s) until the helper's /data/round2/fg.txt (what's in front: "" / RTWO00001 / a game) no longer says the
-//   tile, waits 2 s for the helper's pop-up ("press the PS button and pick your profile"), then logs everyone out – unless a game
-//   is open, then it leaves everyone signed in (the game would close without saving). Tile 0.08 closes itself after "Ready".
+//   tile, waits 2 s for the helper's pop-up ("press the PS button and pick your profile"), then logs everyone out – ALSO if a game
+//   was opened in those seconds (owner 8:20pm: "just close" – saves never load while a game is open, so nothing clashes; the game
+//   closes, the guest picks their own profile and opens it again with the loaded saves). Tile 0.08 closes itself after "Ready".
 // 6.00 (20 Nov 7:35pm): self-test #2 showed m_curGeneralButtons IS live (d-pad 0x1/0x2/0x4/0x8, square 0x10) but it is PSM's
 //   simplified list – no L2/R2/L3/R3, so the combo could never match. 6.00 also reads each slot's m_curButtons (Orbis SystemButtons,
 //   the raw reading) and logs "gen 0x.. sys 0x.." on every change in the self-test, to learn the raw numbers of L2/R2/L3/R3.
@@ -209,8 +210,8 @@ static void *shell_thread(void *a) {
       while (!strcmp(fg, "RTWO00001") && time(0) - t0 < 40) { usleep(300000); rd_(DIR_U "/fg.txt", fg, sizeof fg); }   /* 7.00: until the tile closes */
       lg("after the load: tile %s (%ld s)", !tile ? "wasn't open" : !strcmp(fg, "RTWO00001") ? "still open after 40 s" : "closed", (long)(time(0) - t0));
       sleep(2); rd_(DIR_U "/fg.txt", fg, sizeof fg);   /* the helper's pop-up first */
-      if (fg[0] && strcmp(fg, "RTWO00001") && strcmp(fg, "CUSA00960")) lg("a game is open (%s) - NOT logging out (it would close without saving)", fg);
-      else log_all_out("member load finished"); }
+      if (fg[0] && strcmp(fg, "RTWO00001") && strcmp(fg, "CUSA00960")) lg("a game was opened before the log-out (%s) - it closes now (owner: just close)", fg);
+      log_all_out("member load finished"); }
     was = l; usleep(l ? 100000 : 1000000);
   }
   lock_off("a newer add-on took over"); lg("stopped - a newer add-on is running");
