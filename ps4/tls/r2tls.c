@@ -108,6 +108,9 @@ static int r2_connect(mbedtls_net_context *net, const char *host, const char *po
 /* 1.1.112 (owner 20 Nov 7:06am: "does the helper get busy … and get stuck hence unable to respond … or reach the engine?" – yes, it
    is one loop): quiet = a request from the separate check-in thread while the loop is busy. It must not touch what the loop's
    own request uses: the step label (watchdog + slow.log), the socket the watchdog may cut, the remembered TLS session, timings. */
+/* 1.1.120 (20 Nov 8:30pm, tile 0.08 stuck at 4,193,7xx of 6,619,136 bytes on Kaeden: the reply buffer doubles 4 MB -> 8 MB and
+   that realloc failed, so the rest was counted but not kept): a download can go straight to a file instead (r2tls_fetch_file). */
+static FILE *g_sink; static size_t g_sink_n; static int g_sink_chunked;
 static int tls_go(const char *host, const char *method, const char *path, const char *headers, const char *body,
                   size_t blen, char **rbuf, size_t *rlen, size_t max, char *err, size_t errlen, int quiet) {
   int ret, status = -1, offered = 0, hs_ok = 0;
@@ -199,7 +202,22 @@ static int tls_go(const char *host, const char *method, const char *path, const 
     r2tls_last_bytes = 0;
     if (!quiet) r2_where("read", 1);
     double lastp = r2_mono();
+    int hdr_done = 0;
     for (;;) {
+      if (g_sink) {   /* 1.1.120: headers into resp, the body straight into the file */
+        ret = hdr_done ? mbedtls_ssl_read(&ssl, scratch, sizeof scratch) : (resp && got < cap ? mbedtls_ssl_read(&ssl, (unsigned char *)resp + got, cap - got) : -1);
+        if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+          if (r2_mono() - lastp > R2_STALL_S) { if (err && errlen) snprintf(err, errlen, "no data for %d s", R2_STALL_S); break; }
+          usleep(20000); continue; }
+        if (ret <= 0) break;
+        lastp = r2_mono(); r2tls_last_bytes += ret;
+        if (hdr_done) { if (fwrite(scratch, 1, ret, g_sink) != (size_t)ret) break; g_sink_n += ret; continue; }
+        got += ret; resp[got] = 0;
+        char *e = strstr(resp, "\r\n\r\n");
+        if (e) { size_t h = e + 4 - resp, extra = got - h; if (strstr(resp, "chunked") && strstr(resp, "chunked") < e) g_sink_chunked = 1;
+          if (extra && fwrite(resp + h, 1, extra, g_sink) != extra) break; g_sink_n += extra; got = h; resp[got] = 0; hdr_done = 1; }
+        continue;
+      }
       if (resp && got == cap && cap < max) { size_t nc = cap * 2 > max ? max : cap * 2; char *x = realloc(resp, nc + 1); if (x) { resp = x; cap = nc; } }
       int room = resp && got < cap;
       ret = room ? mbedtls_ssl_read(&ssl, (unsigned char *)resp + got, cap - got)
@@ -279,6 +297,16 @@ static int hdr_has(const char *h, size_t hl, const char *name, const char *val) 
   return 0;
 }
 
+/* 1.1.120: download the reply body straight into the file f (no size limit, no big memory). Returns the HTTP status; *len = body
+   bytes written. Chunked replies are refused (-2) - the engine sends sizes for files. */
+int r2tls_fetch_file(const char *host, const char *method, const char *path, const char *headers, const char *body, size_t blen,
+                     FILE *f, size_t *len, char *err, size_t errlen) {
+  char *r = 0; size_t n = 0; g_sink = f; g_sink_n = 0; g_sink_chunked = 0;
+  int st = tls_go(host, method, path, headers, body, blen, &r, &n, 65536, err, errlen, 0);
+  g_sink = 0; free(r); *len = g_sink_n;
+  if (g_sink_chunked) { if (err) snprintf(err, errlen, "chunked reply - not supported for a file"); return -2; }
+  return st;
+}
 /* binary download (e.g. a new helper): *data = malloc'd body (chunked replies decoded), *len its size. Caller frees. */
 int r2tls_fetch(const char *host, const char *method, const char *path, const char *headers, const char *body, size_t blen,
                 unsigned char **data, size_t *len, size_t max, char *err, size_t errlen) {

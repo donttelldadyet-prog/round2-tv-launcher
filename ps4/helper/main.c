@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.119"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes */
+#define R2_VERSION "1.1.120"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -4757,14 +4757,20 @@ static int tile_check(const char *key, int force) {
   bpop_key("tile", "Round2 tile %s: downloading...", v);
   int n = snprintf(err, sizeof err, "{\"id\":\"%s\",\"v\":\"%s\"}", console_id, v);
   char body[160]; snprintf(body, sizeof body, "%.*s", n, err);
-  st = r2tls_fetch(ENGINE_HOST, "POST", "/ps4/tilepkg", hdr, body, strlen(body), &d, &len, 32 * 1024 * 1024, err, sizeof err);
-  unsigned char h[32]; char hx[65];
-  if (st != 200 || !d) snprintf(why, sizeof why, "download failed (%d %s)", st, err);
-  else if (len != (size_t)atoi_safe(sz)) snprintf(why, sizeof why, "download size %zu, expected %s", len, sz);
-  else { mbedtls_sha256(d, len, h, 0); for (int i = 0; i < 32; i++) sprintf(hx + i * 2, "%02x", h[i]); if (strcasecmp(hx, sha)) snprintf(why, sizeof why, "file check failed (SHA-256)"); }
-  if (!why[0]) { mkdir("/data/pkg", 0777); FILE *f = fopen(TILE_PKG ".tmp", "wb"); if (!f || fwrite(d, 1, len, f) != len) snprintf(why, sizeof why, "couldn't save it"); if (f) { fflush(f); fsync(fileno(f)); fclose(f); }
-    if (!why[0] && rename(TILE_PKG ".tmp", TILE_PKG)) snprintf(why, sizeof why, "couldn't save it (rename)"); }
-  free(d);
+  mkdir("/data/pkg", 0777);
+  { /* 1.1.120: straight into the file (the 4 MB memory buffer couldn't hold tile 0.08), then size + SHA-256 from the file */
+    FILE *f = fopen(TILE_PKG ".tmp", "wb"); size_t got = 0;
+    if (!f) snprintf(why, sizeof why, "couldn't save it");
+    else { st = r2tls_fetch_file(ENGINE_HOST, "POST", "/ps4/tilepkg", hdr, body, strlen(body), f, &got, err, sizeof err); fflush(f); fsync(fileno(f)); fclose(f);
+      if (st != 200) snprintf(why, sizeof why, "download failed (%d %s)", st, err);
+      else if (got != (size_t)atoi_safe(sz)) snprintf(why, sizeof why, "download size %zu, expected %s", got, sz);
+      else { unsigned char h[32]; char hx[65]; mbedtls_sha256_context c; mbedtls_sha256_init(&c); mbedtls_sha256_starts(&c, 0);
+        FILE *g = fopen(TILE_PKG ".tmp", "rb"); static unsigned char buf[65536]; size_t k;
+        if (g) { while ((k = fread(buf, 1, sizeof buf, g)) > 0) mbedtls_sha256_update(&c, buf, k); fclose(g); }
+        mbedtls_sha256_finish(&c, h); mbedtls_sha256_free(&c);
+        for (int i = 0; i < 32; i++) sprintf(hx + i * 2, "%02x", h[i]);
+        if (!g || strcasecmp(hx, sha)) snprintf(why, sizeof why, "file check failed (SHA-256)"); }
+      if (!why[0] && rename(TILE_PKG ".tmp", TILE_PKG)) snprintf(why, sizeof why, "couldn't save it (rename)"); } }
   if (why[0]) { unlink(TILE_PKG ".tmp"); sv_log("tile %s: %s", v, why); bpop_key("tile", "Round2 tile %s not updated: %s", v, why); if (force) look_kv("tile/error", why); return 0; }
   int r = tile_install(why, sizeof why);
   sv_log("tile %s (had '%s'): %s", v, have, why);

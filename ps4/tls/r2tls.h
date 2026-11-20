@@ -1,3 +1,4 @@
+#include <stdio.h>
 #pragma once
 #include <stddef.h>
 /* HTTPS request over TLS 1.2 with certificate checking. Returns the HTTP status (e.g. 200) or -1 (see err).
@@ -5,6 +6,8 @@
 int r2tls_request(const char *host, const char *method, const char *path, const char *headers, const char *body,
                   size_t blen, char *out, size_t outlen, char *err, size_t errlen);
 /* Binary download: *data = malloc'd body (chunked replies decoded), *len = its size, at most max bytes. Caller frees. */
+int r2tls_fetch_file(const char *host, const char *method, const char *path, const char *headers, const char *body, size_t blen,
+                     FILE *f, size_t *len, char *err, size_t errlen); /* 1.1.120: body straight into a file */
 int r2tls_fetch(const char *host, const char *method, const char *path, const char *headers, const char *body, size_t blen,
                 unsigned char **data, size_t *len, size_t max, char *err, size_t errlen);
 /* 1.1.112: same as r2tls_request, for the separate check-in thread (leaves the loop's step label / watchdog socket / session alone) */
