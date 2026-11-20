@@ -5036,6 +5036,11 @@ static int bg_load(char *why, size_t wn) {
 #define PKGJOB "/data/round2/pkg-job"   /* "<jid> <task> <cat> <cid> <start> <MB>" while a download runs */
 static long long pkg_tick_at;
 static void look_pkgprep(void);
+static void pkg_undo_login(const char *why) {   /* 1.1.134 (owner 23:11: "the login is stuck … did u forget the release"): a job that
+     fails after WE signed the main profile in logs it out again – a background sign-in left alone blocks the profile picker */
+  if (!g_pkg_login && !file_exists("/data/round2/pkg-login")) return;
+  int m0 = look_mute; look_mute = 1; look_pkgdone(); look_mute = m0; sv_log("pkg: main profile signed out again (%s)", why);
+}
 static void look_pkgjob(const char *spec) {
   char jid[24] = "", ip[20] = "", code[48] = "", fid[24] = "", cat[4] = "", cid[40] = "", v[300]; int port = 0, mb = 0; long long sz = 0;
   if (sscanf(spec, "/_pkgjob.%23[A-Za-z0-9].%19[0-9-].%d.%47[a-z0-9].%23[a-z0-9].%3[a-z].%39[A-Za-z0-9_-].%lld", jid, ip, &port, code, fid, cat, cid, &sz) < 7 || port <= 0 || port > 65535) { look_kv("pkgjob/error", "bad spec"); return; }
@@ -5044,7 +5049,7 @@ static void look_pkgjob(const char *spec) {
   if (file_exists(PKGJOB)) { look_kv("pkgjob/refused", "- another download is still running"); return; }
   look_mute = 1; look_last[0] = 0; look_pkgprep(); look_mute = 0;
   if (strncmp(look_last, "pkgprep/ready", 13)) { snprintf(v, sizeof v, "- not safe now: %s", look_last); look_kv("pkgjob/refused", v); sv_log("pkg job %s refused: %s", jid, look_last); return; }
-  char why[160] = ""; if (bg_load(why, sizeof why)) { look_kv("pkgjob/error", why); return; }
+  char why[160] = ""; if (bg_load(why, sizeof why)) { pkg_undo_login("installer not reachable"); look_kv("pkgjob/error", why); return; }
   UserIdList l; memset(&l, 0xff, sizeof l); sceUserServiceGetLoginUserIdList(&l); int32_t uid = (int32_t)r2_main_user();
   if (!user_signed_in((uint32_t)uid)) for (int i = 0; i < 4; i++) if (l.userId[i] != -1 && l.userId[i]) { uid = l.userId[i]; break; }
   char url[220]; snprintf(url, sizeof url, "http://%s:%d/f/%s/%s/x.pkg", ip, port, code, fid);
@@ -5060,9 +5065,9 @@ static void look_pkgjob(const char *spec) {
     if (r && bg_regdbg) { task = -1; r = tries[3] = bg_regdbg(&p2, &task); way = 4; } }
   sv_log("pkg job %s %s %s: register tries 0x%08x 0x%08x 0x%08x 0x%08x -> %s (way %d, user %08x, %lld bytes, %s)", jid, cat, cid, (unsigned)tries[0], (unsigned)tries[1], (unsigned)tries[2], (unsigned)tries[3], r ? "REFUSED" : "ok", way, (unsigned)uid, sz, url);
   if (r) { snprintf(v, sizeof v, "installer refused: 0x%08x / 0x%08x / 0x%08x / 0x%08x", (unsigned)tries[0], (unsigned)tries[1], (unsigned)tries[2], (unsigned)tries[3]);
-    look_kv("pkgjob/error", v); return; }
+    pkg_undo_login("installer refused"); look_kv("pkgjob/error", v); return; }
   r = bg_start(task);
-  if (r) { snprintf(v, sizeof v, "download start 0x%08x (task %d)", (unsigned)r, task); sv_log("pkg job %s: %s", jid, v); look_kv("pkgjob/error", v); return; }
+  if (r) { snprintf(v, sizeof v, "download start 0x%08x (task %d)", (unsigned)r, task); sv_log("pkg job %s: %s", jid, v); pkg_undo_login("download didn't start"); look_kv("pkgjob/error", v); return; }
   char jl[200]; snprintf(jl, sizeof jl, "%s %d %s %s %lld %d\n", jid, task, cat, cid, (long long)time(0), mb); put_file(PKGJOB, jl);
   snprintf(v, sizeof v, "download started: task %d, %s %s, %d MB from %s:%d (user %08x)", task, cat, cid, mb, ip, port, (unsigned)uid);
   snprintf(pkg_last, sizeof pkg_last, "%s started", jid); pkg_tick_at = 0;
