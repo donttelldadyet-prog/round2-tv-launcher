@@ -51,6 +51,14 @@ function frameImg(room, w, h, strong) {
   ctx.fillRect(new Rect(0, 0, L, T)); ctx.fillRect(new Rect(0, 0, T, L)); ctx.fillRect(new Rect(W - L, H - T, L, T)); ctx.fillRect(new Rect(W - T, H - L, T, L));
   return ctx.getImage();
 }
+/* the Round2 logo – [ROUND ▷ II] in its brackets (owner 20 Nov: "ROUND2 in yellow should be our actual logo"), from the
+   website's round2-logo.png, already yellow; 298×76 */
+const LOGO = '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';
+let LOGO_IMG = null;
+function logo(st, h, color) {
+  try { LOGO_IMG = LOGO_IMG || Image.fromData(Data.fromBase64String(LOGO)); } catch (e) { return plabel(st, 'ROUND2', ACC, h * 0.8); }
+  const i = st.addImage(LOGO_IMG); i.imageSize = new Size(h * 298 / 76, h); if (color) i.tintColor = color; return i;
+}
 const RICON = { Vale: 'cat', Kaeden: 'leaf', Scarlett: 'saturn', Kai: 'mount', Bella: 'book', Atlas: 'boat', Max: 'car' };
 const PIXC = {};
 function pixImg(name, color) {
@@ -124,7 +132,7 @@ function over(j) { return !!(j.tomorrow && j.tomorrow.over); }
 /* ---------- pieces ---------- */
 function header(w, j, sz, label) {
   const h = line(w); h.spacing = 5;
-  plabel(h, 'ROUND2', ACC, sz * 0.75);
+  logo(h, sz * 1.3);
   const c = j.counts || {}; plabel(h, label || (c.in + ' IN · ' + c.left + ' TO COME'), INK, sz * 0.62);
   segBar(h, ACC, fam === 'small' ? 14 : 40, sz * 0.55); h.addSpacer();
   dot(h, hcol(hl(j).lv), sz * 0.7);
@@ -172,11 +180,22 @@ function mix(hex, a) {   /* the room colour at a% over the dark background */
 }
 function widgetH() { const sw = Device.screenSize().width; return sw <= 360 ? 311 : sw <= 375 ? 345 : sw <= 393 ? 354 : sw <= 402 ? 366 : 382; }
 function widgetW() { const sw = Device.screenSize().width; return sw <= 360 ? 292 : sw <= 375 ? 329 : sw <= 393 ? 338 : sw <= 402 ? 345 : 364; }
+/* how long this guest has left (owner 20 Nov: "how many mins to go for this guest") – a live countdown iPhone ticks itself,
+   so it stays right between widget refreshes. Orange in the last 15 minutes. */
+function leftLine(parent, r, sz, extra) {
+  const l = line(parent); l.spacing = 3; const soon = r.till - Date.now() < 15 * 60e3;
+  ico(l, 'clock', soon ? WARN : OK, sz * 0.95);
+  const d = l.addDate(new Date(r.till)); d.applyTimerStyle(); d.font = fnt(sz, 'time'); d.textColor = soon ? WARN : OK; d.lineLimit = 1;
+  txt(l, extra ? 'left · ' + extra : 'left', sz, extra ? INK : MUTE, extra ? '' : undefined); l.addSpacer(); return l;
+}
 function tvTone(r) { return r.tv && (r.tv.quiet || (r.tv.off && r.st === 'in')) ? WARN : INK; }
 function box(parent, r, w, h, wide) {
   const s = stateOf(r), b = parent.addStack(); b.layoutVertically(); b.size = new Size(w, h); b.setPadding(5, 7, 5, 6); b.spacing = 1;
   b.backgroundImage = frameImg(r.r, w, h, r.st === 'in');
-  const top = line(b); top.spacing = 4; ico(top, RICON[r.r], rc(r.r), wide ? 13 : 11); txt(top, r.r, wide ? 13.5 : 11.5, rc(r.r), 'room'); top.addSpacer(); txt(top, s.short.replace(/^till /, '→ '), wide ? 11.5 : 10, r.st === 'in' ? INK : MUTE, 'time');
+  const top = line(b); top.spacing = 4; ico(top, RICON[r.r], rc(r.r), wide ? 13 : 11); txt(top, r.r, wide ? 13.5 : 11.5, rc(r.r), 'room'); top.addSpacer();
+  if (!wide && r.st === 'in' && r.till) {   /* medium: end time + the live minutes to go on the name line */
+    txt(top, clk(r.till), 9.5, MUTE, 'time'); const soon = r.till - Date.now() < 15 * 60e3, d = top.addDate(new Date(r.till)); d.applyTimerStyle(); d.font = fnt(10.5, 'time'); d.textColor = soon ? WARN : OK; d.lineLimit = 1;
+  } else txt(top, s.short.replace(/^till /, '→ '), wide ? 11.5 : 10, r.st === 'in' ? INK : MUTE, 'time');
   const tv = tvOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : '';
   if (!wide) {   /* medium: one more line – the game if the PS4 is on, else the TV, else the guest */
     if (ps) it(b, 'pad', INK, (names && s.who ? s.who + ' · ' : '') + ps, 9.5, INK);
@@ -185,6 +204,7 @@ function box(parent, r, w, h, wide) {
     b.addSpacer(); return;
   }
   if (names && s.who) it(b, 'user', MUTE, s.who, 10.5, INK, true);
+  if (r.st === 'in' && r.till) leftLine(b, r, 10.5);
   if (tv) it(b, 'tv', tvTone(r) === WARN ? WARN : MUTE, tv, 10, tvTone(r));
   if (ps) it(b, 'pad', MUTE, ps, 10, INK);
   const m = (r.msgs || [])[0]; if (m) it(b, /birthday|anniv|congrat/i.test(m.ti || '') ? 'cake' : 'bell', MUTE, clk(m.at) + ' ' + msgName(m), 9.5, MUTE);
@@ -192,7 +212,7 @@ function box(parent, r, w, h, wide) {
   b.addSpacer();
 }
 /* how many detail lines a big box will show – rows of busy rooms get the room, rows of two free rooms stay short */
-function boxLines(r) { const s = stateOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : ''; return (names && s.who ? 1 : 0) + (tvOf(r) ? 1 : 0) + (ps ? 1 : 0) + ((r.msgs || []).length ? 1 : 0) + (nextLine(r) ? 1 : 0); }
+function boxLines(r) { const s = stateOf(r), ps = r.ps4 && r.ps4.on ? ps4Of(r) : ''; return (r.st === 'in' && r.till ? 1 : 0) + (names && s.who ? 1 : 0) + (tvOf(r) ? 1 : 0) + (ps ? 1 : 0) + ((r.msgs || []).length ? 1 : 0) + (nextLine(r) ? 1 : 0); }
 function boxGrid(w, L, h, wide) {
   const gap = 6, bw = Math.floor((widgetW() - 20 - gap) / 2), rows = [];
   for (let i = 0; i < L.length; i += 2) rows.push(L.slice(i, i + 2));
@@ -226,7 +246,7 @@ function timeRow(parent, at, room, what, sz) {
 async function build() {
   const j = await load(), w = new ListWidget();
   w.url = CC + '?tab=' + (view === 'tv' ? 'tvs' : view === 'msgs' ? 'tonight' : 'insession');
-  if (j.error) { if (!lock) w.backgroundColor = BG; txt(w, 'ROUND2', 13, ACC, 'head'); txt(w, j.error, 11, WARN).lineLimit = 3; return w; }
+  if (j.error) { if (!lock) w.backgroundColor = BG; { const l = line(w); logo(l, 14, lock ? INK : null); l.addSpacer(); } txt(w, j.error, 11, WARN).lineLimit = 3; return w; }
   w.refreshAfterDate = refreshAt(j);
   const c = j.counts || {}, rooms = (j.rooms || []).filter((r) => !only || r.r.toLowerCase() === only), open = rooms.filter((r) => r.st !== 'closed');
   const one = only && rooms[0], msgs = allMsgs(j).filter((m) => !only || m.r.toLowerCase() === only), ev = (j.events || []).filter((e) => !only || e.r.toLowerCase() === only);
@@ -309,7 +329,7 @@ async function build() {
   if (one) {   /* one room in detail, in its colour */
     w.backgroundColor = mix(one.r, one.st === 'in' ? 0.3 : 0.14);
     const s = stateOf(one), h = line(w); ico(h, RICON[one.r], rc(one.r), big ? 20 : 16); txt(h, one.r, big ? 20 : 16, rc(one.r), 'room'); h.addSpacer(); txt(h, clk(j.now), 10, MUTE, 'time');
-    w.addSpacer(4); txt(w, s.big, big ? 16 : 13.5, s.c === MUTE ? INK : s.c, 'time'); if (names && s.who) it(w, 'user', MUTE, s.who, 11, INK, true);
+    w.addSpacer(4); txt(w, s.big, big ? 16 : 13.5, s.c === MUTE ? INK : s.c, 'time'); if (one.st === 'in' && one.till) leftLine(w, one, big ? 14 : 12); if (names && s.who) it(w, 'user', MUTE, s.who, 11, INK, true);
     if (fam !== 'small' || one.st === 'in') { if (tvOf(one)) it(w, 'tv', MUTE, tvOf(one) + (one.tv && one.tv.at && !one.tv.off && fam !== 'small' ? ' · since ' + clk(one.tv.at) : ''), 11, tvTone(one)); if (ps4Of(one)) it(w, 'pad', MUTE, ps4Of(one), 11, INK); }
     w.addSpacer();
     for (const m of (one.msgs || []).slice(0, fam === 'small' ? 1 : 3)) it(w, /birthday|anniv|congrat/i.test(m.ti || '') ? 'cake' : 'bell', MUTE, clk(m.at) + ' ' + msgName(m), 10.5, MUTE);
@@ -370,7 +390,7 @@ async function build() {
 
   /* board (default) */
   if (fam === 'small') {   /* how busy, and the next two things that happen */
-    const hd = line(w); hd.spacing = 4; plabel(hd, 'ROUND2', ACC, 8); segBar(hd, ACC, 32, 6); hd.addSpacer(); dot(hd, hcol(hl(j).lv), 8); w.addSpacer(4);
+    const hd = line(w); hd.spacing = 4; logo(hd, 13); segBar(hd, ACC, 20, 6); hd.addSpacer(); dot(hd, hcol(hl(j).lv), 8); w.addSpacer(4);
     const bg = line(w); bg.bottomAlignContent(); txt(bg, String(c.in), 36, INK, 'big'); txt(bg, ' / ' + c.open + ' in', 13, MUTE, true);
     plabel(w, c.done + ' DONE · ' + c.left + ' TO COME', MUTE, 6); w.addSpacer();
     const e = j.nextEnd, s = j.nextStart;
