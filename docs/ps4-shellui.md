@@ -76,6 +76,10 @@ so names are read from the running menu with Mono reflection. Nothing is called 
 - 7:25pm **round2_shell5** auto-loaded by helper 1.1.117 – no crash, "24 entries (24 filled)". 7:27 self-test: lock, pause, unlock,
   log-out all ✅; m_curGeneralButtons read 0x0 the whole minute (owner asked whether he pressed).
 
+- **Button numbers (Kaeden 13.50, m_curGeneralButtons, 20 Nov 7:36pm):** L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000, L1 0x400,
+  R1 0x800, X 0x20080, O 0x10040, triangle 0x20, square 0x10, d-pad left 0x1 / up 0x2 / right 0x4 / down 0x8. Combo L2+R2+L3+R3
+  = 0xf000 (seen). m_curButtons stays 0 – not used. 24 slots in the list.
+
 ## Redo on another firmware (9.00 = Max, Kai, Atlas; 11.00 = Scarlett, Vale, Bella) – checklist
 1. Helper ≥ 1.1.110 on that PS4 (count the switches since its last restart).
 2. No game open, staff at the TV. `look /_ghver` → GoldHEN SDK present?
