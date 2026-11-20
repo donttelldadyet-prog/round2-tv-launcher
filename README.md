@@ -93,6 +93,14 @@ before the fix, so the cause is likely, not proven: an Accessibility helper that
 
 **Next time, before fixing:** `round2tv.ps1 diag` from the shop laptop (a restart or the off/on wipes part of the record).
 
+**20 Nov 2026, ~6pm – again, right after updating Kai to 1.0.287** (owner: "updating kai fucked up the remote again"). The TV's
+own check-in (`exits`): 17:58:54 `stop sg.round2.tvhome due to installPackageLI` for both `guard` (the Home-button helper) and
+`menu` – i.e. the update itself stopped the helper, and on this TCL it didn't come back healthy. Kai's message log: "That's a
+wrap!" at 6:00pm showed as the big banner at 6:00, 6:05, 6:10 and was never OK'd (cut-off 6:15) – fits a remote that wasn't
+getting through. Fix by hand as on 14 Nov (Accessibility › Round2 Home button off, then on). **Lesson: updating Kai = the helper
+needs that off/on afterwards** until one of the options below is chosen (option 3 – restart a helper that is ON but not
+running, e.g. right after an update via MY_PACKAGE_REPLACED – would cover this case).
+
 **Ways forward, none chosen:**
 1. *Helper stops listening to the remote on TCL* – watch for the TV's own home screen appearing and jump back to Round2
    (like `HomeWatch` on Atlas, but event-driven from the Accessibility helper). Remote goes straight to the menu, volume moves
