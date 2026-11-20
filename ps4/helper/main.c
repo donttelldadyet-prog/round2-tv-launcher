@@ -5092,7 +5092,10 @@ static void pkg_tick(const char *key) {   /* every ~10 s while a download runs: 
   snprintf(pkg_last, sizeof pkg_last, "%s %s %s: %.0f of %.0f MB (%.1f MB/s), %u s left, err 0x%08x, bits 0x%x, rc 0x%08x", jid, cat, cid, gotMB, allMB, el > 0 ? gotMB / el : 0.0, pr.restTotal, (unsigned)pr.err, pr.bits, (unsigned)r);
   { static long long said; if (time(0) - said >= 300) { said = time(0); sv_log("pkg progress: %s", pkg_last); } }
   int done = r == 0 && pr.lenTotal > 0 && pr.doneTotal >= pr.lenTotal, bad = r != 0 || pr.err != 0;
-  if (!done && !bad && el < 6 * 3600) return;
+  { static uint64_t lastDone; static long long movedAt; if (pr.doneTotal != lastDone || !movedAt) { lastDone = pr.doneTotal; movedAt = time(0); }
+    /* (next build, advisor 20 Nov 11:50pm: the old 6-hour cut-off would kill a 100 GB game at ~2 MB/s) – give up only when nothing has
+       moved for 45 min */
+    if (!done && !bad && time(0) - movedAt < 45 * 60) return; }
   sv_log("pkg job %s %s: %s", jid, done ? "FINISHED" : "STOPPED", pkg_last);
   { FILE *h = fopen("/data/round2/pkg-history.txt", "a"); if (h) { char ts[24]; cl_stamp(ts, sizeof ts, (long long)time(0)); fprintf(h, "%s %s %s\n", ts, done ? "OK" : "FAILED", pkg_last); fclose(h); } }
   snprintf(pkg_last, sizeof pkg_last, "%s %s %s %s in %lld min", jid, done ? "finished" : "FAILED", cat, cid, el / 60);
