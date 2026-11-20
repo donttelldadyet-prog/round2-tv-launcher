@@ -7,6 +7,7 @@
 //   Sce.Vsh.ShellUI.PadInternal.Locker(LockType lock, LockType uiMask) + DisposableObj.Dispose()          – PS/Share button lock
 //   Sce.Vsh.ShellUI.LoginMgrUtil.LogoutAll(LogoutMethodType)  (13 = LogoutFromPsImposeMenuV400, the PS menu's own Log Out)
 //   PadManager.Instance.m_padInfo[i].m_curGeneralButtons (GamePadButtons: L2 0x1000, R2 0x2000, L3 0x4000, R3 0x8000)
+// 8.00 (20 Nov 8:50pm): waits at most 20 s for the tile (was 40 – the 8:36pm test waited all 40 s for a tile that never closed).
 // 7.00 (owner 20 Nov 8:05pm): log out "immediately after close of ps4 tile", and never while a game is open. After a load the
 //   add-on waits (max 40 s) until the helper's /data/round2/fg.txt (what's in front: "" / RTWO00001 / a game) no longer says the
 //   tile, waits 2 s for the helper's pop-up ("press the PS button and pick your profile"), then logs everyone out – ALSO if a game
@@ -50,12 +51,12 @@
 #include <time.h>
 #include <sys/stat.h>
 
-#define R2SH_VER "7.00"
-#define R2SH_NAME "round2_shell7"
+#define R2SH_VER "8.00"
+#define R2SH_NAME "round2_shell8"
 attr_public const char *g_pluginName = R2SH_NAME;
 attr_public const char *g_pluginDesc = "Round2: profile picker pause, PS button lock, proper log-out";
 attr_public const char *g_pluginAuth = "Round2";
-attr_public u32 g_pluginVersion = 0x00000700;
+attr_public u32 g_pluginVersion = 0x00000800;
 
 extern void *mono_get_root_domain(void);
 extern void *mono_thread_attach(void *);
@@ -209,8 +210,8 @@ static void *shell_thread(void *a) {
                           after the log-out, so nobody can leave the tile for a game on the wrong profile; unlocked right after */
       lg("member load finished - PS button stays locked until everyone is logged out");
       char fg[40]; time_t t0 = time(0); rd_(DIR_U "/fg.txt", fg, sizeof fg); int tile = !strcmp(fg, "RTWO00001");
-      while (!strcmp(fg, "RTWO00001") && time(0) - t0 < 40) { usleep(300000); rd_(DIR_U "/fg.txt", fg, sizeof fg); if (g_lock && combo_held(&since)) lock_off("unlock combo"); }   /* until the tile closes */
-      lg("after the load: tile %s (%ld s)", !tile ? "wasn't open" : !strcmp(fg, "RTWO00001") ? "still open after 40 s" : "closed", (long)(time(0) - t0));
+      while (!strcmp(fg, "RTWO00001") && time(0) - t0 < 20) { usleep(300000); rd_(DIR_U "/fg.txt", fg, sizeof fg); if (g_lock && combo_held(&since)) lock_off("unlock combo"); }   /* until the tile closes */
+      lg("after the load: tile %s (%ld s)", !tile ? "wasn't open" : !strcmp(fg, "RTWO00001") ? "still open after 20 s" : "closed", (long)(time(0) - t0));
       sleep(2); rd_(DIR_U "/fg.txt", fg, sizeof fg);   /* the helper's pop-up first */
       if (fg[0] && strcmp(fg, "RTWO00001") && strcmp(fg, "CUSA00960")) lg("a game was opened before the log-out (%s) - it closes now (owner: just close)", fg);
       log_all_out("member load finished");

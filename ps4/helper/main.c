@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.122"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it */
+#define R2_VERSION "1.1.123"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -89,6 +89,10 @@ static double tm_now(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, 
    a background job, see "SNAPSHOT" further down. */
 #define SNAPD "/data/round2/snap"
 static int snap_on, snap_bg, look_mute, sv_noprep, clean_on;
+/* 1.1.123 (owner 20 Nov 8:47pm, OK'd): the safety backup before a member load stays ON THE PS4 during the load (it was uploaded
+   first: 37 s for 33 MB on Kaeden) and goes to the cloud right after, when no member load runs (defer_tick). A clean slate leaves
+   nothing to back up, so then this step costs nothing anyway. */
+static int sv_defer; static char sv_defer_dir[300];
 static void cloud_report(void); /* 1.1.52 */
 static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
 static long long g_after_load; /* 1.1.119: a member load batch just finished (time) -> pop-up once the tile is gone */
@@ -1238,7 +1242,7 @@ static void sv_up_dir(const char *key, const char *base, const char *dir, const 
       while (got < want) { ssize_t x = read(fd, sv_buf + got, want - got); if (x <= 0) break; got += (size_t)x; }
       if (got != want) { bad = 1; break; }
       snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pieces);
-      if (sv_put(key, k, sv_buf, got)) { bad = 1; break; }
+      if (!sv_defer && sv_put(key, k, sv_buf, got)) { bad = 1; break; }   /* 1.1.123: deferred = on the PS4 only for now */
       if (snap_bg) snap_tick(key);
       if (pfd >= 0 && write(pfd, sv_buf, got) != (ssize_t)got) { sv_prep_fail++; sv_log("prep write fail %s (errno %d)", r, errno); close(pfd); pfd = -1; }
       done += got; pieces++;
@@ -1252,6 +1256,50 @@ static void sv_up_dir(const char *key, const char *base, const char *dir, const 
   }
   closedir(d);
 }
+static void put_file2(const char *dir, const char *name, const char *txt) { char p[400]; snprintf(p, sizeof p, "%s/%s", dir, name); FILE *f = fopen(p, "w"); if (f) { fputs(txt, f); fclose(f); } }
+static int rm_tree2(const char *p, int depth) { struct stat st; if (lstat(p, &st)) return 0; if (!S_ISDIR(st.st_mode)) return unlink(p);
+  DIR *d = opendir(p); if (!d) return -1; struct dirent *e; char q[600]; int bad = 0;
+  while ((e = readdir(d))) { if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue; snprintf(q, sizeof q, "%s/%s", p, e->d_name); if (depth < 10 && rm_tree2(q, depth + 1)) bad = 1; }
+  closedir(d); return rmdir(p) || bad; }
+/* 1.1.123: upload ONE deferred pre-load backup (all its parts), then remove it. Only when no member load runs. */
+static int defer_up_dir(const char *key, const char *base, const char *dir, const char *rel, int depth) {   /* files -> base/f/<rel>~<piece> */
+  DIR *d = opendir(dir); if (!d) return -1; struct dirent *e; char p[600], r[400], k[800]; int bad = 0;
+  while (!bad && (e = readdir(d))) { if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+    if (!rel[0] && (!strcmp(e->d_name, "manifest.txt") || !strcmp(e->d_name, "cloud.txt"))) continue;
+    snprintf(p, sizeof p, "%s/%s", dir, e->d_name); snprintf(r, sizeof r, "%s%s%s", rel, rel[0] ? "/" : "", e->d_name);
+    struct stat st; if (lstat(p, &st)) continue;
+    if (S_ISDIR(st.st_mode)) { if (depth < 8 && defer_up_dir(key, base, p, r, depth + 1)) bad = 1; continue; }
+    int fd = open(p, O_RDONLY); if (fd < 0) { bad = 1; break; }
+    unsigned long long sz = (unsigned long long)st.st_size, done = 0; int pc = 0;
+    do { size_t want = sz - done > SV_PIECE ? SV_PIECE : (size_t)(sz - done), got = 0;
+      while (got < want) { ssize_t x = read(fd, sv_buf + got, want - got); if (x <= 0) break; got += (size_t)x; }
+      if (got != want) { bad = 1; break; }
+      snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pc); if (sv_put(key, k, sv_buf, got)) { bad = 1; break; }
+      done += got; pc++; } while (done < sz);
+    close(fd); }
+  closedir(d); return bad;
+}
+static void defer_tick(const char *key) {
+  static long long last; if (time(0) - last < 20) return; last = time(0);
+  if (file_exists("/data/round2/memqn") || clean_on) return;
+  if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) return; sv_buf = b; }
+  DIR *d = opendir("/data/round2/defer"); if (!d) return; struct dirent *e; char top[400] = "";
+  while ((e = readdir(d))) { if (e->d_name[0] == '.') continue; char rp[400]; struct stat st; snprintf(rp, sizeof rp, "/data/round2/defer/%s/ready.txt", e->d_name); if (!stat(rp, &st)) { snprintf(top, sizeof top, "/data/round2/defer/%s", e->d_name); break; } }
+  closedir(d); if (!top[0]) return;
+  r2_where("job deferred backup", 1);
+  double t0 = tm_now(); int bad = 0, parts = 0; DIR *pd = opendir(top); struct dirent *pe; char p[600];
+  while (pd && !bad && (pe = readdir(pd))) { if (pe->d_name[0] == '.') continue; snprintf(p, sizeof p, "%s/%s", top, pe->d_name); struct stat st; if (lstat(p, &st) || !S_ISDIR(st.st_mode)) continue;
+    char cf[700], base[300] = ""; snprintf(cf, sizeof cf, "%s/cloud.txt", p); FILE *f = fopen(cf, "r"); if (!f || !fgets(base, sizeof base, f)) { if (f) fclose(f); bad = 1; break; } fclose(f); base[strcspn(base, "\r\n")] = 0;
+    if (defer_up_dir(key, base, p, "", 0)) { bad = 1; break; }
+    size_t n = 0; char mp[700]; snprintf(mp, sizeof mp, "%s/manifest.txt", p); char *m = read_all(mp, &n, 4 << 20); char mk[400]; snprintf(mk, sizeof mk, "%s/manifest.txt", base);
+    if (!m || sv_put(key, mk, (const unsigned char *)m, n)) { free(m); bad = 1; break; } free(m); parts++; }
+  if (pd) closedir(pd);
+  if (!bad) { size_t n = 0; char gp[500], kp[500], gk[400] = ""; snprintf(gp, sizeof gp, "%s/game.txt", top); snprintf(kp, sizeof kp, "%s/gamekey.txt", top);
+    FILE *f = fopen(kp, "r"); if (f) { if (!fgets(gk, sizeof gk, f)) gk[0] = 0; fclose(f); } gk[strcspn(gk, "\r\n")] = 0;
+    char *g = read_all(gp, &n, 1 << 20); if (!gk[0] || !g || sv_put(key, gk, (const unsigned char *)g, n)) bad = 1; free(g); }
+  sv_log("deferred backup %s: %s - %d part(s) in %.0f s", bad ? "NOT sent (tries again in 20 s)" : "sent to the cloud", top, parts, tm_now() - t0);
+  if (!bad) rm_tree2(top, 0);
+}
 static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<title>.<save>" */
   char v[200], u[16] = "", t[16] = "", nm[48] = "", base[200];
   if (sscanf(spec, "/_sback.%8[0-9a-f].%9[A-Z0-9].%47[^|]", u, t, nm) != 3) { look_kv("backup/error", "bad spec"); return -1; }
@@ -1262,13 +1310,14 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
   if (ok == 0) {
     if (sv_base_fixed[0]) snprintf(base, sizeof base, "%s/%s", sv_base_fixed, nm);
     else snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
-    if (sv_noprep) sv_prep[0] = 0; else { snprintf(sv_prep, sizeof sv_prep, "/data/round2/prep/%s/%s/%s", u, t, nm); mkdirs_for(sv_prep); } sv_prep_fail = 0;
+    if (sv_defer) { snprintf(sv_prep, sizeof sv_prep, "%s/%s", sv_defer_dir, nm); mkdirs_for(sv_prep); mkdir(sv_prep, 0777); } /* 1.1.123 */
+    else if (sv_noprep) sv_prep[0] = 0; else { snprintf(sv_prep, sizeof sv_prep, "/data/round2/prep/%s/%s/%s", u, t, nm); mkdirs_for(sv_prep); } sv_prep_fail = 0;
     sv_log("backup start: user %s game %s save %s -> prep %s + cloud %s", u, t, nm, sv_prep, base);
     sv_files = sv_fail = 0; sv_bytes = 0; sv_man_n = 0; if (sv_man) sv_man[0] = 0;
     sv_up_dir(key, base, SV_MNT, "", 0);
     int cr = sv_close();
     char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", base);
-    int mr = sv_fail ? -1 : sv_put(key, mk, (const unsigned char *)(sv_man ? sv_man : ""), sv_man_n);
+    int mr = sv_fail ? -1 : sv_defer ? (sv_prep_fail ? -1 : 0) : sv_put(key, mk, (const unsigned char *)(sv_man ? sv_man : ""), sv_man_n);   /* 1.1.123: deferred = the local copy must be whole */
     { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/where", nm); look_kv(kk, base); }
     snprintf(v, sizeof v, "%d files, %llu bytes, %d failed, manifest %s, closed %d", sv_files, sv_bytes, sv_fail, mr ? "NOT saved" : "saved", cr);
     { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/result", nm); look_kv(kk, v); }
@@ -1675,7 +1724,10 @@ static int sv_game_back(const char *key, const char *u, const char *t, char *bas
   }
   sv_base_fixed[0] = 0;
   char gk[260]; snprintf(gk, sizeof gk, "%s/game.txt", base);
-  int gr = fails ? -1 : sv_put(key, gk, (const unsigned char *)list, strlen(list));
+  int gr = fails ? -1 : 0;
+  if (!fails && sv_defer) { char lp[400]; snprintf(lp, sizeof lp, "%s/game.txt", sv_defer_dir); FILE *gf = fopen(lp, "w"); if (gf) { fputs(list, gf); fclose(gf); } else gr = -1;
+    snprintf(lp, sizeof lp, "%s/gamekey.txt", sv_defer_dir); gf = fopen(lp, "w"); if (gf) { fprintf(gf, "%s\n", gk); fclose(gf); } else gr = -1; }   /* 1.1.123 */
+  else if (!fails) gr = sv_put(key, gk, (const unsigned char *)list, strlen(list));
   sv_log("game backup %s: user %s game %s: %d parts, %d failed, list %s", fails || gr ? "FAILED" : "done", u, t, n, fails, gr ? "NOT saved" : "saved");
   return fails || gr ? -1 : 0;
 }
@@ -2540,7 +2592,11 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
   if (!game_installed(t)) { snprintf(why, wn, "game not installed in this room"); return -1; }
   if (!sv_buf) { void *bb = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (bb == MAP_FAILED) { snprintf(why, wn, "no memory"); return -1; } sv_buf = bb; }
   int nr = sv_disk_parts(u, t, recv, 64);
-  if (nr) { char rb[200]; int rn = 0; double tb0 = tm_now(); int gbr = sv_game_back(key, u, t, rb, sizeof rb, &rn); g_t_bk += tm_now() - tb0; if (gbr) { snprintf(why, wn, "backup of what was there failed - nothing written"); return -1; } }
+  if (nr) { char rb[200]; int rn = 0; double tb0 = tm_now();
+    mkdir("/data/round2/defer", 0777); snprintf(sv_defer_dir, sizeof sv_defer_dir, "/data/round2/defer/%s-%s-%lld", u, t, (long long)time(0)); mkdir(sv_defer_dir, 0777); sv_defer = 1;   /* 1.1.123 */
+    int gbr = sv_game_back(key, u, t, rb, sizeof rb, &rn); sv_defer = 0; g_t_bk += tm_now() - tb0;
+    if (gbr) { snprintf(why, wn, "backup of what was there failed - nothing written"); return -1; }
+    put_file2(sv_defer_dir, "ready.txt", "1\n"); sv_log("member load: backup of what was in %s %s kept on the PS4 (%s) - to the cloud after the load", u, t, sv_defer_dir); }
   { double tp0 = tm_now(); pf_game(key, pb, np); g_t_dl += tm_now() - tp0; } /* 1.1.85 */
   double tmk0 = tm_now(); int fails = 0;
   int made[64] = { 0 };
@@ -2720,7 +2776,7 @@ static void look_shmod(const char *key, const char *spec) {
      so a helper update doesn't load it twice (a module path loads only once per menu start anyway);
    - at most 3 tries per helper run, 10 min apart; every try and result goes to save.log (owner: log everything).
    The add-on's own self-test (60 s lock, then log-out) only runs on "/_shtest" - never at start-up. */
-#define SHELL_ADDON "round2_shell7"
+#define SHELL_ADDON "round2_shell8"
 static int shell_tries = 0; static time_t shell_last_try = 0;
 static int shell_alive(void) {
   char g[24] = ""; FILE *f = fopen("/data/round2/shell.gen", "r"); if (f) { if (!fgets(g, sizeof g, f)) g[0] = 0; fclose(f); }
@@ -4893,6 +4949,7 @@ int main(void) {
     if (key[0] && (m == 2 || (m && m % 30 == 0))) { r2_where("tile", 1); tile_check(key, 0); } /* 1.1.87: Round2 tile updates */
     if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
     if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
+    if (key[0]) defer_tick(key); /* 1.1.123: pre-load backups to the cloud after the load */
     if (R2_SHELL && key[0]) { r2_where("job menu add-on", 1); shell_auto(key); } /* 1.1.115 (test build only): Round2 menu add-on at every PS4 start */
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
@@ -4905,10 +4962,10 @@ int main(void) {
       { /* 1.1.119 (owner 8:05pm): what's in front, for the menu add-on (log out right after the tile closes, never over a game) */
         static char lastfg[32] = "-"; char rt3[32]; running_title(rt3, sizeof rt3);
         if (strcmp(rt3, lastfg)) { snprintf(lastfg, sizeof lastfg, "%s", rt3); put_file("/data/round2/fg.txt", rt3); }
-        if (g_after_load && (strcmp(rt3, "RTWO00001") || time(0) - g_after_load > 40)) {
+        if (g_after_load && (strcmp(rt3, "RTWO00001") || time(0) - g_after_load > 20)) {
           int game = rt3[0] && strcmp(rt3, "RTWO00001") && strcmp(rt3, VUE_ID);
           notify("Saves loaded! Press the PS button and pick your profile.");   /* owner 8:20pm: also when a game was opened – the add-on closes it */
-          sv_log("after the member load: %s%s - pop-up shown", game ? "a game was opened, it closes with the log-out: " : strcmp(rt3, "RTWO00001") ? "tile closed / not open" : "tile still open after 40 s", game ? rt3 : "");
+          sv_log("after the member load: %s%s - pop-up shown", game ? "a game was opened, it closes with the log-out: " : strcmp(rt3, "RTWO00001") ? "tile closed / not open" : "tile still open after 20 s", game ? rt3 : "");
           g_after_load = 0; } }
       if (t % 3 == 2 && key[0]) { char rt2[32]; running_title(rt2, sizeof rt2); /* 1.1.95 (owner: 20-30 s from "Load" to the PS4 starting): while the */
         if (!strcmp(rt2, "RTWO00001") && check_cmd(key)) { report(key, status, sizeof status); write_status(status); } } /* Round2 tile is open, look for jobs every 6 s */

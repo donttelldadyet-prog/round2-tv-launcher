@@ -1,4 +1,7 @@
-/* 0.09 (owner 20 Nov 8:40pm on 0.08: "it doesnt pulse … very static … loading bar doesnt increase gradually its just 0 or 100 …
+/* 0.10 (20 Nov 8:50pm, 3-player test: two GTA V loads failed, the engine said "Sorry" (status off + a title) instead of "done",
+   so 0.09 never closed and the add-on waited its full 40 s): a load the tile watched that ends in "Sorry, …" closes the tile too
+   (same "What happens next" card – players still pick their profiles).
+   0.09 (owner 20 Nov 8:40pm on 0.08: "it doesnt pulse … very static … loading bar doesnt increase gradually its just 0 or 100 …
    huge gap after ready"): the logo now visibly breathes ALL the time (fades towards the background and back, room colour + a wide
    white shine), faster while loading; the bar creeps forward inside each game (eases towards ~90 % of the next step, then jumps
    when the game is really done); after Ready: 1.5 s burst + 6 s "What happens next" (was 3 + 9).
@@ -52,7 +55,7 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.09"
+#define TILE_V "0.10"
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
@@ -238,7 +241,7 @@ int main() {
       strcpy(co, g_color); strcpy(rn, g_rname); done = atoi(g_done); total = atoi(g_total); strcpy(pkk, g_pk); strcpy(pnn, g_pn); strcpy(pnw, g_pnow); g_dirty--;
       pthread_mutex_unlock(&mx);
       FB = BASE; AC = hexc(co, GOLD); busy = !strcmp(st, "loading") || !strcmp(st, "reset");
-      if (busy) seen_loading = 1; if (!strcmp(st, "done") && seen_loading && !ready_t0) ready_t0 = now_s();   /* 0.08 */
+      if (busy) seen_loading = 1; if ((!strcmp(st, "done") || (!strcmp(st, "off") && !strncmp(ti, "Sorry", 5))) && seen_loading && !ready_t0) ready_t0 = now_s();   /* 0.08; 0.10: a "Sorry" ending too */
       for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {   /* background + the room-colour glow from the top right */
         int dx = x - 1650, dy = y + 150; float d = (float)(dx * dx + dy * dy) / (1350.f * 1350.f); float g = d < 1 ? (1 - d) * (1 - d) * 0.34f : 0;
         int r = BG.r + (int)((AC.r - BG.r) * g), gg = BG.g + (int)((AC.g - BG.g) * g), b = BG.b + (int)((AC.b - BG.b) * g);
