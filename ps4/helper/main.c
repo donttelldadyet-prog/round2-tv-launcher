@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.146"   /* 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.147"   /* 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -5270,6 +5270,7 @@ static int bg_load(char *why, size_t wn) {
 }
 #define PKGJOB "/data/round2/pkg-job"   /* "<jid> <task> <cat> <cid> <start> <MB>" while a download runs */
 static long long pkg_tick_at;
+static int g_pkg_rep; /* 1.1.147: a download finished/failed - report straight away, not at the next 15-min report */
 static void look_pkgprep(void);
 static void pkg_undo_login(const char *why) {   /* 1.1.134 (owner 23:11: "the login is stuck … did u forget the release"): a job that
      fails after WE signed the main profile in logs it out again – a background sign-in left alone blocks the profile picker */
@@ -5331,7 +5332,7 @@ static void pkg_tick(const char *key) {   /* every ~10 s while a download runs: 
     if (!done && !bad && time(0) - movedAt < 45 * 60) return; }
   sv_log("pkg job %s %s: %s", jid, done ? "FINISHED" : "STOPPED", pkg_last);
   { FILE *h = fopen("/data/round2/pkg-history.txt", "a"); if (h) { char ts[24]; cl_stamp(ts, sizeof ts, (long long)time(0)); fprintf(h, "%s %s %s\n", ts, done ? "OK" : "FAILED", pkg_last); fclose(h); } }
-  snprintf(pkg_last, sizeof pkg_last, "%s %s %s %s in %lld min", jid, done ? "finished" : "FAILED", cat, cid, el / 60);
+  snprintf(pkg_last, sizeof pkg_last, "%s %s %s %s in %lld min", jid, done ? "finished" : "FAILED", cat, cid, el / 60); g_pkg_rep = 1;
   if (!done && bg_unreg) { int ru = bg_unreg(task); sv_log("pkg job %s: failed task %d removed from the download list (0x%08x)", jid, task, (unsigned)ru); }   /* 1.1.135: else a retry is refused 0x80990086 */
   unlink(PKGJOB); if (done) notify("Round2: game update installed.");
 }
@@ -5659,6 +5660,7 @@ int main(void) {
     if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
     if (key[0]) defer_tick(key); /* 1.1.123: pre-load backups to the cloud after the load */
     if (key[0]) pkg_tick(key); /* 1.1.132: PKG download progress */
+    if (key[0] && g_pkg_rep) { g_pkg_rep = 0; int st = report(key, status, sizeof status); write_status(status); sv_log("pkg: told Round2 straight away (%d) - next job can start", st); } /* 1.1.147 (owner 21 Nov 7:47pm: "why doesnt the patch follow immediately") */
     if (R2_SHELL && key[0]) { r2_where("job menu add-on", 1); shell_auto(key); } /* 1.1.115 (test build only): Round2 menu add-on at every PS4 start */
     if (snap_on && key[0]) { r2_where("snapshot", 1); snap_step(key, 45); } /* 1.1.41: ~45 s of backup per minute */
     else if (clean_on && key[0]) { r2_where("clean", 1); clean_step(key, 45); } /* 1.1.50: ~45 s of clean slate per minute */
