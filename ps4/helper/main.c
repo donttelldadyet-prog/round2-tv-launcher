@@ -49,7 +49,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.141"   /* 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.142"   /* 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -5336,7 +5336,7 @@ static void look_pkgstop(void) {
    never opened for writing. Result: /data/round2/appdb-probe.txt (read it with /_tail). */
 static FILE *adb_out;
 static int adb_row(void *u, int n, char **v, char **c) { (void)u; if (!adb_out) return 0; size_t w = 0; fputs("  ", adb_out);
-  for (int i = 0; i < n && w < 900; i++) { int k = fprintf(adb_out, "%s%s=%.120s", i ? " | " : "", c[i], v[i] ? v[i] : "NULL"); if (k > 0) w += (size_t)k; }
+  for (int i = 0; i < n && w < 2400; i++) { int k = fprintf(adb_out, "%s%s=%.80s", !i ? "" : (i % 4) ? " | " : "\n    ", c[i], v[i] ? v[i] : "NULL"); if (k > 0) w += (size_t)k; }
   fputs("\n", adb_out); return 0; }
 static void look_appdb(void) {
   const char *src = "/system_data/priv/mms/app.db", *cp = "/data/round2/appdb-copy.db";
@@ -5359,8 +5359,22 @@ static void look_appdb(void) {
     fprintf(adb_out, "== %s: rows that aren't CUSA games (max 40)\n", tn[i]); snprintf(sql, sizeof sql, "SELECT * FROM \"%s\" WHERE titleId NOT LIKE 'CUSA%%' LIMIT 40", tn[i]); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { sqlite3_free(err); err = 0; }
     fprintf(adb_out, "== %s: 3 sample games\n", tn[i]); snprintf(sql, sizeof sql, "SELECT * FROM \"%s\" WHERE titleId LIKE 'CUSA%%' LIMIT 3", tn[i]); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { sqlite3_free(err); err = 0; } }
   fprintf(adb_out, "== tbl_appinfo keys that mention folders (max 40)\n"); sqlite3_exec(db, "SELECT * FROM tbl_appinfo WHERE lower(key) LIKE '%folder%' LIMIT 40", adb_row, 0, &err); if (err) { fprintf(adb_out, "  (%s)\n", err); sqlite3_free(err); err = 0; }
-  fclose(adb_out); adb_out = 0; sqlite3_close(db); unlink(cp);
-  char v[120]; snprintf(v, sizeof v, "%d tables - read /data/round2/appdb-probe.txt", nt); sv_log("app.db probe (read-only copy): %s", v); look_kv("appdb/result", v);
+  fclose(adb_out); adb_out = 0;
+  /* 1.1.142: a SHORT summary (a look shows ~9 KB): tables + row counts, the app-list columns 4 per line, and the rows that
+     look like home-screen folders (titleId not a game/system app, or a folder-ish column set) with just their key columns */
+  adb_out = fopen("/data/round2/appdb-short.txt", "w");
+  if (adb_out) {
+    for (int i = 0; i < nt; i++) { char sql[300]; snprintf(sql, sizeof sql, "SELECT '%s' AS t, COUNT(*) AS n FROM \"%s\"", tn[i], tn[i]); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { sqlite3_free(err); err = 0; } }
+    for (int i = 0; i < nt; i++) if (!strncmp(tn[i], "tbl_appbrowse", 13)) {
+      char sql[400]; sqlite3_stmt *c = 0; snprintf(sql, sizeof sql, "SELECT name FROM pragma_table_info('%s')", tn[i]); fprintf(adb_out, "== %s columns\n", tn[i]);
+      if (sqlite3_prepare_v2(db, sql, -1, &c, 0) == SQLITE_OK) { int k = 0; while (sqlite3_step(c) == SQLITE_ROW) fprintf(adb_out, "%s%s", (k++ % 6) ? ", " : (k > 1 ? "\n  " : "  "), (const char *)sqlite3_column_text(c, 0)); fputs("\n", adb_out); } sqlite3_finalize(c);
+      fprintf(adb_out, "== %s rows that aren't CUSA/NPXS apps\n", tn[i]);
+      snprintf(sql, sizeof sql, "SELECT * FROM \"%s\" WHERE titleId NOT LIKE 'CUSA%%' AND titleId NOT LIKE 'NPXS%%' LIMIT 20", tn[i]); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { fprintf(adb_out, "  (%s)\n", err); sqlite3_free(err); err = 0; }
+      fprintf(adb_out, "== %s Broforce row\n", tn[i]);
+      snprintf(sql, sizeof sql, "SELECT * FROM \"%s\" WHERE titleName LIKE '%%Broforce%%' LIMIT 3", tn[i]); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { fprintf(adb_out, "  (%s)\n", err); sqlite3_free(err); err = 0; } }
+    fclose(adb_out); adb_out = 0; }
+  sqlite3_close(db); unlink(cp);
+  char v[120]; snprintf(v, sizeof v, "%d tables - read /data/round2/appdb-short.txt (all: appdb-probe.txt)", nt); sv_log("app.db probe (read-only copy): %s", v); look_kv("appdb/result", v);
 }
 static void look_pkgrm(const char *spec) {
   char tid[16] = "", cat[4] = "gd", v[160], rt[32] = ""; if (sscanf(spec, "/_pkgrm.%9[A-Z0-9].%3[a-z]", tid, cat) < 1 || strlen(tid) != 9) { look_kv("pkgrm/error", "bad spec"); return; }
