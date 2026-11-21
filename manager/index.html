@@ -4280,16 +4280,16 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var RAW = 'https://raw.githubusercontent.com/donttelldadyet-prog/round2sg-home/main/design/';
         return Promise.all([fetch(RAW + 'rooms.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
           fetch(RAW + 'member.css', { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : null; }).catch(function () { return null; }),
-          fetch(ENG + '/m?room=kaeden', { cache: 'no-store' }).then(function (r) { return r.text(); }).catch(function () { return ''; })]).then(function (r) {
-          var rooms = r[0] && r[0].rooms, css = r[1], page = r[2], ks = ['vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'maximillion'];
+          fetch(ENG + '/ps4/tile?id=73378b38f36f345372e93e1fd488bbea', { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; })]).then(function (r) {
+          var rooms = r[0] && r[0].rooms, css = r[1], tile = r[2], ks = ['vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'maximillion'];
           must(rooms, 'design/rooms.json is missing or not valid JSON – guests see the built-in room colours');
           var badc = ks.filter(function (k) { var x = rooms[k]; return !x || !/^#[0-9a-fA-F]{6}$/.test(x.colour || '') || !/^#[0-9a-fA-F]{6}$/.test(x.ink || ''); });
           warnIf(badc.length, 'Rooms with a missing or wrong colour in design/rooms.json (built-in used): ' + badc.join(', '));
           must(css && css.length > 200, 'design/member.css is missing – guests see the built-in member page look');
           warnIf(/<\/|<script|@import|javascript:/i.test(css) || css.length > 60000, 'design/member.css has something the engine refuses (</, <script, @import or too big) – guests see the built-in look');
-          must(/class="hero"/.test(page), 'The member page (book.round2.sg/m) didn’t load');
-          warnIf(rooms.kaeden && page.indexOf(rooms.kaeden.colour) < 0, 'The member page doesn’t show Kaeden’s colour from design/rooms.json yet (the engine keeps files 5 min)');
-          return '7 rooms · member.css ' + Math.round(css.length / 1024) + ' KB · member page OK';
+          must(tile && tile.color, 'The engine’s PS4 tile answer (room colour) didn’t load');   /* the member page itself is HTML without CORS – the tile answer uses the same rooms.json */
+          warnIf(rooms.kaeden && ('#' + tile.color).toLowerCase() !== String(rooms.kaeden.colour).toLowerCase(), 'The engine doesn’t use Kaeden’s colour from design/rooms.json yet (it keeps the file 5 min)');
+          return '7 rooms · member.css ' + Math.round(css.length / 1024) + ' KB · engine uses the room colours';
         });
       }); })
       .then(function () { return step('PS4 blocker settings: bad files refused, nothing sent (dry run)', function () {
