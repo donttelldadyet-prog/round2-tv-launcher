@@ -954,9 +954,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <button class="btn primary" type="button" id="pkSend">Install on the ticked rooms</button><button class="btn" type="button" id="pkRm">Uninstall from the ticked rooms</button></div>
       <p class="hint" id="pkMsg" style="margin:6px 0 0"></p></div>
     <div class="card" style="margin-top:10px;padding:10px 12px"><b>Queue</b> <span class="hint">– what each PS4 is doing (refreshes every 20 s)</span><div id="pkQueue" style="margin-top:6px;font-size:12px;line-height:1.5"></div></div>
-    <div class="card" style="margin-top:10px;padding:10px 12px"><b>Games: your files and each room's version</b> <span class="hint">– green = same as your newest file, orange = older, – = not installed</span>
-      <div class="row" style="gap:6px;margin:6px 0"><input id="pkFind" placeholder="Search" style="flex:1;min-width:160px"><button class="btn" type="button" id="pkOld">Tick every newer patch for rooms that are behind</button></div>
+    <div class="card" style="margin-top:10px;padding:10px 12px"><b>Games: your files, which rooms get them, each room's version</b>
+      <p class="hint" style="margin:4px 0">Per game: pick the <b>main game</b> file and the <b>patch</b> to use (or none), and which rooms it belongs in (Netflix = all rooms, Deluxe = Kai · Bella · Atlas · Max, VIP = Max, or your own rooms) – saved for everyone. Room columns: green = has your chosen version, orange = older, <span style="color:#fa5">need</span> = belongs there but isn't installed, <i>extra</i> = installed but not in its rooms, – = not installed.</p>
+      <div class="row" style="gap:6px;margin:6px 0;flex-wrap:wrap"><input id="pkFind" placeholder="Search" style="flex:1;min-width:160px"><button class="btn primary" type="button" id="pkSync">Install every game in its rooms</button><button class="btn" type="button" id="pkOld">Tick every newer patch for rooms that are behind</button></div>
       <div id="pkList" style="overflow:auto"></div></div>
+    <div class="card" style="margin-top:10px;padding:10px 12px"><b>On the PS4s</b> <span class="hint">– what each PS4 really has installed right now (from its last report), also games that aren't on your laptop</span>
+      <div class="row" style="gap:6px;margin:6px 0;flex-wrap:wrap;align-items:center"><input id="pkFind2" placeholder="Search" style="flex:1;min-width:160px"><button class="btn" type="button" id="pkUnGame">Uninstall the ticked games</button><button class="btn ghost" type="button" id="pkUnPatch">Remove only their patches</button></div>
+      <div id="pkOnPs4" style="overflow:auto"></div>
+      <p class="hint" id="pkMsg2" style="margin:6px 0 0"></p></div>
     <p class="hint">Atlas and Bella are on the other Wi-Fi (round2-ps4) and can't reach the laptop yet. Firmware: a PKG needs the PS4's firmware or newer (9.00 Max · Kai · Atlas, 11.00 Bella · Scarlett · Vale, 13.50 Kaeden) – older rooms need a backport.</p>
   </section>
 
@@ -2379,1074 +2384,87 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       return '<button type="button" class="alrow' + (x.late ? ' late' : '') + (kd === 'human' ? ' prob' : '') + (kd === 'human' && x.sorted ? ' done' : '') + '" data-al="' + esc(x.id) + '" style="--rc:' + (rc(x) || 'var(--line2)') + '">' +
         '<span class="tm">' + esc((R2Day.night(x.t) !== R2Day.tonight() ? 'Yday ' : '') + clock(x.t)) + '</span><b>' + tags + esc(String(x.title || '').replace(/^⚠️\s*/, '')) + '</b><span class="bd">' + esc(first) + '</span><span class="go">›</span></button>';
     }
-    function drawList() {
-      var open = list.filter(function (x) { return x.type === 'human' && !x.sorted; }), seen = {};
-      $('alHuman').innerHTML = open.length && filt !== 'late' ? '<div class="alday" style="color:var(--bad)">Needs a human · ' + open.length + '</div>' + open.filter(function (x) { if (seen[x.title]) return false; seen[x.title] = 1; return true; }).map(row).join('') : '';
-      /* the last 24 hours only (owner, 5 Nov): bookings that came in at 1am are still here at 10am; nothing piles up */
-      var cut = R2Day.now() - 24 * 3600e3, L = list.filter(function (x) { return x.t > cut && match(x) && (filt === 'late' || !(x.type === 'human' && !x.sorted)); });
-      $('alDays').innerHTML = L.length ? '<div class="alday">Last 24 hours · ' + L.length + '</div>' + L.map(row).join('')
-        : '<p class="hint">' + (filt !== 'all' ? 'Nothing in this filter in the last 24 hours.' : 'No alerts in the last 24 hours. New ones appear here as they go out.') + '</p>';
-    }
-    function load() {
-      $('alErr').hidden = true;
-      if (!k()) { $('alErr').hidden = false; $('alErr').textContent = 'Add the staff code (TV messages › Guest links) to see alerts.'; return Promise.resolve(); }
-      return call({ action: 'alerts' }).then(function (j) { if (j.error) throw new Error(j.error); list = j.list || []; drawList(); })
-        .catch(function (e) { $('alErr').hidden = false; $('alErr').textContent = 'Couldn’t load alerts: ' + e.message; });
-    }
-    function fact(l, v) { return v === '' || v == null ? '' : '<div><span>' + esc(l) + '</span><b>' + v + '</b></div>'; }
-    function wa(p) { var d = String(p || '').replace(/[^\d]/g, ''); return d ? '<a href="https://wa.me/' + d + '" target="_blank" rel="noopener">' + esc(p) + '</a>' : ''; }
-    function detail(j) {
-      var x = j.alert, c = x.ctx || {}, h = j.hold, mvd = c.s ? null : mvOf(x), kd = kindOf({ type: c.type, kind: x.kind, body: x.body }), r = rk(c.room || (mvd && mvd.room)), col = r ? ROOMS[r].c : '';
-      var when = c.s ? dayLong(c.s) + ', ' + clock(c.s) + (c.e ? '–' + clock(c.e) : '') : '';
-      var len = c.s && c.e ? (Math.round((c.e - c.s) / 360e3) / 10) + 'h' : (c.hours ? c.hours + 'h' : '');
-      var phone = c.phone || (h && h.phone) || '', email = c.email || (h && h.email) || '', name = c.name || (h && h.name) || (mvd && mvd.name) || '';
-      var paid = h && h.total ? 'S$' + (+h.total).toFixed(2).replace(/\.00$/, '') + ' paid online' : c.money || (c.total ? 'S$' + c.total : '');
-      var html = '<button type="button" class="adback" data-back="1">‹ Alert history</button>' +
-        '<div class="adhead" style="--rc:' + (col || 'var(--gc)') + '"><div class="k">' + esc(mvd ? (mvd.add ? 'Hours added' : 'Rescheduled') : KIND[kd] || 'Alert') + (r ? ' · ' + esc(ROOMS[r].name) : '') + '</div>' +
-        '<h1>' + esc(c.k === 'n' ? 'Calendar note' : kd === 'soon' || kd === 'booking' || kd === 'change' || kd === 'cancel' ? (name || 'No name') : String(x.title).replace(/^⚠️\s*/, '')) + '</h1>' +
-        '<div class="hint">Sent ' + esc(dayLong(x.t) + ', ' + clock(x.t)) + (kd === 'human' ? (x.sorted ? ' · ✓ sorted ' + esc(dayLong(x.sorted) + ' ' + clock(x.sorted)) : ' · still open') : '') + '</div></div>';
-      if (x.late) html += '<div class="adlate">🌙 <b>Late session</b> – it runs into the WhatsApp-only hours (after 11:15pm or past midnight). Check the late-session note in SimplyBook and that Auto wrap-up has the right end time.</div>';
-      if (kd === 'human') html += '<div class="adprob">' + esc(x.body || '') + '</div>';
-      if (kd === 'change' && c.prev) html += '<p class="adnote">🔁 Was ' + esc(dayLong(c.prev.s) + ', ' + clock(c.prev.s) + '–' + clock(c.prev.e)) + ' → now ' + esc(when) + '</p>';
-      if (kd === 'cancel') html += '<p class="adnote" style="color:var(--bad)">❌ This booking was cancelled – the time is free again.</p>';
-      if (mvd) html += '<div class="adfacts">' + fact('Now', esc(mvd.now)) + fact('Was', esc(mvd.was)) + fact(mvd.add ? 'Added' : 'Moved', esc(mvd.how)) + fact('Paid', esc(mvd.paid)) + fact('Name', esc(name)) + fact('Phone', wa(phone)) + fact('Email', esc(email)) + '</div>';
-      else html += '<div class="adfacts">' + fact('When', esc(when)) + fact('Length', esc(len)) + fact('Room', r ? esc(ROOMS[r].name) : esc(c.room || '')) + fact('Guests', esc(c.pax ? c.pax + ' pax' : '')) +
-        fact('Name', esc(c.k === 'n' ? '' : name)) + fact('Visit', esc(c.visit ? (c.visit.n === 1 ? '🆕 First visit' : '🔁 ' + c.visit.n + (c.visit.n % 100 >= 11 && c.visit.n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][c.visit.n % 10] || 'th') + ' visit' + (c.visit.last ? ' · last came ' + dayLong(c.visit.last) : '')) : '')) + fact('Phone', wa(phone)) + fact('Email', esc(email)) + fact('Paid', esc(paid)) + fact('Rate', esc(c.rate || '')) +
-        fact('Booked via', esc(h || c.ref ? 'Our booking page' + (h && h.ref ? ' · ' + h.ref : '') : c.k === 'n' ? 'Calendar note (WhatsApp / walk-in)' : c.bid ? 'SimplyBook' : '')) +
-        fact('TV message', esc(c.tvmsg ? c.tvmsg.kind + (c.tvmsg.title ? ' · “' + c.tvmsg.title + '”' : '') : h && h.msg ? h.msg.kind + (h.msg.title ? ' · “' + h.msg.title + '”' : '') : '')) + '</div>';
-      if (c.extra && c.extra.length) html += c.extra.map(function (l) { return '<p class="adnote">' + esc(l) + '</p>'; }).join('');
-      if (c.type === 'soon' && c.k === 'n' && c.name) html += '<p class="adnote">Note: “' + esc(c.name) + '”</p>';
-      if (h && h.done && (h.done.problem || h.done.fallback)) html += '<p class="adnote">What the system did: ' + esc([h.done.problem].concat(h.done.fallback || []).filter(Boolean).join(' · ')) + '</p>';
-      html += '<div class="adacts">' + (phone ? '<a class="btn" href="https://wa.me/' + esc(String(phone).replace(/[^\d]/g, '')) + '" target="_blank" rel="noopener">WhatsApp guest</a>' : '') +
-        (c.s && R2Day.night(c.s) === R2Day.tonight() ? '<button class="btn" type="button" data-open="insession">Open In session</button><button class="btn" type="button" data-open="tonight">Tonight’s TV messages</button>' : '') +
-        (x.late ? '<button class="btn" type="button" data-open="late">Add a session</button>' : '') +
-        (kd === 'wait' ? '<button class="btn" type="button" data-open="guestlink">Pair the link</button>' : '') +
-        (mvd ? '<button class="btn" type="button" data-open="resched">Open Rescheduling</button>' : '') +
-        (kd === 'human' && !x.sorted && c.hid ? '<button class="btn primary" type="button" data-sort="' + esc(c.hid) + '">Sorted ✓</button>' : '') + '</div>';
-      html += '<details class="adraw"><summary class="hint">The alert as it was sent</summary><pre>' + esc(x.title + '\n' + (x.body || '')) + '</pre></details>';
-      $('alDetail').innerHTML = html;
-    }
-    function show(id, fromHistory) {
-      /* a real step in the phone's history (owner, 5 Nov): the browser's own back / edge-swipe goes back to the list */
-      if (!fromHistory) { try { history.pushState({ r2al: id }, ''); } catch (e) {} }
-      cur = id; $('alList').hidden = true; $('alDetail').hidden = false; $('alDetail').style.transform = ''; $('alDetail').innerHTML = '<p class="hint">Loading…</p>'; scrollTo(0, 0);
-      if (!k()) { $('alDetail').innerHTML = '<button type="button" class="adback" data-back="1">‹ All alerts</button><div class="banner warn">Add the staff code (TV messages › Guest links) to open alerts.</div>'; return; }
-      call({ action: 'alerts', id: id }).then(function (j) { if (j.error) throw new Error(j.error); if (cur === id) detail(j); })
-        .catch(function (e) { $('alDetail').innerHTML = '<button type="button" class="adback" data-back="1">‹ All alerts</button><div class="banner warn">' + esc(e.message) + '</div>'; });
-    }
-    function close1() { cur = null; var d = $('alDetail'); d.hidden = true; d.style.transition = ''; d.style.transform = ''; $('alList').hidden = false; load(); }
-    function back() { if (history.state && history.state.r2al) history.back(); else close1(); }   /* popstate does the rest */
-    window.addEventListener('popstate', function () { if (cur && !(history.state && history.state.r2al)) close1(); else if (history.state && history.state.r2al && history.state.r2al !== cur && !$('tab-alertlog').hidden) show(history.state.r2al, true); });
-    /* swipe from the left edge to go back, like iPhone apps (owner, 5 Nov) – the page follows the finger. In Safari the
-       browser's own edge-swipe does this already (it fires popstate); this is for the Home Screen app, which has none. */
-    (function () {
-      var x0 = 0, y0 = 0, on = false, dx = 0, el = $('alDetail');
-      el.addEventListener('touchstart', function (e) { var t = e.touches[0]; on = !el.hidden && t.clientX < 32; x0 = t.clientX; y0 = t.clientY; dx = 0; if (on) el.style.transition = 'none'; }, { passive: true });
-      el.addEventListener('touchmove', function (e) { if (!on) return; var t = e.touches[0]; dx = t.clientX - x0;
-        if (Math.abs(t.clientY - y0) > 40 && dx < 30) { on = false; el.style.transform = ''; return; }
-        if (dx > 0) el.style.transform = 'translateX(' + dx + 'px)'; }, { passive: true });
-      el.addEventListener('touchcancel', function () { if (!on) return; on = false; el.style.transition = ''; el.style.transform = ''; }, { passive: true });
-      el.addEventListener('touchend', function () { if (!on) return; on = false; el.style.transition = 'transform .2s ease-out';
-        if (dx > Math.min(120, innerWidth / 3)) { el.style.transform = 'translateX(100%)'; setTimeout(back, 180); } else el.style.transform = ''; });
-    }());
-    function init() {
-      if (ready) return; ready = true;
-      $('alFilter').addEventListener('click', function (e) { var f = e.target.getAttribute && e.target.getAttribute('data-f'); if (!f) return; filt = f;
-        Array.prototype.forEach.call(document.querySelectorAll('#alFilter button'), function (b) { b.setAttribute('aria-pressed', b === e.target); }); drawList(); });
-      $('tab-alertlog').addEventListener('click', function (e) {
-        var t = e.target.closest ? e.target : null; if (!t) return;
-        var a = t.closest('[data-al]'); if (a) { show(a.getAttribute('data-al')); return; }
-        if (t.closest('[data-back]')) { back(); return; }
-        var o = t.closest('[data-open]'); if (o) { tab(o.getAttribute('data-open')); scrollTo(0, 0); return; }
-        var so = t.closest('[data-sort]');
-        if (so) { if (!so._armed) { so._armed = true; so.textContent = 'Tap again – sorted?'; setTimeout(function () { so._armed = false; so.textContent = 'Sorted ✓'; }, 4000); return; }
-          so.disabled = true; var again = function () { if (cur) show(cur, true); }; call({ action: 'human', sorted: so.getAttribute('data-sort') }).then(again, again); }
-      });
-    }
-    return {
-      want: function (id) { pending = id; },
-      open: function () { init(); if (pending) { var id = pending; pending = null; show(id); } else if (!cur) load(); clearInterval(timer); timer = setInterval(function () { if (!idle() && !cur) load(); }, 60000); },
-      close: function () { clearInterval(timer); if (cur) { cur = null; var d = $('alDetail'); d.hidden = true; d.style.transition = ''; d.style.transform = ''; $('alList').hidden = false; try { if (history.state && history.state.r2al) history.replaceState(null, ''); } catch (e) {} } }
-    };
-  }());
-
-  /* ---------- Website › Booking page (owner, 5 Nov): how long guests take to pay, and how many walk away (engine gm paytimes) ---------- */
-  var BookStats = (function () {
-    var days = 60, ready = false, filt = 'all', last = null, ENGINE = 'https://round2-book.donttelldadyet.workers.dev/gm';
-    function dur(s) { return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : ''); }
-    function when(t) { if (!isFinite(+t) || !t) return ''; t = +t; return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(/\s?([ap]m)/i, function (m, x) { return x.toLowerCase(); }); }
-    /* the session's own date and time, the Singapore way: "Fri 6 Nov, 11am" (owner, 5 Nov: not 11-06) */
-    function slot(x) { if (!x.date) return ''; var t = Date.parse(x.date + 'T' + (x.time || '00:00') + ':00+08:00'); if (!isFinite(t)) return x.date + ' ' + (x.time || '');
-      return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(t)).replace(',', '') + (x.time ? ', ' + new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(t)).replace(':00', '').replace(/\s/g, '').toLowerCase() : ''); }
-    /* sort the attempts (owner, 5 Nov): paid, left before paying, booked by hand, paying now */
-    /* "left before paying" split by why (the engine notes it since 5 Nov; older ones stay "reason not noted") */
-    var WHY = { payback: 'Went to pay, came back', cancel: 'Changed their mind', timeout: '10 minutes ran out', again: 'Picked another time', gaveway: 'Made way for their paid booking', error: 'Checkout error', left: 'Left (page closed)', '': 'Left before paying' };
-    var CATS = [['all', 'All'], ['paid', 'Paid'], ['r:payback', WHY.payback], ['r:cancel', WHY.cancel], ['r:timeout', WHY.timeout], ['r:again', WHY.again], ['r:gaveway', WHY.gaveway], ['r:error', WHY.error], ['r:left', WHY.left], ['r:other', 'Left (other reason)'], ['r:', 'Left before paying (before 5 Nov)'], ['forced', 'Booked by hand'], ['pending', 'Paying now']];
-    function cat(x) { return x.st === 'released' ? 'r:' + (!x.why ? '' : WHY[x.why] ? x.why : 'other') : x.st; }
-    function drawList() {
-      var A = (last && last.list) || [], cnt = {}; A.forEach(function (x) { cnt[cat(x)] = (cnt[cat(x)] || 0) + 1; });
-      if (filt !== 'all' && !cnt[filt]) filt = 'all';   /* that kind isn't in this period: back to All (overnight review 5 Nov) */
-      $('bsFilt').innerHTML = CATS.filter(function (c) { return c[0] === 'all' || cnt[c[0]]; }).map(function (c) {
-        return '<button type="button" data-f="' + c[0] + '" aria-pressed="' + (filt === c[0]) + '">' + c[1] + ' · ' + (c[0] === 'all' ? A.length : cnt[c[0]]) + '</button>'; }).join('');
-      var L = A.filter(function (x) { return filt === 'all' || cat(x) === filt; }), more = L.length > 60; L = L.slice(0, 60);
-      $('bsList').innerHTML = L.length ? L.map(function (x) {
-        var st = x.st === 'paid' ? (x.secs !== null ? 'Paid in ' + dur(x.secs) : 'Paid') : x.st === 'released' ? (x.why && WHY[x.why] ? WHY[x.why] : 'Left before paying') : x.st === 'forced' ? 'Booked by hand' : x.st === 'pending' ? 'Paying now' : x.st;
-        var cl = x.st === 'paid' ? 'paid' : x.st === 'released' ? 'left' : x.st === 'forced' ? 'hand' : '';
-        return '<div class="bsli"><span>' + esc(x.room) + (x.eb ? ' (Early Bird)' : '') + ' · ' + esc(slot(x)) + (x.hours ? ' · ' + x.hours + 'h' : '') + (x.total ? ' · $' + x.total : '') +
-          '<span class="bsw">Tried ' + esc(when(x.t)) + '</span></span><span class="chip ' + cl + '">' + esc(st) + '</span></div>';
-      }).join('') + (more ? '<p class="hint">Showing the latest 60.</p>' : '') : '<p class="hint">Nothing here in this period.</p>';
-    }
-    function draw(j) {
-      last = j;
-      var p = j.paidSecs || [], o = j.others || {}, n = p.length, med = n ? p[Math.floor((n - 1) / 2)] : 0, max = n ? p[n - 1] : 0, hold = j.holdSec || 600;
-      var walked = o.released || 0, forced = o.forced || 0;
-      var box = function (v, l) { return '<div><b>' + v + '</b><span class="hint">' + l + '</span></div>'; };
-      $('bsNums').innerHTML = box(n, 'paid online and booked') + box(n ? dur(med) : '–', 'typical time to pay') + box(n ? dur(max) : '–', 'slowest guest') +
-        box(walked, 'left before paying (or started again)') + box(Math.round(hold / 60) + ' min', 'time each guest gets') + (forced ? box(forced, 'booked by hand after a payment problem') : '');
-      var B = [[30, 'Under 30 s'], [45, '30–45 s'], [60, '45 s – 1 min'], [90, '1 – 1½ min'], [120, '1½ – 2 min'], [300, '2 – 5 min'], [hold, '5 – ' + Math.round(hold / 60) + ' min']], c = B.map(function () { return 0; });
-      p.forEach(function (x) { for (var i = 0; i < B.length; i++) if (x < B[i][0] || i === B.length - 1) { c[i]++; break; } });
-      var top = Math.max.apply(null, c.concat([1]));
-      $('bsHist').innerHTML = B.map(function (b, i) { return '<div class="bsrow"><span>' + b[1] + '</span><span class="bar" style="width:' + (100 * c[i] / top).toFixed(1) + '%"></span><b>' + c[i] + '</b></div>'; }).join('');
-      var in2 = p.filter(function (x) { return x <= 120; }).length;
-      $('bsHint').textContent = n ? Math.round(100 * in2 / n) + '% paid within 2 minutes. Measured from pressing Pay to the booking being in SimplyBook.' : 'No paid online bookings in this period yet.';
-      drawList();
-    }
-    function load() {
-      var k = ls('r2.guestStaff') || ''; $('bsErr').hidden = true;
-      if (!k) { $('bsErr').hidden = false; $('bsErr').textContent = 'Add the staff code (TV messages › Guest links) to see these numbers.'; return; }
-      fetch(ENGINE, { method: 'POST', body: new URLSearchParams({ action: 'paytimes', staff: k, days: days }) }).then(function (r) { return r.json(); }).then(function (j) {
-        if (j.error) throw new Error(j.error); draw(j);
-      }).catch(function (e) { $('bsErr').hidden = false; $('bsErr').textContent = 'Couldn’t load the numbers: ' + e.message; });
-    }
-    return { open: function () {
-      if (!ready) { ready = true; $('bsFilt').addEventListener('click', function (e) { var f = e.target.closest && e.target.closest('button'); if (!f) return; filt = f.getAttribute('data-f'); drawList(); });
-        $('bsRange').addEventListener('click', function (e) { var d = e.target.getAttribute && e.target.getAttribute('data-d'); if (!d) return; days = +d;
-        Array.prototype.forEach.call(document.querySelectorAll('#bsRange button'), function (b) { b.setAttribute('aria-pressed', b === e.target); }); load(); }); }
-      load();
-    } };
-  }());
-
-  var Web = (function () {
-    var DB = 'https://round2-tv-default-rtdb.asia-southeast1.firebasedatabase.app/web';
-    var range = 1, timer = null, ready = false, ROOMN = { vale: 'Vale', kaeden: 'Kaeden', scarlett: 'Scarlett', bella: 'Bella', kai: 'Kai', atlas: 'Atlas', maximillion: 'Maximillion' };
-    var SCREEN = { home: 'Main menu', rooms: 'Rooms', loadout: 'Loadout', how: 'How to play', find: 'Find us', info: 'FAQ / rules', booking: 'Booking form', board: 'Booking page: looking', board_room: 'Booking page: picking a time', board_details: 'Booking page: details', board_paying: 'Booking page: paying' };
-    var OUT = { out_wa: 'WhatsApp', out_tg: 'Telegram', out_ig: 'Instagram', out_tiktok: 'TikTok', out_maps: 'Google Maps', out_email: 'Email', out_phone: 'Phone call', out_simplybook: 'SimplyBook (new tab)',
-      gallery: 'Opened a room gallery', loadout: 'Loadout', how: 'How to play', find: 'Find us', info_faq: 'FAQ', info_rules: 'House rules', info_about: 'About', info_privacy: 'Privacy', dev_m: 'On a phone', dev_d: 'On a computer' };
-    function sgDay(ms) { return new Date(ms + 8 * 3600e3).toISOString().slice(0, 10); }   /* day-ok: website visitors are counted by calendar day */
-    function pretty(step) { step = step.replace(/_/g, ' '); return step.charAt(0).toUpperCase() + step.slice(1); }
-    function rows(list, max) {
-      max = max || Math.max.apply(null, list.map(function (x) { return x[1]; }).concat([1]));
-      return list.map(function (x) { return '<div class="wrow"><span>' + esc(x[0]) + '</span><span class="bar" style="width:' + Math.round(100 * x[1] / max) + '%"></span><span class="n">' + x[1] + (x[2] != null ? ' · ' + x[2] : '') + '</span></div>'; }).join('') || '<p class="hint">Nothing yet.</p>';
-    }
-    function liveNow() {
-      fetch(DB + '/live.json', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (l) {
-        var now = Date.now(), on = [], by = {};
-        Object.keys(l || {}).forEach(function (k) {
-          var x = l[k] || {};
-          if (now - (x.t || 0) < 75000) { on.push(x); var p = String(x.p || 'home'), g = /^booking/.test(p) ? 'booking' : p; by[g] = (by[g] || 0) + 1; }
-          else if (now - (x.t || 0) > 600000) fetch(DB + '/live/' + k + '.json', { method: 'DELETE' }).catch(function () {});   /* tidy visitors who left without saying */
-        });
-        $('wNow').textContent = on.length;
-        $('wDoing').innerHTML = Object.keys(by).map(function (k) { return '<span class="chip">' + esc(SCREEN[k] || k) + ': ' + by[k] + '</span>'; }).join('') || '<span class="hint">Nobody at the moment.</span>';
-        $('wErr').hidden = true;
-      }).catch(function (e) { $('wErr').hidden = false; $('wErr').textContent = 'Couldn’t read the visitor numbers (' + e.message + '). If this says 401, the Firebase rule for /web isn’t in yet (docs/site-stats.md).'; });
-    }
-    function stats() {
-      var from = sgDay(Date.now() - (range - 1) * 864e5);   /* day-ok: website stats range */
-      fetch(DB + '/days.json?orderBy=%22$key%22&startAt=%22' + from + '%22', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) {
-        var sum = {}, perDay = {};
-        Object.keys(d || {}).forEach(function (day) { var x = d[day] || {}; perDay[day] = x.visit || 0; Object.keys(x).forEach(function (k) { sum[k] = (sum[k] || 0) + (Number(x[k]) || 0); }); });
-        var v = sum.visit || 0, pc = function (n) { return v ? Math.round(100 * n / v) + '%' : ''; };
-        /* funnel: visits, rooms, booking, then the SimplyBook steps in the order most people reach them */
-        var f = [['Visited the menu', v, pc(v)], ['Looked at rooms', sum.rooms || 0, pc(sum.rooms || 0)], ['Opened booking', sum.book || 0, pc(sum.book || 0)]];
-        Object.keys(sum).filter(function (k) { return /^sb_/.test(k); }).sort(function (a, b) { return sum[b] - sum[a]; })
-          .forEach(function (k) { f.push(['Booking form: ' + pretty(k.slice(3)), sum[k], pc(sum[k])]); });
-        $('wFunnel').innerHTML = rows(f, v || 1);
-        /* hours */
-        var hrs = [], mx = 1; for (var h = 0; h < 24; h++) { var n = sum['h' + ('0' + h).slice(-2)] || 0; hrs.push(n); if (n > mx) mx = n; }
-        $('wHours').innerHTML = hrs.map(function (n, h) { return '<i title="' + h + ':00 · ' + n + ' visits" class="' + (n < mx * .5 ? 'lo' : '') + '" style="height:' + Math.round(100 * n / mx) + '%"></i>'; }).join('');
-        $('wHr').innerHTML = hrs.map(function (n, h) { return h % 3 ? '<span></span>' : '<span>' + ((h + 11) % 12 + 1) + (h < 12 ? 'a' : 'p') + '</span>'; }).join('');
-        /* days of the week */
-        var wk = [0, 0, 0, 0, 0, 0, 0], WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        Object.keys(perDay).forEach(function (day) { wk[new Date(day + 'T12:00:00Z').getUTCDay()] += perDay[day]; });
-        $('wDays').innerHTML = range < 7 ? '<p class="hint">Pick 7 or 28 days to compare days.</p>' : rows([1, 2, 3, 4, 5, 6, 0].map(function (i) { return [WD[i], wk[i]]; }));
-        $('wRooms').innerHTML = rows(Object.keys(ROOMN).map(function (k) { return [ROOMN[k], sum['room_' + k] || 0]; }).sort(function (a, b) { return b[1] - a[1]; }));
-        $('wOther').innerHTML = rows(Object.keys(OUT).filter(function (k) { return sum[k]; }).map(function (k) { return [OUT[k], sum[k]]; }).sort(function (a, b) { return b[1] - a[1]; }));
-        /* own booking page (round2sg-home slots/) */
-        var bv = sum.board || 0, bp = function (n) { return bv ? Math.round(100 * n / bv) + '%' : ''; }, B = function (k) { return sum[k] || 0; };
-        $('bFunnel').innerHTML = rows([['Opened the booking page', bv, bp(bv)], ['Tapped a room', B('board_pick'), bp(B('board_pick'))], ['Picked a time & length', B('board_continue'), bp(B('board_continue'))],
-          ['Held a slot (details filled)', B('board_hold'), bp(B('board_hold'))], ['Went to pay', B('board_pay'), bp(B('board_pay'))], ['Paid & booked', B('board_paid'), bp(B('board_paid'))]], bv || 1);
-        $('bRooms').innerHTML = rows(Object.keys(ROOMN).map(function (k) { return [ROOMN[k], B('board_room_' + k), B('board_paid_' + k) + ' paid']; }).sort(function (a, b) { return b[1] - a[1]; }));
-        $('bLen').innerHTML = rows([3, 4, 5, 6].map(function (h) { return [h + ' hours', B('board_len_' + h), B('board_paid_len_' + h) + ' paid']; }));
-        $('bAhead').innerHTML = rows([['Today', 'today'], ['Tomorrow', 'tomorrow'], ['Within a week', 'week'], ['Within a month', 'month'], ['1–3 months ahead', '3months'], ['Further ahead', 'later']].map(function (x) { return [x[0], B('board_ahead_' + x[1])]; }));
-        $('bOther').innerHTML = rows([['Early bird (11am)', B('board_eb')], ['Off-peak day', B('board_offpeak')], ['Peak day', B('board_peak')], ['Public holiday', B('board_ph')],
-          ['Added a TV celebration message', B('board_cel')], ['Overseas phone number', B('board_intl')], ['Left the payment page (slot released)', B('board_left_pay')], ['Changed their mind before paying', B('board_let_go')],
-          ['On a phone', B('board_dev_m')], ['On a computer', B('board_dev_d')]].filter(function (x) { return x[1]; }));
-        var days = Object.keys(d || {}).sort();
-        $('wNote').textContent = days.length ? 'Counting since ' + days[0] + '. Visits on Wix’s other pages (like the room pages) aren’t included here.' : 'No visits counted yet for this period.';
-      }).catch(function () {});
-    }
-    function refresh() { liveNow(); stats(); }
-    /* real time: Firebase streams every change (EventSource), so a new visitor or step shows within a second or two.
-       The 15-second timer stays for people who leave without saying (their live entry just goes stale). */
-    var streams = [], dLive = null, dStats = null;
-    function listen() {
-      unlisten();
-      if (!window.EventSource) return;
-      var on = function (es, fn) { ['put', 'patch'].forEach(function (ev) { es.addEventListener(ev, fn); }); streams.push(es); };
-      on(new EventSource(DB + '/live.json'), function () { clearTimeout(dLive); dLive = setTimeout(liveNow, 400); });
-      on(new EventSource(DB + '/days/' + sgDay(Date.now()) + '.json'), function () {   /* day-ok: website visitors, calendar day */ clearTimeout(dStats); dStats = setTimeout(stats, 800); });
-    }
-    function unlisten() { streams.forEach(function (es) { try { es.close(); } catch (e) {} }); streams = []; }
-    return {
-      open: function () {
-        if (!ready) {
-          ready = true;
-          $('wRange').addEventListener('click', function (e) { var r = e.target.getAttribute && e.target.getAttribute('data-r'); if (!r) return; range = +r; Array.prototype.forEach.call(document.querySelectorAll('#wRange button'), function (b) { b.setAttribute('aria-pressed', b === e.target); }); stats(); });
-        }
-        refresh(); listen(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) { liveNow(); } }, 15000);
-      },
-      close: function () { clearInterval(timer); unlisten(); }
-    };
-  }());
-
-  var Sim = (function () {
-    var MENU = 'https://donttelldadyet-prog.github.io/round2sg-home/menu/', room = ls('r2m.simRoom') || 'vale', ready = false;
-    function code() { return ls('r2m.simCode') || ''; }
-    function url() { return MENU + '?room=' + encodeURIComponent(room === 'maximillion' ? 'max' : room) + '&sim=' + encodeURIComponent(code()); }
-    function draw() {
-      $('simKeyBox').hidden = !!code(); $('simBody').hidden = !code();
-      if (!code()) return;
-      $('simRoomPick').innerHTML = Object.keys(ROOMS).map(function (k) { return '<button type="button" data-sr="' + k + '" aria-pressed="' + (k === room) + '" style="--rc:' + ROOMS[k].c + '">' + esc(ROOMS[k].name) + '</button>'; }).join('');
-      $('simNote').textContent = 'Ordering as ' + ROOMS[room].name + '. Nothing is charged.';
-      $('simOpen').href = url();
-      if ($('simFrame').getAttribute('src') !== url()) $('simFrame').setAttribute('src', url());
-    }
-    return {
-      open: function (r) {
-        if (r) { room = r; ls('r2m.simRoom', r); }
-        if (!ready) {
-          ready = true;
-          $('simKeyGo').onclick = function () { var v = $('simKey').value.trim(); if (!v) return; ls('r2m.simCode', v); $('simKey').value = ''; toast('Saved on this phone or computer.'); draw(); };
-          $('simRoomPick').addEventListener('click', function (e) { var k = e.target.getAttribute && e.target.getAttribute('data-sr'); if (k) { room = k; ls('r2m.simRoom', k); draw(); } });
-        }
-        draw();
-      }
-    };
-  }());
-
-  /* ---------- TV tests: a test message or food alert to any room's TV, and what each TV last received ---------- */
-  /* Systems (All systems + Test bench). The list is manager/systems.json (keep it current); the switches and the coloured
-     checks come live from the booking engine (/status, /mode). Switching needs the two passwords set in Cloudflare
-     (SWITCH_PASS + SWITCH_PIN) – this page never stores them. */
-  var Sys = (function () {
-    var ENG = 'https://round2-book.donttelldadyet.workers.dev';
-    var BOOK_TEST = 'https://donttelldadyet-prog.github.io/round2sg-home/slots/';
-    var ST = { live: ['Live', 'var(--ok)'], test: ['Testing', 'var(--accent)'], build: ['Building', 'var(--focus)'], planned: ['Planned', '#B48CFF'],
-      parked: ['On the shelf', 'var(--mute)'], off: ['Off', 'var(--mute)'], broken: ['Broken', 'var(--bad)'] };
-    var data = null, st = null, filt = 'all', pfilt = 'all', pending = null;
-    /* owner, 2 Nov: All systems = running (live, test, broken, off); Planned = not running yet (build, planned, parked) */
-    var RUN = ['live', 'test', 'broken', 'off'], PLAN = ['build', 'planned', 'parked'];
-    function chip(k) { var x = ST[k] || ['?', 'var(--mute)']; return '<span class="st" style="--sc:' + x[1] + '">' + x[0] + '</span>'; }
-    function status(deep) { return fetch(ENG + '/status' + (deep ? '?deep=1' : ''), { cache: 'no-store' }).then(function (r) { return r.json(); }); }
-    function live(it) {
-      if (!st) return '';
-      if (it.check === 'payments') return '<div class="live">Payments now: ' + (st.payments === 'live' ? '<b class="cbad">LIVE · real money</b>' : '<b class="cwarn">TEST · sandbox</b>') + (st.booking === 'simplybook' && /booking/i.test(it.name) ? ' · <b class="cwarn">SAFE MODE: guests sent to SimplyBook</b>' : '') + '</div>';
-      if (it.check === 'engine') return '<div class="live"><b class="cok">● Running</b> · payments ' + String(st.payments || '?').toUpperCase() + ' · booking ' + (st.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</div>';
-      if (it.check === 'release' && it._rel) return '<div class="live">Latest build: <b>' + esc(it._rel) + '</b></div>';
-      return '';
-    }
-    function render() { draw(RUN, 'sys', filt); draw(PLAN, 'plan', pfilt); }
-    function draw(keep, pre, fl) {
-      if (!data) return;
-      var counts = {}; data.areas.forEach(function (a) { a.items.forEach(function (it) { if (keep.indexOf(it.status) >= 0) counts[it.status] = (counts[it.status] || 0) + 1; }); });
-      $(pre + 'Leg').innerHTML = 'Updated ' + esc(data.updated) + ' · ' + keep.filter(function (k) { return counts[k]; }).map(function (k) { return chip(k) + ' ' + counts[k]; }).join(' ');
-      $(pre + 'Filter').innerHTML = [['all', 'All']].concat(keep.filter(function (k) { return counts[k]; }).map(function (k) { return [k, ST[k][0]]; }))
-        .map(function (f) { return '<button type="button" data-f="' + f[0] + '" aria-pressed="' + (fl === f[0]) + '">' + f[1] + '</button>'; }).join('');
-      $(pre + 'List').innerHTML = data.areas.map(function (a) {
-        var items = a.items.filter(function (it) { return keep.indexOf(it.status) >= 0 && (fl === 'all' || it.status === fl); });
-        if (!items.length) return '';
-        return '<div class="sysarea">' + esc(a.name) + '</div>' + items.map(function (it) {
-          var c = (ST[it.status] || [0, 'var(--line2)'])[1];
-          return '<div class="sys" style="--sc:' + c + '">' + chip(it.status) + '<div><h3>' + esc(it.name) + '</h3><p>' + esc(it.what || '') + '</p>' + live(it) +
-            '<div class="meta">' + (it.runs ? 'Runs on <b>' + esc(it.runs) + '</b>' : '') + (it.code ? ' · Code: ' + esc(it.code) : '') + '</div></div></div>';
-        }).join('');
-      }).join('');
-    }
-    function switches() {
-      var b = $('swBody');
-      if (!st) { b.innerHTML = '<span class="cbad">Can’t reach the booking engine right now.</span>'; return; }
-      var ready = st.switchSet;
-      function box(key, title, now, opts, note) {
-        return '<div class="sw"><div class="hint">' + title + '</div><div class="now">' + now + '</div><div class="opts">' + opts.map(function (o) {
-          return '<button class="btn" type="button" data-sw="' + key + '" data-v="' + o[0] + '" aria-pressed="' + (o[2] ? 'true' : 'false') + '"' + (ready ? '' : ' disabled') + '>' + o[1] + '</button>'; }).join('') + '</div><div class="hint">' + note + '</div></div>';
-      }
-      var safe = st.booking === 'simplybook', liveP = st.payments === 'live';
-      b.innerHTML = (ready ? '' : '<div class="banner warn"><div class="grow"><b>Switches are locked until the two passwords are set.</b> In Cloudflare › Workers &amp; Pages › round2-book › Settings › Variables and Secrets, edit <code>SWITCH_PASS</code> (a password) and <code>SWITCH_PIN</code> (a different PIN only the owners know).</div></div>') +
-        box('booking', 'Online booking', safe ? '🛟 Safe mode: guests book on the SimplyBook page' : '✅ New booking page', [['new', 'New booking page', !safe], ['simplybook', 'Safe mode (SimplyBook)', safe]],
-          'Safe mode keeps the business running if anything goes wrong: the booking page shows the old SimplyBook calendar instead (same as the website used before), and the engine takes no new online bookings. Bookings already made stay as they are.') +
-        '<div class="sw"><div class="hint">Payments (booking page and food menu)</div><div class="now">' + (liveP ? '💳 Guests pay LIVE' : '🧪 Pre-launch: everything uses the HitPay sandbox') + '</div>' +
-          '<div class="hint">No switch needed: guests always pay on the live HitPay account once its key is in Cloudflare' + (st.liveKeys ? ' (it is)' : ' (not yet: paste HITPAY_LIVE_KEY and HITPAY_LIVE_SALT)') + '. The test tools (Test bench, Test an order) always use the HitPay sandbox, so testing never charges anyone.</div></div>' +
-        '<div class="lockbox" id="swLock" hidden><b id="swWhat"></b><input id="swPass" type="password" autocomplete="off" placeholder="Password"><input id="swPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">' +
-        '<input id="swBy" placeholder="Your name (for the record)"><div class="row"><button class="btn primary" type="button" id="swGo">Confirm switch</button><button class="btn" type="button" id="swNo">Cancel</button></div><div class="hint" id="swMsg"></div></div>';
-    }
-    function refresh() { return status().then(function (j) { st = j; }, function () { st = null; }).then(function () { switches(); render(); }); }
-    function open() {
-      var p1 = data ? Promise.resolve() : fetch('systems.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { data = j; });
-      var p2 = fetch('https://api.github.com/repos/donttelldadyet-prog/round2-tv-launcher/releases/latest').then(function (r) { return r.json(); }).then(function (r) {
-        if (!data || !r.tag_name) return; data.areas.forEach(function (a) { a.items.forEach(function (it) { if (it.check === 'release') it._rel = r.tag_name + ', ' + new Date(r.published_at).toLocaleDateString(); }); }); }).catch(function () {});
-      Promise.all([p1, refresh()]).then(function () { return p2; }).then(render, function () { $('sysList').innerHTML = '<p class="cbad">Couldn’t load the systems list.</p>'; });
-    }
-    document.addEventListener('click', function (e) {
-      var f = e.target.closest('[data-f]'); if (f && $('sysFilter').contains(f)) { filt = f.getAttribute('data-f'); render(); return; }
-      if (f && $('planFilter').contains(f)) { pfilt = f.getAttribute('data-f'); render(); return; }
-      var w = e.target.closest('[data-sw]');
-      if (w && !w.disabled) {
-        var k = w.getAttribute('data-sw'), v = w.getAttribute('data-v');
-        if (st.booking === v) return;
-        pending = { k: k, v: v };
-        $('swWhat').textContent = v === 'simplybook' ? 'Switch online booking to SAFE MODE (the SimplyBook calendar on the booking page)?' : 'Switch back to the NEW booking page?';
-        $('swLock').hidden = false; $('swMsg').textContent = ''; $('swPass').value = ''; $('swPin').value = ''; $('swPass').focus(); return;
-      }
-      if (e.target.id === 'swNo') { pending = null; $('swLock').hidden = true; return; }
-      if (e.target.id === 'swGo' && pending) {
-        var body = { pass: $('swPass').value, pin: $('swPin').value, by: $('swBy').value }; body[pending.k] = pending.v;
-        $('swMsg').textContent = 'Switching…';
-        fetch(ENG + '/mode', { method: 'POST', body: JSON.stringify(body) }).then(function (r) { return r.json(); }).then(function (j) {
-          if (j.error) { $('swMsg').innerHTML = '<span class="cbad">' + esc(j.error) + '</span>'; return; }
-          pending = null; refresh();
-        }, function () { $('swMsg').innerHTML = '<span class="cbad">No connection – nothing changed.</span>'; });
-        return;
-      }
-      var g = e.target.closest('[data-go]'); if (g) { tab(g.getAttribute('data-go')); scrollTo(0, 0); }
-    });
-    function bench() {
-      var tc = ls('r2m.simCode') || '';
-      $('tbBook').href = BOOK_TEST + (tc ? '?test=' + encodeURIComponent(tc) : '');
-      status().then(function (j) {
-        st = j;
-        $('tbBookNote').innerHTML = ls('r2m.simCode') ? 'Opens the booking page in <b class="cwarn">TEST MODE</b>: it pays in the HitPay sandbox even when guests pay live. Nothing is charged.' : '<b class="cbad">Add the menu test code first</b> (Food menu › Test an order, one-time setup). Without it this would be a real booking with real payment once payments are live.';
-      }).catch(function () {});
-    }
-    $('tbRun').addEventListener('click', function () {
-      $('tbChk').innerHTML = '<span class="hint">Checking…</span>';
-      var t0 = Date.now();
-      status(true).then(function (j) {
-        var y = function (ok, txt) { return '<span class="' + (ok ? 'cok' : 'cbad') + '">' + (ok ? '✔' : '✖') + '</span><span>' + txt + '</span>'; };
-        $('tbChk').innerHTML = y(true, 'Booking engine answers (' + (Date.now() - t0) + ' ms)') +
-          y(j.sbLogin === 'ok', 'SimplyBook staff login ' + esc(j.sbLogin)) + y(j.sbPublic === 'ok', 'SimplyBook public calendar ' + esc(j.sbPublic)) +
-          '<span class="cwarn">●</span><span>Payments: <b>' + String(j.payments || '?').toUpperCase() + '</b> · booking: <b>' + (j.booking === 'simplybook' ? 'SAFE MODE' : 'new page') + '</b></span>' +
-          y(j.kitchenBot, 'Kitchen Telegram bot set') + y(j.guestMessages, 'Guest messages set') + y(j.menuSheet, 'Menu → accounts sheet set') +
-          y(j.sbSecret, 'SimplyBook secret key set') + y(j.liveKeys, 'Live HitPay key in Cloudflare') + y(j.switchSet, 'Switch passwords set') +
-          '<span class="hint">●</span><span>TV messages waiting in the timer: ' + (j.timerQueue == null ? '?' : j.timerQueue) + '</span>';
-        $('tbWhen').textContent = 'Checked ' + new Date().toLocaleTimeString(undefined, { timeZone: 'Asia/Singapore' });
-      }, function () { $('tbChk').innerHTML = '<span class="cbad">✖</span><span>The booking engine didn’t answer.</span>'; });
-    });
-    return { open: open, bench: bench };
-  }());
-  /* keep the page menu just under the sticky header (its height changes with screen width) */
-  (function () { var h = document.querySelector('header.top'); function set() { document.documentElement.style.setProperty('--hh', h.offsetHeight + 'px'); } set(); if (window.ResizeObserver) new ResizeObserver(set).observe(h); else addEventListener('resize', set); }());
-
-  /* ================= In session: extend a session (+1/+2/+3 h) =================
-     Reads today's bookings and notes from the engine (POST /gm action=insess, staff code). Every change is checked first
-     (action=extend dry=1 → the review box), then made (extend), and can be undone for 30 min (extundo).
-     round2sg-home worker/round2-book.js "In session"; docs/guest-messages.md "In session". */
-
-  /* ===== Bookings › Move a booking + Rescheduling (owner, 12 Nov) – engine actions mvday/mvfree/mvquote/mvpay/mvlink/mvstatus/mvnow/mvlog ===== */
-  var Move = (function () {
-    var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', RC = { Vale: '#E8436A', Kaeden: '#4DB848', Scarlett: '#F2C21B', Bella: '#7A5BE0', Kai: '#24B49A', Atlas: '#E9E7EF', Max: '#E0402F' };
-    var cur = { bk: null, slot: null, q: null, ref: '', poll: null, feeMode: 'full' }, ready = false;
-    function key() { return ls('r2.guestStaff') || ''; }
-    function gm(o) { return fetch(ENG, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: key() }, o)) }).then(function (r) { return r.json(); }); }
-    function err(t) { var b = $('mvErr'); b.hidden = !t; b.textContent = t || ''; }
-    function moveDay(nowMs) { return R2Day.night(nowMs); }   /* the shop night: before 7am it's still last night's bookings */
-    R2Day.list('Move a booking › day', { night: moveDay, today: moveDay });
-    function clk(ms) { var d = new Date(ms + 8 * 3600e3), h = d.getUTCHours(), m = d.getUTCMinutes(); return ((h + 11) % 12 + 1) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); }   /* day-ok: Singapore clock time of an engine timestamp */
-    function hm(m) { var h = Math.floor(m / 60) % 24, mm = m % 60; return ((h + 11) % 12 + 1) + (mm ? ':' + String(mm).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); }
-    function rn(r) { return r === 'Maximillion' ? 'Max' : r; }
-    function money(x) { return '$' + (+x).toFixed(2).replace(/\.00$/, ''); }
-    function open() {
-      $('mvKeyBox').hidden = !!key(); if (!key()) return;
-      if (!ready) {
-        ready = true; $('mvDay').value = moveDay(R2Day.now()); $('mvBy').value = ls('r2.mvBy') || '';
-        $('mvDayGo').onclick = days; $('mvDay').onchange = days; $('mvFreeGo').onclick = free; $('mvDate').onchange = free; $('mvHours').onchange = free;
-        [].forEach.call($('mvFeeSeg').querySelectorAll('button'), function (b) { b.onclick = function () { cur.feeMode = b.getAttribute('data-f'); [].forEach.call($('mvFeeSeg').querySelectorAll('button'), function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); }); $('mvFeeIn').hidden = cur.feeMode !== 'lower'; $('mvWhy').hidden = cur.feeMode === 'full'; total(); }; });
-        $('mvFeeIn').oninput = total; $('mvBy').onchange = function () { ls('r2.mvBy', $('mvBy').value.trim()); };
-        $('mvQr').onclick = function () { pay('mvpay'); }; $('mvLink').onclick = function () { pay('mvlink'); }; $('mvShop').onclick = function () { now('shop'); }; $('mvNow').onclick = function () { now(''); };
-      }
-      days();
-    }
-    function days() {
-      err(''); $('mvList').innerHTML = '<p class="hint">Loading…</p>';
-      gm({ action: 'mvday', day: $('mvDay').value }).then(function (j) {
-        if (j.error) { err(j.error); $('mvList').innerHTML = ''; return; }
-        $('mvDayHint').textContent = j.list.length + ' booking' + (j.list.length === 1 ? '' : 's');
-        $('mvList').innerHTML = j.list.length ? j.list.map(function (b, i) {
-          return '<button type="button" class="mvbk" data-i="' + i + '" style="--c:' + (RC[rn(b.room)] || '#888') + '" aria-pressed="' + (cur.bk && cur.bk.bid === b.bid) + '"' + (b.started ? ' disabled' : '') + '><b style="min-width:84px">' + esc(rn(b.room)) + '</b><span class="grow">' + clk(b.s) + ' – ' + clk(b.guestEnd) + ' · ' + esc(b.name || 'guest') + '</span><small>' + (b.link ? '🔗 ' : '') + (b.started ? 'started' : (b.ext ? '+' + Math.round(b.ext / 60) + 'h · ' : '') + '#' + esc(b.bid)) + '</small></button>';
-        }).join('') : '<p class="hint">No guest bookings that night.</p>';
-        [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.onclick = function () { var b = j.list[+el.getAttribute('data-i')]; if (cur.bk && cur.bk.bid === b.bid) unpick(); else pick(b); }; });
-      }).catch(function () { err('Couldn’t reach the booking engine.'); });
-    }
-    /* tap the open booking again → close it (owner, 16 Nov: "after opening 1 entry I can't click it again to close") */
-    function unpick() {
-      if (cur.ref && !confirm('A payment for this move is still waiting. Close it anyway? (A guest who pays later is still moved by the engine.)')) return;
-      stop(); cur.bk = null; cur.slot = null; cur.q = null; cur.ref = '';
-      [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.setAttribute('aria-pressed', 'false'); });
-      $('mvPick').hidden = true; $('mvQuote').hidden = true; $('mvFree').innerHTML = ''; $('mvPay').innerHTML = '';
-    }
-    function pick(b) {
-      stop(); cur.bk = b; cur.slot = null; cur.q = null; cur.ref = ''; cur.room = null; cur.free = null;
-      [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.setAttribute('aria-pressed', el.textContent.indexOf('#' + b.bid) >= 0 ? 'true' : 'false'); });
-      var hrs = Math.max(3, Math.min(6, b.hours || 3));
-      $('mvFrom').innerHTML = 'Moving <b>' + esc(b.name || 'guest') + '</b> · ' + esc(rn(b.room)) + ' ' + $('mvDay').value + ' ' + clk(b.s) + '–' + clk(b.guestEnd) + (b.ext ? ' · its <b>+' + Math.round(b.ext / 60) + 'h extension moves with it</b> (only times free for the extra hours too are shown)' : '') +
-        /* its guest link (owner, 12 Nov: re-send a lost link) – bookings made online or with Add a session have one */
-        (b.link ? '<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><span class="hint" style="align-self:center">Guest’s booking link:</span><button type="button" class="btn" id="mvCopyLink">Copy link</button><a class="btn" target="_blank" rel="noopener" href="' + esc(b.link) + '">Open</a></div>' : '<div class="hint" style="margin-top:6px">No guest booking link (made in SimplyBook directly).</div>');
-      if (b.link) $('mvCopyLink').onclick = function () { var bt = this; try { navigator.clipboard.writeText(b.link).then(function () { bt.textContent = 'Copied ✓'; }, function () { prompt('Copy this link', b.link); }); } catch (e) { prompt('Copy this link', b.link); } };
-      $('mvPick').hidden = false; $('mvQuote').hidden = true; $('mvDate').value = $('mvDay').value; $('mvHours').value = String(hrs); free();
-      $('mvPick').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    function free() {
-      if (!cur.bk || !$('mvDate').value) return; $('mvFree').innerHTML = '<p class="hint">Checking…</p>'; $('mvQuote').hidden = true; cur.slot = null;
-      gm({ action: 'mvfree', bid: cur.bk.bid, date: $('mvDate').value, hours: $('mvHours').value }).then(function (j) {
-        if (j.error) { $('mvFree').innerHTML = '<p class="hint">' + esc(j.error) + '</p>'; return; }
-        cur.free = j; drawFree();
-      });
-    }
-    /* free times (owner, 16 Nov: "the time list lists everything and is messy"): one room at a time (room tabs with a count,
-       the guest's own room first), times grouped Day / Evening / Late in an even grid. Owner, 16 Nov: every time shown (no
-       :15/:45 toggle) and the room tabs wrap onto a second line instead of scrolling sideways (easy to miss). */
-    function drawFree() {
-      var j = cur.free; if (!j) return;
-      var rooms = Object.keys(j.free), own = cur.bk && cur.bk.room;
-      rooms.sort(function (a, b) { return (b === own) - (a === own); });
-      if (!cur.room || !j.free[cur.room] || !j.free[cur.room].length) cur.room = rooms.filter(function (r) { return j.free[r].length; })[0] || rooms[0];
-      var L = j.free[cur.room] || [], show = L;
-      var G = [['Day', 0, 17 * 60], ['Evening', 17 * 60, 23 * 60], ['Late night', 23 * 60, 1e9]];
-      var tabs = '<div class="mvtabs">' + rooms.map(function (r) {
-        var n = j.free[r].length; return '<button type="button" data-r="' + esc(r) + '" style="--c:' + (RC[rn(r)] || '#888') + '" aria-pressed="' + (r === cur.room) + '"' + (n ? '' : ' disabled') + '><b>' + esc(rn(r)) + '</b><small>' + (n ? n + ' time' + (n > 1 ? 's' : '') : 'full') + (r === own ? ' · now' : '') + '</small></button>';
-      }).join('') + '</div>';
-      var body = !L.length ? '<p class="hint">No room has ' + j.hours + ' free hours that day. Try another day or fewer hours.</p>' : G.map(function (g) {
-        var T = show.filter(function (m) { return m >= g[1] && m < g[2]; }); if (!T.length) return '';
-        return '<div class="mvgrp"><div class="mvgh">' + g[0] + '</div><div class="mvgrid">' + T.map(function (m) {
-          var on = cur.slot && cur.slot.room === cur.room && cur.slot.m === m;
-          return '<button type="button" class="mvt" data-m="' + m + '" aria-pressed="' + !!on + '">' + hm(m) + '</button>'; }).join('') + '</div></div>';
-      }).join('');
-      $('mvFree').innerHTML = tabs + body +
-        '<div class="row" style="gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><span class="hint grow">Free for ' + j.hours + ' hours · pick one to see the fee.</span>' +
-        '</div>';
-      [].forEach.call($('mvFree').querySelectorAll('.mvtabs button'), function (el) { el.onclick = function () { cur.room = el.getAttribute('data-r'); drawFree(); }; });
-      [].forEach.call($('mvFree').querySelectorAll('.mvt'), function (el) { el.onclick = function () { var m = +el.getAttribute('data-m'); quote(cur.room, m); cur.slot.m = m; drawFree(); }; });
-    }
-    var TIER = { Vale: 'n', Kaeden: 'n', Scarlett: 'n', Kai: 'd', Bella: 'd', Atlas: 'd', Max: 'v', Maximillion: 'v' };
-    var UNIT = { Vale: 5, Kaeden: 7, Scarlett: 8, Kai: 9, Bella: 10, Atlas: 12, Max: 11, Maximillion: 11 };
-    function slotArgs() { var s = cur.slot; return { bid: cur.bk.bid, unit: s.unit, date: s.date, time: s.time, hours: s.hours }; }
-    function quote(room, m) {
-      stop(); cur.ref = ''; var t = String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
-      cur.slot = { unit: UNIT[room], date: $('mvDate').value, time: t, hours: +$('mvHours').value, room: room };
-      $('mvQuote').hidden = false; $('mvQ').innerHTML = '<p class="hint">Working out the fee…</p>'; $('mvPay').innerHTML = '';
-      gm(Object.assign({ action: 'mvquote' }, slotArgs())).then(function (q) {
-        if (q.error) { $('mvQ').innerHTML = '<p class="hint">' + esc(q.error) + '</p>'; cur.q = null; total(); return; }
-        cur.q = q;
-        $('mvQ').innerHTML = (q.ok ? '' : '<div class="banner warn">Not free: ' + esc(q.clash.join('; ')) + '</div>') +
-          '<div><b>' + esc(rn(q.from.room)) + ' ' + q.from.date + ' ' + q.from.time + '</b> → <b>' + esc(rn(q.to.room)) + ' ' + q.to.date + ' ' + q.to.time + '–' + q.to.end + '</b> (' + q.to.hours + 'h' + (q.ext ? ' + ' + Math.round(q.ext / 60) + 'h extension' : '') + ')</div>' +
-          '<div class="hint" style="margin-top:4px">Paid ' + money(q.from.paid) + (q.from.online ? ' online' : ' (list price)') + ' · new slot ' + money(q.to.price) + (q.to.earlyBird ? ' (early bird)' : q.to.peak ? ' (peak)' : ' (off-peak)') + '</div>' +
-          '<div style="margin-top:6px">Change fee <b>' + money(q.base) + '</b> <span class="hint">· ' + esc(q.level === 'add hours' ? 'adding hours only – no fee, just the extra hours' : q.level === 'upgrade' ? 'upgrade to a bigger room' : q.level === 'peak time' ? 'moving to a peak time (pays the difference)' : 'move') + '</span></div>' +
-          (q.add ? '<div>Popular time <b>+' + money(q.add) + '</b> <span class="hint">· this slot is likely to be booked' + (q.reason ? ' · ' + esc(q.reason) : '') + '</span></div>' : (q.reason ? '<div class="hint">' + esc(q.reason) + '</div>' : '')) +
-          '<div>Price difference <b>' + money(q.diff) + '</b>' + (q.to.price < q.from.paid ? ' <span class="hint">· new slot is cheaper – no refund</span>' : '') + '</div>';
-        total();
-      });
-    }
-    function fee() { if (!cur.q) return 0; return cur.feeMode === 'waive' ? 0 : cur.feeMode === 'lower' ? Math.max(0, Math.min(cur.q.fee, Math.round(+$('mvFeeIn').value || 0))) : cur.q.fee; }
-    function total() {
-      var q = cur.q; if (!q) { $('mvTotal').innerHTML = ''; return; }
-      var f = fee(), t = Math.round((f + q.diff) * 100) / 100;
-      $('mvTotal').innerHTML = 'To pay <b class="big">' + money(t) + '</b><span class="hint">fee ' + money(f) + (f < q.fee ? ' (was ' + money(q.fee) + ')' : '') + ' + difference ' + money(q.diff) + ' · key this into HitPay for Tap to Pay</span>';
-      var zero = t < 0.01; $('mvQr').hidden = zero || !q.ok; $('mvLink').hidden = zero || !q.ok; $('mvShop').hidden = zero || !q.ok; $('mvNow').hidden = !zero || !q.ok;
-    }
-    function base() { var o = slotArgs(); o.fee = String(fee()); o.by = $('mvBy').value.trim(); o.why = $('mvWhy').value.trim(); return o; }
-    function needWhy() { if (cur.feeMode !== 'full' && fee() < cur.q.fee && !$('mvWhy').value.trim()) { $('mvPay').innerHTML = '<p class="hint">Say why the fee is lowered or waived (one line).</p>'; return true; } return false; }
-    function qrLib() { return window.qrcode ? Promise.resolve() : new Promise(function (ok, no) { var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
-    function pay(act) {
-      if (!cur.q || needWhy()) return; $('mvPay').innerHTML = '<p class="hint">Making the payment…</p>';
-      gm(Object.assign({ action: act, ref: cur.ref }, base())).then(function (j) {
-        if (j.error) { $('mvPay').innerHTML = '<p class="hint">' + esc(j.error) + '</p>'; return; }
-        cur.ref = j.ref;
-        if (act === 'mvlink') {
-          try { navigator.clipboard.writeText(j.url); } catch (e) {}
-          $('mvPay').innerHTML = '<p>Payment link for <b>' + money(j.total) + '</b> copied – paste it in WhatsApp:</p><input readonly style="width:100%" value="' + esc(j.url) + '" onclick="this.select()"><p class="hint">The booking moves by itself as soon as they pay (this page shows it if left open).</p>';
-        } else if (j.qr) {
-          qrLib().then(function () { var q = window.qrcode(0, 'M'); q.addData(j.qr); q.make(); $('mvPay').innerHTML = '<p>Ask the guest to scan with their banking app – <b>' + money(j.total) + '</b> by PayNow:</p><div class="mvqr">' + q.createSvgTag({ cellSize: 6, margin: 2, scalable: true }) + '</div><p class="hint" id="mvSt">Waiting for payment…</p>'; })
-            .catch(function () { $('mvPay').innerHTML = '<p>QR couldn’t be drawn – open the payment page instead: <a href="' + esc(j.url) + '" target="_blank" rel="noopener">pay ' + money(j.total) + '</a></p><p class="hint" id="mvSt">Waiting for payment…</p>'; });
-        } else $('mvPay').innerHTML = '<p>HitPay didn’t give a QR – show the guest this page: <a href="' + esc(j.url) + '" target="_blank" rel="noopener">pay ' + money(j.total) + '</a></p><p class="hint" id="mvSt">Waiting for payment…</p>';
-        watch();
-      });
-    }
-    function watch() { stop(); var n = 0; cur.poll = setInterval(function () { if (++n > 200) return stop(); gm({ action: 'mvstatus', ref: cur.ref }).then(function (j) { if (j.status === 'done') { stop(); done(j.moved); } else if (j.status === 'failed') { stop(); $('mvPay').innerHTML += '<div class="banner warn">Paid, but the move didn’t go through: ' + esc(j.err) + '. Move it by hand in SimplyBook or refund in HitPay. (An alert was sent.)</div>'; } }); }, 4000); }
-    function stop() { if (cur.poll) clearInterval(cur.poll); cur.poll = null; }
-    function now(how) {
-      if (!cur.q || needWhy()) return;
-      if (how === 'shop' && !confirm('Paid ' + $('mvTotal').querySelector('b').textContent + ' in the HitPay app (Tap to Pay)? The booking moves now.')) return;
-      $('mvPay').innerHTML = '<p class="hint">Moving…</p>';
-      gm(Object.assign({ action: 'mvnow', how: how }, base())).then(function (j) { if (j.error) { $('mvPay').innerHTML = '<p class="hint">' + esc(j.error) + '</p>'; return; } done(j.moved); });
-    }
-    function done(m) {
-      $('mvPay').innerHTML = '<div class="banner" style="border-color:var(--ok)">✅ Moved: <b>' + esc(rn(m.to.room)) + ' ' + m.to.date + ' ' + m.to.time + '</b> (' + m.to.hours + 'h' + (m.ext ? ' + ' + Math.round(m.ext / 60) + 'h extension' : '') + ') · ' + esc(m.how) + '. SimplyBook, the Vale/Atlas block, the +h note, TV messages and wrap-up messages follow.' + (m.extProb ? ' <b>But the +h note didn’t move – fix it in SimplyBook (an alert was sent).</b>' : '') + '</div>';
-      days();
-    }
-    /* DEMO (owner, 12 Nov: to explain the page before real moves exist): staff.round2.sg/?rsdemo=1 → made-up moves, nothing real */
-    var RSDEMO = /[?&]rsdemo=1/.test(location.search);
-    function demoGm(o) {
-      var t = Date.now(), H = 3600e3, D = 24 * H;
-      if (o.action === 'mvstats') return Promise.resolve({ ok: true, moves: 14, guest: 11, staff: 3, free: 2, booked: 168, fees: 236, diffs: 182, lowered: 25, second: 2, note: '',
-        wires: [{ name: 'of online bookings moved', value: 7, lim: 'limit 15%', red: false, n: 168 }, { name: 'of moves were under 3 days before', value: 36, lim: 'limit 50%', red: false, n: 14 },
-          { name: 'of moves went into Fri–Sun evenings', value: 43, lim: 'limit 33%', red: true, n: 14 }, { name: 'of freed slots were booked again', value: 43, lim: 'at least 15%', red: false, n: 14 },
-          { name: 'average gain per move (fee + difference − estimated lost sale)', value: 9, money: true, lim: 'above $0', red: false, n: 12 }] });
-      return Promise.resolve({ ok: true, list: [
-        { t: t - 2 * H, name: 'Amanda', from: { room: 'Vale', date: '2026-11-17', time: '16:00' }, to: { room: 'Kai', date: '2026-11-21', time: '16:00', hours: 3 }, fee: 15, feeWas: 15, diff: 30, how: 'paid online (PayNow)', by: 'guest online' },
-        { t: t - 5 * H, name: 'Jun Wei', from: { room: 'Kai', date: '2026-11-14', time: '16:00' }, to: { room: 'Kai', date: '2026-11-14', time: '19:30', hours: 3 }, fee: 20, feeWas: 20, diff: 0, how: 'paid online (card)', by: 'guest online' },
-        { t: t - 1 * D, name: 'Priya', from: { room: 'Scarlett', date: '2026-11-15', time: '11:00' }, to: { room: 'Scarlett', date: '2026-11-15', time: '15:00', hours: 3 }, fee: 15, feeWas: 15, diff: 34, how: 'paid online (PayNow)', by: 'guest online' },
-        { t: t - 1 * D - 3 * H, name: 'Wendy', from: { room: 'Max', date: '2026-11-22', time: '16:00' }, to: { room: 'Max', date: '2026-11-29', time: '16:00', hours: 4 }, fee: 0, feeWas: 15, diff: 36.30, how: 'paid in shop', by: 'Karen', why: 'regular, family booking' },
-        { t: t - 2 * D, name: 'Ben', from: { room: 'Bella', date: '2026-11-13', time: '14:00' }, to: { room: 'Bella', date: '2026-11-20', time: '14:00', hours: 3 }, fee: 0, feeWas: 0, diff: 0, how: 'guest · nothing to pay (free 15 min)', by: 'guest online' }] });
-    }
-    function log() {
-      $('rsErr').hidden = true;
-      if (RSDEMO) { $('rsErr').hidden = false; $('rsErr').textContent = 'DEMO – made-up moves to show how this page reads. Nothing here is real.'; } if (!key()) { $('rsErr').hidden = false; $('rsErr').textContent = 'Needs the guest messages staff code.'; return; }
-      (RSDEMO ? demoGm : gm)({ action: 'mvstats' }).then(function (w) {
-        if (!w || w.error) { $('rsWires').innerHTML = '<p class="hint">' + esc((w && w.error) || 'No answer') + '</p>'; return; }
-        $('rsWires').innerHTML = '<ul style="list-style:none;margin:0;padding:0;display:grid;gap:6px">' + w.wires.map(function (x) {
-          return '<li style="display:grid;grid-template-columns:72px 1fr auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line2);border-left:5px solid ' + (x.red ? '#ff6b6b' : '#4DB848') + (x.red ? ';background:rgba(255,107,107,.08)' : '') + '"><b style="font-size:18px' + (x.red ? ';color:#ff9b9b' : '') + '">' + (x.money ? (x.value < 0 ? '−$' : '+$') + Math.abs(x.value).toFixed(0) : x.value + '%') + '</b><span>' + esc(x.name) + ' <span class="hint">(' + x.n + ')</span></span><span class="hint">' + esc(x.lim) + '</span></li>';
-        }).join('') + '</ul><p class="hint" style="margin:8px 0 0">' + w.moves + ' moves (' + w.guest + ' by guests online, ' + w.staff + ' by staff, ' + w.free + ' free) · ' + w.booked + ' online bookings made · 2nd moves: ' + w.second + ' · fees ' + money(w.fees) + ' + differences ' + money(w.diffs) + (w.lowered ? ' · lowered/waived ' + money(w.lowered) : '') + (w.note ? '<br>' + esc(w.note) : '') + '</p>';
-      }).catch(function () { $('rsWires').innerHTML = '<p class="hint">Couldn’t reach the engine.</p>'; });
-      (RSDEMO ? demoGm : gm)({ action: 'mvlog' }).then(function (j) {
-        if (j.error) { $('rsErr').hidden = false; $('rsErr').textContent = j.error; return; }
-        var L = j.list || [], fees = 0, waived = 0, diffs = 0; L.forEach(function (x) { fees += +x.fee || 0; waived += (+x.feeWas || 0) - (+x.fee || 0); diffs += +x.diff || 0; });
-        $('rsNums').innerHTML = '<div class="card"><b>' + L.length + '</b><br><span class="hint">moves</span></div><div class="card"><b>' + money(fees) + '</b><br><span class="hint">fees taken</span></div><div class="card"><b>' + money(waived) + '</b><br><span class="hint">fees lowered / waived</span></div><div class="card"><b>' + money(diffs) + '</b><br><span class="hint">price differences</span></div>';
-        $('rsList').innerHTML = L.length ? L.map(function (x) {
-          return '<div style="padding:8px 0;border-bottom:1px solid var(--line2)"><b>' + esc(x.name || 'guest') + '</b> · ' + esc(rn(x.from.room)) + ' ' + x.from.date + ' ' + x.from.time + ' → <b>' + esc(rn(x.to.room)) + ' ' + x.to.date + ' ' + x.to.time + '</b> (' + x.to.hours + 'h)<br><span class="hint">' + clk(x.t) + ' ' + R2Day.night(x.t) + ' · fee ' + money(x.fee) + (x.fee < x.feeWas ? ' (was ' + money(x.feeWas) + ')' : '') + ' + ' + money(x.diff) + ' · ' + esc(x.how) + (x.by ? ' · by ' + esc(x.by) : '') + (x.why ? ' · “' + esc(x.why) + '”' : '') + '</span></div>';
-        }).join('') : '<p class="hint">No moves yet.</p>';
-      });
-    }
-    return { open: open, log: log };
-  })();
-  var Sess = (function () {
-    var ENG = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, last = null, pend = null, ackOn = {};
-    var seen = Date.now(), paused = false;
-    function wake() { seen = Date.now(); if (paused && timer) { paused = false; load(); } }
-    ['pointerdown', 'keydown', 'scroll'].forEach(function (ev) { document.addEventListener(ev, wake, { passive: true }); });
-    document.addEventListener('visibilitychange', function () { if (!document.hidden && timer) { seen = Date.now(); paused = false; load(); } });
-    function key() { return ls('r2.guestStaff') || ''; }
-    function t(ms) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(ms)).replace(/\s/g, '').toLowerCase(); }
-    function call(body) {
-      body.staff = key();
-      return fetch(ENG, { method: 'POST', body: new URLSearchParams(body) }).then(function (r) { return r.json(); }).then(function (j) {
-        if (j && j.error && /staff code/i.test(j.error)) { ls('r2.guestStaff', null); $('sKeyBox').hidden = false; }
-        return j;
-      });
-    }
-    var RK = { vale: 'vale', kaeden: 'kaeden', scarlett: 'scarlett', bella: 'bella', kai: 'kai', atlas: 'atlas', max: 'maximillion' };
-    function load() {
-      if (!key()) { $('sKeyBox').hidden = false; $('sRooms').innerHTML = ''; return; }
-      $('sKeyBox').hidden = true; $('sMsg').textContent = 'Checking SimplyBook…';
-      call({ action: 'insess' }).then(function (j) {
-        if (!j || !j.ok) { $('sMsg').textContent = 'Couldn’t load: ' + ((j && j.error) || 'no answer') + '.'; return; }
-        last = j; render(); $('sMsg').textContent = 'Updated ' + t(j.now) + '. Refreshes every minute while this page is open and in use.';
-      }).catch(function () { $('sMsg').textContent = 'Couldn’t reach the engine. Check the internet and press Refresh.'; });
-    }
-    function render() {
-      var j = last, now = j.now, order = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'];
-      $('sRooms').innerHTML = order.map(function (rk) {
-        var R = j.rooms[rk], c = ROOMS[RK[rk]].c, ss = R.sessions.slice().sort(function (a, b) { return a.start - b.start; });
-        var live = ss.filter(function (x) { return x.st === 'now' || x.st === 'cleaning'; }), next = ss.filter(function (x) { return x.st === 'next'; }), done = ss.filter(function (x) { return x.st === 'done'; });
-        var show = live.concat(next.slice(0, live.length ? 1 : 2));
-        var h = '<article style="--rc:' + c + '"><div class="rname"><b>' + esc(R.name) + '</b>' + (live.length ? '<span class="chip live">In use</span>' : next.length ? '<span class="chip soon">Next ' + t(next[0].start) + '</span>' : R.twin && j.rooms[R.twin].sessions.some(function (x) { return x.st !== 'done'; }) ? '<span class="chip soon">Via ' + esc(ROOMS[RK[R.twin]].name) + '</span>' : '<span class="chip ended">Free</span>') + '</div>';
-        var tw = R.twin ? j.rooms[R.twin].sessions.filter(function (x) { return x.st !== 'done'; }) : [];
-        if (!show.length && tw.length) { h += '<div class="empty">Booked through ' + esc(ROOMS[RK[R.twin]].name) + ': ' + tw.map(function (x) { return t(x.start) + ' – ' + t(x.guestEnd); }).join(', ') + '. Extend it on ' + esc(ROOMS[RK[R.twin]].name) + '’s card (both rooms are blocked).</div>'; return h + '</article>'; }
-        if (!show.length) h += '<div class="empty">' + (done.length ? 'Done for today (' + done.length + ' session' + (done.length > 1 ? 's' : '') + ').' : 'Nothing booked today.') + (R.twin ? ' Shares space with ' + esc(ROOMS[RK[R.twin]].name) + '.' : '') + '</div>';
-        show.forEach(function (x) {
-          var m = x.msgs || {}, gap = x.nextAt ? Math.floor((x.nextAt - x.sbEnd) / 3600000) : null;
-          h += '<div class="one ' + x.st + '"><div class="who">' + esc(x.name || 'Guest') + (x.k === 'n' ? ' <span class="chip">note</span>' : '') + '</div>' +
-            '<div class="when">' + t(x.start) + ' – ' + t(x.guestEnd) + (x.ext.length ? '<small>incl. +' + x.ext.length + 'h EXT</small>' : '') + (x.st === 'cleaning' ? '<small>cleaning</small>' : '') + '</div>' +
-            '<div class="meta"><span>10-min reminder: ' + (m.wrapup ? t(m.wrapup.at) : 'not set') + ' · That’s a wrap: ' + (m.timeup ? t(m.timeup.at) : 'not set') + '</span>' +
-            (x.nextAt ? '<span' + (gap < 1 ? ' class="warn"' : '') + '>Next booking ' + (R.twin ? 'in ' + esc(R.name) + '/' + esc(ROOMS[RK[R.twin]].name) + ' ' : '') + 'at ' + t(x.nextAt) + (gap < 1 ? ' – no room to extend' : ' – room for +' + Math.min(3, gap) + 'h') + '</span>' : '<span>Nothing booked after this</span>') +
-            (x.phone ? '<span>' + esc(x.phone) + '</span>' : '') + '</div>';
-          /* greyed out: that many hours would run into the next booking/note (in this room or its twin). Past 11:15pm
-             stays possible (late sessions are agreed on WhatsApp) but is marked, and the check box asks again. */
-          /* 11:15pm of the shop night (12am–11am starts belong to the night before), on the guest end – same rule as the engine */
-          var close = Date.parse(R2Day.night(x.start) + 'T23:15:00+08:00');   /* 7am shop-night rule */
-          if (x.st !== 'done') h += '<div class="plus">' + [1, 2, 3].map(function (n) {
-            var blocked = gap !== null && n > gap, late = x.guestEnd + n * 3600000 > close + 60000;
-            return '<button class="btn' + (late && !blocked ? ' late' : '') + '" data-ext="' + n + '" data-room="' + rk + '" data-key="' + esc(x.key) + '"' + (blocked ? ' disabled title="Runs into the next booking at ' + t(x.nextAt) + '"' : late ? ' title="Goes past 11:15pm"' : '') + '>+' + n + 'h' + (late && !blocked ? '<small>late</small>' : '') + '</button>';
-          }).join('') + '</div>';
-        });
-        if (show.some(function (x) { return x.st !== 'done'; })) h += '<label class="ack"><input type="checkbox" data-ack="' + rk + '"' + (ackOn[rk] ? ' checked' : '') + '> Banner needs OK on the TV</label>';
-        return h + '</article>';
-      }).join('');
-      /* this shop night only (owner, 2 Nov: "I thought it would disappear because it's a new day"): +1h pressed before 7am
-         belongs to the night before and drops off at 7am like every other screen; the System check's ZZTEST ones never show */
-      var nightOf = exNight;
-      var all = (j.recent || []).filter(function (r) { return !/^(ZZ\s?TEST|TEST\b)/i.test(r.name || ''); });   /* System check + Claude's own tests */
-      var rec = all.filter(function (r) { return nightOf(r.t) === j.day && !r.cleared; });
-      /* Clear finished (owner, 2 Nov): only entries whose session is over (or undone); they move to History */
-      var done = rec.filter(function (r) { return r.undone || r.guestEnd < now; });
-      $('sClear').hidden = !done.length; $('sClear').textContent = 'Clear finished (' + done.length + ')'; $('sClear').setAttribute('data-ids', done.map(function (r) { return r.id; }).join(','));
-      /* History (owner, 2 Nov): tonight's cleared ones + the 2 nights before stay open; nights 3–14 fold under "More" */
-      var hist = all.filter(function (r) { return exNight(r.t) < j.day || (exNight(r.t) === j.day && r.cleared); }), near = R2Day.addDays(j.day, -2);
-      var hRow = function (r) { var R = ROOMS[RK[r.room]] || { c: '#888', name: r.room };
-        return '<div class="row1"><span class="chip room" style="--rc:' + R.c + '">' + esc(R.name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · ended ' + t(r.guestEnd) + ' <span class="hint">(pressed ' + t(r.t) + ')</span>' +
-          (r.undone ? ' <span class="chip ended">Undone</span>' : '') + '</div>'; };
-      var hGroup = function (rows) { var out = '', lastN = '';
-        rows.forEach(function (r) { var n = exNight(r.t); if (n !== lastN) { out += '<p class="nh">' + esc(n === j.day ? 'Tonight (cleared)' : (n === R2Day.addDays(j.day, -1) ? 'Last night · ' : '') + new Intl.DateTimeFormat('en-SG', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(n + 'T00:00:00Z'))) + '</p>'; lastN = n; } out += hRow(r); });
-        return out; };
-      var recent2 = hist.filter(function (r) { return exNight(r.t) >= near; }), older = hist.filter(function (r) { return exNight(r.t) < near; });
-      var nOlder = {}; older.forEach(function (r) { nOlder[exNight(r.t)] = 1; });
-      $('sHist').innerHTML = (recent2.length ? hGroup(recent2) : '<p class="hint">Nothing in the last 2 nights.</p>') +
-        (older.length ? '<details class="more"' + (histMore ? ' open' : '') + '><summary>More – ' + Object.keys(nOlder).length + ' earlier night' + (Object.keys(nOlder).length > 1 ? 's' : '') + ' (' + older.length + ')</summary>' + hGroup(older.slice(0, 60)) + '</details>' : '');
-      $('sRecent').innerHTML = rec.length ? rec.map(function (r) {
-        var canUndo = !r.undone && now - r.t < 30 * 60000;
-        return '<div><span class="chip room" style="--rc:' + ROOMS[RK[r.room]].c + '">' + esc(ROOMS[RK[r.room]].name) + '</span><b>+' + r.hours + 'h</b> ' + esc(r.name || '') + ' · now ends ' + t(r.guestEnd) + ' <span class="hint">(' + t(r.t) + ')</span>' +
-          (r.undone ? ' <span class="chip ended">Undone</span>' : '') + ((r.problems || []).length ? ' <span class="chip" style="color:var(--warn)">' + esc(r.problems.join('; ')) + '</span>' : '') +
-          (r.banner && r.banner.queued ? ' <span class="hint">TV banner ' + esc(r.banner.why || 'waiting in line') + ' – it shows right after that OK</span>' : r.banner && r.banner.shown === false ? ' <span class="hint">TV banner not shown: ' + esc(r.banner.why || '') + '</span>' : '') +
-          (canUndo ? ' <button class="btn ghost" data-undo="' + esc(r.id) + '" style="padding:4px 10px;font-size:11px">Undo</button>' : '') + '</div>';
-      }).join('') : '<p class="hint">None yet.</p>';
-    }
-    var histMore = false;   /* keeps "More" open across the 1-minute refresh */
-    function exNight(ms) { return R2Day.night(ms); }   /* a +1h belongs to the shop night it was pressed in */
-    R2Day.list('In session › Extensions today', { night: exNight });
-    R2Day.list('In session › History', { night: exNight });
-    function sessOf(rk, k) { var R = last && last.rooms[rk]; return R && R.sessions.filter(function (x) { return x.key === k; })[0]; }
-    function review(rk, k, n) {
-      var x = sessOf(rk, k); if (!x) return;
-      var box = $('sReview'); box.hidden = false; box.className = 'review'; box.innerHTML = '<div>Checking SimplyBook…</div>';
-      box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      call({ action: 'extend', key: k, hours: n, ack: ackOn[rk] ? 'yes' : 'no', end: x.sbEnd, dry: 1 }).then(function (j) {
-        if (!j || !j.plan) { box.innerHTML = '<div>' + esc((j && j.error) || 'No answer.') + '</div><div class="row"><button class="btn" id="sBack">Close</button></div>'; $('sBack').onclick = closeReview; return; }
-        var P = j.plan; pend = { key: k, hours: n, ack: ackOn[rk] ? 'yes' : 'no', end: x.sbEnd, room: rk, clash: P.clash.length };
-        var mv = function (o, label) { return o.make ? 'adds “' + label + '” at ' + t(o.at) : 'moves “' + label + '” ' + t(o.was) + ' → ' + t(o.at); };
-        box.className = 'review' + (P.clash.length ? ' now' : '');
-        box.innerHTML = '<div class="big">Extend ' + esc(P.room) + ' (' + esc(P.name || 'guest') + ') by ' + n + ' hour' + (n > 1 ? 's' : '') + '</div>' +
-          '<div>Ends <b>' + t(P.guestEnd) + '</b> instead of ' + t(P.guestEndWas) + '.</div><ul>' +
-          '<li>SimplyBook: ' + (P.note && P.note.main && P.note.main.late ? 'the late session note in ' + esc(P.room) + ' is stretched to ' + t(P.sbEnd) + ' (with cleaning) and its text changed to “late till ' + t(P.guestEnd) + '” – no extra note' : (P.note && P.note.main && P.note.main.edit ? 'the EXT note in ' + esc(P.room) + ' is stretched' : 'one EXT note in ' + esc(P.room)) + ' to ' + t(P.sbEnd) + ' (with cleaning), text “EXT till ' + t(P.guestEnd) + '”') + (P.twin ? '; same block in ' + esc(P.twin) + ' as SYSTEM BLOCK' : '') + '.</li>' +
-          '<li>Messages: ' + mv(P.wrapup, 'About 10 minutes to go') + '; ' + mv(P.timeup, 'That’s a wrap!') + '.</li>' +
-          '<li>TV: “' + esc(P.banner.title) + '” – ' + (P.banner.ack ? 'stays until someone presses OK' : 'closes by itself, no OK needed') + '.</li></ul>' +
-          (P.clash.length ? '<ul class="warnl">' + P.clash.map(function (c) { return '<li>Clashes with ' + esc(c.what) + ' in ' + esc(c.room) + ' (' + t(c.s) + ' – ' + t(c.e) + ').</li>'; }).join('') + '<li>Only extend anyway if you’ve sorted that out.</li></ul>' : '') +
-          '<label style="display:flex;gap:10px;align-items:center;margin:0 0 10px"><input type="checkbox" id="sMsgs" checked style="width:20px;height:20px"> Add “About 10 minutes to go” / “That’s a wrap!” if there are none (ones already there always move to the new end)</label>' +
-          '<label style="display:flex;gap:10px;align-items:center;font-weight:600"><input type="checkbox" id="sPaid" style="width:20px;height:20px"> The guest has paid for +' + n + ' hour' + (n > 1 ? 's' : '') + ' (I’ve checked the payment)</label>' +
-          '<div class="row"><button class="btn primary" id="sGo" disabled>' + (P.clash.length ? 'Extend anyway' : 'Yes, extend') + '</button><button class="btn" id="sBack">Back</button></div>';
-        /* two confirmations: tick "paid", press once, then press again within 8 s */
-        var armed = false, armT = null, label = $('sGo').textContent;
-        $('sPaid').onchange = function () { $('sGo').disabled = !this.checked; armed = false; $('sGo').textContent = label; $('sGo').style.background = ''; };
-        $('sGo').onclick = function () {
-          if (!$('sPaid').checked) return;
-          if (!armed) { armed = true; $('sGo').textContent = 'Press again: add ' + n + 'h to ' + P.room + ' now'; $('sGo').style.background = 'var(--bad)'; $('sGo').style.borderColor = 'var(--bad)';
-            clearTimeout(armT); armT = setTimeout(function () { if (!$('sGo')) return; armed = false; $('sGo').textContent = label; $('sGo').style.background = ''; $('sGo').style.borderColor = ''; }, 8000); return; }
-          clearTimeout(armT); go();
-        };
-        $('sBack').onclick = closeReview;
-      }).catch(function () { box.innerHTML = '<div>Couldn’t reach the engine.</div>'; });
-    }
-    function closeReview() { pend = null; $('sReview').hidden = true; $('sReview').innerHTML = ''; }
-    function go() {
-      if (!pend) return; var p = pend; $('sGo').disabled = true; $('sBack').disabled = true; $('sGo').textContent = 'Extending…';
-      call({ action: 'extend', key: p.key, hours: p.hours, ack: p.ack, end: p.end, force: p.clash ? 'yes' : '', msgs: $('sMsgs') && !$('sMsgs').checked ? 'no' : 'yes' }).then(function (j) {
-        if (!j || !j.ok) { $('sReview').innerHTML = '<div>Not extended: ' + esc((j && j.error) || (j && j.clash ? 'it clashes with something now. Refresh and check.' : 'no answer')) + '</div><div class="row"><button class="btn" id="sBack">Close</button></div>'; $('sBack').onclick = closeReview; load(); return; }
-        var d = j.done || {};
-        closeReview();
-        toast('Extended ' + ROOMS[RK[p.room]].name + ' by ' + p.hours + 'h' + ((d.problems || []).length ? ' (check the messages)' : ''));
-        load();
-      });
-    }
-    $('sRooms').addEventListener('click', function (e) {
-      var b = e.target.closest && e.target.closest('[data-ext]'); if (b) review(b.getAttribute('data-room'), b.getAttribute('data-key'), +b.getAttribute('data-ext'));
-    });
-    $('sRooms').addEventListener('change', function (e) { var a = e.target.getAttribute && e.target.getAttribute('data-ack'); if (a) ackOn[a] = e.target.checked; });
-    $('sHist').addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('more')) histMore = e.target.open; }, true);
-    $('sClear').onclick = function () {
-      var ids = this.getAttribute('data-ids'); if (!ids) return; var b = this; b.disabled = true;
-      call({ action: 'extclear', ids: ids }).then(function (j) { b.disabled = false; toast(j && j.ok ? 'Moved ' + j.cleared + ' to History' : 'Couldn’t clear: ' + ((j && j.error) || 'no answer')); load(); }, function () { b.disabled = false; toast('Couldn’t reach the engine.'); });
-    };
-    $('sRecent').addEventListener('click', function (e) {
-      var u = e.target.getAttribute && e.target.getAttribute('data-undo'); if (!u) return;
-      if (!confirm('Undo this extension? The EXT notes are deleted and the messages go back to the old times.')) return;
-      e.target.disabled = true;
-      call({ action: 'extundo', id: u }).then(function (j) { toast(j && j.ok ? 'Undone' + ((j.problems || []).length ? ' (some parts need a look: ' + j.problems.join('; ') + ')' : '') : 'Couldn’t undo: ' + ((j && j.error) || 'no answer')); load(); });
-    });
-    $('sRefresh').onclick = load;
-    $('sKeySave').onclick = function () { var v = $('sKey').value.trim(); if (v.length < 8) { toast('That code looks too short.'); return; } ls('r2.guestStaff', v); $('sKey').value = ''; load(); };
-    $('sTRoom').innerHTML = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'].map(function (r) { return '<option value="' + r + '">' + ROOMS[RK[r]].name + '</option>'; }).join('');
-    /* test banner: press once to see what will happen, then "Yes, show it" (and, if guests are in that room, tick that you know) */
-    $('sTGo').onclick = function () {
-      if (!key()) { $('sKeyBox').hidden = false; return; }
-      var r = $('sTRoom').value, R = last && last.rooms[r], busy = R && R.sessions.some(function (x) { return x.st === 'now'; }), nm = ROOMS[RK[r]].name;
-      $('sTMsg').innerHTML = '<div class="review' + (busy ? ' now' : '') + '" style="margin-top:6px"><div class="big">Show a TEST banner on ' + esc(nm) + '’s TV now?</div>' +
-        '<div>“+' + $('sTH').value + ' CREDIT' + ($('sTH').value > 1 ? 'S' : '') + ' ADDED (TEST)” – ' + ($('sTAck').checked ? 'stays until someone presses OK' : 'closes by itself') + '. Nothing changes in SimplyBook or the messages.</div>' +
-        (busy ? '<label style="display:flex;gap:8px;align-items:center;color:var(--warn)"><input type="checkbox" id="sTBusy"> ' + esc(nm) + ' has guests in it right now – show it on their TV anyway</label>' : '') +
-        '<div class="row"><button class="btn primary" id="sTYes"' + (busy ? ' disabled' : '') + '>Yes, show it</button><button class="btn" id="sTNo">Cancel</button></div></div>';
-      if (busy) $('sTBusy').onchange = function () { $('sTYes').disabled = !this.checked; };
-      $('sTNo').onclick = function () { $('sTMsg').textContent = 'Not sent.'; };
-      $('sTYes').onclick = function () { testSend(r); };
-    };
-    function testSend(r) {
-      $('sTMsg').textContent = 'Sending…';
-      call({ action: 'extend', test: 1, room: r, hours: $('sTH').value, ack: $('sTAck').checked ? 'yes' : 'no' }).then(function (j) {
-        $('sTMsg').textContent = j && j.ok ? (j.banner && j.banner.shown ? 'Sent. It pops up on ' + ROOMS[RK[r]].name + '’s TV within a few seconds.' : j.banner && j.banner.queued ? 'Queued: ' + j.banner.why + '. It shows right after someone presses OK on that.' : 'Not shown: ' + ((j.banner && j.banner.why) || '?') + '.') : 'Couldn’t send: ' + ((j && j.error) || 'no answer') + '.';
-      });
-    }
-    return {
-      /* auto-refresh only while someone is looking: never when the page/tab is hidden (phone locked, another tab),
-         and it pauses after 10 minutes without a tap or key on the page (a laptop left open). Coming back refreshes once. */
-      open: function () {
-        load(); clearInterval(timer); seen = Date.now();
-        timer = setInterval(function () {
-          if (pend || document.hidden) return;
-          if (Date.now() - seen > 10 * 60000) { if (!paused) { paused = true; $('sMsg').textContent = 'Auto-refresh paused (no one using this page). Tap anywhere or press Refresh.'; } return; }
-          load();
-        }, 60000);
-      },
-      close: function () { clearInterval(timer); timer = null; }
-    };
-  }());
-
-  /* ===== PS4s (13 Nov 2026): the room PS4s' Round2 helper (round2d) reports to the engine (/ps4/in every 15 min, /ps4/cmd every
-     minute). Staff actions through the engine: ps4list, ps4map (link a PS4 to a room), ps4clean (one-tap clean-up). The engine
-     names rooms like the booking side ('max'); this page uses ROOMS ('maximillion'). Times use R2Day.now() (engine clock). */
-  var PS4 = (function () {
-    var GM = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, ready = false, fast = 0;
-    var RK = function (r) { return r === 'max' ? 'maximillion' : r; }, ER = function (r) { return r === 'maximillion' ? 'max' : r; };
-    function p4newer(a, b) { var x = String(a).split('.'), y = String(b).split('.'); for (var i = 0; i < Math.max(x.length, y.length); i++) { var d = (+x[i] || 0) - (+y[i] || 0); if (d) return d > 0; } return false; }
-    function sKey() { return ls('r2.guestStaff') || ''; }
-    function gm(o) { return fetch(GM, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: sKey() }, o)) }).then(function (r) { return r.json(); }); }
-    function ago(t) { var m = Math.round((R2Day.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; }
-    function gb(mb) { mb = +mb || 0; return mb >= 1000 ? (mb / 1000).toFixed(1) + ' GB' : Math.round(mb) + ' MB'; }
-    var ST = { sent: ['uw', 'Clean-up sent – the PS4 picks it up within a minute'], taken: ['uw', 'Cleaning up…'], done: ['uo', 'Cleaned'], failed: ['ub', 'Clean-up failed'], refused: ['ub', 'Clean-up not done'], expired: ['ub', 'Clean-up not picked up (PS4 off?)'] };
-    var SU = { sent: ['uw', 'Update sent – the PS4 picks it up within a minute'], taken: ['uw', 'Downloading the update…'], done: ['uw', 'Downloaded – switching to the new version'], updated: ['uo', 'Updated'], rolledback: ['ub', 'Update didn’t work – went back to the previous version'], failed: ['ub', 'Update failed'], refused: ['ub', 'Update not done'], expired: ['ub', 'Update not picked up (PS4 off?)'] };
-    var latest = null, selfUp = '1.0.7', lastList = [], dnsCur = null;
-    function cmdLine(c) {
-      if (c && c.do === 'update') {
-        if (!SU[c.state]) return '';
-        var tu = c.doneAt || c.takenAt || c.at; if (R2Day.now() - tu > 6 * 3600e3) return '';
-        var y = SU[c.state], tx = y[1] + (c.state === 'updated' ? ' to ' + c.v + ' ' + ago(tu) + (c.by && c.by.indexOf('auto') === 0 ? ' (by itself, quiet time)' : '') : c.v ? ' (' + c.v + ')' : '');
-        if (c.res && c.res.why && c.state !== 'updated' && c.state !== 'done') tx += ': ' + c.res.why;
-        return '<br><i class="' + y[0] + '">' + esc(tx) + '</i>';
-      }
-      if (c && c.do === 'look' && /^\/_reset/.test(c.p || '')) {   /* 17 Nov: the session reset – its result is the 🧽 line from the PS4's own log */
-        var RS = { sent: ['uw', '🧽 Clean slate sent – the PS4 picks it up within a minute'], taken: ['uw', '🧽 Clean slate starting…'], refused: ['ub', '🧽 Clean slate not done'], failed: ['ub', '🧽 Clean slate failed'], expired: ['ub', '🧽 Clean slate not picked up (PS4 off?)'] }, z = RS[c.state];
-        return z && R2Day.now() - (c.doneAt || c.takenAt || c.at) < 3 * 3600e3 ? '<br><i class="' + z[0] + '">' + esc(z[1] + (c.res && c.res.why && c.state !== 'taken' ? ': ' + c.res.why : '')) + '</i>' : '';
-      }
-      if (!c || !ST[c.state]) return '';
-      var t = c.doneAt || c.takenAt || c.at; if (R2Day.now() - t > 3 * 3600e3) return '';   /* the last result shows for 3 hours */
-      var x = ST[c.state], txt = x[1];
-      if (c.state === 'done' && c.res) txt += ' ' + ago(t) + ': ' + gb(c.res.dlMB + c.res.capMB) + ' freed (downloads ' + gb(c.res.dlMB) + ', screenshots/clips ' + gb(c.res.capMB) + ')';
-      else if (c.res && c.res.why) txt += ': ' + c.res.why;
-      return '<br><i class="' + x[0] + '">' + esc(txt) + '</i>';
-    }
-    /* 17 Nov (owner: "a log in the control centre under the PS4 tab – summary of clean slate status and its errors"): the helper
-       (1.1.53+) sends its last 6 clean-slate runs (log.clean) and last 6 problems (log.cleanerr), PS4 clock = Singapore time. */
-    function csState(p) {
-      var c = p.clean, h = (p.log && p.log.clean) || [], e = (p.log && p.log.cleanerr) || [], last = h.length ? h[h.length - 1] : '';
-      if (p.countdown && p.countdown.left > -30) { var lf = Math.max(0, Math.round(p.countdown.left - (R2Day.now() - p.t) / 1000)); return { line: '<i class="uw">⏳ Reset countdown – ' + (lf >= 60 ? Math.round(lf / 60) + ' min' : lf + ' s') + ' left' + (p.countdown.play > 0 ? ' · someone is still playing – waiting' : '') + ' (silent, nothing on screen)</i>', cd: 1 }; }
-      var KN = { reset: 'Clean slate', purge: 'Launch clear', clean: 'Clean slate (manual)' };
-      if (c && (c.state === 'running' || c.state === 'paused')) return { line: '<i class="uw">🧽 ' + esc(KN[c.kind] || 'Clean slate') + (c.state === 'paused' ? ' paused (a game is open)' : ' running') + ': ' + c.done + ' of ' + c.total + ' games' + (c.fails ? ', ' + c.fails + ' problem(s)' : '') + '</i>' };
-      if (!last) return {};
-      var held = / HELD /.test(last), bad = / PROBLEMS | NOT DONE /.test(last), m = last.match(/^(\d\d\/\d\d \d\d:\d\d)/);
-      var short = last.replace(/^\S+ \S+ /, '').replace(/^(\w+) (\S+): /, function (x, k) { return (KN[k] || k) + ': '; });
-      return { line: '<i class="' + (bad ? 'ub' : held ? 'uw' : 'uo') + '">🧽 ' + (bad ? 'Last clean slate had problems' : held ? 'Last reset held (room still in use)' : 'Last clean slate OK') + (m ? ' (' + esc(m[1]) + ')' : '') + '</i>' + (bad && e.length ? '<br><span style="color:var(--bad)">' + esc(e[e.length - 1]) + '</span>' : ''), more: '🧽 ' + esc(short) };
-    }
-    function csDraw(j) {
-      var A = j.resetAuto, now = R2Day.now(), on = !!(A && A.on), from = A && A.from && A.from > now ? A.from : 0;
-      $('p4CsAuto').checked = on; if (A && A.after) $('p4CsAfter').value = String(A.after);
-      $('p4CsAutoMsg').textContent = !A ? 'Off – nothing runs by itself yet.' : on ? (from ? 'On from ' + new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(from)) + '.' : 'On.') + (A.only === 'eb' ? ' Test run: early-bird (11am) sessions only.' : '') + ' Set ' + ago(A.at) + '.' : 'Off (set ' + ago(A.at) + ').';
-      var SS = { sent: ['uo', 'sent'], waiting: ['uw', 'waiting'], held: ['uw', 'held'], missed: ['ub', 'MISSED'] }, fmt = function (t) { return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t)); };
-      var eng = (j.resetLog || []).slice(0, 12).map(function (x) { var y = SS[x.state] || ['', x.state]; return '<div>' + esc(fmt(x.t)) + ' · <b>' + esc((ROOMS[RK(x.room)] || {}).name || x.room) + '</b> (session ended ' + esc(fmt(x.end)) + ') · <i class="' + y[0] + '">' + esc(y[1]) + '</i> – ' + esc(x.why || '') + '</div>'; });
-      var rooms = (j.list || []).filter(function (p) { return p.room && p.log && ((p.log.clean || []).length || (p.log.cleanerr || []).length); }).map(function (p) {
-        var h = (p.log.clean || []).slice().reverse(), e = (p.log.cleanerr || []).slice().reverse();
-        return '<div style="margin-top:8px"><b>' + esc(rname(p)) + '</b>' + h.map(function (l) { return '<div style="' + (/ PROBLEMS | NOT DONE /.test(l) ? 'color:var(--bad)' : '') + '">' + esc(l) + '</div>'; }).join('') +
-          (e.length ? '<div style="margin-top:3px;opacity:.85">Problems (newest first):</div>' + e.map(function (l) { return '<div style="color:var(--bad)">⚠️ ' + esc(l) + '</div>'; }).join('') : '') + '</div>';
-      });
-      var plan = (j.resetPlan || []).filter(function (x) { return !(j.resetLog || []).some(function (l) { return l.room === x.room && l.end === x.end && l.state !== 'waiting'; }); }).slice(0, 8);
-      var nx = plan.length ? '<div style="margin-bottom:8px"><b>Next resets</b>' + (on ? '' : ' (only if switched on)') + ': ' + plan.map(function (x) { return esc((ROOMS[RK(x.room)] || {}).name || x.room) + ' ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(x.at)).toLowerCase()); }).join(' · ') + '</div>' : '';
-      $('p4CsOut').innerHTML = nx + '<div><b>Sent by the engine</b></div>' + (eng.length ? eng.join('') : '<div class="hint">Nothing yet.</div>') + '<div style="margin-top:10px"><b>On each PS4</b> (newest first; PS4 clock = Singapore time)</div>' + (rooms.length ? rooms.join('') : '<div class="hint">No clean slate has run on a PS4 with helper 1.1.53+ yet.</div>');
-    }
-    function tile(p) {
-      var R = ROOMS[RK(p.room)] || { name: 'New PS4', c: '#888' }, now = R2Day.now(), on = p.poll && now - p.poll < 3 * 60000;
-      /* owner, 16 Nov: the tile had grown to 12 lines. Now: what state it's in, one line of the numbers that matter, anything
-         wrong, the buttons – and everything else (address, Wi-Fi, firmware, games, wake times, log) under "More".
-         Rest mode we sent is known from the job itself; helper 1.1.14+ says when the PS4 last woke and sends the starter's log. */
-      var lines = [], warn = [], more = [];
-      var byUs = !on && p.cmd && p.cmd.do === 'look' && /\/_rest/.test(p.cmd.p || '') && p.cmd.state === 'done' && p.cmd.doneAt && Math.abs((p.poll || 0) - p.cmd.doneAt) < 3 * 60000 && !(p.cmd.res && /refused/.test(JSON.stringify(p.cmd.res)));
-      if (byUs) lines.push('<span style="color:var(--warn,#F2C21B);font-weight:700">😴 Rest mode · sent by us ' + esc(ago(p.cmd.doneAt)) + '</span>');
-      else if (!on) lines.push('<span style="color:var(--bad);font-weight:700">Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '') + '</span><span class="tvv" style="white-space:normal">Asleep, off, or helper stopped</span>');
-      else lines.push('<span style="color:var(--ok)">✓ Online' + (p.running ? ' · playing ' + esc(p.runName || p.running) : '') + '</span>');
-      if (p.sony !== 'blocked') warn.push('⚠️ Sony NOT blocked – check its DNS (127.0.0.1)');
-      if (p.rolled) warn.push('↩️ Helper ' + p.rolled + ' – it stays on ' + (p.v || 'the old version') + ' until a newer one is out');
-      if (p.updGuard && p.updGuard.blocked) warn.push('🛡️ Stopped ' + p.updGuard.blocked + ' system update' + (p.updGuard.blocked > 1 ? 's' : '') + (p.updGuard.agoS >= 0 ? ' (last ' + esc(ago(now - p.updGuard.agoS * 1000)) + ')' : ''));
-      var cpu = p.temp && p.temp.cpu > 0 ? p.temp.cpu : 0;
-      var junk = (+p.downloadsMB || 0) + (p.captures ? +p.captures.mb || 0 : 0);
-      var old = p.v && p4newer(selfUp, p.v);   /* helpers before 1.0.7 can't hand over safely – FTP once */
-      var behind = latest && p.v && p4newer(latest, p.v);
-      lines.push('<span>' + (cpu ? (cpu >= 80 ? '🔥 ' : '') + cpu + ' °C · ' : '') + (p.disk ? p.disk.free.toFixed(0) + ' GB free · ' : '') + '<i style="font-style:normal;white-space:nowrap">v' + esc(p.v || '?') + (behind ? ' <i class="uw" style="font-style:normal">→ ' + esc(latest) + '</i>' : p.boot ? ' <i class="uo">✓</i>' : '') + '</i></span>');
-      var cs = csState(p); if (cs.line) lines.push('<span class="tvv" style="white-space:normal">' + cs.line + '</span>'); if (cs.more) more.push(cs.more);
-      var cl = cmdLine(p.cmd).replace(/^<br>/, '');   /* the last job's result: on the tile for an hour, then under More */
-      if (cl && now - (p.cmd.doneAt || p.cmd.takenAt || p.cmd.at || 0) < 60 * 60000) lines.push('<span class="tvv" style="white-space:normal">' + cl + '</span>');
-      else if (cl) more.push('Last job: ' + cl);
-      if (behind) more.push(esc(latest) + ' is out – ' + (old || !p.boot ? 'needs ' + esc(selfUp) + '+ and the new starter by FTP once' : 'it updates by itself in quiet time'));
-      if (p.wifi && p.wifi.ip) more.push('FTP <b>' + esc(p.wifi.ip) + ':2121</b>' + (p.wifi.pct ? ' · Wi-Fi ' + (+p.wifi.pct) + '%' : ''));   /* from its latest report – always current */
-      more.push((p.sony === 'blocked' ? 'Sony blocked · ' : '') + 'FW ' + esc(p.fw || '?') + ' · ' + (p.nGames || 0) + ' games' + (p.disk ? ' · disk ' + p.disk.total.toFixed(0) + ' GB' : ''));
-      more.push(p.wake ? '⏰ Remote wake: registered (works from rest mode, not when switched off)' : '⏰ Remote wake: not registered yet');
-      if (p.dns && p.dns.sha) more.push('🛡️ Blocker settings ' + esc(p.dns.sha) + (dnsCur && dnsCur.sha && dnsCur.sha.slice(0, 12) === p.dns.sha ? ' (the last ones sent)' : '') + (p.dns.prev ? ' · previous kept' : ''));
-      more.push('Reported ' + esc(ago(p.t)) + (p.up && p.psClock ? ' · helper running since ' + esc(ago(p.t - (p.psClock - p.up) * 1000)) : ''));
-      if (p.woke && p.woke.at && p.psClock) { var wk = p.t - (p.psClock - p.woke.at) * 1000, sl = +p.woke.sleptS || 0; more.push('😴 Last woke from rest ' + esc(ago(wk)) + ' · slept ' + (sl >= 3600 ? Math.floor(sl / 3600) + ' h ' : '') + Math.round(sl % 3600 / 60) + ' min'); }
-      if (!on && !byUs) more.push('If the PS4 is on: restart it and run the jailbreak.');
-      var lgl = p.log ? (p.log.stopped || []).map(function (l) { return '<div style="color:var(--bad)">' + esc(l) + '</div>'; }).concat((p.log.boot || []).map(function (l) { return '<div>' + esc(l) + '</div>'; })) : [];
-      var lg = '<details class="tvv" style="white-space:normal"><summary>More</summary>' + more.map(function (m) { return '<div style="margin:3px 0">' + m + '</div>'; }).join('') + (lgl.length ? '<div style="margin-top:6px;opacity:.8">Helper log (PS4 clock)</div><div style="font-size:11px;line-height:1.35">' + lgl.join('') + '</div>' : '') + '</details>';
-      var busy = p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken') && now - p.cmd.at < 10 * 60000;
-      var btn = !p.room ? '<span class="tvv">Which room is this PS4 in? <select data-p4map="' + esc(p.id) + '"><option value="">Pick…</option>' +
-          Object.keys(ROOMS).map(function (r) { return '<option value="' + ER(r) + '">' + esc(ROOMS[r].name) + '</option>'; }).join('') + '</select></span>'
-        : !on && p.wake ? '<button type="button" class="tvu" data-p4wake="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '">⏰ Wake</button>'
-        : cs.cd ? '<button type="button" class="tvu" data-p4stop="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '">✋ Stop reset</button>'
-        : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ' + gb(junk) : '') + '</button>' +
-          (p.v && !p4newer('1.1.53', p.v) && !(p.clean && (p.clean.state === 'running' || p.clean.state === 'paused')) ? ' <button type="button" class="tvu" data-p4reset="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '">🧽 Clean slate now</button>' : '') +
-          (p.boot && !old && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update to ' + esc(latest) + '</button>' : '');
-      return '<div class="tvt" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><div class="p4i"><b>' + esc(R.name) + '</b>' + lines.join('') +
-        (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + lg + '</div><div class="p4b">' + btn + '</div></div>';
-    }
-    function draw() {
-      if (!sKey()) { $('p4KeyBox').hidden = false; $('p4Tiles').innerHTML = ''; return; }
-      $('p4KeyBox').hidden = true;
-      gm({ action: 'ps4list' }).then(function (j) {
-        if (!j.ok) { $('p4Tiles').innerHTML = '<p class="hint">' + esc(j.error || 'Couldn’t load the PS4s.') + '</p>'; return; }
-        latest = j.latest || null; selfUp = j.selfUp || selfUp; lastList = j.list || []; picks(); csDraw(j);
-        var wr = j.wakeRun; $('p4WakeRun').textContent = wr ? 'Last morning wake: ' + wr.day + ', started by ' + ((ROOMS[RK(wr.by)] || {}).name || wr.by) + ' – ' + ((wr.rooms || []).length ? 'woke ' + wr.rooms.map(function (r) { return (ROOMS[RK(r)] || {}).name || r; }).join(', ') : (wr.note || 'nothing to wake')) + '.' : '';
-        var order = Object.keys(ROOMS).map(ER), L = (j.list || []).slice().sort(function (a, b) { return (a.room ? order.indexOf(a.room) : 99) - (b.room ? order.indexOf(b.room) : 99); });
-        var have = L.map(function (p) { return p.room; }), missing = order.filter(function (r) { return have.indexOf(r) < 0; });
-        $('p4Tiles').innerHTML = '<div class="tvgrid p4grid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><div class="p4i"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div></div>'; }).join('') + '</div>' +
-          '<p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date(R2Day.now())).toLowerCase()) + '.</p>';
-        var live = L.some(function (p) { return p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken' || (p.cmd.do === 'update' && p.cmd.state === 'done')) && R2Day.now() - p.cmd.at < 10 * 60000; });
-        if (live && !fast) fast = setTimeout(function () { fast = 0; if (!$('tab-ps4s').hidden) draw(); }, 10000);   /* follow a clean-up closely */
-      }, function () { $('p4Tiles').innerHTML = '<p class="hint">Couldn’t reach the engine.</p>'; });
-    }
-    /* 16 Nov (owner "do both in 1.1.16"): read a text file on a PS4, and send new blocker settings. Both go through the engine
-       (ps4look '/_tail.' / '/_ps', ps4dns) – the PS4 picks the job up within a minute. */
-    function rname(p) { var R = ROOMS[RK(p.room)]; return R ? R.name : 'PS4 ' + String(p.id).slice(0, 6); }
-    function picks() {
-      var L = lastList.filter(function (p) { return p.room; }), now = R2Day.now();
-      var sel = $('p4FileRoom'), keep = sel.value;
-      sel.innerHTML = L.map(function (p) { var on = p.poll && now - p.poll < 3 * 60000; return '<option value="' + esc(p.id) + '">' + esc(rname(p)) + (on ? '' : ' (offline)') + '</option>'; }).join('');
-      if (keep) sel.value = keep;
-      var box = $('p4DnsRooms'), ticked = {};
-      box.querySelectorAll('input:checked').forEach(function (c) { ticked[c.value] = 1; });
-      box.innerHTML = L.map(function (p) {
-        var on = p.poll && now - p.poll < 3 * 60000, okv = p.v && !p4newer('1.1.16', p.v);
-        return '<label style="white-space:nowrap' + (on && okv ? '' : ';opacity:.5') + '"><input type="checkbox" value="' + esc(p.id) + '"' + (ticked[p.id] ? ' checked' : '') + (on && okv ? '' : ' disabled') + '> ' + esc(rname(p)) + (!on ? ' (offline)' : !okv ? ' (needs 1.1.16)' : '') + '</label>';
-      }).join('');
-    }
-    function waitJob(id, cid, cb, n) {
-      n = n || 0;
-      gm({ action: 'ps4list' }).then(function (j) {
-        var p = (j.list || []).filter(function (x) { return x.id === id; })[0], c = p && p.cmd;
-        if (c && c.cid === cid && c.state !== 'sent' && c.state !== 'taken') return cb(c);
-        if (n > 24) return cb(c || { state: 'waiting' });
-        setTimeout(function () { waitJob(id, cid, cb, n + 1); }, 4000);
-      }, function () { cb({ state: 'error' }); });
-    }
-    function readFile() {
-      var id = $('p4FileRoom').value, w = $('p4FileWhich').value, n = $('p4FileLines').value;
-      if (!id) return;
-      $('p4FileGo').disabled = true; $('p4FileMsg').textContent = 'Sent – the PS4 answers within a minute…'; $('p4FileOut').hidden = true;
-      gm({ action: 'ps4look', id: id, paths: w === '_ps' ? '/_ps' : '/_tail.' + w + '|' + n, by: 'control centre (read file)' }).then(function (j) {
-        if (!j.ok) { $('p4FileGo').disabled = false; $('p4FileMsg').textContent = j.error || 'Not sent'; return; }
-        waitJob(id, j.cmd.cid, function (c) {
-          $('p4FileGo').disabled = false;
-          if (c.state !== 'done') { $('p4FileMsg').textContent = c.state === 'refused' ? 'Not done: ' + ((c.res && c.res.why) || 'refused') : 'No answer yet (' + c.state + ') – try again in a minute.'; return; }
-          gm({ action: 'ps4lookres', id: id }).then(function (r) {
-            var L = (r.look && r.look.list) || {}, keys = Object.keys(L), out = [];
-            if (w === '_ps') { keys.forEach(function (k) { if (k.indexOf('ps/') === 0) out.push(k.slice(3) + '  ' + L[k]); }); $('p4FileMsg').textContent = out.length + ' programs running'; }
-            else if (L['tail/error']) { $('p4FileMsg').textContent = L['tail/error'] + (keys.length && !L['tail/file'] ? ' (this PS4’s helper may be older than 1.1.16)' : ''); return; }
-            else if (!L['tail/file']) { $('p4FileMsg').textContent = 'No file lines came back – this PS4’s helper may be older than 1.1.16.'; return; }
-            else {
-              keys.forEach(function (k) { if (/^tail\/\d+$/.test(k)) out.push(L[k]); });
-              var kb = Math.round((+L['tail/size'] || 0) / 1024), mt = +L['tail/mtime'] || 0;
-              $('p4FileMsg').textContent = L['tail/file'] + ' · ' + kb + ' KB · last ' + out.length + ' lines' + (mt > 1e9 ? ' · changed ' + ago(mt * 1000) + ' (PS4 clock)' : '');
-            }
-            $('p4FileOut').textContent = out.join('\n'); $('p4FileOut').hidden = !out.length;
-          });
-        });
-      }, function () { $('p4FileGo').disabled = false; $('p4FileMsg').textContent = 'Couldn’t reach the engine.'; });
-    }
-    function dnsLog() {
-      return gm({ action: 'ps4dnsget' }).then(function (j) {
-        if (!j.ok) return j;
-        dnsCur = j.cur || null;
-        var L = j.log || [];
-        $('p4DnsLog').innerHTML = L.length ? '<b>Changes</b>' + L.slice(0, 12).map(function (e) {
-          var R = ROOMS[RK(e.room)];
-          return '<div style="margin:2px 0">' + esc(ago(e.t)) + ' · ' + esc(R ? R.name : e.room) + ' · ' + esc(e.sha) + ' · ' + esc(e.by) + ' · <b class="' + (e.state === 'done' ? 'cok' : e.state === 'sent' || e.state === 'taken' ? 'cwarn' : 'cbad') + '">' + esc(e.state) + '</b>' + (e.why ? ' – ' + esc(e.why) : '') + '</div>';
-        }).join('') : 'No changes sent yet.';
-        return j;
-      });
-    }
-    var DNS_STD = 'https://raw.githubusercontent.com/donttelldadyet-prog/round2-tv-launcher/ps4-helper/ps4/nanodns/nanodns.ini';
-    function dnsMsg(t) { $('p4DnsMsg').textContent = t; }
-    function initFiles() {
-      $('p4FileGo').onclick = readFile;
-      $('p4DnsBox').addEventListener('toggle', function () { if ($('p4DnsBox').open) dnsLog(); });
-      $('p4DnsLoad').onclick = function () { dnsLog().then(function (j) { if (j && j.cur && j.cur.ini) { $('p4DnsIni').value = j.cur.ini; dnsMsg('Loaded the settings last sent (' + j.cur.sha.slice(0, 12) + ', ' + ago(j.cur.at) + ' by ' + j.cur.by + ').'); } else dnsMsg('Nothing sent yet – load the Round2 standard instead.'); }); };
-      $('p4DnsDef').onclick = function () { fetch(DNS_STD, { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { $('p4DnsIni').value = t; dnsMsg('Loaded the Round2 standard settings (the file every PS4 got by FTP).'); }, function () { dnsMsg('Couldn’t load it.'); }); };
-      $('p4DnsCheck').onclick = function () {
-        gm({ action: 'ps4dns', ini: $('p4DnsIni').value, dry: '1' }).then(function (j) { dnsMsg(j.ok ? '✓ Passes the checks (' + j.sha.slice(0, 12) + '). Nothing sent.' : (j.error || 'Not OK')); });
-      };
-      $('p4DnsSend').onclick = function () {
-        var ids = []; $('p4DnsRooms').querySelectorAll('input:checked').forEach(function (c) { ids.push(c.value); });
-        if (!ids.length) { dnsMsg('Tick at least one PS4.'); return; }
-        if ($('p4DnsConfirm').value.trim() !== 'SEND') { dnsMsg('Type SEND in the box to confirm.'); return; }
-        $('p4DnsSend').disabled = true; dnsMsg('Sending…');
-        gm({ action: 'ps4dns', ini: $('p4DnsIni').value, ids: ids.join(','), confirm: 'SEND', by: 'control centre' }).then(function (j) {
-          $('p4DnsSend').disabled = false; $('p4DnsConfirm').value = '';
-          if (!j.ok) { dnsMsg(j.error || 'Not sent'); return; }
-          dnsMsg((j.sent || []).map(function (x) { var p = lastList.filter(function (q) { return q.id === x.id; })[0]; return (p ? rname(p) : x.room) + ': ' + (x.ok ? 'sent – picks it up within a minute' : x.error); }).join(' · '));
-          dnsLog(); setTimeout(dnsLog, 60000); setTimeout(dnsLog, 120000);
-        }, function () { $('p4DnsSend').disabled = false; dnsMsg('Couldn’t reach the engine.'); });
-      };
-    }
-    /* 16 Nov (owner): Wake early-bird rooms · Wake all · Sleep all. Wakes go through an awake PS4 (a phone's browser can't send
-       the wake message itself). Sleep all = rest mode for every PS4 that is on; the engine refuses a room with guests now or
-       within 15 min and the PS4 refuses with a game open – those stay on. */
-    function groupWake(which, label) {
-      $('p4GroupMsg').textContent = 'Sending…';
-      gm({ action: 'ps4wake', id: which, by: 'control centre' }).then(function (j) {
-        $('p4GroupMsg').textContent = j.ok ? label + ': ' + (j.rooms || []).map(function (r) { return (ROOMS[RK(r)] || {}).name || r; }).join(', ') + ' – sent by ' + ((ROOMS[RK(j.sender)] || {}).name || j.sender) + '’s PS4. Online within 2 minutes; one that stays Offline was switched off (start it and run the jailbreak).' : (j.error || 'Not sent');
-        setTimeout(draw, 3000); setTimeout(draw, 100000);
-      }, function () { $('p4GroupMsg').textContent = 'Couldn’t reach the engine.'; });
-    }
-    function sleepAll() {
-      var now = R2Day.now(), on = lastList.filter(function (p) { return p.room && p.poll && now - p.poll < 3 * 60000; });
-      if (!on.length) { $('p4GroupMsg').textContent = 'No PS4 is on.'; return; }
-      if (!confirm('Put ' + on.length + ' PS4(s) into rest mode?\n\nA room with guests now or within 15 minutes, or with a game open, stays on.')) return;
-      $('p4GroupMsg').textContent = 'Sending…';
-      Promise.all(on.map(function (p) { return gm({ action: 'ps4look', id: p.id, paths: '/_rest', by: 'control centre (sleep all)' }).then(function (j) { return rname(p) + (j.ok ? '' : ' ✗ ' + (j.error || '')); }); })).then(function (r) {
-        $('p4GroupMsg').textContent = 'Rest mode sent: ' + r.join(', ') + '. Each PS4 picks it up within a minute.'; setTimeout(draw, 90000);
-      });
-    }
-    function init() {
-      if (ready) return; ready = true;
-      $('p4Refresh').onclick = draw;
-      $('p4WakeEarly').onclick = function () { groupWake('early', 'Wake early-bird rooms'); };
-      $('p4WakeAll').onclick = function () { groupWake('all', 'Wake all'); };
-      $('p4SleepAll').onclick = sleepAll;
-      initFiles();
-      $('p4CsAfter').onchange = function () {   /* minutes after the guest end */
-        var m = this.value; gm({ action: 'ps4resetauto', after: m, by: 'control centre' }).then(function (j) { toast(j.ok ? 'Clean slate runs at guest end + ' + m + ' min' : (j.error || 'not saved')); draw(); }, function () { toast('Couldn’t reach the engine.'); });
-      };
-      $('p4CsAuto').onchange = function () {   /* 17 Nov: automatic reset after each session on/off */
-        var want = this.checked, t7 = 0;
-        if (want) { var d = new Date(R2Day.now() + 8 * 3600e3), h = d.getUTCHours(); if (h >= 19 || h < 7) { var b7 = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 7) - 8 * 3600e3; t7 = b7 > R2Day.now() ? b7 : b7 + 86400e3; }
-          var msg = 'Turn ON the automatic clean slate after each guest session?' + (t7 ? '\n\nOK = from 7am tomorrow (tonight’s late sessions are left alone).\nCancel, then tick again and choose “now” to start tonight.' : '');
-          if (t7 && !confirm(msg)) { if (confirm('Start it NOW instead (tonight’s sessions too)?')) t7 = 0; else { this.checked = false; return; } } else if (!t7 && !confirm(msg)) { this.checked = false; return; } }
-        gm({ action: 'ps4resetauto', on: want ? '1' : '0', from: String(t7), after: $('p4CsAfter').value, by: 'control centre' }).then(function (j) { toast(j.ok ? 'Clean slate after each session: ' + (want ? 'ON' + (t7 ? ' from 7am' : '') : 'OFF') : (j.error || 'not saved')); draw(); }, function () { toast('Couldn’t reach the engine.'); draw(); });
-      };
-      $('p4Tiles').addEventListener('change', function (e) {
-        var id = e.target.getAttribute && e.target.getAttribute('data-p4map'); if (!id || !e.target.value) return;
-        var nm = e.target.options[e.target.selectedIndex].text;
-        if (!confirm('This PS4 is in ' + nm + '?\n\n(If another PS4 was linked to ' + nm + ', it gets unlinked.)')) { e.target.value = ''; return; }
-        gm({ action: 'ps4map', id: id, room: e.target.value }).then(function (j) { toast(j.ok ? 'Linked to ' + nm : (j.error || 'Not linked')); draw(); });
-      });
-      $('p4Tiles').addEventListener('click', function (e) {
-        var u = e.target.closest && e.target.closest('[data-p4upd]');
-        if (u) {
-          var un = u.getAttribute('data-p4room'), uv = u.getAttribute('data-p4v');
-          if (!confirm('Update ' + un + '’s PS4 helper to ' + uv + ' now?\n\nIt won’t send if the room has guests (its own – not the twin’s system block) now or within 10 minutes, or a game is open. The PS4 downloads it, checks it, and switches over in about a minute (pop-ups on the TV). If the new version doesn’t work, it goes back to the old one by itself.')) return;
-          u.disabled = true; u.textContent = 'Sending…';
-          gm({ action: 'ps4update', id: u.getAttribute('data-p4upd'), by: 'control centre' }).then(function (j) {
-            toast(j.ok ? un + ': update sent – the PS4 picks it up within a minute' : un + ': ' + (j.error || 'not sent')); draw();
-          }, function () { toast('Couldn’t reach the engine.'); draw(); });
-          return;
-        }
-        var wk = e.target.closest && e.target.closest('[data-p4wake]');
-        if (wk) {   /* 16 Nov: remote wake – another awake PS4 sends this one's key; only from rest mode */
-          var wn = wk.getAttribute('data-p4room'); wk.disabled = true; wk.textContent = 'Sending…';
-          gm({ action: 'ps4wake', id: wk.getAttribute('data-p4wake'), by: 'control centre' }).then(function (j) {
-            toast(j.ok ? wn + ': wake sent by ' + ((ROOMS[RK(j.sender)] || {}).name || j.sender) + '’s PS4 – it should be Online within 2 minutes. If not, it was switched off (not in rest mode): start it and run the jailbreak.' : wn + ': ' + (j.error || 'not sent'));
-            setTimeout(draw, 3000); setTimeout(draw, 90000);
-          }, function () { toast('Couldn’t reach the engine.'); draw(); });
-          return;
-        }
-        var sp = e.target.closest && e.target.closest('[data-p4stop]');
-        if (sp) {   /* 17 Nov: stop a reset countdown (the guests got an extension) – the PS4 picks it up within a minute */
-          var sn = sp.getAttribute('data-p4room');
-          if (!confirm('Stop the reset countdown on ' + sn + '’s PS4?\n\nNothing gets closed or cleared. Add the extension in SimplyBook too, or the next reset is planned at the old time.')) return;
-          sp.disabled = true; sp.textContent = 'Stopping…';
-          gm({ action: 'ps4look', id: sp.getAttribute('data-p4stop'), paths: '/_reset.cancel', by: 'control centre: stop reset' }).then(function (j) { toast(j.ok ? sn + ': stop sent – the PS4 picks it up within a minute (guests see “reset cancelled”)' : sn + ': ' + (j.error || 'not sent')); draw(); }, function () { toast('Couldn’t reach the engine.'); draw(); });
-          return;
-        }
-        var rs = e.target.closest && e.target.closest('[data-p4reset]');
-        if (rs) {
-          var rn = rs.getAttribute('data-p4room');
-          if (!confirm('Clean slate ' + rn + '’s PS4 now?\n\nCloses the game, signs out the spare profiles, copies every save to the PS4’s own storage and then removes it, deletes profiles guests made, names the spares Player 1–4 with default pictures.\n\nNot during a guest session. GT Sport on Max’s main profile, PS Vue and homebrew settings are never touched.')) return;
-          rs.disabled = true; rs.textContent = 'Sending…';
-          gm({ action: 'ps4reset', id: rs.getAttribute('data-p4reset'), by: 'control centre' }).then(function (j) {
-            toast(j.ok ? rn + ': clean slate sent – the PS4 picks it up within a minute; progress shows on its tile' : rn + ': ' + (j.error || 'not sent')); draw();
-          }, function () { toast('Couldn’t reach the engine.'); draw(); });
-          return;
-        }
-        var b = e.target.closest && e.target.closest('[data-p4clean]'); if (!b) return;
-        var nm = b.getAttribute('data-p4room'), junk = +b.getAttribute('data-p4junk') || 0;
-        if (!confirm('Clean up ' + nm + '’s PS4 now?' + (junk ? '\n\nFrees about ' + gb(junk) + '.' : '') + '\n\nDeletes: stuck update downloads and guests’ screenshots/clips.\nKeeps: games, patches, saves, PS Vue’s download.\n\nIt won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open. The TV shows a pop-up when it starts and when it’s done.')) return;
-        b.disabled = true; b.textContent = 'Sending…';
-        gm({ action: 'ps4clean', id: b.getAttribute('data-p4clean'), by: 'control centre' }).then(function (j) {
-          toast(j.ok ? nm + ': clean-up sent – the PS4 picks it up within a minute' : nm + ': ' + (j.error || 'not sent')); draw();
-        }, function () { toast('Couldn’t reach the engine.'); draw(); });
-      });
-    }
-    return {
-      open: function () { init(); draw(); clearInterval(timer); timer = setInterval(function () { if (!document.hidden) draw(); }, 30000); },
-      close: function () { clearInterval(timer); timer = null; }
-    };
-  })();
-
-  /* ===== PS4 GAMES (owner 20 Nov 2026 10:38pm): install / uninstall PKGs from the laptop's "Round2 PKG server" (folders or the
-     external HD) on single rooms or tiers; drop a game → offer its patch + DLC from that folder; each room's installed version
-     next to the newest file. The engine keeps one queue per PS4 (pkgsend / pkglist / pkgcancel) and hands out one job at a time. */
-  var PKG = (function () {
-    var GM = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, lap = null, rooms = {}, q = {}, pick = {}, sel = {};
-    var ROOMS = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'], TIER = { netflix: ROOMS, deluxe: ['kai', 'bella', 'atlas', 'max'], vip: ['max'] };
-    var FW = { max: '9.00', kai: '9.00', atlas: '9.00', bella: '11.00', scarlett: '11.00', vale: '11.00', kaeden: '13.50' }, FAR = { atlas: 1, bella: 1 };
-    var CAT = { gd: 'Game', gp: 'Patch', ac: 'DLC' };
-    function sKey() { return ls('r2.guestStaff') || ''; }
-    function gm(o) { return fetch(GM, { method: 'POST', body: new URLSearchParams(Object.assign({ staff: sKey() }, o)) }).then(function (r) { return r.json(); }); }
-    function $(i) { return document.getElementById(i); }
-    function vnum(v) { var p = String(v || '').split('.'); return (+p[0] || 0) * 1000 + (+p[1] || 0); }
-    function gb(b) { return (b / 1073741824).toFixed(b > 10737418240 ? 0 : 1) + ' GB'; }
-    function dir(p) { return String(p || '').replace(/[\\/][^\\/]*$/, ''); }
-    function ip() { return (lap && lap.ip) || ''; }
-    function lapLoad() { drawLap(); drawList(); return Promise.resolve(); }   /* the laptop's list comes from the engine (pkglist.lap) – pushed by the PKG server */
-    function lapFrom(L) {
-      if (!L || !L.pkgs) { lap = null; return; }
-      lap = { ip: L.ip, port: L.port, token: L.token, t: L.t, active: L.active || 0, servedMB: L.servedMB || 0, folders: (L.folders || []).map(function (f) { return { path: f, there: true }; }),
-        pkgs: L.pkgs.map(function (p) { p.path = (p.dir || '') + '\\' + p.name; return p; }) };
-    }
-    function drawLap() {
-      var el = $('pkLap'); if (!lap) { el.innerHTML = '<b>Laptop PKG server: no list yet.</b> On the laptop open round2-tv › pkg-server › <b>Start Round2 PKG server.bat</b>, keep its window open, and enter the staff code on its page once.'; return; }
-      var age = Math.round((Date.now() - lap.t) / 60000), on = age < 15;
-      el.innerHTML = '<b>Laptop PKG server</b> ' + (on ? '✅' : '⚠️ last heard ' + age + ' min ago – is the laptop on with the PKG server window open?') + ' · ' + lap.pkgs.length + ' PKG files · ' + esc(lap.ip) + ':' + lap.port + ' · downloads now ' + lap.active + ' · sent ' + lap.servedMB + ' MB<div style="margin-top:6px">' +
-        lap.folders.map(function (f) { return '<div>📁 ' + esc(f.path) + '</div>'; }).join('') + '</div><p class="hint" style="margin:6px 0 0">Add or remove folders on the laptop: <a href="http://localhost:8890/" target="_blank" rel="noopener">open the PKG server page</a> (works on the laptop only).</p>';
-    }
-    function groups() {   /* title id → { game files, patch files, dlc files } */
-      var G = {}; if (!lap) return G;
-      lap.pkgs.forEach(function (p) { if (p.err || !p.tid) return; var g = G[p.tid] || (G[p.tid] = { tid: p.tid, title: '', gd: [], gp: [], ac: [] }); (g[p.cat] || (g[p.cat] = [])).push(p); if (p.cat === 'gd' || !g.title) g.title = p.title || p.name; });
-      for (var k in G) ['gd', 'gp', 'ac'].forEach(function (c) { G[k][c].sort(function (a, b) { return vnum(b.appver || b.ver) - vnum(a.appver || a.ver); }); });
-      return G;
-    }
-    function inst(room, tid) { var r = rooms[room]; if (!r || !r.games) return null; for (var i = 0; i < r.games.length; i++) if (r.games[i].id === tid) return r.games[i]; return null; }
-    function drawList() {
+    function drawList(force) {
       var el = $('pkList'); if (!lap) { el.innerHTML = '<p class="hint">Start the laptop PKG server to see your files.</p>'; return; }
       var G = groups(), f = ($('pkFind').value || '').toLowerCase(), ks = Object.keys(G).sort(function (a, b) { return String(G[a].title).localeCompare(G[b].title); });
-      var h = '<table style="border-collapse:collapse;font-size:12px;width:100%"><tr><th></th><th style="text-align:left">Game</th><th>Your files</th>' + ROOMS.map(function (r) { return '<th>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '</th>'; }).join('') + '</tr>';
+      var sig = JSON.stringify([f, lap.pkgs.length, cat, choice, pick, ROOMS.map(function (r) { return rooms[r] && (rooms[r].games || []).map(function (x) { return x.id + (x.pv || x.v); }).join(); })]);
+      if (!force && sig === sigList) { drawBasket(); return; } sigList = sig;   /* the 20 s refresh doesn't redraw (and close an open menu) unless something changed */
+      var h = '<table style="border-collapse:collapse;font-size:12px;width:100%"><tr><th style="text-align:left">Game</th><th style="text-align:left">Files to use</th><th style="text-align:left">Rooms</th>' + ROOMS.map(function (r) { return '<th>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '</th>'; }).join('') + '</tr>';
       ks.forEach(function (k) { var g = G[k]; if (f && (g.title + ' ' + k).toLowerCase().indexOf(f) < 0) return;
-        var newest = g.gp[0] ? (g.gp[0].appver || g.gp[0].ver) : g.gd[0] ? (g.gd[0].appver || g.gd[0].ver) : '';
-        var files = ['gd', 'gp', 'ac'].map(function (c) { return g[c].map(function (p) { return '<label style="white-space:nowrap;display:block"><input type="checkbox" data-pkf="' + p.id + '"' + (pick[p.id] ? ' checked' : '') + '> ' + CAT[c] + ' ' + esc(p.appver || p.ver || '') + ' <span class="hint">' + gb(p.size) + ' · FW ' + esc(p.fw || '?') + '</span></label>'; }).join(''); }).join('');
-        h += '<tr style="border-top:1px solid var(--line2);vertical-align:top"><td></td><td><b>' + esc(g.title) + '</b><br><span class="hint">' + k + '</span></td><td>' + files + '</td>' + ROOMS.map(function (r) { var x = inst(r, k), v = x ? (x.pv || x.v) : ''; var c = !x ? '' : vnum(v) >= vnum(newest) ? 'color:#7d7' : 'color:#fa5'; return '<td style="text-align:center;' + c + '">' + (x ? esc(v) : '–') + '</td>'; }).join('') + '</tr>'; });
+        var m = mainOf(g), pt = patchOf(g), c = cat[k] || {}, tg = target(k), ch = choice[k] || {};
+        var want = pt ? (pt.appver || pt.ver) : m ? (m.appver || m.ver) : '';
+        var files = '';
+        if (g.gd.length > 1) files += '<div>Game <select data-pkgd="' + k + '">' + g.gd.map(function (p) { return '<option value="' + p.id + '"' + (m && m.id === p.id ? ' selected' : '') + '>' + esc((p.appver || p.ver || '') + ' · ' + gb(p.size) + ' · FW ' + (p.fw || '?') + ' · ' + p.name) + '</option>'; }).join('') + '</select></div>';
+        else if (m) files += '<div>Game ' + esc(m.appver || m.ver || '') + ' <span class="hint">' + gb(m.size) + ' · FW ' + esc(m.fw || '?') + '</span></div>';
+        else files += '<div class="hint">no game file (patch/DLC only)</div>';
+        if (g.gp.length) files += '<div>Patch <select data-pkgp="' + k + '"><option value="">No patch</option>' + g.gp.map(function (p) { var v = p.appver || p.ver || ''; return '<option value="' + esc(v) + '"' + (pt && pt.id === p.id ? ' selected' : '') + '>' + esc(v + ' · ' + gb(p.size) + ' · FW ' + (p.fw || '?') + ' · ' + p.name) + '</option>'; }).join('') + '</select></div>';
+        if (g.ac.length) files += '<label style="display:block"><input type="checkbox" data-pkdlc="' + k + '"' + (ch.dlc ? ' checked' : '') + '> with all ' + g.ac.length + ' DLC</label>';
+        files += '<details style="margin-top:2px"><summary class="hint" style="cursor:pointer">pick single files</summary>' + ['gd', 'gp', 'ac'].map(function (cc) { return g[cc].map(function (p) { return '<label style="white-space:nowrap;display:block"><input type="checkbox" data-pkf="' + p.id + '"' + (pick[p.id] ? ' checked' : '') + '> ' + CAT[cc] + ' ' + esc(p.appver || p.ver || '') + (cc === 'ac' ? ' ' + esc(p.title || p.name) : '') + ' <span class="hint">' + gb(p.size) + '</span></label>'; }).join(''); }).join('') + '</details>';
+        var tsel = '<select data-pktier2="' + k + '"><option value="">– not set –</option><option value="netflix"' + (c.tier === 'netflix' ? ' selected' : '') + '>Netflix · all rooms</option><option value="deluxe"' + (c.tier === 'deluxe' ? ' selected' : '') + '>Deluxe · Kai Bella Atlas Max</option><option value="vip"' + (c.tier === 'vip' ? ' selected' : '') + '>VIP · Max</option><option value="custom"' + (cat[k] && !c.tier ? ' selected' : '') + '>My own rooms…</option></select>';
+        if (cat[k] && !c.tier) tsel += '<div style="margin-top:2px">' + ROOMS.map(function (r) { return '<label style="white-space:nowrap;margin-right:6px"><input type="checkbox" data-pkcr="' + k + '|' + r + '"' + ((c.rooms || []).indexOf(r) >= 0 ? ' checked' : '') + '>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '</label>'; }).join('') + '</div>';
+        tsel += '<div style="margin-top:3px"><button class="btn" type="button" data-pkgo="' + k + '" style="padding:2px 8px;font-size:11px"' + (tg.length ? '' : ' disabled') + '>Install in its rooms</button></div>';
+        h += '<tr style="border-top:1px solid var(--line2);vertical-align:top"><td><b>' + esc(g.title) + '</b><br><span class="hint">' + k + '</span></td><td>' + files + '</td><td>' + tsel + '</td>' + ROOMS.map(function (r) {
+          var x = inst(r, k), v = x ? (x.pv || x.v) : '', inT = tg.indexOf(r) >= 0;
+          if (!x) return '<td style="text-align:center">' + (inT ? '<span style="color:#fa5">need</span>' : '–') + '</td>';
+          var col = vnum(v) >= vnum(want) ? '#7d7' : '#fa5'; return '<td style="text-align:center;color:' + col + '">' + (tg.length && !inT ? '<i>' + esc(v) + ' extra</i>' : esc(v)) + '</td>'; }).join('') + '</tr>'; });
       el.innerHTML = h + '</table>';
       [].forEach.call(el.querySelectorAll('[data-pkf]'), function (c) { c.onchange = function () { var id = c.getAttribute('data-pkf'); if (c.checked) pick[id] = 1; else delete pick[id]; drawBasket(); }; });
+      [].forEach.call(el.querySelectorAll('[data-pkgd]'), function (c) { c.onchange = function () { var k = c.getAttribute('data-pkgd'); choice[k] = Object.assign({}, choice[k], { gd: c.value }); drawList(true); }; });
+      [].forEach.call(el.querySelectorAll('[data-pkdlc]'), function (c) { c.onchange = function () { var k = c.getAttribute('data-pkdlc'); choice[k] = Object.assign({}, choice[k], { dlc: c.checked }); }; });
+      [].forEach.call(el.querySelectorAll('[data-pkgp]'), function (c) { c.onchange = function () { var k = c.getAttribute('data-pkgp'), o = Object.assign({ tier: '', rooms: [] }, cat[k], { title: G[k].title, patch: c.value, nopatch: !c.value }); saveCat(k, o).then(function () { drawList(true); }); }; });
+      [].forEach.call(el.querySelectorAll('[data-pktier2]'), function (c) { c.onchange = function () { var k = c.getAttribute('data-pktier2'), v = c.value, o = Object.assign({}, cat[k] || {}, { title: G[k].title });
+        if (!v) { if (cat[k] && (cat[k].patch || cat[k].nopatch)) { o.tier = ''; o.rooms = []; } else o = null; } else if (v === 'custom') { o.tier = ''; o.rooms = o.rooms && o.rooms.length ? o.rooms : ROOMS.filter(function (r) { return inst(r, k); }); } else { o.tier = v; o.rooms = []; }
+        saveCat(k, o).then(function () { drawList(true); }); }; });
+      [].forEach.call(el.querySelectorAll('[data-pkcr]'), function (c) { c.onchange = function () { var x = c.getAttribute('data-pkcr').split('|'), k = x[0], o = Object.assign({ tier: '', rooms: [] }, cat[k], { title: G[k].title, tier: '' }); o.rooms = (o.rooms || []).filter(function (r) { return r !== x[1]; }); if (c.checked) o.rooms.push(x[1]); saveCat(k, o).then(function () { drawList(true); }); }; });
+      [].forEach.call(el.querySelectorAll('[data-pkgo]'), function (b) { b.onclick = function () { sync([b.getAttribute('data-pkgo')]); }; });
       drawBasket();
+    }
+    function plan(tids) {   /* what "install in its rooms" would queue: main game where missing, the chosen patch where missing/older, DLC if ticked */
+      var G = groups(), items = [], warn = [], order = { gd: 0, gp: 1, ac: 2 };
+      tids.forEach(function (k) { var g = G[k]; if (!g) return; var m = mainOf(g), pt = patchOf(g), ch = choice[k] || {};
+        target(k).forEach(function (r) { var x = inst(r, k), fw = (rooms[r] && rooms[r].fw) || FW[r], add = [];
+          if (FAR[r]) { if (!x || (pt && vnum(x.pv || x.v) < vnum(pt.appver || pt.ver))) warn.push(g.title + ' → ' + r + ': on the other Wi-Fi, can\'t reach the laptop yet'); return; }
+          if (!x) { if (!m) { warn.push(g.title + ' → ' + r + ': no game file on the laptop'); return; } add.push(m); if (pt) add.push(pt); if (ch.dlc) add = add.concat(g.ac); }
+          else if (pt && vnum(x.pv || x.v) < vnum(pt.appver || pt.ver)) add.push(pt);
+          add.forEach(function (p) { if (p.fw && vnum(p.fw) > vnum(fw)) { warn.push(g.title + ' ' + (CAT[p.cat] || p.cat) + ' ' + (p.appver || p.ver || '') + ' → ' + r + ': needs FW ' + p.fw + ' (' + r + ' has ' + fw + ')'); return; }
+            items.push({ room: r, op: 'install', ip: ip(), port: lap.port, code: lap.token, fid: p.id, cat: p.cat, cid: p.cid, tid: p.tid, title: p.title, name: p.name, ver: p.appver || p.ver, mb: p.size }); }); }); });
+      items.sort(function (a, b) { return order[a.cat] - order[b.cat]; });
+      return { items: items, warn: warn };
+    }
+    function sync(tids) {
+      var m = $('pkMsg'); if (!ip()) { m.textContent = 'The laptop PKG server isn\'t reachable.'; return; }
+      var P = plan(tids), per = {}; P.items.forEach(function (it) { per[it.room] = (per[it.room] || 0) + 1; });
+      if (!P.items.length) { m.innerHTML = (tids.length === 1 ? 'Nothing to install – its rooms are up to date.' : 'Nothing to install – every game with rooms set is up to date.') + (P.warn.length ? '<div style="color:#fa5">⚠ ' + P.warn.map(esc).join('<br>⚠ ') + '</div>' : ''); return; }
+      var gbs = P.items.reduce(function (a, it) { return a + (+it.mb || 0); }, 0);
+      if (!confirm('Queue ' + P.items.length + ' install job(s), ' + gb(gbs) + ' in all?\n' + Object.keys(per).map(function (r) { return r + ': ' + per[r]; }).join(' · ') + (P.warn.length ? '\n\nSkipped:\n' + P.warn.join('\n') : ''))) return;
+      m.textContent = 'Sending…';
+      gm({ action: 'pkgsend', items: JSON.stringify(P.items), rest: $('pkRest').checked ? '1' : '', by: 'control centre: install in its rooms' }).then(function (j) { m.innerHTML = j.error ? esc(j.error) : '✅ ' + j.queued + ' job(s) queued on ' + j.rooms + ' PS4(s). Each PS4 starts when its room is free for the next hour.' + (P.warn.length ? '<div style="color:#fa5">Skipped: ' + P.warn.map(esc).join(' · ') + '</div>' : ''); loadQ(); });
+    }
+    function drawOnPs4(force) {   /* every game the PS4s report, also ones that aren't on the laptop */
+      var el = $('pkOnPs4'), f = ($('pkFind2').value || '').toLowerCase(), T = {}, G = lap ? groups() : {};
+      ROOMS.forEach(function (r) { ((rooms[r] && rooms[r].games) || []).forEach(function (x) { if (!x.id || x.id === VUE || HIDE.test(x.id) || (x.cat && x.cat !== 'gd')) return; (T[x.id] || (T[x.id] = { id: x.id, t: x.t || x.id })); }); });
+      var ks = Object.keys(T).sort(function (a, b) { return String(T[a].t).localeCompare(T[b].t); });
+      var sig = JSON.stringify([f, unpick, ks, ROOMS.map(function (r) { return rooms[r] && (rooms[r].games || []).map(function (x) { return x.id + (x.pv || x.v); }).join(); })]);
+      if (!force && sig === sigPs4) return; sigPs4 = sig;
+      var n = {}; ROOMS.forEach(function (r) { n[r] = ks.filter(function (k) { return inst(r, k); }).length; });
+      var h = '<table style="border-collapse:collapse;font-size:12px;width:100%"><tr><th style="text-align:left">Game</th><th>On laptop</th>' + ROOMS.map(function (r) { var o = rooms[r], on = o && Date.now() - (o.poll || 0) < 3 * 60e3; return '<th>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '<br><span class="hint">' + n[r] + ' games' + (on ? '' : ' · off') + '</span></th>'; }).join('') + '</tr>';
+      ks.forEach(function (k) { if (f && (T[k].t + ' ' + k).toLowerCase().indexOf(f) < 0) return; var g = G[k];
+        h += '<tr style="border-top:1px solid var(--line2)"><td><b>' + esc(T[k].t) + '</b> <span class="hint">' + k + '</span></td><td style="text-align:center">' + (g && g.gd.length ? '✓' : '<span class="hint" title="no game file on the laptop – can\'t be installed again from here">no</span>') + '</td>' + ROOMS.map(function (r) {
+          var x = inst(r, k); if (!x) return '<td style="text-align:center" class="hint">–</td>';
+          if (HOUSE[k] === r) return '<td style="text-align:center" title="house save room – never removed from here">' + esc(x.pv || x.v) + ' 🏠</td>';
+          return '<td style="text-align:center;white-space:nowrap"><label><input type="checkbox" data-pkun="' + r + '|' + k + '"' + (unpick[r + '|' + k] ? ' checked' : '') + '> ' + esc(x.pv || x.v) + '</label></td>'; }).join('') + '</tr>'; });
+      el.innerHTML = ks.length ? h + '</table>' : '<p class="hint">No reports yet – the PS4s list their games when they check in.</p>';
+      [].forEach.call(el.querySelectorAll('[data-pkun]'), function (c) { c.onchange = function () { var k = c.getAttribute('data-pkun'); if (c.checked) unpick[k] = 1; else delete unpick[k]; drawUnMsg(); }; });
+      drawUnMsg();
+    }
+    function drawUnMsg() { var k = Object.keys(unpick); $('pkMsg2').textContent = k.length ? k.length + ' ticked: ' + k.map(function (x) { var p = x.split('|'), g = inst(p[0], p[1]); return p[0] + ' · ' + ((g && g.t) || p[1]); }).join(', ') : 'Tick a version in a room to remove that game from that PS4.'; }
+    function unSend(cat2) {
+      var ks = Object.keys(unpick), m = $('pkMsg2'); if (!ks.length) { m.textContent = 'Tick at least one game in a room first.'; return; }
+      var items = ks.map(function (x) { var p = x.split('|'), g = inst(p[0], p[1]); return { room: p[0], op: 'rm', tid: p[1], cat: cat2, title: (g && g.t) || p[1] }; });
+      var noFile = items.filter(function (it) { var g = lap && groups()[it.tid]; return cat2 === 'gd' && !(g && g.gd.length); });
+      if (!confirm((cat2 === 'gp' ? 'Remove the PATCH of ' : 'UNINSTALL ') + items.length + ' game(s)?\n' + items.map(function (it) { return it.room + ': ' + it.title; }).join('\n') + (noFile.length ? '\n\n⚠ Not on your laptop, so they can\'t be installed again from here: ' + noFile.map(function (it) { return it.title; }).join(', ') : '') + '\n\nMembers\' saves stay in the cloud. Each PS4 does it when its room is free for the next hour.')) return;
+      m.textContent = 'Sending…';
+      gm({ action: 'pkgsend', items: JSON.stringify(items), by: 'control centre: on the PS4s' }).then(function (j) { m.textContent = j.error ? j.error : '✅ ' + j.queued + ' removal job(s) queued on ' + j.rooms + ' PS4(s).'; if (!j.error) unpick = {}; loadQ(); });
     }
     function byId(id) { if (!lap) return null; for (var i = 0; i < lap.pkgs.length; i++) if (lap.pkgs[i].id === id) return lap.pkgs[i]; return null; }
     function drawRooms() {
@@ -3480,20 +2498,24 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function loadQ() {
       return Promise.all([gm({ action: 'pkglist' }), gm({ action: 'ps4list', g: '1' })]).then(function (a) {
-        q = (a[0] && a[0].rooms) || {}; lapFrom(a[0] && a[0].lap); drawLap(); rooms = {}; ((a[1] && a[1].list) || []).forEach(function (p) { if (p.room) rooms[p.room] = p; });
+        q = (a[0] && a[0].rooms) || {}; if (a[0] && a[0].cat) cat = a[0].cat; lapFrom(a[0] && a[0].lap); drawLap(); rooms = {}; ((a[1] && a[1].list) || []).forEach(function (p) { if (p.room) rooms[p.room] = p; });
         var h = ''; ROOMS.forEach(function (r) { var L = q[r] || [], o = rooms[r], pk = o && o.pkg; if (!L.length && !(pk && pk.on)) return;
           h += '<div style="margin-top:4px"><b>' + r.charAt(0).toUpperCase() + r.slice(1) + '</b>' + (pk && pk.last ? ' <span class="hint">' + esc(pk.last) + '</span>' : '') + L.map(function (j) {
             var c = j.state === 'done' ? '#7d7' : j.state === 'failed' ? '#f88' : j.state === 'running' || j.state === 'sent' ? '#7cf' : '#ccc';
             return '<div style="margin-left:12px"><span style="color:' + c + '">' + esc(j.state) + '</span> ' + (j.op === 'rm' ? 'remove ' : '') + esc((j.title || j.name) + ' ' + (CAT[j.cat] || '') + ' ' + (j.ver || '')) + (j.why ? ' <span class="hint">' + esc(j.why) + '</span>' : '') + (j.state !== 'done' && j.state !== 'failed' ? ' <button class="btn ghost" type="button" data-pkc="' + r + '|' + j.jid + '" style="padding:1px 8px;font-size:11px">cancel</button>' : '') + '</div>'; }).join('') + '</div>'; });
         $('pkQueue').innerHTML = h || '<span class="hint">Nothing queued.</span>';
         [].forEach.call($('pkQueue').querySelectorAll('[data-pkc]'), function (b) { b.onclick = function () { var x = b.getAttribute('data-pkc').split('|'); gm({ action: 'pkgcancel', room: x[0], jid: x[1], by: 'control centre' }).then(loadQ); }; });
-        drawRooms(); drawList();
+        drawRooms(); drawList(); drawOnPs4();
       });
     }
     function wire() {
       if (wire.done) return; wire.done = true;
       $('pkRefresh').onclick = function () { loadQ(); };
-      $('pkFind').oninput = drawList;
+      $('pkFind').oninput = function () { drawList(true); };
+      $('pkFind2').oninput = function () { drawOnPs4(true); };
+      $('pkSync').onclick = function () { sync(Object.keys(cat)); };
+      $('pkUnGame').onclick = function () { unSend('gd'); };
+      $('pkUnPatch').onclick = function () { unSend('gp'); };
       $('pkSend').onclick = function () { send('install'); };
       $('pkRm').onclick = function () { send('rm'); };
       [].forEach.call(document.querySelectorAll('[data-pktier]'), function (b) { b.onclick = function () { var t = b.getAttribute('data-pktier'); sel = {}; (TIER[t] || []).forEach(function (r) { sel[r] = 1; }); drawRooms(); drawBasket(); }; });
