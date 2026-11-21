@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.148"   /* 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.149"   /* 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -103,6 +103,7 @@ static char pkg_last[200]; /* 1.1.132: last PKG job line for the report */
    load does to it, sent in the report as "board" for the Round2 tile's profile cards. st: u nothing to do · c being cleared ·
    w waits for a member · l loading now · d loaded · f loaded, some games failed. who = the member it is for. */
 static char g_mb_st[5], g_mb_cur[5][32], g_mb_tgt[5][32], g_mb_who[5][32]; static int g_mb_n; static long long g_mb_end;
+static void live_write(int force); /* 1.1.149 */
 static void sv_log(const char *fmt, ...);
 static void look_appdb(void);
 static void look_fold(const char *spec);
@@ -575,6 +576,24 @@ static void add_tail(const char *name, const char *path, int lines) {
   jadd("]");
 }
 static uint64_t games_sent_hash;
+/* 1.1.149 (owner 22 Nov 00:39: "the ps4 tile should be listening to the helper … it then can know progress reliably"): the tile
+   (0.13+) reads /data/round2/tile-live.txt 4 times a second – no waiting for the engine. state l = a member load runs (memqn),
+   d = it finished (3 min), i = nothing. board = the load board, prog = games done/total of the player loading now. Written on
+   every change (board, each game) and at least every 3 s while a load runs (fg_thread). */
+static void live_write(int force) {
+  static char last[900]; static long long at; char bd[600] = "", b[900]; size_t l = 0;
+  int busy = file_exists("/data/round2/memqn"); char st = busy ? 'l' : (g_mb_n && (long long)time(0) < g_mb_end) ? 'd' : 'i';
+  for (int i = 0; i < g_mb_n && l < sizeof bd - 1; i++) l += snprintf(bd + l, sizeof bd - l, "%s%c~%s~%s~%s", i ? "|" : "", g_mb_st[i] ? g_mb_st[i] : 'u', g_mb_cur[i], g_mb_tgt[i], g_mb_who[i]);
+  char cst[16] = ""; int cd = 0, ct = 0, cf = 0, cp = 0; clean_status(cst, &cd, &ct, &cf, &cp);
+  int n = snprintf(b, sizeof b, "state %c\nboard %s\nprog %d %d\n", st, st == 'i' ? "" : bd, cd, ct);
+  if (!force && !strcmp(b, last) && (st == 'i' || (long long)time(0) - at < 3)) return;
+  if (st == 'i' && !strcmp(b, last)) return;
+  snprintf(last, sizeof last, "%s", b); at = (long long)time(0);
+  FILE *f = fopen("/data/round2/tile-live.tmp", "w"); if (!f) return; fprintf(f, "t %lld\n%.*s", (long long)time(0), n, b); fclose(f);
+  rename("/data/round2/tile-live.tmp", "/data/round2/tile-live.txt");
+  if (st == 'i' && g_mb_end && (long long)time(0) >= g_mb_end) g_mb_end = 0;   /* idle written once - stop checking */
+}
+
 static int report(const char *key, char *status, size_t slen) {
   double t_rep0 = tm_now(); /* 1.1.69 */
   char run[32];
@@ -613,6 +632,7 @@ static int report(const char *key, char *status, size_t slen) {
   jstr(run);
   add_users();
   add_wifi();
+  live_write(0);   /* 1.1.149 */
   if (g_mb_n && (file_exists("/data/round2/memqn") || (long long)time(0) < g_mb_end)) { char b[600]; size_t l = 0; b[0] = 0;   /* 1.1.148 */
     for (int i = 0; i < g_mb_n && l < sizeof b - 1; i++) l += snprintf(b + l, sizeof b - l, "%s%c~%s~%s~%s", i ? "|" : "", g_mb_st[i] ? g_mb_st[i] : 'u', g_mb_cur[i], g_mb_tgt[i], g_mb_who[i]);
     jadd(",\"board\":"); jstr(b); }
@@ -2864,7 +2884,7 @@ static int mb_idx(uint32_t pu) { uint32_t u[5]; int n = mb_users(u); for (int i 
 static void mb_refresh(int i) { uint32_t u[5]; int n = mb_users(u); if (i < 0 || i >= n) return; char nm[40] = ""; sceUserServiceGetUserName((int32_t)u[i], nm, sizeof nm); mb_name(g_mb_cur[i], nm); }
 static void mb_init(void) { uint32_t u[5]; g_mb_n = mb_users(u); g_mb_end = 0;
   for (int i = 0; i < g_mb_n; i++) { char nm[40] = ""; sceUserServiceGetUserName((int32_t)u[i], nm, sizeof nm); g_mb_st[i] = 'u'; mb_name(g_mb_cur[i], nm); snprintf(g_mb_tgt[i], 32, "%s", g_mb_cur[i]); g_mb_who[i][0] = 0; } }
-static void mb_set(int i, char st, const char *tgt, const char *who) { if (i < 0 || i >= g_mb_n) return; g_mb_st[i] = st; if (tgt) mb_name(g_mb_tgt[i], tgt); if (who) mb_name(g_mb_who[i], who); }
+static void mb_set(int i, char st, const char *tgt, const char *who) { if (i < 0 || i >= g_mb_n) return; g_mb_st[i] = st; if (tgt) mb_name(g_mb_tgt[i], tgt); if (who) mb_name(g_mb_who[i], who); live_write(1); }
 static void memplay_one(const char *key, const char *spec, int allow_main) {
   char id[32] = "", sl[16] = "", nm[40] = "", st[16] = "", want[64], v[200], ms[200];
   char pos[4] = "";
@@ -4030,7 +4050,7 @@ static void clean_step(const char *key, int budget) {
         if (r) { fails++; cl_err("%s game %s not loaded: %s", u, t, why); }
         done++; pos++;
         sv_log("restore test: user %s game %s %s in %.1f s (download %.1f s, into profile %.1f s, making parts %.1f s)%s%s", u, t, r ? "FAILED" : "ok", gt, g_t_dl - d0, g_t_wr - w0, g_t_mk - k0, r ? " - " : "", r ? why : "");
-        cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
+        cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts); live_write(1);
         continue;
       }
       if (!strncmp(rm, "restore ", 8)) { /* 1.1.77: "/_restoreall" - each game moved back in from the restore point, timed */
@@ -4048,7 +4068,7 @@ static void clean_step(const char *key, int budget) {
         bpop_key("clprog", "Download test: %d of %d games, %d failed. Last: %s %.1f s (download %.1f s, into profile %.1f s). Total so far %.0f s",
                  done, total, fails, t, gt, g_t_dl - d0, g_t_wr - w0, tot);
         FILE *ix = fopen(CLND "/index", "a"); if (ix) { fprintf(ix, "%s %s restore %s %.1f s dl %.1f wr %.1f mk %.1f bk %.1f\n", u, t, r ? "FAILED" : "ok", gt, g_t_dl - d0, g_t_wr - w0, g_t_mk - k0, g_t_bk - b0); fclose(ix); }
-        cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
+        cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts); live_write(1);
         continue;
       } }
     /* 1.1.51: INTERNAL FIRST - every part copied to /data/round2/prep with fingerprints + queued for the cloud batch;
@@ -4077,7 +4097,7 @@ static void clean_step(const char *key, int budget) {
     FILE *ix = fopen(CLND "/index", "a"); if (ix) { fprintf(ix, "%s %s backup %s removed %d left %d %s\n", u, t, br ? "FAILED" : "ok", gone, left, base); fclose(ix); }
     if (copyonly) sv_log("copy only: user %s game %s: internal copy %s (nothing removed)", u, t, br ? "FAILED" : "ok");
     else sv_log("clean slate: user %s game %s: internal copy %s, %d part(s) removed, %d left", u, t, br ? "FAILED - game left untouched" : "ok", gone, left);
-    cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts);
+    cl_wr("pos", "%d\n", pos); cl_wr("stat", "%d %d %d %d\n", done, total, fails, parts); live_write(1);
     { static long long lr; char rk2[16] = ""; cl_rd("run", rk2, sizeof rk2); if ((!strncmp(rk2, "prep", 4) || !strncmp(rk2, "switch", 6)) && time(0) - lr >= 4) { char s3[400]; lr = time(0); report(key, s3, sizeof s3); } } /* 1.1.101: the tile's bar follows each game */
     { char gn[64], pn[40]; sw_game_name(t, gn, sizeof gn); pname(u, pn, sizeof pn);
       if (br) bpop_key("clprog", "%s: %s's save could NOT be copied - left on the profile (%d of %d)", gn, pn, done, total);
@@ -4091,9 +4111,11 @@ static void clean_step(const char *key, int budget) {
       if (!strcmp(kd, "prep")) { for (char *c = lb; *c; c++) if (*c == '_') *c = ' ';
         sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "%s is READY: %d game%s loaded%s (%.0f s)", lb, done - fails, done - fails == 1 ? "" : "s", fails ? " - some failed, staff will check" : "", atof(tb)); }
       if (!strcmp(kd, "prep")) for (int i = 0; i < g_mb_n; i++) if (g_mb_st[i] == 'l') { mb_refresh(i); g_mb_st[i] = fails ? 'f' : 'd'; if (i) snprintf(g_mb_tgt[i], 32, "%s", g_mb_cur[i]); }   /* 1.1.148 */
-      if (!strcmp(kd, "prep") && !file_exists(MEMQ)) g_mb_end = (long long)time(0) + 180;
-      if (!strcmp(kd, "prep") && file_exists(MEMQ)) memplay_next(key); /* 1.1.94: next ticked player */
-      if (!strcmp(kd, "prep") && !file_exists(MEMQ)) { unlink("/data/round2/memqn"); keep_order(1); g_after_load = time(0); } /* 1.1.101: batch finished – profiles back in order; 1.1.119: pop-up once the tile is gone */
+      int more_q = file_exists(MEMQ);   /* 1.1.149: memplay_next takes the LAST waiting player out of memq – the batch isn't over then
+                                           (it said "Saves loaded!" and dropped the board while Aliff was still loading, 22 Nov 00:36) */
+      if (!strcmp(kd, "prep") && !more_q) g_mb_end = (long long)time(0) + 180;
+      if (!strcmp(kd, "prep") && more_q) memplay_next(key); /* 1.1.94: next ticked player */
+      if (!strcmp(kd, "prep") && !more_q) { unlink("/data/round2/memqn"); keep_order(1); g_after_load = time(0); } /* 1.1.101: batch finished – profiles back in order; 1.1.119: pop-up once the tile is gone */
       if (!strcmp(kd, "prep")) { char s4[400]; report(key, s4, sizeof s4); } /* tell the tile at once (next player started, or all ready) */
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
       if (strcmp(kd, "prep")) bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } }
@@ -5210,6 +5232,7 @@ static void *fg_thread(void *arg) {
         int r = r2tls_request_quiet(ENGINE_HOST, "POST", "/ps4/alive", hdr, req, n, body, sizeof body, err, sizeof err);
         if (r == 200) { sent_tile = on; tile_try = 0; } else sv_log("tile %s: engine not told (%d %s) - trying again in 10 s", on ? "open" : "closed", r, err); } }
     if (strcmp(rt, last)) { snprintf(last, sizeof last, "%s", rt); put_file("/data/round2/fg.txt", rt); }
+    if (hot || g_mb_end) live_write(0);   /* 1.1.149: keeps the tile's file fresh (every 3 s) during a load and says "idle" after */
     if (g_after_load && (strcmp(rt, "RTWO00001") || time(0) - g_after_load > 20)) {
       int game = rt[0] && strcmp(rt, "RTWO00001") && strcmp(rt, VUE_ID);
       notify("Saves loaded! Press the PS button and pick your profile.");

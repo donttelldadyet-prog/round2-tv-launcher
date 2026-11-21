@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include <pthread.h>
 #include <sstream>
 
@@ -60,7 +61,7 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.12"
+#define TILE_V "0.13"
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
@@ -74,7 +75,22 @@ static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
 static char g_title[80] = "", g_room[32] = "", g_url[200] = "", g_line[200] = "Connecting to Round2...", g_line2[200] = "", g_status[24] = "wait", g_err[64] = "";
 static volatile int g_dirty = 2;
 static char g_color[8] = "", g_rname[32] = "", g_done[12] = "", g_total[12] = "", g_pk[8] = "", g_pn[8] = "", g_pnow[32] = "";   /* 0.06/0.07 */
-static char g_board[640] = "";   /* 0.12: the room's profiles during a member load ("st~name~new name~member|…", helper 1.1.148) */
+static char g_board[640] = "";
+/* 0.13 (owner 22 Nov 00:39: "the ps4 tile should be listening to the helper … it then can know progress reliably"): the helper
+   (1.1.149+) writes /data/round2/tile-live.txt on this PS4 – state l(oading) / d(one) / i(dle), the profile board and the current
+   player's games – the tile reads it 4 times a second. Fresh (< 30 s) = it wins over the engine's answer, which comes every 3-20 s. */
+static int lv_ok = 0, lv_pd = 0, lv_pt = 0; static char lv_state = 'i', lv_board[640] = "", lv_raw[900] = "";
+static int live_read(void) {   /* 1 = something changed */
+  FILE *f = fopen("/data/round2/tile-live.txt", "r"); if (!f) f = fopen("/user/data/round2/tile-live.txt", "r");
+  char b[900] = ""; if (f) { size_t n = fread(b, 1, sizeof b - 1, f); b[n] = 0; fclose(f); }
+  long long t = 0; char st = 'i', bd[640] = ""; int pd = 0, pt = 0; char *p = b;
+  while (*p) { char *e = strchr(p, '\n'); if (e) *e = 0;
+    if (!strncmp(p, "t ", 2)) t = atoll(p + 2); else if (!strncmp(p, "state ", 6)) st = p[6]; else if (!strncmp(p, "board ", 6)) snprintf(bd, sizeof bd, "%s", p + 6); else if (!strncmp(p, "prog ", 5)) sscanf(p + 5, "%d %d", &pd, &pt);
+    if (!e) break; p = e + 1; }
+  long long now = (long long)time(NULL); int ok = t > 0 && now - t < 30 && t - now < 30 && st != 'i';
+  int ch = ok != lv_ok || (ok && (st != lv_state || strcmp(bd, lv_board) || pd != lv_pd || pt != lv_pt));
+  lv_ok = ok; lv_state = st; snprintf(lv_board, sizeof lv_board, "%s", bd); lv_pd = pd; lv_pt = pt; (void)lv_raw; return ch;
+}   /* 0.12: the room's profiles during a member load ("st~name~new name~member|…", helper 1.1.148) */
 static unsigned char *g_art = 0; static int g_aw = 0, g_ah = 0; static char g_artroom[32] = "";
 static char g_id[40] = "";
 
@@ -248,18 +264,25 @@ int main() {
   const int CX0 = 1210, CY0 = 196, CW = 580, CH = 118, CG = 14;
   FT_Face fF = fMid;
   for (;;) {
+    if (frame % 15 == 0 && live_read()) g_dirty = 2;   /* 0.13 */
     if (g_dirty > 0 && BASE && !howto) {   /* 0.08: the instruction card stays until the tile closes */
       char room[32], url[200], line[200], line2[200], err[64], ti[80], co[8], rn[32];
       pthread_mutex_lock(&mx); strcpy(ti, g_title); strcpy(room, g_room); strcpy(url, g_url); strcpy(line, g_line); strcpy(line2, g_line2); strcpy(st, g_status); strcpy(err, g_err);
       strcpy(co, g_color); strcpy(rn, g_rname); done = atoi(g_done); total = atoi(g_total); strcpy(pkk, g_pk); strcpy(pnn, g_pn); strcpy(pnw, g_pnow); g_dirty--;
       pthread_mutex_unlock(&mx);
+      if (lv_ok) { strcpy(st, lv_state == 'l' ? "loading" : "done"); }   /* 0.13: the helper on this PS4 knows best */
       FB = BASE; AC = hexc(co, GOLD); busy = !strcmp(st, "loading") || !strcmp(st, "reset");
-      { char bd[640]; pthread_mutex_lock(&mx); strcpy(bd, g_board); pthread_mutex_unlock(&mx); bn = 0; char *p = bd;   /* 0.12 */
+      { char bd[640]; pthread_mutex_lock(&mx); strcpy(bd, g_board); pthread_mutex_unlock(&mx); if (lv_ok) strcpy(bd, lv_board); bn = 0; char *p = bd;   /* 0.12 */
         while (*p && bn < 5) { char *e = strchr(p, '|'); if (e) *e = 0; char *f[4] = { p, (char *)"", (char *)"", (char *)"" }; int k = 1;
           for (char *q = p; *q && k < 4; q++) if (*q == '~') { *q = 0; f[k++] = q + 1; }
           bst[bn] = f[0][0]; snprintf(bcur[bn], 32, "%s", f[1]); snprintf(btgt[bn], 32, "%s", f[2][0] ? f[2] : f[1]); snprintf(bwho[bn], 32, "%s", f[3]); bn++;
           if (!e) break; p = e + 1; }
         if (busy && !was_busy) { memset(lit, 0, sizeof lit); last_lit = 0; } was_busy = busy; }
+      if (lv_ok && bn > 0) { int nt = 0, nd = 0, li = -1, ci = -1; for (int i = 0; i < bn; i++) { char c = bst[i]; if (c == 'w' || c == 'l' || c == 'd' || c == 'f') nt++; if (c == 'd' || c == 'f') nd++; if (c == 'l') li = i; if (c == 'c') ci = i; }   /* 0.13: our own words */
+        if (lv_state == 'l') { if (li >= 0) snprintf(line, sizeof line, "Loading %s's saves%s. Please don't start a game yet.", bwho[li], nt > 1 ? (snprintf(line2, sizeof line2, " (player %d of %d)", nd + 1, nt), line2) : "");
+          else if (ci >= 0) snprintf(line, sizeof line, "Getting the profiles ready first. Please don't start a game yet.");
+          snprintf(line2, sizeof line2, "Watch the profiles on the right - each one lights up when it's ready."); }
+        else if (!ti[0] || strncmp(ti, "Sorry", 5)) { snprintf(ti, sizeof ti, "All set!"); snprintf(line, sizeof line, "Your saves are on your profiles."); line2[0] = 0; } }
       if (busy) { seen_loading = 1; if (total > 0) seen_bar = 1; if (ready_t0 && !howto) ready_t0 = 0; done_since = 0; }   /* 0.11: back to loading = not the end */
       { int fin = !strcmp(st, "done") || (!strcmp(st, "off") && !strncmp(ti, "Sorry", 5));
         if (fin && seen_loading && !done_since) done_since = now_s();
@@ -323,7 +346,15 @@ int main() {
     }
     if (busy) {
       char lab[96]; int lx;
-      if (total > 0) { static int lastdone = -1; static double since = 0; if (done != lastdone) { lastdone = done; since = now_s(); }
+      int bnt = 0, bnd = 0, bli = 0; for (int i = 0; i < bn; i++) { char c = bst[i]; if (c == 'w' || c == 'l' || c == 'd' || c == 'f') bnt++; if (c == 'd' || c == 'f') bnd++; if (c == 'l') bli = 1; }
+      if (bn > 0 && bnt > 0) {   /* 0.13 (owner: 1 of 3 profiles in = the bar a third full): the bar is the whole load, player by player */
+        int pd = lv_ok ? lv_pd : done, pt = lv_ok ? lv_pt : total; static int lastk = -1; static double since2 = 0; int key = bnd * 100 + pd; if (key != lastk) { lastk = key; since2 = now_s(); }
+        double tt = now_s() - since2; float inside = bli && pt > 0 ? ((float)pd + (float)(0.9 * (1.0 - 1.0 / (1.0 + tt / 20.0)))) / pt : (bli ? (float)(0.5 * (1.0 - 1.0 / (1.0 + tt / 15.0))) : 0);
+        if (inside > 0.98f) inside = 0.98f; float want = ((float)bnd + inside) / bnt; shown += (want - shown) * 0.06f; if (shown > want) shown = want;
+        int fw = BW * shown; if (fw < 26) fw = 26; rect(BX, BY, fw, BH, AC);
+        int sx = (frame * 9) % (fw + 160) - 160; for (int x = sx; x < sx + 160; x++) if (x >= 0 && x < fw) { int a = 90 - abs(x - sx - 80) * 90 / 80; for (int j = 0; j < BH; j++) blend(BX + x, BY + j, WHITE, a); }
+        snprintf(lab, sizeof lab, "%d of %d profile%s ready  -  %d%%", bnd, bnt, bnt == 1 ? "" : "s", (int)(shown * 100)); }
+      else if (total > 0) { static int lastdone = -1; static double since = 0; if (done != lastdone) { lastdone = done; since = now_s(); }
         double t = now_s() - since; float creep = done < total ? (float)(0.9 * (1.0 - 1.0 / (1.0 + t / 20.0))) : 0;   /* 0.09: inside a game */
         float want = ((float)done + creep) / total; shown += (want - shown) * 0.06f; if (shown > want) shown = want;
         int fw = BW * shown; if (fw < 26) fw = 26; rect(BX, BY, fw, BH, AC);
@@ -354,7 +385,8 @@ int main() {
         logo_fx(130, 90, AC, 60, (frame * 10) % (LOGO_W + 300) - 150); }
       else { sceSystemServiceLoadExec("exit", NULL); exit(0); }
     }
-    else { shown = 0; int a = 110 + (int)(100 * (frame % 120 < 60 ? frame % 60 : 60 - frame % 60) / 60); frame_box(QX - 20, QY - 20, QS + 40, QS + 40, 4, AC, a);
+    else { if (!busy) shown = 0;   /* 0.13: was reset every frame, so the bar never got past ~6 % of the way */
+      if (!(bn > 0 && (busy || !strcmp(st, "done")))) { int a = 110 + (int)(100 * (frame % 120 < 60 ? frame % 60 : 60 - frame % 60) / 60); frame_box(QX - 20, QY - 20, QS + 40, QS + 40, 4, AC, a); }   /* 0.13: no QR frame over the profile cards */
       if (!ready_t0) { int ph = frame % 180 < 90 ? frame % 90 : 90 - frame % 90; logo_fx(130, 90, AC, ph * 2, (frame * 6) % (LOGO_W + 900) - 300, ph); } }   /* 0.09: gentle breathing when idle */
     scene->SubmitFlip(frame); scene->FrameWait(frame); scene->FrameBufferSwap(); frame++;
   }
