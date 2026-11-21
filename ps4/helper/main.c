@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.136"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9 */
+#define R2_VERSION "1.1.137"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -97,6 +97,7 @@ static void cloud_report(void); /* 1.1.52 */
 static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
 static char pkg_last[200]; /* 1.1.132: last PKG job line for the report */
 static void sv_log(const char *fmt, ...);
+static void hexs(const unsigned char *b, int n, char *o);
 static void look_pkgjob(const char *spec); static void look_pkgstop(void); static void look_pkgrm(const char *spec);
 static int bg_load(char *why, size_t wn); static int (*bg_unreg)(int);
 static long long g_after_load; /* 1.1.119: a member load batch just finished (time) -> pop-up once the tile is gone */
@@ -1241,12 +1242,14 @@ static void sv_up_dir(const char *key, const char *base, const char *dir, const 
     if (fd < 0) { sv_fail++; sv_log("backup read-fail %s (errno %d)", r, errno); continue; }
     unsigned long long sz = (unsigned long long)st.st_size, done = 0;
     int pieces = 0, bad = 0, pfd = -1;
+    mbedtls_sha256_context uh; mbedtls_sha256_init(&uh); mbedtls_sha256_starts(&uh, 0);   /* 1.1.137: content fingerprint in the cloud manifest */
     char pp[600];
     if (sv_prep[0]) { snprintf(pp, sizeof pp, "%s/%s", sv_prep, r); mkdirs_for(pp); pfd = open(pp, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (pfd < 0) { sv_prep_fail++; sv_log("prep write-open fail %s (errno %d)", r, errno); } }
     do {
       size_t want = sz - done > SV_PIECE ? SV_PIECE : (size_t)(sz - done), got = 0;
       while (got < want) { ssize_t x = read(fd, sv_buf + got, want - got); if (x <= 0) break; got += (size_t)x; }
       if (got != want) { bad = 1; break; }
+      mbedtls_sha256_update(&uh, sv_buf, got);
       snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pieces);
       if (!sv_defer && sv_put(key, k, sv_buf, got)) { bad = 1; break; }   /* 1.1.123: deferred = on the PS4 only for now */
       if (snap_bg) snap_tick(key);
@@ -1255,9 +1258,9 @@ static void sv_up_dir(const char *key, const char *base, const char *dir, const 
     } while (done < sz);
     close(fd);
     if (pfd >= 0) { fsync(pfd); close(pfd); }
+    { unsigned char uhs[32]; mbedtls_sha256_finish(&uh, uhs); mbedtls_sha256_free(&uh); if (!bad) { char uhx[65]; hexs(uhs, 32, uhx); snprintf(line, sizeof line, "%s\t%llu\t%d\t%s\n", r, sz, pieces, uhx); } }
     if (bad) { sv_fail++; continue; }
     sv_files++; sv_bytes += sz;
-    snprintf(line, sizeof line, "%s\t%llu\t%d\n", r, sz, pieces);
     sv_man_add(line);
   }
   closedir(d);
@@ -1378,9 +1381,11 @@ static int sv_getm(const char *key, const char **ks, int n, unsigned char **data
   for (int j = 0; j < nm; j++) { data[mi[j]] = md[j]; lens[mi[j]] = ml[j]; }
   return 0;
 }
-static int sv_getm_net(const char *key, const char **ks, int n, unsigned char **data, size_t *lens, char *why, size_t wn) {
-  for (int i = 0; i < n; i++) { data[i] = 0; lens[i] = 0; }
-  if (n <= 0) return 0;
+/* 1.1.137: the bundle request on its own - the answer goes into /data/round2/bundle.tmp; on 0, *fo is open just after the
+   "R2M <n>" line (caller reads n pieces: a "<len>\n" line then len bytes, len -1 = missing; then fclose + unlink). */
+static const char *SV_BF = "/data/round2/bundle.tmp";
+static int sv_bundle_open(const char *key, const char **ks, int n, FILE **fo, char *why, size_t wn) {
+  *fo = 0;
   size_t bc = 16; for (int i = 0; i < n; i++) bc += strlen(ks[i]) * 2 + 4;
   char *body = malloc(bc); if (!body) return -1;
   size_t bn = 0; bn += (size_t)snprintf(body + bn, bc - bn, "{\"k\":[");
@@ -1391,7 +1396,7 @@ static int sv_getm_net(const char *key, const char **ks, int n, unsigned char **
   /* 1.1.121 (owner 20 Nov 8:40pm "what happened to our optimisations"): the bundle (up to 6 MB) came into memory, and the reply
      buffer's 4 MB -> 8 MB step failed on Kaeden ("bundle download -1 no memory" -> piece by piece, 36 s for 32 MB). Now the
      bundle goes into a file and each piece (1 MB) is read back on its own - no big memory needed. */
-  const char *bf = "/data/round2/bundle.tmp"; int st = -1; size_t dl = 0;
+  const char *bf = SV_BF; int st = -1; size_t dl = 0;
   for (int a = 0; a < 3; a++) { err[0] = 0; dl = 0; FILE *f = fopen(bf, "wb"); if (!f) { st = -1; snprintf(err, sizeof err, "can't create %s", bf); break; }
     st = r2tls_fetch_file(ENGINE_HOST, "POST", "/ps4/sgetm", hdr, body, bn, f, &dl, err, sizeof err); fclose(f); if (st == 200 || st == 404) break; sleep(1); }
   free(body);
@@ -1402,6 +1407,12 @@ static int sv_getm_net(const char *key, const char **ks, int n, unsigned char **
   if (!fgets(line, sizeof line, f) || memcmp(line, "R2M ", 4)) { fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: bad answer"); return -1; }
   cnt = atoi_safe(line + 4);
   if (cnt != n) { fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: %d of %d", cnt, n); return -1; }
+  (void)dl; *fo = f; return 0;
+}
+static int sv_getm_net(const char *key, const char **ks, int n, unsigned char **data, size_t *lens, char *why, size_t wn) {
+  for (int i = 0; i < n; i++) { data[i] = 0; lens[i] = 0; }
+  if (n <= 0) return 0;
+  FILE *f = 0; const char *bf = SV_BF; char line[32]; int r0 = sv_bundle_open(key, ks, n, &f, why, wn); if (r0) return r0;
   for (int i = 0; i < n; i++) {
     if (!fgets(line, sizeof line, f)) { for (int j = 0; j < i; j++) { free(data[j]); data[j] = 0; } fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: cut short"); return -1; }
     long long L = atoll(line); if (L < 0) continue;
@@ -1409,7 +1420,56 @@ static int sv_getm_net(const char *key, const char **ks, int n, unsigned char **
     if (fread(data[i], 1, (size_t)L, f) != (size_t)L) { for (int j = 0; j <= i; j++) { free(data[j]); data[j] = 0; } fclose(f); unlink(bf); if (why) snprintf(why, wn, "bundle: cut short"); return -1; }
     lens[i] = (size_t)L;
   }
-  fclose(f); unlink(bf); (void)dl; return 0;
+  fclose(f); unlink(bf); return 0;
+}
+/* 1.1.137 (owner 21 Nov: Karen's GTA load at 1:12am failed with "bundle: no memory for a piece" - each 1 MB piece of a bundle was
+   held in memory): the same bundle, but each piece goes straight from the bundle file into fds[i] (appended), 1 MB at a time
+   through sv_buf. Nothing big in memory. got[i] = bytes written, -1 = that piece is missing in the cloud. Same returns as sv_getm. */
+static int sv_getm_fd(const char *key, const char **ks, int n, const int *fds, long long *got, char *why, size_t wn) {
+  for (int i = 0; i < n; i++) got[i] = 0;
+  if (n <= 0) return 0;
+  if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { if (why) snprintf(why, wn, "no memory"); return -1; } sv_buf = b; }
+  int dup = 0; for (int i = 0; i < n && !dup; i++) for (int j = i + 1; j < n; j++) if (fds[i] == fds[j]) { dup = 1; break; }
+  const char *miss[64]; int mi[64], nm = 0;
+  for (int i = 0; i < n; i++) { unsigned char *d = 0; size_t l = 0;
+    if (!dup && !pf_take(ks[i], &d, &l)) { ssize_t w = write(fds[i], d, l); free(d); if (w != (ssize_t)l) { if (why) snprintf(why, wn, "write %zd of %zu (errno %d)", w, l, errno); return -1; } got[i] = (long long)l; continue; }
+    if (nm >= 64) { if (why) snprintf(why, wn, "bundle too big"); return -1; }
+    miss[nm] = ks[i]; mi[nm] = i; nm++; }
+  if (!nm) return 0;
+  FILE *f = 0; int r0 = sv_bundle_open(key, miss, nm, &f, why, wn); if (r0) return r0;
+  char line[32]; int bad = 0;
+  for (int j = 0; j < nm && !bad; j++) { int i = mi[j];
+    if (!fgets(line, sizeof line, f)) { bad = 1; if (why) snprintf(why, wn, "bundle: cut short"); break; }
+    long long L = atoll(line); if (L < 0) { got[i] = -1; continue; }
+    long long left = L;
+    while (left > 0) { size_t want = left > (long long)SV_PIECE ? SV_PIECE : (size_t)left;
+      if (fread(sv_buf, 1, want, f) != want) { bad = 1; if (why) snprintf(why, wn, "bundle: cut short"); break; }
+      ssize_t w = write(fds[i], sv_buf, want); if (w != (ssize_t)want) { bad = 1; if (why) snprintf(why, wn, "write %zd of %zu (errno %d)", w, want, errno); break; }
+      left -= (long long)want; }
+    if (!bad) got[i] = L; }
+  fclose(f); unlink(SV_BF); return bad ? -1 : 0;
+}
+/* 1.1.137: one cloud piece straight onto the end of fd (3 tries, a failed try is cut back off). *got = bytes added. */
+static int sv_get_fd(const char *key, const char *k, int fd, unsigned long long *got, char *why, size_t wn) {
+  *got = 0; unsigned char *d = 0; size_t l = 0;
+  if (!pf_take(k, &d, &l)) { ssize_t w = write(fd, d, l); free(d); if (w != (ssize_t)l) { if (why) snprintf(why, wn, "write %zd of %zu (errno %d)", w, l, errno); return -1; } *got = l; return 0; }
+  char path[900], hdr[200], err[120] = ""; int m = snprintf(path, sizeof path, "/ps4/sget?k="); url_enc(path + m, sizeof path - m, k);
+  snprintf(hdr, sizeof hdr, "x-r2-ps4: %s\r\n", key);
+  off_t at = lseek(fd, 0, SEEK_CUR); int st = -1;
+  for (int i = 0; i < 3; i++) { int d2 = dup(fd); FILE *f = d2 >= 0 ? fdopen(d2, "wb") : 0; if (!f) { if (d2 >= 0) close(d2); snprintf(err, sizeof err, "can't write (errno %d)", errno); break; }
+    size_t dl = 0; err[0] = 0; st = r2tls_fetch_file(ENGINE_HOST, "GET", path, hdr, 0, 0, f, &dl, err, sizeof err); int fe = fflush(f); fclose(f);
+    if (st == 200 && !fe) { *got = (unsigned long long)(lseek(fd, 0, SEEK_CUR) - at); return 0; }
+    if (ftruncate(fd, at) || lseek(fd, at, SEEK_SET) != at) { snprintf(err, sizeof err, "can't undo a failed try (errno %d)", errno); break; }
+    if (st == 404) break; sleep(3); }
+  if (why) snprintf(why, wn, "download %d %s", st, err);
+  return -1;
+}
+/* 1.1.137: SHA-256 of a file on the PS4, read back through sv_buf (hex in out[65]). 0 = ok. */
+static int sv_file_sha(const char *path, char *out) {
+  int fd = open(path, O_RDONLY); if (fd < 0) return -1;
+  mbedtls_sha256_context h; mbedtls_sha256_init(&h); mbedtls_sha256_starts(&h, 0); ssize_t x;
+  while ((x = read(fd, sv_buf, SV_PIECE)) > 0) mbedtls_sha256_update(&h, sv_buf, (size_t)x);
+  close(fd); unsigned char hs[32]; mbedtls_sha256_finish(&h, hs); mbedtls_sha256_free(&h); if (x < 0) return -1; hexs(hs, 32, out); return 0;
 }
 static int sv_get_raw(const char *key, const char *k, unsigned char **data, size_t *len, char *why, size_t wn) {
   char path[900], hdr[200], err[120];
@@ -1481,13 +1541,16 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   char **fn = calloc((size_t)nl + 1, sizeof *fn); unsigned long long *fsz = calloc((size_t)nl + 1, sizeof *fsz); int nf = 0;
   if (!fn || !fsz) { free(fn); free(fsz); free(mt); free(mt0); sv_rights_back(); look_kv("restore/error", "no memory"); return -1; }
   int *fpc = calloc((size_t)nl + 1, sizeof *fpc);
-  for (char *ln = mt, *nx; ln && *ln && fpc; ln = nx) { /* list the files */
+  char **fh = calloc((size_t)nl + 1, sizeof *fh); /* 1.1.137: each file's SHA-256 from the cloud manifest (saves sent from 1.1.137 on) */
+  for (char *ln = mt, *nx; ln && *ln && fpc && fh; ln = nx) { /* list the files */
     nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
     char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0;
     char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
+    char *t3 = strchr(t2, '\t'); if (t3) { *t3++ = 0; t3[strcspn(t3, "\r\n\t ")] = 0; if (strlen(t3) != 64) t3 = 0; }
     if (!strncmp(ln, "sce_sys/", 8) || strstr(ln, "..")) { skipped++; continue; } /* the receiving save keeps its own labels */
-    fn[nf] = ln; fsz[nf] = strtoull(t1, 0, 10); fpc[nf] = atoi_safe(t2); nf++;
+    fn[nf] = ln; fsz[nf] = strtoull(t1, 0, 10); fpc[nf] = atoi_safe(t2); fh[nf] = t3; nf++;
   }
+  if (!fh) { free(fpc); fpc = 0; }
   if (!fpc) { fail++; snprintf(first_err, sizeof first_err, "no memory"); }
   /* phase 1: download. 1.1.81: one-piece files go in bundles (up to 32 files / 6 MB a request), big files piece by piece */
   int bundles_ok = 1; double tdl0 = tm_now();
@@ -1496,17 +1559,17 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     static char bk[32][700]; const char *bkp[32]; int bi[32], nb = 0; unsigned long long bsz = 0;
     for (int j = i; j < nf && nb < 32; j++) { if (fpc[j] != 1) continue; if (nb && bsz + fsz[j] > (6u << 20)) break;
       snprintf(bk[nb], sizeof bk[nb], "%s/f/%s~0", src, fn[j]); bkp[nb] = bk[nb]; bi[nb] = j; bsz += fsz[j]; nb++; }
-    static unsigned char *bd[32]; static size_t bl[32]; char gw[130] = "";
-    int gr = sv_getm(key, bkp, nb, bd, bl, gw, sizeof gw);
+    /* 1.1.137: straight into each file in the prep folder - no piece held in memory */
+    int bfd[32]; long long bgot[32]; char gw[130] = ""; int oerr = 0;
+    for (int q = 0; q < nb; q++) { char tmp[520]; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, fn[bi[q]]); mkdirs_for(tmp); bfd[q] = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+      if (bfd[q] < 0 && !oerr) { oerr = 1; snprintf(gw, sizeof gw, "%s: can't create (errno %d)", fn[bi[q]], errno); } }
+    int gr = oerr ? -1 : sv_getm_fd(key, bkp, nb, bfd, bgot, gw, sizeof gw);
+    for (int q = 0; q < nb; q++) if (bfd[q] >= 0) { fsync(bfd[q]); close(bfd[q]); }
     if (gr == -2) { bundles_ok = 0; continue; } /* old engine: piece by piece below */
     if (gr) { fail++; snprintf(first_err, sizeof first_err, "%s", gw); break; }
-    for (int q = 0; q < nb; q++) {
-      int j = bi[q]; char tmp[520]; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, fn[j]); mkdirs_for(tmp);
-      if (!fail && (!bd[q] || bl[q] != fsz[j])) { fail++; snprintf(first_err, sizeof first_err, "%s: got %zu of %llu bytes", fn[j], bd[q] ? bl[q] : 0, fsz[j]); }
-      if (!fail) { int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666); ssize_t w = fd >= 0 ? write(fd, bd[q], bl[q]) : -1; if (fd >= 0) { fsync(fd); close(fd); }
-        if (w != (ssize_t)bl[q]) { fail++; snprintf(first_err, sizeof first_err, "%s: write %zd of %zu (errno %d)", fn[j], w, bl[q], errno); unlink(tmp); } else { g_b_dl += bl[q]; fpc[j] = -1; } }
-      free(bd[q]); bd[q] = 0;
-    }
+    for (int q = 0; q < nb && !fail; q++) { int j = bi[q];
+      if (bgot[q] < 0 || (unsigned long long)bgot[q] != fsz[j]) { fail++; snprintf(first_err, sizeof first_err, "%s: got %lld of %llu bytes", fn[j], bgot[q] < 0 ? 0 : bgot[q], fsz[j]); break; }
+      g_b_dl += (unsigned long long)bgot[q]; fpc[j] = -1; }
     i = bi[nb - 1] + 1;
   }
   for (int i = 0; i < nf && !fail; i++) { /* the rest (big files, or no bundles): piece by piece */
@@ -1519,26 +1582,25 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     struct stat bbst; int bb = bundles_ok && stat("/data/round2/bigbundle-off", &bbst);
     int pdone = 0; /* 1.1.93: pieces already written - the one-by-one loop carries on from here */
     for (int pi = 0; bb && !bad && pi < fpc[i]; ) {
-      int m = fpc[i] - pi > 6 ? 6 : fpc[i] - pi; static char pk[6][700]; const char *pkp[6]; unsigned char *pd[6]; size_t pl[6]; char gw[130] = "";
-      for (int j = 0; j < m; j++) { snprintf(pk[j], sizeof pk[j], "%s/f/%s~%d", src, fn[i], pi + j); pkp[j] = pk[j]; }
-      int gr = sv_getm(key, pkp, m, pd, pl, gw, sizeof gw);
+      int m = fpc[i] - pi > 6 ? 6 : fpc[i] - pi; static char pk[6][700]; const char *pkp[6]; int pfd6[6]; long long pg[6]; char gw[130] = "";
+      for (int j = 0; j < m; j++) { snprintf(pk[j], sizeof pk[j], "%s/f/%s~%d", src, fn[i], pi + j); pkp[j] = pk[j]; pfd6[j] = fd; }
+      off_t at = lseek(fd, 0, SEEK_CUR); /* 1.1.137: pieces go straight into the file; a failed bundle is cut back off */
+      int gr = sv_getm_fd(key, pkp, m, pfd6, pg, gw, sizeof gw);
+      if (gr) { if (ftruncate(fd, at) == 0) lseek(fd, at, SEEK_SET); else { bad = 1; snprintf(why, sizeof why, "%s: can't undo a failed bundle (errno %d)", fn[i], errno); break; } }
       if (gr == -2) { bb = 0; break; }
       if (gr) { sv_log("restore: %s pieces %d-%d bundle failed (%s) - carrying on one piece at a time", fn[i], pi, pi + m - 1, gw); bb = 0; break; } /* 1.1.93: was a hard fail (Kaeden 20 Nov 12:46am: "bundle: cut short" -> Vampire Survivors half loaded = "corrupted") */
       for (int j = 0; j < m; j++) {
-        if (!bad && !pd[j]) { bad = 1; snprintf(why, sizeof why, "%s piece %d missing in the cloud", fn[i], pi + j); }
-        if (!bad) { ssize_t wr = write(fd, pd[j], pl[j]); if (wr != (ssize_t)pl[j]) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", fn[i], pi + j, wr, pl[j], errno); } else got += pl[j]; }
-        free(pd[j]);
+        if (!bad && pg[j] < 0) { bad = 1; snprintf(why, sizeof why, "%s piece %d missing in the cloud", fn[i], pi + j); }
+        if (!bad) got += (unsigned long long)pg[j];
       }
       pi += m; if (!bad) pdone = pi;
       if (pi >= fpc[i]) { fpc[i] = -2; break; }
     }
     for (int pi = pdone; fpc[i] > 0 && !bad && pi < fpc[i]; pi++) {
-      unsigned char *d = 0; size_t dl = 0; char gw[130] = "";
+      unsigned long long dl = 0; char gw[130] = "";   /* 1.1.137: straight into the file, not memory */
       snprintf(k, sizeof k, "%s/f/%s~%d", src, fn[i], pi);
-      if (sv_get(key, k, &d, &dl, gw, sizeof gw)) { bad = 1; free(d); snprintf(why, sizeof why, "%s piece %d: %s", fn[i], pi, gw); break; }
-      ssize_t wr = write(fd, d, dl);
-      if (wr != (ssize_t)dl) { bad = 1; snprintf(why, sizeof why, "%s piece %d: write %zd of %zu (errno %d)", fn[i], pi, wr, dl, errno); }
-      got += dl; free(d);
+      if (sv_get_fd(key, k, fd, &dl, gw, sizeof gw)) { bad = 1; snprintf(why, sizeof why, "%s piece %d: %s", fn[i], pi, gw); break; }
+      got += dl;
     }
     if (fd >= 0) { fsync(fd); close(fd); }
     g_b_dl += got;
@@ -1546,7 +1608,13 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     if (bad) { unlink(tmp); fail++; sv_log("restore download fail %s: %s", fn[i], why); if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); break; }
   }
   g_t_dl += tm_now() - tdl0;
-  free(fpc);
+  /* 1.1.137 (owner 21 Nov "does going straight into a file have checks?"): every file is checked for its size above; and if the
+     cloud manifest has fingerprints (saves sent from 1.1.137 on), each file in the prep folder is read back and must match. */
+  if (!fail && fh) { int nh = 0; double th0 = tm_now();
+    for (int i = 0; i < nf && !fail; i++) { if (!fh[i]) continue; char tmp[520], hx[65] = ""; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, fn[i]);
+      if (sv_file_sha(tmp, hx) || strncmp(hx, fh[i], 64)) { fail++; snprintf(first_err, sizeof first_err, "%s: fingerprint differs - download damaged", fn[i]); sv_log("restore: %s fingerprint differs (cloud %.12s, here %.12s)", fn[i], fh[i], hx); unlink(tmp); } else nh++; }
+    if (nh) sv_log("restore: %d file(s) fingerprint-checked in %.1f s", nh, tm_now() - th0); }
+  free(fpc); free(fh);
   if (fail) sv_log("restore: download incomplete for user %s game %s save %s - the save was NOT touched (%s)", u, t, nm, first_err);
   else ok = sv_open(u, t, nm, 0, v, sizeof v);
   if (!fail && ok == 0) { /* phase 2: everything is here - into the save */
@@ -2362,6 +2430,10 @@ static int sv_local_copy(const char *u, const char *t, const char *nm, int *nf, 
      GT Sport (protected titles) is never a member's save (owner 19 Nov 7:47pm: a free-for-all house save). */
   char mt[64] = ""; { char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); FILE *of = fopen(op, "r"); if (of) { if (!fgets(mt, sizeof mt, of)) mt[0] = 0; fclose(of); mt[strcspn(mt, "\r\n ")] = 0; } }
   if (r2_protected(t)) mt[0] = 0;
+  /* 1.1.137 (owner 21 Nov 2:00am: Karen's GTA – after a FAILED load the game was empty, a fresh save was made and replaced her cloud
+     save at 2:01am): a game whose member load failed on this profile is not the member's save – it goes to the room's backup only */
+  if (mt[0]) { char bf[120]; struct stat bs; snprintf(bf, sizeof bf, "/data/round2/prep/noup_%s_%s", u, t);
+    if (!stat(bf, &bs)) { sv_log("copy: %s %s %s NOT for member %s - this game's load failed on this profile, so it isn't their save (room backup only)", u, t, nm, mt); mt[0] = 0; } }
   FILE *q = fopen("/data/round2/prep/pending.txt", "a"); if (q) { if (mt[0]) fprintf(q, "%s %s %s %lld m=%s\n", u, t, nm, (long long)time(0), mt); else fprintf(q, "%s %s %s %lld\n", u, t, nm, (long long)time(0)); fclose(q); }
   { char ip[200], sp2[200]; struct stat ss; snprintf(ip, sizeof ip, "/user/home/%s/savedata/%s/sdimg_%s", u, t, nm); snprintf(sp2, sizeof sp2, "%s/sdimg.mt", dst);
     if (!stat(ip, &ss)) { FILE *f = fopen(sp2, "w"); if (f) { fprintf(f, "%lld %lld\n", (long long)ss.st_mtime, (long long)ss.st_size); fclose(f); } } } /* 1.1.102: what the save looked like when copied */
@@ -2578,12 +2650,17 @@ static void pf_game(const char *key, char (*parts)[220], int np) {
   pf_fetch(key, ks + np, n2);
   sv_log("prefetch: %d parts, %d files (%llu KB) in %d bundle request(s)", np, n2, tot / 1024, (np + 39) / 40 + (n2 + 39) / 40);
 }
+/* 1.1.137: forget "this game's member load failed on this profile" notes for profile u (it left the member) */
+static void noup_clear(const char *u) { DIR *nd = opendir("/data/round2/prep"); struct dirent *ne; char pre[24]; snprintf(pre, sizeof pre, "noup_%s_", u);
+  while (nd && (ne = readdir(nd))) if (!strncmp(ne->d_name, pre, strlen(pre))) { char np2[200]; snprintf(np2, sizeof np2, "/data/round2/prep/%s", ne->d_name); unlink(np2); } if (nd) closedir(nd); }
 static int mem_ok(const char *x) { if (!x[0] || strlen(x) > 24) return 0; for (const char *c = x; *c; c++) if (!((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '-')) return 0; return 1; }
 static void look_memtag(const char *spec) {
   char u[16] = "", id[32] = "", sl[16] = "", op[120], v[120];
   if (sscanf(spec, "/_memtag.%8[0-9a-f].%31[a-z0-9-].%15[a-z0-9]", u, id, sl) == 3 && mem_ok(id) && mem_ok(sl)) {
     snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); mkdir("/data/round2/prep", 0777);
-    snprintf(v, sizeof v, "%s/%s", id, sl); put_file(op, v); sv_log("member tag: profile %s -> member %s", u, v); look_kv("memtag/result", v); bpop("Profile now belongs to member %s", v); return; }
+    snprintf(v, sizeof v, "%s/%s", id, sl);
+    { char had[64] = ""; FILE *hf = fopen(op, "r"); if (hf) { if (!fgets(had, sizeof had, hf)) had[0] = 0; fclose(hf); had[strcspn(had, "\r\n ")] = 0; } if (strcmp(had, v)) noup_clear(u); } /* 1.1.137: a different owner starts clean */
+    put_file(op, v); sv_log("member tag: profile %s -> member %s", u, v); look_kv("memtag/result", v); bpop("Profile now belongs to member %s", v); return; }
   if (sscanf(spec, "/_memtag.%8[0-9a-f].off", u) == 1) { snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); unlink(op); sv_log("member tag: profile %s cleared", u); look_kv("memtag/result", "cleared"); return; }
   look_kv("memtag/error", "bad spec");
 }
@@ -2603,6 +2680,9 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
     int gbr = sv_game_back(key, u, t, rb, sizeof rb, &rn); sv_defer = 0; g_t_bk += tm_now() - tb0;
     if (gbr) { snprintf(why, wn, "backup of what was there failed - nothing written"); return -1; }
     put_file2(sv_defer_dir, "ready.txt", "1\n"); sv_log("member load: backup of what was in %s %s kept on the PS4 (%s) - to the cloud after the load", u, t, sv_defer_dir); }
+  /* 1.1.137 (Karen 21 Nov 2:01am): from here the profile's game is being changed. Until the load finishes fine, nothing from this
+     game goes to the member's cloud folder (a failed or cut-off load leaves an empty/fresh save that must not replace theirs). */
+  { char bf[120]; snprintf(bf, sizeof bf, "/data/round2/prep/noup_%s_%s", u, t); put_file(bf, "1\n"); }
   { double tp0 = tm_now(); pf_game(key, pb, np); g_t_dl += tm_now() - tp0; } /* 1.1.85 */
   double tmk0 = tm_now(); int fails = 0;
   int made[64] = { 0 };
@@ -2619,9 +2699,11 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
   if (fails) { /* 1.1.93: never leave a game half loaded (the game calls that "corrupted"): take back the parts made in this run */
     int back = 0; for (int i = 0; i < np; i++) if (made[i]) { char res[300]; if (!sv_del_part(u, t, pn[i], res, sizeof res)) back++; }
     sv_log("member load: %s %s NOT loaded - %d of %d parts failed; %d new part(s) taken back so the game starts clean (the member's cloud save is untouched)", u, t, fails, np, back);
+    sv_log("member load: %s %s - until this game loads fine, nothing from it goes to the member's cloud folder (a fresh save would replace theirs)", u, t);
     snprintf(why, wn, "%d of %d parts failed to load (game left clean)", fails, np); return -1; }
   for (int j = 0; j < nr; j++) { int keep = 0; for (int i = 0; i < np; i++) if (!strcmp(pn[i], recv[j])) keep = 1; if (!keep) { char res[300]; sv_del_part(u, t, recv[j], res, sizeof res); } }
   sv_log("member load: user %s game %s: %d parts in (%d answered from the prefetch)", u, t, np, pf_hits); pf_clear();
+  { char bf[120]; snprintf(bf, sizeof bf, "/data/round2/prep/noup_%s_%s", u, t); unlink(bf); }   /* 1.1.137: loaded fine - its saves are the member's again */
   return 0;
 }
 static void look_memload(const char *key, const char *spec) {
@@ -2973,7 +3055,7 @@ static void release_names(void) {   /* after the release clean slate: names, pic
   char b[400] = ""; FILE *f = fopen(CLND "/release", "r"); if (!f) return; size_t n = fread(b, 1, sizeof b - 1, f); b[n] = 0; fclose(f); unlink(CLND "/release");
   uint32_t mainu = r2_main_user(); int ren = 0, pic = 0, tags = 0;
   for (char *p = strtok(b, "\n"); p; p = strtok(0, "\n")) { char u[16] = ""; int k = 0; if (sscanf(p, "%15s %d", u, &k) < 1) continue; uint32_t uid = (uint32_t)strtoul(u, 0, 16);
-    char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); if (!unlink(op)) tags++;
+    char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); if (!unlink(op)) tags++; noup_clear(u);
     if (uid == mainu || k < 1) continue;   /* the main profile keeps the room's name and picture */
     char want[16], have[64] = ""; snprintf(want, sizeof want, "Player %d", k); sceUserServiceGetUserName((int32_t)uid, have, sizeof have);
     if (strcmp(have, want) && !sceUserServiceSetUserName((int32_t)uid, want)) ren++;
@@ -3310,7 +3392,7 @@ static void clean_finish(int done, int fails, int parts) {
   if (!strcmp(kind, "reset")) { reset_profiles(pr, sizeof pr); cl_wr("profiles", "%s\n", pr); }
   if (!strcmp(kind, "reset") || !strcmp(kind, "clean") || !strcmp(kind, "purge")) { refresh_profiles(); /* 1.1.78 */
     DIR *pd = opendir("/data/round2/prep"); struct dirent *pe; int nt = 0; /* 1.1.84: profiles no longer belong to a member (their queued copies keep the tag) */
-    while (pd && (pe = readdir(pd))) if (!strncmp(pe->d_name, "owner_", 6)) { char op[200]; snprintf(op, sizeof op, "/data/round2/prep/%s", pe->d_name); if (!unlink(op)) nt++; }
+    while (pd && (pe = readdir(pd))) if (!strncmp(pe->d_name, "owner_", 6) || !strncmp(pe->d_name, "noup_", 5)) { char op[200]; snprintf(op, sizeof op, "/data/round2/prep/%s", pe->d_name); if (!unlink(op)) nt++; }
     if (pd) closedir(pd); if (nt) sv_log("member tags cleared: %d profile(s)", nt); }
   cl_rd("copied", cb, sizeof cb); sscanf(cb, "%lld %lld", &cp, &cby);
   char eb[16]; cl_rd("errn", eb, sizeof eb); int en = atoi(eb);
@@ -4063,7 +4145,7 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
     unsigned char hs[32]; char hh[65]; mbedtls_sha256_finish(&h, hs); mbedtls_sha256_free(&h); hexs(hs, 32, hh);
     if (!bad && strncmp(hh, hx, 64)) { bad = 1; snprintf(why, wn, "fingerprint differs - internal copy damaged: %.80s", r); sv_log("cloud batch: DAMAGED internal copy %s %s %s file %s", u, t, nm, r); }
     if (bad) break;
-    char line[620]; snprintf(line, sizeof line, "%s\t%llu\t%d\n", r, sz, pieces); sv_man_add(line); nfiles++; *sent += sz;
+    char line[620]; snprintf(line, sizeof line, "%s\t%llu\t%d\t%s\n", r, sz, pieces, hh); sv_man_add(line); nfiles++; *sent += sz;   /* 1.1.137: + SHA-256 */
   }
   free(man);
   if (!bad) { char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", base); if (sv_put(key, mk, (const unsigned char *)(sv_man ? sv_man : ""), sv_man_n)) { bad = 1; snprintf(why, wn, "manifest upload failed"); } }
