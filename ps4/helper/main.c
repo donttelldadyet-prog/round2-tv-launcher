@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.150"   /* 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.151"   /* 1.1.151 Round2 tile first on the home screen after each load / clean slate (/_fold.pin); 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -107,6 +107,7 @@ static void live_write(int force); /* 1.1.149 */
 static void sv_log(const char *fmt, ...);
 static void look_appdb(void);
 static void look_fold(const char *spec);
+static int app_pin(int prio, char *v, size_t vn); /* 1.1.151 */
 static void fold_set(const char *spec);
 static void hexs(const unsigned char *b, int n, char *o);
 static void look_pkgjob(const char *spec); static void look_pkgstop(void); static void look_pkgrm(const char *spec);
@@ -3531,7 +3532,8 @@ static void clean_finish(int done, int fails, int parts) {
   char rn[120] = "", kind[16] = "clean", lab[48] = "-", pr[200] = "", cb[48], t0s[24], t1s[24]; long long t0 = 0, cp = 0, cby = 0;
   cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kind, &t0, lab);
   if (!strcmp(kind, "reset")) { reset_profiles(pr, sizeof pr); cl_wr("profiles", "%s\n", pr); }
-  if (!strcmp(kind, "reset") || !strcmp(kind, "clean") || !strcmp(kind, "purge")) { refresh_profiles(); /* 1.1.78 */
+  if (!strcmp(kind, "reset") || !strcmp(kind, "clean") || !strcmp(kind, "purge")) { { char pv[260]; app_pin(-1, pv, sizeof pv); }   /* 1.1.151: tile first before the sign-in */
+    refresh_profiles(); /* 1.1.78 */
     DIR *pd = opendir("/data/round2/prep"); struct dirent *pe; int nt = 0; /* 1.1.84: profiles no longer belong to a member (their queued copies keep the tag) */
     while (pd && (pe = readdir(pd))) if (!strncmp(pe->d_name, "owner_", 6) || !strncmp(pe->d_name, "noup_", 5)) { char op[200]; snprintf(op, sizeof op, "/data/round2/prep/%s", pe->d_name); if (!unlink(op)) nt++; }
     if (pd) closedir(pd); if (nt) sv_log("member tags cleared: %d profile(s)", nt); }
@@ -4122,6 +4124,7 @@ static void clean_step(const char *key, int budget) {
                                            (it said "Saves loaded!" and dropped the board while Aliff was still loading, 22 Nov 00:36) */
       if (!strcmp(kd, "prep") && !more_q) g_mb_end = (long long)time(0) + 180;
       if (!strcmp(kd, "prep") && more_q) memplay_next(key); /* 1.1.94: next ticked player */
+      if (!strcmp(kd, "prep") && !more_q) { char pv[260]; app_pin(-1, pv, sizeof pv); }   /* 1.1.151: the tile first again before everyone signs in */
       if (!strcmp(kd, "prep") && !more_q) { unlink("/data/round2/memqn"); keep_order(1); g_after_load = time(0); } /* 1.1.101: batch finished – profiles back in order; 1.1.119: pop-up once the tile is gone */
       if (!strcmp(kd, "prep")) { char s4[400]; report(key, s4, sizeof s4); } /* tell the tile at once (next player started, or all ready) */
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
@@ -5547,6 +5550,27 @@ static void fold_set(const char *spec) {
   char v[600]; snprintf(v, sizeof v, "folder '%s' %s: %d profile(s) done, %d failed, %d game place(s);%s (backup %s)", name, del ? "removed" : "set", nprof, nfail, ngames, res, bak);
   sv_log("folders: %s", v); look_kv(nfail ? "fold/error" : "fold/result", v);
 }
+/* 1.1.151 (owner 22 Nov 01:22: "if i launch a game, the game takes over as the first tile, can we make the ps4 always the
+   first?"): the home screen lists by last use (lastAccessIndex / lastAccessTime in each profile's tbl_appbrowse_<user>). Here the
+   Round2 tile gets the newest "last use" on every profile, so it is first again after the next sign-in (after each member load
+   and each clean slate, automatically). prio >= 0 also sets its sortPriority (all apps have 100 – test what it does). */
+static int app_pin(int prio, char *v, size_t vn) {
+  const char *db_p = "/system_data/priv/mms/app.db"; char rt[32] = ""; running_title(rt, sizeof rt);
+  if (rt[0] && strcmp(rt, "RTWO00001")) { snprintf(v, vn, "a game is open - not changed"); return -1; }
+  mkdir("/data/round2/db", 0777); char bak[160]; snprintf(bak, sizeof bak, "/data/round2/db/app-%lld.db", (long long)time(0));
+  if (file_copy(db_p, bak)) { snprintf(v, vn, "backup of app.db failed - nothing changed"); return -1; }
+  sqlite3 *db = 0; if (sqlite3_open_v2(db_p, &db, SQLITE_OPEN_READWRITE, 0) != SQLITE_OK) { sqlite3_close(db); snprintf(v, vn, "app.db won't open for writing"); return -1; }
+  sqlite3_busy_timeout(db, 5000); int done = 0, bad = 0;
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  if (sqlite3_exec(db, "BEGIN IMMEDIATE", 0, 0, 0) != SQLITE_OK) { sqlite3_close(db); snprintf(v, vn, "app.db busy - not changed"); return -1; }
+  for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; uint32_t u = (uint32_t)L.userId[i]; char sql[600];
+    if (prio >= 0) snprintf(sql, sizeof sql, "UPDATE tbl_appbrowse_%010u SET lastAccessIndex=(SELECT IFNULL(MAX(lastAccessIndex),0)+1 FROM tbl_appbrowse_%010u), lastAccessTime=strftime('%%Y-%%m-%%d %%H:%%M:%%f','now'), sortPriority=%d WHERE titleId='RTWO00001'", u, u, prio);
+    else snprintf(sql, sizeof sql, "UPDATE tbl_appbrowse_%010u SET lastAccessIndex=(SELECT IFNULL(MAX(lastAccessIndex),0)+1 FROM tbl_appbrowse_%010u), lastAccessTime=strftime('%%Y-%%m-%%d %%H:%%M:%%f','now') WHERE titleId='RTWO00001'", u, u);
+    if (sqlite3_exec(db, sql, 0, 0, 0) == SQLITE_OK) done += sqlite3_changes(db) > 0; else bad++; }
+  int rc = sqlite3_exec(db, bad ? "ROLLBACK" : "COMMIT", 0, 0, 0); sqlite3_close(db);
+  snprintf(v, vn, "Round2 tile first on %d profile(s)%s%s (backup %s)", bad ? 0 : done, bad ? " - FAILED, nothing changed" : "", prio >= 0 ? ", sortPriority set" : "", bak);
+  sv_log("tile first: %s", v); return bad || rc != SQLITE_OK ? -1 : done;
+}
 static void look_fold(const char *spec) {
   const char *db_p = "/system_data/priv/mms/app.db";
   if (!strcmp(spec, "/_fold.list")) {
@@ -5572,6 +5596,7 @@ static void look_fold(const char *spec) {
     if (!best[0]) { look_kv("fold/error", "no app.db backup"); return; }
     int r = file_copy(best, db_p); char v[200]; snprintf(v, sizeof v, "app.db put back from %s: %s", best, r ? "FAILED" : "done - restart the PS4 to be sure the menu reads it"); sv_log("folders: %s", v); look_kv(r ? "fold/error" : "fold/result", v); return; }
   if (!strncmp(spec, "/_fold.set.", 11) || !strncmp(spec, "/_fold.del.", 11)) { fold_set(spec); return; }
+  if (!strncmp(spec, "/_fold.pin", 10)) { char v[260]; int pr = -1; if (spec[10] == '.') pr = atoi(spec + 11); int r = app_pin(pr, v, sizeof v); look_kv(r < 0 ? "fold/error" : "fold/result", v); return; }   /* 1.1.151 */
   char uh[16] = "", fid[16] = "", name[64] = "";
   if (sscanf(spec, "/_fold.ren.%8[0-9a-f].%9[0-9].%40[A-Za-z0-9_-]", uh, fid, name) != 3 || strlen(fid) != 9 || !name[0]) { look_kv("fold/error", "bad spec"); return; }
   for (char *c = name; *c; c++) if (*c == '_') *c = ' ';
