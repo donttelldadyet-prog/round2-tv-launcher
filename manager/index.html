@@ -3895,7 +3895,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var LIGHT = false, sb0 = null;
     function autoQ() { return LIGHT ? { action: 'auto', lite: '1' } : { action: 'auto' }; }   /* lite: counters only, no SimplyBook */
     var LIGHT_OK = ['PS4 games queue', 'Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
-      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'PS4 clean slate after each session', 'Phone widgets', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Light check:'];
+      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'PS4 clean slate after each session', 'Phone widgets', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Design files', 'Light check:'];
     function step(name, fn) {
       if (LIGHT && !LIGHT_OK.some(function (p) { return name.indexOf(p) === 0; })) return Promise.resolve();
       var r = { name: name, st: 'run', note: '' }; rows.push(r); draw();
@@ -4271,6 +4271,25 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           warnIf(stuck.length, 'Stuck jobs on ' + stuck.join(', '));
           warnIf(failed.length, 'Failed in the last day: ' + failed.slice(0, 3).join(' · '));
           return n + ' job(s) in the queues · a bad job is refused';
+        });
+      }); })
+      .then(function () { return step('Design files: the member page and room colours read from round2sg-home design/', function () {
+        /* 22 Nov (owner: the design team edits design/ in round2sg-home; the engine reads it): rooms.json must be valid (7 rooms,
+           #rrggbb colours) and member.css a style file the engine accepts – else guests silently get the built-in look. Then the
+           live member page must carry the room colour from rooms.json. Read-only. */
+        var RAW = 'https://raw.githubusercontent.com/donttelldadyet-prog/round2sg-home/main/design/';
+        return Promise.all([fetch(RAW + 'rooms.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+          fetch(RAW + 'member.css', { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : null; }).catch(function () { return null; }),
+          fetch(ENG + '/m?room=kaeden', { cache: 'no-store' }).then(function (r) { return r.text(); }).catch(function () { return ''; })]).then(function (r) {
+          var rooms = r[0] && r[0].rooms, css = r[1], page = r[2], ks = ['vale', 'kaeden', 'scarlett', 'bella', 'kai', 'atlas', 'maximillion'];
+          must(rooms, 'design/rooms.json is missing or not valid JSON – guests see the built-in room colours');
+          var badc = ks.filter(function (k) { var x = rooms[k]; return !x || !/^#[0-9a-fA-F]{6}$/.test(x.colour || '') || !/^#[0-9a-fA-F]{6}$/.test(x.ink || ''); });
+          warnIf(badc.length, 'Rooms with a missing or wrong colour in design/rooms.json (built-in used): ' + badc.join(', '));
+          must(css && css.length > 200, 'design/member.css is missing – guests see the built-in member page look');
+          warnIf(/<\/|<script|@import|javascript:/i.test(css) || css.length > 60000, 'design/member.css has something the engine refuses (</, <script, @import or too big) – guests see the built-in look');
+          must(/class="hero"/.test(page), 'The member page (book.round2.sg/m) didn’t load');
+          warnIf(rooms.kaeden && page.indexOf(rooms.kaeden.colour) < 0, 'The member page doesn’t show Kaeden’s colour from design/rooms.json yet (the engine keeps files 5 min)');
+          return '7 rooms · member.css ' + Math.round(css.length / 1024) + ' KB · member page OK';
         });
       }); })
       .then(function () { return step('PS4 blocker settings: bad files refused, nothing sent (dry run)', function () {
