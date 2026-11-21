@@ -28,6 +28,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/ucontext.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/file.h>
@@ -48,7 +49,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.139"   /* 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.140"   /* 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -5054,6 +5055,22 @@ static void write_status(const char *line) {
 }
 
 void r2_where_flush(double min_age);
+/* 1.1.140 (Kaeden 21 Nov 13:39:04: 1.1.139 "stopped by signal 11" as MK11 started - no clue where): for a crash, write WHERE
+   - the faulting address, the code address as an offset inside the helper (matched later against the unstripped build of
+   the same version), which thread, and the helper's last step label. */
+static pthread_t g_main_thr; static pthread_t g_fg_thr_id; static int g_fg_thr_set;
+static void on_sig(int sig);
+static void on_crash(int sig, siginfo_t *si, void *uc) {
+  FILE *f = fopen("/data/round2/helper-stopped.txt", "a");
+  if (f) { time_t t = time(0) + 8 * 3600; struct tm tm; gmtime_r(&t, &tm);
+    uintptr_t pc = 0; if (uc) pc = (uintptr_t)((ucontext_t *)uc)->uc_mcontext.mc_rip;
+    uintptr_t base = (uintptr_t)&on_crash; pthread_t me = pthread_self();
+    fprintf(f, "%02d/%02d %02d:%02d:%02d helper %s CRASH signal %d: fault address %p, code at on_crash%+lld, thread %s, last step '%s'\n",
+      tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec, R2_VERSION, sig, si ? si->si_addr : 0, (long long)((intptr_t)pc - (intptr_t)base),
+      pthread_equal(me, g_main_thr) ? "main" : (g_fg_thr_set && pthread_equal(me, g_fg_thr_id)) ? "fg" : "other", r2_where_now());
+    fclose(f); }
+  on_sig(sig);
+}
 static void on_sig(int sig) {
   r2_where_flush(0); /* 1.1.71 */
   FILE *f = fopen("/data/round2/helper-stopped.txt", "a");
@@ -5385,6 +5402,9 @@ int main(void) {
      rooms were left with no helper until a payload was sent by hand. Wake-up, job-control and info signals are left alone. */
   static const int stop_sigs[] = { SIGHUP, SIGINT, SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGFPE, SIGBUS, SIGSEGV, SIGSYS, SIGTERM };
   for (unsigned i = 0; i < sizeof stop_sigs / sizeof *stop_sigs; i++) signal(stop_sigs[i], on_sig);
+  g_main_thr = pthread_self();
+  { static const int crash_sigs[] = { SIGSEGV, SIGBUS, SIGILL, SIGFPE }; struct sigaction sa; memset(&sa, 0, sizeof sa); sa.sa_sigaction = on_crash; sa.sa_flags = SA_SIGINFO; sigemptyset(&sa.sa_mask);
+    for (unsigned i = 0; i < sizeof crash_sigs / sizeof *crash_sigs; i++) sigaction(crash_sigs[i], &sa, 0); }   /* 1.1.140 */
   signal(SIGCONT, SIG_DFL); signal(SIGTSTP, SIG_IGN); signal(SIGTTIN, SIG_IGN); signal(SIGTTOU, SIG_IGN); signal(SIGURG, SIG_IGN);
   signal(SIGIO, SIG_IGN); signal(SIGWINCH, SIG_IGN); signal(SIGINFO, SIG_IGN); signal(SIGUSR1, SIG_IGN); signal(SIGUSR2, SIG_IGN);
   sceUserServiceInitialize(0);
@@ -5409,7 +5429,7 @@ int main(void) {
   { pthread_t wt; if (pthread_create(&wt, 0, watchdog, 0) == 0) pthread_detach(wt); else wd_note("could not start"); } /* 1.1.42 */
   { pthread_t bt; if (pthread_create(&bt, 0, bpop_thread, 0) == 0) pthread_detach(bt); } /* 1.1.75 */
   { pthread_t at; if (pthread_create(&at, 0, alive_thread, 0) == 0) pthread_detach(at); else wd_note("check-in thread could not start"); } /* 1.1.112 */
-  if (R2_SHELL) { pthread_t ft; if (pthread_create(&ft, 0, fg_thread, 0) == 0) pthread_detach(ft); } /* 1.1.124 */
+  if (R2_SHELL) { pthread_t ft; if (pthread_create(&ft, 0, fg_thread, 0) == 0) { g_fg_thr_id = ft; g_fg_thr_set = 1; pthread_detach(ft); } } /* 1.1.124 */
   bpop("Helper started - connecting to Round2...");
   update_guard();
   { char st[16] = ""; FILE *f = fopen(SNAPD "/state", "r"); if (f) { if (fgets(st, sizeof st, f) && (!strncmp(st, "running", 7) || !strncmp(st, "paused", 6))) snap_on = 1; fclose(f); } } /* 1.1.41: carry on a snapshot */
