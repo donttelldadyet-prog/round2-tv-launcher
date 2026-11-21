@@ -49,7 +49,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.142"   /* 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.143"   /* 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -4493,7 +4493,9 @@ static void look_wkey(void) {
       must answer. Either fails -> the old file goes back, nanoDNS restarted again, reported "rolled back". If nanoDNS can't be
       restarted here (its program not found by name, or BinLoader off) NOTHING is changed. */
 static const char *tail_ok_dirs[] = { "/data/round2/", "/data/nanodns/", "/data/GoldHEN/", "/user/data/round2/", "/user/data/nanodns/", "/user/data/GoldHEN/" };
-static void look_tail(const char *path, int lines) {
+static void look_tail(const char *path0, int lines) {
+  /* 1.1.143: "<file>@<n>" = from line n (counted from 1 at the TOP of the file) instead of the last lines */
+  char path[300]; snprintf(path, sizeof path, "%s", path0); int head = 0; { char *at = strrchr(path, '@'); if (at) { head = atoi_safe(at + 1); if (head < 1) head = 1; *at = 0; } }
   int ok = !strstr(path, "..");
   if (ok) { ok = 0; for (unsigned i = 0; i < sizeof tail_ok_dirs / sizeof *tail_ok_dirs; i++) if (!strncmp(path, tail_ok_dirs[i], strlen(tail_ok_dirs[i]))) ok = 1; }
   const char *dot = strrchr(path, '.');
@@ -4513,15 +4515,18 @@ static void look_tail(const char *path, int lines) {
   char *buf = malloc(MAXB + 1);
   if (!buf) { fclose(f); look_kv("tail/error", "no memory"); return; }
   long from = st.st_size > MAXB ? (long)st.st_size - MAXB : 0;
+  if (head) { /* skip head-1 lines from the top, then take the next MAXB bytes */
+    long pos = 0; int ln = 1, ch; while (ln < head && (ch = fgetc(f)) != EOF) { pos++; if (ch == '\n') ln++; } from = pos; if (ln < head) { fclose(f); free(buf); look_kv("tail/error", "the file has fewer lines"); return; } }
   fseek(f, from, SEEK_SET);
   size_t k = fread(buf, 1, MAXB, f);
   fclose(f);
   buf[k] = 0;
+  if (head) { /* first `lines` lines of what was read */ int c = 0; for (size_t i = 0; i < k; i++) if (buf[i] == '\n' && ++c >= lines) { buf[i + 1 < k ? i + 1 : k] = 0; k = i + 1; break; } }
   for (size_t i = 0; i < k; i++) if ((unsigned char)buf[i] < 32 && buf[i] != '\n' && buf[i] != '\t') buf[i] = ' ';
   while (k && buf[k - 1] == '\n') buf[--k] = 0;
   char *s0 = buf + k;
-  for (int c = 0; s0 > buf; s0--) if (s0[-1] == '\n' && ++c >= lines) break;
-  if (from && s0 == buf) { char *nl = strchr(buf, '\n'); s0 = nl ? nl + 1 : buf; } /* drop a half line at the cut */
+  if (head) s0 = buf; else for (int c = 0; s0 > buf; s0--) if (s0[-1] == '\n' && ++c >= lines) break;
+  if (!head && from && s0 == buf) { char *nl = strchr(buf, '\n'); s0 = nl ? nl + 1 : buf; } /* drop a half line at the cut */
   int n = 0;
   for (char *ln = s0; ln && *ln && n < lines; n++) {
     char *e = strchr(ln, '\n');
@@ -4985,6 +4990,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_ddpall")) look_ddpall();
     else if (!strncmp(t, "/_wol.", 6)) look_wol(t);
     else if (!strncmp(t, "/_tail.", 7)) look_tail(t + 7, dp);
+    else if (!strncmp(t, "/_head", 6) && t[6] >= '0' && t[6] <= '9') { const char *dot = strchr(t + 6, '.'); if (dot) { char pth[320]; snprintf(pth, sizeof pth, "%s@%d", dot + 1, atoi_safe(t + 6)); look_tail(pth, dp); } }   /* 1.1.143: "/_head<line>.<file>|<lines>" */
     else if (!strcmp(t, "/_ps")) look_ps();
     else if (!strncmp(t, "/_thr", 5)) look_thr(t);
     else if (!strcmp(t, "/_sock")) look_sock();
