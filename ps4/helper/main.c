@@ -751,6 +751,8 @@ static void clean_up(const char *key, const char *cid) {
     char p[300];
     while ((e = readdir(d))) {
       if (!is_title_id(e->d_name) || !strcmp(e->d_name, VUE_ID)) continue; /* PS Vue's download: KEEP */
+      { char jb[200] = ""; FILE *jf = fopen("/data/round2/pkg-job", "r"); if (jf) { if (!fgets(jb, sizeof jb, jf)) jb[0] = 0; fclose(jf); }
+        if (jb[0] && strstr(jb, e->d_name)) { sv_log("clean-up: kept /user/download/%s - a PKG install from the laptop is downloading into it", e->d_name); continue; } }   /* 1.1.136 (owner 21 Nov 10:58am) */
       snprintf(p, sizeof p, "/user/download/%s", e->d_name);
       dl += rm_files(p, 0, &files, 0);
       rmdir(p);
