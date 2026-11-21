@@ -109,3 +109,14 @@ the menu calls. Result: R2 `lib/probe/round2_sweep2-<console>.txt` + helper 1.1.
 - Clean slate / session reset now works like a member load: PS + Share locked, picker paused, everyone logged out the menu's
   way (LogoutAll 13) at the start (helper asks via /data/round2/shell-logout-now → .done) and again at the end, then unlocked.
   No new Mono functions.
+## Home-screen folders (read-only probe, Kaeden 13.50, 21 Nov 2026 ~3:30pm)
+- Helper 1.1.141–1.1.143: `/_appdb` copies `/system_data/priv/mms/app.db` to /data/round2 and reads the COPY (nothing written on
+  the PS4) → `/data/round2/appdb-probe.txt` (everything) + `appdb-short.txt` (read with `/_head<line>.<file>|<lines>`).
+- Folders are per profile: table `tbl_appbrowse_<user id, decimal, 10 digits>` (Kaeden main 16c45cc6 = 0381967558 … 16c45cca =
+  0381967562), 55 columns incl. folderType, folderInfo, parentFolderId, positionInFolder.
+- Owner's test folder (on Test Member 16c45cc9, table 0381967561 – 49 rows, the others 48): row `titleId=000000001,
+  titleName=Folder, folderType=1, folderInfo={"titleId":"CUSA03887","index":0}`, other columns mostly NULL. Broforce:
+  `parentFolderId=000000001, positionInFolder=1`.
+- Rename = titleName of the folderType=1 row; create = new row + games' parentFolderId/positionInFolder. Not tested: whether the
+  shell re-reads app.db while running, and writing the live file safely (backup + one SQLite transaction). Test on Test Member's
+  folder first, owner present.
