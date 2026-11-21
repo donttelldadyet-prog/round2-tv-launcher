@@ -43,7 +43,7 @@ public class R2Xfer {
   }
 }
 public static class R2Srv {
-  public static string ConfigPath, Token, StaffPath, Version = "1.3";
+  public static string ConfigPath, Token, StaffPath, Version = "1.4";
   public static int Port;
   public static List<string> Folders = new List<string>();
   public static List<R2Pkg> Pkgs = new List<R2Pkg>();
@@ -74,7 +74,7 @@ public static class R2Srv {
           foreach (R2Xfer x in xf.Values) {
             if (x.Finished) { if ((DateTime.Now - x.LastByte).TotalMinutes > 2) drop.Add(x.Key); continue; }
             double idle = (DateTime.Now - x.LastByte).TotalSeconds;
-            if (idle > 600) { lines.Add(x.Room + " stopped " + Short(x.Name) + " at " + (100 * x.Done / Math.Max(1, x.Size)) + "% (" + Mb(x.Done) + " of " + Mb(x.Size) + ") - nothing asked for 10 min"); drop.Add(x.Key); continue; }
+            if (idle > 600) { Done(x, false); lines.Add(x.Room + " stopped " + Short(x.Name) + " at " + (100 * x.Done / Math.Max(1, x.Size)) + "% (" + Mb(x.Done) + " of " + Mb(x.Size) + ") - nothing asked for 10 min"); drop.Add(x.Key); continue; }
             double secs = Math.Max(1, (DateTime.Now - x.LastLog).TotalSeconds); double rate = (x.Done - x.LastLogDone) / secs;
             if (x.Done == x.LastLogDone && idle > 60) continue;   // quiet: don't repeat the same line
             string left = rate > 1024 ? " - about " + Dur((x.Size - x.Done) / rate) + " left" : "";
@@ -98,7 +98,21 @@ public static class R2Srv {
 
   [DllImport("kernel32.dll")] static extern uint SetThreadExecutionState(uint f);
 
-  public static void Log(string s) { Console.WriteLine(DateTime.Now.ToString("HH:mm:ss") + "  " + s); }
+  // 1.4: the page shows the last lines of this window too
+  static List<string> logs = new List<string>();
+  public static void Log(string s) { string l = DateTime.Now.ToString("HH:mm:ss") + "  " + s; Console.WriteLine(l); lock (logs) { logs.Add(l); if (logs.Count > 200) logs.RemoveRange(0, logs.Count - 200); } }
+  // 1.4: finished / stopped transfers for the page (newest first, 40 kept)
+  static List<string> recent = new List<string>();
+  static void Done(R2Xfer x, bool ok) { double secs = Math.Max(1, (x.LastByte - x.Start).TotalSeconds);
+    string j = "{\"room\":" + Q(x.Room) + ",\"name\":" + Q(x.Name) + ",\"size\":" + x.Size + ",\"done\":" + x.Done + ",\"ok\":" + (ok ? "true" : "false") + ",\"secs\":" + (int)secs +
+      ",\"mbs\":" + (x.Done / secs / 1048576).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + ",\"end\":" + Q(x.LastByte.ToString("dd MMM HH:mm")) + "}";
+    lock (recent) { recent.Insert(0, j); if (recent.Count > 40) recent.RemoveAt(40); } }
+  static string LiveJson() {
+    StringBuilder b = new StringBuilder("{\"ok\":true,\"v\":" + Q(Version) + ",\"push\":" + Q(PushNote) + ",\"active\":" + active + ",\"servedMB\":" + (servedBytes >> 20) + ",\"dl\":" + DlJson() + ",\"recent\":[");
+    lock (recent) b.Append(string.Join(",", recent.ToArray())); b.Append("],\"log\":[");
+    lock (logs) { int from = Math.Max(0, logs.Count - 60); for (int i = from; i < logs.Count; i++) b.Append(i > from ? "," : "").Append(Q(logs[i])); }
+    return b.Append("]}").ToString(); }
+  public static string PagePath;
 
   // ---------- folders ----------
   public static void LoadFolders() {
@@ -203,7 +217,7 @@ public static class R2Srv {
   static string Staff() { try { return File.Exists(StaffPath) ? File.ReadAllText(StaffPath).Trim() : ""; } catch { return ""; } }
   static string BestIp() { List<string> ips = Ips(); foreach (string x in ips) if (x.StartsWith("192.168.")) return x.Split('|')[0]; return ips.Count > 0 ? ips[0].Split('|')[0] : ""; }
   static string PushJson() {
-    StringBuilder b = new StringBuilder("{\"v\":" + Q(Version) + ",\"ip\":" + Q(BestIp()) + ",\"port\":" + Port + ",\"token\":" + Q(Token) + ",\"folders\":[");
+    StringBuilder b = new StringBuilder("{\"v\":" + Q(Version) + ",\"ip\":" + Q(BestIp()) + ",\"port\":" + Port + ",\"token\":" + Q(Token) + ",\"dl\":" + DlJson() + ",\"folders\":[");   // 1.4: + what's being sent now
     for (int i = 0; i < Folders.Count; i++) b.Append(i > 0 ? "," : "").Append(Q(Folders[i]));
     b.Append("],\"pkgs\":[");
     List<R2Pkg> ps; lock (L) ps = new List<R2Pkg>(Pkgs); int n = 0;
@@ -284,12 +298,14 @@ public static class R2Srv {
       if (m == "POST") { int len = 0; string cl; if (hd.TryGetValue("Content-Length", out cl)) int.TryParse(cl, out len); if (len > 0 && len < 1 << 16) { byte[] b = new byte[len]; int n = 0; while (n < len) { int r = s.Read(b, n, len - n); if (r <= 0) break; n += r; } body = Encoding.UTF8.GetString(b, 0, n); } }
       string q = path.Contains("?") ? Uri.UnescapeDataString(path.Substring(path.IndexOf('?') + 1)) : ""; string route = path.Split('?')[0];
       if (route == "/api/staff") { string k = body.Trim(); if (k.StartsWith("code=")) k = Uri.UnescapeDataString(k.Substring(5)); if (k.Length > 0 && k.Length < 200) { File.WriteAllText(StaffPath, k); PushNow(); } Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
+      if (route == "/api/live") { Send(s, 200, "application/json", Encoding.UTF8.GetBytes(LiveJson()), null); return; }
       if (route == "/api/list") { Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
       if (route == "/api/scan") { Scan(); Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
       if (route == "/api/pick") { string f = Pick(); if (f != null && !Folders.Contains(f)) { Folders.Add(f); SaveFolders(); Scan(); } Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
       if (route == "/api/add") { string f = (body.Length > 0 ? body : q).Trim(); if (f.StartsWith("path=")) f = f.Substring(5); if (Directory.Exists(f) && !Folders.Contains(f)) { Folders.Add(f); SaveFolders(); Scan(); } Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
       if (route == "/api/remove") { string f = (body.Length > 0 ? body : q).Trim(); if (f.StartsWith("path=")) f = f.Substring(5); if (Folders.Remove(f)) { SaveFolders(); Scan(); } Send(s, 200, "application/json", Encoding.UTF8.GetBytes(ListJson()), null); return; }
-      if (route == "/" || route == "/index.html") { Send(s, 200, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(Page()), null); return; }
+      if (route == "/" || route == "/index.html") { string pg = null; try { if (PagePath != null && File.Exists(PagePath)) pg = File.ReadAllText(PagePath); } catch { }   // 1.4: the page lives in pkg-page.html (built-in one if it's missing)
+        Send(s, 200, "text/html; charset=utf-8", Encoding.UTF8.GetBytes(pg ?? Page()), null); return; }
       Send(s, 404, "text/plain", Encoding.ASCII.GetBytes("not found"), null);
     } catch (Exception) { } finally { try { c.Close(); } catch { } }
   }
@@ -331,6 +347,7 @@ public static class R2Srv {
           lock (xf) { long nw = xt.Add(pos, pos + r); Interlocked.Add(ref servedBytes, nw); xt.LastByte = DateTime.Now;
             if (!xt.Finished && xt.Done >= xt.Size) { xt.Finished = true; done = true; secs = Math.Max(1, (xt.LastByte - xt.Start).TotalSeconds); } }
           pos += r;
+          if (done) { Done(xt, true); }
           if (done) Log(xt.Room + " finished " + p.Name + ": " + Mb(size) + " in " + Dur(secs) + " (" + (size / secs / 1048576).ToString("0.0") + " MB/s average)");
         }
       }
@@ -372,6 +389,7 @@ Add-Type -TypeDefinition $code -ReferencedAssemblies System.Windows.Forms -Langu
 [R2Srv]::ConfigPath = Join-Path $here 'pkg-folders.txt'
 [R2Srv]::RoomsPath = Join-Path $here 'pkg-rooms.txt'   # 1.3: "<PS4 address> <room>" per line, so the window says Kaeden instead of 192.168.88.5
 [R2Srv]::LoadRooms()
+[R2Srv]::PagePath = Join-Path $here 'pkg-page.html'   # 1.4: the page (Round2 look)
 [R2Srv]::StaffPath = Join-Path $here 'pkg-staff.txt'   # the staff code, so the list reaches the control centre (via the engine)
 # the secret part of the file links - kept in pkg-token.txt so queued jobs still work after a restart of this program
 $tokFile = Join-Path $here 'pkg-token.txt'

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Round2 PKG server</title>
+<style>
+:root { --bg:#06050A; --panel:#110E1A; --panel2:#191527; --line:rgba(244,241,251,.12); --line2:rgba(244,241,251,.22);
+  --ink:#F4F1FB; --mute:#9C94B3; --accent:#F2C21B; --ok:#4DB848; --warn:#F2A21B; --bad:#E8436A; --focus:#8EC5FF;
+  --f:'Chakra Petch','Segoe UI',system-ui,sans-serif; color-scheme:dark; }
+* { box-sizing:border-box; }
+html,body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 var(--f); }
+button,input { font:inherit; color:inherit; } button { cursor:pointer; }
+.wrap { max-width:1100px; margin:0 auto; padding:18px 18px 40px; }
+header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; }
+.brand { font-weight:700; letter-spacing:.22em; font-size:20px; padding:2px 10px; border-left:2px solid var(--ink); border-right:2px solid var(--ink); }
+h1 { font-size:15px; letter-spacing:.18em; text-transform:uppercase; color:var(--mute); margin:0; font-weight:600; }
+.chips { display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+.chip { border:1px solid var(--line2); border-radius:999px; padding:4px 12px; font-size:13px; color:var(--mute); white-space:nowrap; }
+.chip b { color:var(--ink); font-weight:600; } .chip.ok { border-color:color-mix(in srgb,var(--ok) 60%,transparent); } .chip.warn { border-color:var(--warn); color:var(--warn); }
+.grid { display:grid; grid-template-columns:1fr; gap:14px; } @media (min-width:900px) { .grid.two { grid-template-columns:3fr 2fr; } }
+.card { background:var(--panel); border:1px solid var(--line); border-top:2px solid color-mix(in srgb,var(--accent) 55%,transparent); padding:14px 16px; }
+.card h2 { margin:0 0 10px; font-size:13px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:700; display:flex; align-items:center; gap:8px; }
+.card h2 .n { color:var(--mute); letter-spacing:0; text-transform:none; font-weight:400; }
+.hint { font-size:13px; color:var(--mute); }
+.btn { border:1px solid var(--line2); background:var(--panel2); padding:8px 14px; letter-spacing:.08em; text-transform:uppercase; font-size:12px; font-weight:600; }
+.btn:hover { border-color:var(--ink); } .btn.primary { background:var(--accent); color:#0b0914; border-color:var(--accent); }
+.x { background:none; border:0; color:var(--bad); font-size:16px; padding:0 4px; }
+input[type=text],input[type=password],input[type=search] { background:var(--bg); border:1px solid var(--line2); padding:8px 10px; min-width:0; }
+.xfer { border:1px solid var(--line); background:var(--panel2); padding:10px 12px; margin-bottom:8px; }
+.xfer .top { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+.xfer .room { font-weight:700; letter-spacing:.08em; text-transform:uppercase; font-size:13px; color:var(--accent); }
+.xfer .name { flex:1; min-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.xfer .pct { font-weight:700; font-size:18px; }
+.bar { height:8px; background:var(--bg); border:1px solid var(--line); margin:8px 0 6px; overflow:hidden; }
+.bar i { display:block; height:100%; background:var(--accent); transition:width .8s; }
+.xfer.fin .bar i { background:var(--ok); } .xfer.wait .bar i { background:var(--warn); }
+.meta { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; color:var(--mute); } .meta b { color:var(--ink); font-weight:600; }
+table { border-collapse:collapse; width:100%; font-size:13px; } td,th { padding:5px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+th { color:var(--mute); font-weight:600; letter-spacing:.06em; text-transform:uppercase; font-size:11px; }
+.tag { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:1px 7px; border:1px solid var(--line2); }
+.tag.gd { color:var(--ok); border-color:color-mix(in srgb,var(--ok) 60%,transparent); } .tag.gp { color:var(--focus); border-color:color-mix(in srgb,var(--focus) 60%,transparent); }
+.tag.ac { color:var(--warn); border-color:color-mix(in srgb,var(--warn) 60%,transparent); } .tag.err { color:var(--bad); border-color:var(--bad); }
+.game { border-top:1px solid var(--line2); padding:10px 0 6px; } .game:first-child { border-top:0; }
+.game .gt { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; } .game .gt b { font-size:15px; }
+.files { margin:6px 0 0 0; } .files div { display:flex; gap:10px; align-items:baseline; padding:2px 0; font-size:13px; flex-wrap:wrap; }
+.files .fn { color:var(--mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:520px; }
+details summary { cursor:pointer; color:var(--mute); font-size:13px; padding:2px 0; }
+.log { font:12px/1.5 ui-monospace,Consolas,monospace; color:var(--mute); max-height:320px; overflow:auto; white-space:pre-wrap; background:var(--bg); border:1px solid var(--line); padding:8px 10px; }
+.log .hl { color:var(--ink); } .log .ok { color:var(--ok); } .log .bad { color:var(--bad); }
+.folder { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--line); font-size:14px; } .folder .miss { color:var(--bad); font-size:12px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.empty { color:var(--mute); font-size:14px; padding:6px 0; }
+</style></head>
+<body><div class="wrap">
+<header><span class="brand">ROUND2</span><h1>PKG server</h1>
+  <div class="chips" id="chips"></div></header>
+<div id="staffBox"></div>
+<div class="grid two">
+  <div class="card"><h2>Sending now <span class="n" id="nNow"></span></h2><div id="now"><div class="empty">Loading…</div></div>
+    <h2 style="margin-top:14px">Finished <span class="n">– this window, newest first</span></h2><div id="recent"></div></div>
+  <div class="card"><h2>Activity <span class="n">– what this window says</span></h2><div class="log" id="log"></div></div>
+</div>
+<div class="card" style="margin-top:14px"><h2>Folders <span class="n">– where your PKG files are</span></h2>
+  <div id="folders"></div>
+  <div class="row" style="margin-top:8px"><button class="btn primary" onclick="go('/api/pick')">+ Add folder or drive</button><button class="btn" onclick="go('/api/scan')">Scan again</button><span class="hint" id="scanNote"></span></div></div>
+<div class="card" style="margin-top:14px"><h2>Your PKG files <span class="n" id="nFiles"></span></h2>
+  <div class="row" style="margin-bottom:6px"><input type="search" id="find" placeholder="Search a game" style="flex:1" oninput="drawFiles()"><span class="hint">Send them from the control centre: staff.round2.sg › TVs › PS4 games</span></div>
+  <div id="files"></div></div>
+</div>
+<script>
+var L = null;
+function $(i) { return document.getElementById(i); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function mb(b) { return b >= 1073741824 ? (b / 1073741824).toFixed(2) + ' GB' : Math.round(b / 1048576) + ' MB'; }
+function dur(s) { return s < 90 ? Math.round(s) + ' s' : s < 5400 ? (s / 60).toFixed(1) + ' min' : (s / 3600).toFixed(1) + ' h'; }
+function go(u) { $('scanNote').textContent = u === '/api/scan' ? 'Scanning…' : ''; fetch(u).then(function (r) { return r.json(); }).then(function (j) { L = j; $('scanNote').textContent = ''; drawList(); }); }
+function rm(p) { if (!confirm('Stop sharing ' + p + '? (The files stay on the disk.)')) return; fetch('/api/remove', { method: 'POST', body: p }).then(function (r) { return r.json(); }).then(function (j) { L = j; drawList(); }); }
+function stf() { fetch('/api/staff', { method: 'POST', body: $('sc').value }).then(function (r) { return r.json(); }).then(function (j) { L = j; drawList(); }); }
+function drawList() {
+  if (!L) return;
+  var ip = (L.ips || []).map(function (x) { return x.ip; }).filter(function (x) { return /^192\.168\./.test(x); })[0] || ((L.ips || [])[0] || {}).ip || '?';
+  var pushOk = /up to date/.test(L.push || '');
+  window._chipBase = '<span class="chip">v' + esc(L.v) + '</span><span class="chip">Shared at <b>' + esc(ip) + ':' + L.port + '</b></span><span class="chip ' + (pushOk ? 'ok' : 'warn') + '">Control centre: <b>' + esc(L.push) + '</b></span>';
+  $('staffBox').innerHTML = L.staff ? '' : '<div class="card" style="margin-bottom:14px;border-top-color:var(--warn)"><h2 style="color:var(--warn)">Staff code needed</h2><div class="row"><input type="password" id="sc" placeholder="Staff code" style="width:220px"><button class="btn primary" onclick="stf()">Save</button><span class="hint">so the control centre sees your files</span></div></div>';
+  $('folders').innerHTML = (L.folders || []).length ? L.folders.map(function (f) { return '<div class="folder"><span style="flex:1">' + esc(f.path) + (f.there ? '' : ' <span class="miss">not found – drive unplugged?</span>') + '</span><button class="x" title="Stop sharing" onclick="rm(\'' + esc(f.path).replace(/\\/g, '\\\\') + '\')">×</button></div>'; }).join('') : '<div class="empty">No folders yet – add the folder or external drive with your PKG files.</div>';
+  drawFiles(); drawChips();
+}
+function drawFiles() {
+  if (!L) return;
+  var G = {}, f = ($('find').value || '').toLowerCase(), bad = [];
+  (L.pkgs || []).forEach(function (p) { if (p.err || !p.tid) { bad.push(p); return; } var g = G[p.tid] || (G[p.tid] = { tid: p.tid, title: '', gd: [], gp: [], ac: [] }); (g[p.cat] || (g[p.cat] = [])).push(p); if (p.cat === 'gd' || !g.title) g.title = p.title || p.name; });
+  var ks = Object.keys(G).sort(function (a, b) { return String(G[a].title).localeCompare(G[b].title); });
+  var tot = (L.pkgs || []).reduce(function (a, p) { return a + (+p.size || 0); }, 0);
+  $('nFiles').textContent = '– ' + (L.pkgs || []).length + ' files, ' + ks.length + ' games, ' + mb(tot);
+  function line(p) { return '<div><span class="tag ' + p.cat + '">' + ({ gd: 'Game', gp: 'Patch', ac: 'DLC' }[p.cat] || p.cat) + '</span><b>' + esc(p.appver || p.ver || '') + '</b><span class="hint">' + mb(p.size) + ' · FW ' + esc(p.fw || '?') + '</span>' + (p.cat === 'ac' ? '<span>' + esc(p.title || '') + '</span>' : '') + '<span class="fn" title="' + esc(p.path) + '">' + esc(p.name) + '</span></div>'; }
+  var h = ks.filter(function (k) { return !f || (G[k].title + ' ' + k).toLowerCase().indexOf(f) >= 0; }).map(function (k) { var g = G[k];
+    return '<div class="game"><div class="gt"><b>' + esc(g.title) + '</b><span class="hint">' + k + ' · ' + g.gd.length + ' game · ' + g.gp.length + ' patch · ' + g.ac.length + ' DLC</span></div><div class="files">' +
+      g.gd.map(line).join('') + g.gp.map(line).join('') + (g.ac.length ? (g.ac.length > 3 ? '<details><summary>' + g.ac.length + ' DLC</summary>' + g.ac.map(line).join('') + '</details>' : g.ac.map(line).join('')) : '') + '</div></div>'; }).join('');
+  if (bad.length) h += '<div class="game"><div class="gt"><b style="color:var(--bad)">Can\'t be read</b><span class="hint">' + bad.length + ' file(s) – not a PS4 PKG, or damaged</span></div><div class="files">' + bad.map(function (p) { return '<div><span class="tag err">?</span><span class="fn">' + esc(p.name) + '</span><span class="hint">' + esc(p.err || '') + '</span></div>'; }).join('') + '</div></div>';
+  $('files').innerHTML = h || '<div class="empty">' + (f ? 'Nothing matches.' : 'No PKG files found in your folders.') + '</div>';
+}
+var live = null;
+function drawChips() { $('chips').innerHTML = (window._chipBase || '') + (live ? '<span class="chip">Sent <b>' + mb(live.servedMB * 1048576) + '</b></span>' : ''); }
+function drawLive() {
+  if (!live) return; drawChips();
+  var a = live.dl || [];
+  $('nNow').textContent = a.length ? '– ' + a.filter(function (x) { return !x.fin; }).length + ' file(s)' : '';
+  $('now').innerHTML = a.length ? a.map(function (x) {
+    var p = Math.floor(100 * x.done / Math.max(1, x.size)), left = x.mbs > 0 ? (x.size - x.done) / (x.mbs * 1048576) : 0;
+    var cls = x.fin ? 'fin' : x.idle > 60 ? 'wait' : '';
+    var st = x.fin ? '<span style="color:var(--ok)">finished</span>' : x.idle > 60 ? '<span style="color:var(--warn)">waiting ' + x.idle + ' s</span>' : '<b>' + x.mbs + ' MB/s</b>' + (left ? ' · about <b>' + dur(left) + '</b> left' : '');
+    return '<div class="xfer ' + cls + '"><div class="top"><span class="room">' + esc(x.room) + '</span><span class="name" title="' + esc(x.name) + '">' + esc(x.name) + '</span><span class="pct">' + p + '%</span></div><div class="bar"><i style="width:' + p + '%"></i></div><div class="meta"><span><b>' + mb(x.done) + '</b> of ' + mb(x.size) + '</span><span>' + st + '</span>' + (x.conns > 1 ? '<span>' + x.conns + ' connections</span>' : '') + '</div></div>'; }).join('') : '<div class="empty">Nothing right now. Send games from the control centre.</div>';
+  var r = live.recent || [];
+  $('recent').innerHTML = r.length ? '<table><tr><th>When</th><th>Room</th><th>File</th><th>Size</th><th>Speed</th></tr>' + r.slice(0, 15).map(function (x) { return '<tr><td>' + esc(x.end) + '</td><td>' + esc(x.room) + '</td><td>' + esc(x.name) + (x.ok ? '' : ' <span style="color:var(--warn)">stopped at ' + Math.floor(100 * x.done / Math.max(1, x.size)) + '%</span>') + '</td><td>' + mb(x.size) + '</td><td>' + x.mbs + ' MB/s · ' + dur(x.secs) + '</td></tr>'; }).join('') + '</table>' : '<div class="empty">None yet since this window started.</div>';
+  var lg = $('log'), atEnd = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 20;
+  lg.innerHTML = (live.log || []).map(function (l) { var c = /finished/.test(l) ? 'ok' : /stopped|error|fail/i.test(l) ? 'bad' : /started/.test(l) ? 'hl' : ''; return '<div class="' + c + '">' + esc(l) + '</div>'; }).join('') || '<div>Quiet.</div>';
+  if (atEnd) lg.scrollTop = lg.scrollHeight;
+}
+function tick() { fetch('/api/live').then(function (r) { return r.json(); }).then(function (j) { live = j; drawLive(); }).catch(function () { $('now').innerHTML = '<div class="empty" style="color:var(--bad)">This page lost the server – is the PKG server window still open?</div>'; }); }
+go('/api/list'); tick(); setInterval(tick, 2000); setInterval(function () { fetch('/api/list').then(function (r) { return r.json(); }).then(function (j) { L = j; drawList(); }); }, 60000);
+</script></body></html>
