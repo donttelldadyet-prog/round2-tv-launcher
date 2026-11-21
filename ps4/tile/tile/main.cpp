@@ -60,7 +60,7 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 
 #define W 1920
 #define H 1080
-#define TILE_V "0.11"
+#define TILE_V "0.12"
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
@@ -74,6 +74,7 @@ static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
 static char g_title[80] = "", g_room[32] = "", g_url[200] = "", g_line[200] = "Connecting to Round2...", g_line2[200] = "", g_status[24] = "wait", g_err[64] = "";
 static volatile int g_dirty = 2;
 static char g_color[8] = "", g_rname[32] = "", g_done[12] = "", g_total[12] = "", g_pk[8] = "", g_pn[8] = "", g_pnow[32] = "";   /* 0.06/0.07 */
+static char g_board[640] = "";   /* 0.12: the room's profiles during a member load ("st~name~new name~member|…", helper 1.1.148) */
 static unsigned char *g_art = 0; static int g_aw = 0, g_ah = 0; static char g_artroom[32] = "";
 static char g_id[40] = "";
 
@@ -128,6 +129,7 @@ static void *poller(void *) {
       char co[8], rn[32], dn[12], tt[12]; jget(buf, "color", co, sizeof co); jget(buf, "rname", rn, sizeof rn); jget(buf, "done", dn, sizeof dn); jget(buf, "total", tt, sizeof tt);
       char pk[8], pn[8], pw[32]; jget(buf, "pk", pk, sizeof pk); jget(buf, "pn", pn, sizeof pn); jget(buf, "pnow", pw, sizeof pw);
       if (strcmp(co, g_color) || strcmp(rn, g_rname) || strcmp(dn, g_done) || strcmp(tt, g_total) || strcmp(pk, g_pk) || strcmp(pn, g_pn) || strcmp(pw, g_pnow)) { strcpy(g_color, co); strcpy(g_rname, rn); strcpy(g_done, dn); strcpy(g_total, tt); strcpy(g_pk, pk); strcpy(g_pn, pn); strcpy(g_pnow, pw); g_dirty = 2; }
+      { static char bd[640]; jget(buf, "board", bd, sizeof bd); if (strcmp(bd, g_board)) { strcpy(g_board, bd); g_dirty = 2; } }   /* 0.12 */
       jget(buf, "title", ti, sizeof ti); jget(buf, "room", room, sizeof room); jget(buf, "url", u, sizeof u); jget(buf, "line", l, sizeof l); jget(buf, "line2", l2, sizeof l2); jget(buf, "status", st, sizeof st);
       if (strcmp(room, g_room) || strcmp(u, g_url) || strcmp(l, g_line) || strcmp(l2, g_line2) || strcmp(st, g_status) || strcmp(ti, g_title) || g_err[0]) {
         strcpy(g_title, ti); strcpy(g_room, room); strcpy(g_url, u); strcpy(g_line, l); strcpy(g_line2, l2); strcpy(g_status, st); g_err[0] = 0; g_dirty = 2; }
@@ -214,6 +216,8 @@ static void find_id(void) {
 
 static int hexv(char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : 0; }
 static Color hexc(const char *h, Color d) { if (strlen(h) != 6) return d; Color c = { (uint8_t)(hexv(h[0]) * 16 + hexv(h[1])), (uint8_t)(hexv(h[2]) * 16 + hexv(h[3])), (uint8_t)(hexv(h[4]) * 16 + hexv(h[5])) }; return c; }
+static void disc(int cx, int cy, int r, Color c, int a) { for (int y = -r; y <= r; y++) for (int x = -r; x <= r; x++) { int d = x * x + y * y; if (d <= r * r) blend(cx + x, cy + y, c, d > (r - 1) * (r - 1) ? a / 2 : a); } }
+static Color mixc(Color a, Color b, float k) { Color c = { (uint8_t)(a.r + (b.r - a.r) * k), (uint8_t)(a.g + (b.g - a.g) * k), (uint8_t)(a.b + (b.b - a.b) * k) }; return c; }
 static void frame_box(int x, int y, int w, int h, int t, Color c, int a) { for (int k = 0; k < t; k++) { for (int i = x - k; i < x + w + k; i++) { blend(i, y - k - 1, c, a); blend(i, y + h + k, c, a); } for (int j = y - k; j < y + h + k; j++) { blend(x - k - 1, j, c, a); blend(x + w + k, j, c, a); } } }
 
 int main() {
@@ -238,6 +242,10 @@ int main() {
   const int QX = 1270, QY = 230, QS = 480;                   /* QR card (0.07: right, clear of the text) */
   char pkk[8] = "", pnn[8] = "", pnw[32] = "";
   int seen_loading = 0, howto = 0, seen_bar = 0; double ready_t0 = 0, done_since = 0;   /* 0.08; 0.11: seen_bar, done_since */
+  /* 0.12 (owner 21 Nov 11:54pm): profile cards – main + Player 1-4 start grey, each turns the room colour in order as it's ready,
+     a Player card changes into the member's name; the one being worked on pulses so guests can see something is happening */
+  int bn = 0, was_busy = 0, lit[5] = {0}; double lit_t[5] = {0}, last_lit = 0; char bst[5] = {0}, bcur[5][32], btgt[5][32], bwho[5][32];
+  const int CX0 = 1210, CY0 = 196, CW = 580, CH = 118, CG = 14;
   FT_Face fF = fMid;
   for (;;) {
     if (g_dirty > 0 && BASE && !howto) {   /* 0.08: the instruction card stays until the tile closes */
@@ -246,6 +254,12 @@ int main() {
       strcpy(co, g_color); strcpy(rn, g_rname); done = atoi(g_done); total = atoi(g_total); strcpy(pkk, g_pk); strcpy(pnn, g_pn); strcpy(pnw, g_pnow); g_dirty--;
       pthread_mutex_unlock(&mx);
       FB = BASE; AC = hexc(co, GOLD); busy = !strcmp(st, "loading") || !strcmp(st, "reset");
+      { char bd[640]; pthread_mutex_lock(&mx); strcpy(bd, g_board); pthread_mutex_unlock(&mx); bn = 0; char *p = bd;   /* 0.12 */
+        while (*p && bn < 5) { char *e = strchr(p, '|'); if (e) *e = 0; char *f[4] = { p, (char *)"", (char *)"", (char *)"" }; int k = 1;
+          for (char *q = p; *q && k < 4; q++) if (*q == '~') { *q = 0; f[k++] = q + 1; }
+          bst[bn] = f[0][0]; snprintf(bcur[bn], 32, "%s", f[1]); snprintf(btgt[bn], 32, "%s", f[2][0] ? f[2] : f[1]); snprintf(bwho[bn], 32, "%s", f[3]); bn++;
+          if (!e) break; p = e + 1; }
+        if (busy && !was_busy) { memset(lit, 0, sizeof lit); last_lit = 0; } was_busy = busy; }
       if (busy) { seen_loading = 1; if (total > 0) seen_bar = 1; if (ready_t0 && !howto) ready_t0 = 0; done_since = 0; }   /* 0.11: back to loading = not the end */
       { int fin = !strcmp(st, "done") || (!strcmp(st, "off") && !strncmp(ti, "Sorry", 5));
         if (fin && seen_loading && !done_since) done_since = now_s();
@@ -264,8 +278,10 @@ int main() {
       if (line2[0]) wrap(fSmall, line2, 130, y + 14, 940, 44, DIM);
       if (err[0]) text(fTiny, err, 130, 1050, DIM);
       { char vv[48]; snprintf(vv, sizeof vv, "tile " TILE_V "  id %s", g_idsrc); text(fTiny, vv, 1640, 1060, DIM); }
-      rect(QX - 20, QY - 20, QS + 40, QS + 40, CARD); rect(QX - 20, QY - 20, QS + 40, 6, AC);
-      if (url[0]) { draw_qr(url, QX, QY, QS); int tw2 = text(fSmall, "Scan with your phone camera", 0, 0, INK, 0); text(fSmall, "Scan with your phone camera", QX + QS / 2 - tw2 / 2, QY + QS + 80, INK);
+      int cards = bn > 0 && (busy || !strcmp(st, "done"));   /* 0.12: the profile cards take the QR's place during a load */
+      if (cards) { text(fPixS, "PROFILES", CX0, CY0 - 30, AC); }
+      else { rect(QX - 20, QY - 20, QS + 40, QS + 40, CARD); rect(QX - 20, QY - 20, QS + 40, 6, AC); }
+      if (cards) {} else if (url[0]) { draw_qr(url, QX, QY, QS); int tw2 = text(fSmall, "Scan with your phone camera", 0, 0, INK, 0); text(fSmall, "Scan with your phone camera", QX + QS / 2 - tw2 / 2, QY + QS + 80, INK);
         int tw3 = text(fTiny, "book.round2.sg/m", 0, 0, DIM, 0); text(fTiny, "book.round2.sg/m", QX + QS / 2 - tw3 / 2, QY + QS + 122, DIM); }
       else { text(fSmall, "QR code appears when", QX + 60, QY + 210, DIM); text(fSmall, "Round2 answers", QX + 100, QY + 260, DIM); }
       if (busy || !strcmp(st, "done")) rect(BX, BY, BW, BH, CARD);
@@ -273,6 +289,38 @@ int main() {
     }
     /* each frame: the composed screen, then the moving parts */
     FB = scene->Buf(); if (BASE) memcpy(FB, BASE, W * H * 4);
+    if (bn > 0 && !howto && (busy || !strcmp(st, "done"))) {   /* 0.12: profile cards */
+      double t = now_s(); Color GREY = { 58, 54, 72 }, PULSE = AC;
+      for (int i = 0; i < bn; i++) { if (lit[i]) continue; char c = bst[i]; if ((c == 'd' || c == 'f' || c == 'u') && t - last_lit >= 0.45) { lit[i] = 1; lit_t[i] = t; last_lit = t; } break; }
+      for (int i = 0; i < bn; i++) {
+        int y = CY0 + i * (CH + CG), L = lit[i], active = !L && (bst[i] == 'c' || bst[i] == 'l'); double since = L ? t - lit_t[i] : 0;
+        rect(CX0, y, CW, CH, CARD); rect(CX0, y, 8, CH, L ? AC : GREY);
+        if (L && since < 0.6) { int a = (int)(110 * (1 - since / 0.6)); for (int yy = y; yy < y + CH; yy++) for (int xx = CX0; xx < CX0 + CW; xx++) blend(xx, yy, AC, a); }
+        if (active) { double ph = (t - (int)(t / 1.6) * 1.6) / 1.6; int sx = CX0 - 120 + (int)(ph * (CW + 240));
+          for (int xx = sx - 70; xx < sx + 70; xx++) { if (xx < CX0 || xx >= CX0 + CW) continue; int a = 34 - abs(xx - sx) * 34 / 70; for (int yy = y; yy < y + CH; yy++) blend(xx, yy, WHITE, a); }
+          int pa = 110 + (int)(100 * (ph < 0.5 ? ph * 2 : 2 - ph * 2)); frame_box(CX0, y, CW, CH, 3, PULSE, pa); }
+        int cx = CX0 + 72, cy = y + CH / 2, r = 40; const char *nm = L ? btgt[i] : bcur[i];
+        disc(cx, cy, r, L ? AC : GREY, 255);
+        if (active) { double ph = (t - (int)(t / 1.2) * 1.2) / 1.2; ring(cx, cy, r + 4 + (int)(ph * 26), 3, AC, (int)(190 * (1 - ph))); }
+        if (L && since < 0.9) ring(cx, cy, r + (int)(since * 130), 5, AC, (int)(220 * (1 - since / 0.9)));
+        { char in[2] = { (char)(nm[0] >= 'a' && nm[0] <= 'z' ? nm[0] - 32 : nm[0] ? nm[0] : '?'), 0 }; int w2 = text(fSmall, in, 0, 0, INK, 0); text(fSmall, in, cx - w2 / 2, cy + 13, L ? BG : DIM); }
+        int nx = CX0 + 136, ny = y + 52;
+        if (L && strcmp(bcur[i], btgt[i]) && since < 0.55) { float k = (float)(since / 0.55);   /* the Player card turns into the member */
+          text(fSmall, bcur[i], nx, ny - (int)(k * 26), mixc(DIM, CARD, k)); text(fSmall, btgt[i], nx, ny + 26 - (int)(k * 26), mixc(CARD, INK, k)); }
+        else text(fSmall, nm, nx, ny, L ? INK : DIM);
+        char ln[80]; Color lc = DIM; char c = bst[i];
+        if (L) { if (c == 'f') { snprintf(ln, sizeof ln, "Ready - some games failed, staff will check"); lc = RED; } else { snprintf(ln, sizeof ln, c == 'd' && bwho[i][0] && !strcmp(bcur[i], btgt[i]) && i == 0 ? "Ready - %s's saves are in" : "Ready", bwho[i]); lc = GREEN; } }
+        else if (c == 'c') { snprintf(ln, sizeof ln, "Clearing for the next player..."); lc = AC; }
+        else if (c == 'l') { snprintf(ln, sizeof ln, "Loading %s's saves...", bwho[i][0] ? bwho[i] : "the"); lc = AC; }
+        else if (c == 'w') snprintf(ln, sizeof ln, "Waiting - %s is next", bwho[i][0] ? bwho[i] : "a player");
+        else snprintf(ln, sizeof ln, "Waiting");
+        if (active) { int n = (int)(t * 2.5) % 4; size_t l = strlen(ln); while (l && ln[l - 1] == '.') ln[--l] = 0; for (int d = 0; d < n && l < sizeof ln - 1; d++) ln[l++] = '.'; ln[l] = 0; }
+        text(fTiny, ln, nx, y + 92, lc);
+        if (L) { int kx = CX0 + CW - 54, ky = y + CH / 2; float g = since < 0.35 ? (float)(since / 0.35) : 1.f;   /* check mark draws itself */
+          for (int s2 = 0; s2 < (int)(14 * g); s2++) rect(kx + s2, ky + s2 / 1, 5, 5, c == 'f' ? RED : GREEN);
+          if (g >= 1) for (int s2 = 0; s2 < 26; s2++) rect(kx + 13 + s2, ky + 13 - s2, 5, 5, c == 'f' ? RED : GREEN); }
+      }
+    }
     if (busy) {
       char lab[96]; int lx;
       if (total > 0) { static int lastdone = -1; static double since = 0; if (done != lastdone) { lastdone = done; since = now_s(); }

@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.147"   /* 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.148"   /* 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -98,6 +98,11 @@ static int sv_defer; static char sv_defer_dir[300];
 static void cloud_report(void); /* 1.1.52 */
 static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
 static char pkg_last[200]; /* 1.1.132: last PKG job line for the report */
+/* 1.1.148 (owner 21 Nov 11:54pm: "screen should showcase all of the profiles … greyed out … then becomes colour … transform into
+   the member's profile"): the LOAD BOARD – each room profile (0 = main, 1-4 = Player 1-4 = spares in id order) and what a member
+   load does to it, sent in the report as "board" for the Round2 tile's profile cards. st: u nothing to do · c being cleared ·
+   w waits for a member · l loading now · d loaded · f loaded, some games failed. who = the member it is for. */
+static char g_mb_st[5], g_mb_cur[5][32], g_mb_tgt[5][32], g_mb_who[5][32]; static int g_mb_n; static long long g_mb_end;
 static void sv_log(const char *fmt, ...);
 static void look_appdb(void);
 static void look_fold(const char *spec);
@@ -608,6 +613,9 @@ static int report(const char *key, char *status, size_t slen) {
   jstr(run);
   add_users();
   add_wifi();
+  if (g_mb_n && (file_exists("/data/round2/memqn") || (long long)time(0) < g_mb_end)) { char b[600]; size_t l = 0; b[0] = 0;   /* 1.1.148 */
+    for (int i = 0; i < g_mb_n && l < sizeof b - 1; i++) l += snprintf(b + l, sizeof b - l, "%s%c~%s~%s~%s", i ? "|" : "", g_mb_st[i] ? g_mb_st[i] : 'u', g_mb_cur[i], g_mb_tgt[i], g_mb_who[i]);
+    jadd(",\"board\":"); jstr(b); }
   int fastrep = file_exists("/data/round2/memqn"); /* 1.1.121: a member load runs - reports every few s for the tile's bar; Kaeden's
      disk scan (2.2 s) + games list (1.4 s) made each one ~4 s and slowed the load. Reuse the last ones (max 2 min old). */
   { double t = tm_now(); static char *stc; static long long stat_at;
@@ -2844,6 +2852,19 @@ static void keep_order(int force) {
   bpop_key("ord", "Putting the profiles back in order: main profile first, then Player 1-%d", ns);
   int m0 = look_mute; look_mute = 1; look_last[0] = 0; look_uorder(spec); look_mute = m0; sv_log("profile order put back (main, Player 1-%d): %s", ns, look_last);
 }
+static void mb_name(char *d, const char *s) { snprintf(d, 32, "%s", s ? s : ""); for (char *c = d; *c; c++) if (*c == '|' || *c == '~' || *c == '"' || *c == '\\' || *c == '_' || (unsigned char)*c < 32) *c = ' '; }
+static int mb_users(uint32_t *u) {   /* 1.1.148: main first, then the spares in id order (= Player 1-4) */
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  uint32_t mainu = r2_main_user(), sp[16]; int ns = 0, n = 0;
+  for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; if ((uint32_t)L.userId[i] != mainu) sp[ns++] = (uint32_t)L.userId[i]; }
+  for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
+  if (mainu) u[n++] = mainu; for (int i = 0; i < ns && n < 5; i++) u[n++] = sp[i]; return n;
+}
+static int mb_idx(uint32_t pu) { uint32_t u[5]; int n = mb_users(u); for (int i = 0; i < n; i++) if (u[i] == pu) return i; return -1; }
+static void mb_refresh(int i) { uint32_t u[5]; int n = mb_users(u); if (i < 0 || i >= n) return; char nm[40] = ""; sceUserServiceGetUserName((int32_t)u[i], nm, sizeof nm); mb_name(g_mb_cur[i], nm); }
+static void mb_init(void) { uint32_t u[5]; g_mb_n = mb_users(u); g_mb_end = 0;
+  for (int i = 0; i < g_mb_n; i++) { char nm[40] = ""; sceUserServiceGetUserName((int32_t)u[i], nm, sizeof nm); g_mb_st[i] = 'u'; mb_name(g_mb_cur[i], nm); snprintf(g_mb_tgt[i], 32, "%s", g_mb_cur[i]); g_mb_who[i][0] = 0; } }
+static void mb_set(int i, char st, const char *tgt, const char *who) { if (i < 0 || i >= g_mb_n) return; g_mb_st[i] = st; if (tgt) mb_name(g_mb_tgt[i], tgt); if (who) mb_name(g_mb_who[i], who); }
 static void memplay_one(const char *key, const char *spec, int allow_main) {
   char id[32] = "", sl[16] = "", nm[40] = "", st[16] = "", want[64], v[200], ms[200];
   char pos[4] = "";
@@ -2864,6 +2885,7 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
   if (!pick) { look_kv("memplay/refused", "- this room has no profile for that slot: ask staff"); return; }
   char u[16]; snprintf(u, sizeof u, "%08x", pick);
   char shown[40]; snprintf(shown, sizeof shown, "%s", nm); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
+  { int bi = mb_idx(pick); if (bi >= 0 && bi < g_mb_n) mb_set(bi, 'l', pick == mainu ? g_mb_cur[bi] : shown, shown); }   /* 1.1.148 */
   av_apply(key, pick, id, sl); /* 1.1.98: their picture first (a moment), then the saves */
   snprintf(ms, sizeof ms, "/_memload.%s.%s.%s.%s", u, id, sl, nm);
   look_mute = 1; look_last[0] = 0; look_memload(key, ms); look_mute = 0;
@@ -2874,6 +2896,7 @@ static void memplay_one(const char *key, const char *spec, int allow_main) {
   sv_log("member play: %s/%s '%s' -> profile %s, linked (no saves in the cloud yet; rename 0x%08x)", id, sl, shown, u, (unsigned)r);
   if (pick == mainu) bpop("%s: ready on the main profile - just play", shown); else bpop("%s: profile ready - sign in as %s", shown, shown);
   snprintf(v, sizeof v, "%s%s new member - profile linked%s", pick == mainu ? "main " : "", u, pick == mainu ? "" : " and named"); look_kv("memplay/ready", v);
+  { int bi = mb_idx(pick); if (bi >= 0 && bi < g_mb_n) { mb_refresh(bi); mb_set(bi, 'd', g_mb_cur[bi], shown); if (!file_exists("/data/round2/memq")) g_mb_end = (long long)time(0) + 180; } }   /* 1.1.148 */
 }
 /* 1.1.98 (owner 20 Nov 1:33am: "wire up the lapy avatars first as proof of concept"). Lapy's Avatar Changer keeps its pictures
    in /data/AVATARS as .xavatar files (a zip of avatar.png + avatar64/128/260/440.dds + picture.* + online.json). "/_avlib" uploads them
@@ -3266,6 +3289,9 @@ static void look_memplay(const char *key, const char *spec) {
         if (g) closedir(g); } }
     if (td) fclose(td);
     if (nrel) {
+      mb_init();   /* 1.1.148: the tile's board – who is cleared, who waits for which member */
+      for (int i = 0; i < np && i < 6; i++) { int bi = posv[i][0] == 'm' ? 0 : posv[i][0] - '0'; char sh[40]; mb_name(sh, tok[2 + 2 * i]); mb_set(bi, 'w', bi ? sh : NULL, sh); }
+      { const char *q = rel; while (*q) { char ru[16] = ""; int k = -1; if (sscanf(q, "%15s %d", ru, &k) == 2 && k >= 0 && k < g_mb_n) { char pn[16]; snprintf(pn, sizeof pn, "Player %d", k); mb_set(k, 'c', k ? pn : NULL, NULL); } const char *e = strchr(q, '\n'); if (!e) break; q = e + 1; } }
       put_file(CLND "/release", rel); put_file(MEMAFTER, spec); put_file(MEMAFTER ".done", "1");
       { FILE *qf = fopen("/data/round2/memqn", "w"); if (qf) { fprintf(qf, "%d %s\n", np, tok[2]); fclose(qf); } }
       put_file(MEMQ, "release - - -\n");   /* keeps the engine/tile on "Getting <name>'s profile ready..." */
@@ -3277,6 +3303,9 @@ static void look_memplay(const char *key, const char *spec) {
       return;
     }
   }
+  { int after = file_exists(MEMAFTER ".done");   /* 1.1.148: the board – after a release the cleared ones are ready; else start it now */
+    if (!after || !g_mb_n) { mb_init(); for (int i = 0; i < np && i < 6; i++) { int bi = posv[i][0] == 'm' ? 0 : posv[i][0] - '0'; char sh[40]; mb_name(sh, tok[2 + 2 * i]); mb_set(bi, 'w', bi ? sh : NULL, sh); } }
+    else for (int i = 0; i < g_mb_n; i++) if (g_mb_st[i] == 'c') { mb_refresh(i); g_mb_st[i] = 'u'; snprintf(g_mb_tgt[i], 32, "%s", g_mb_cur[i]); } }
   unlink(MEMAFTER ".done");
   /* link the whole room to the crew: main -> main, Player k -> the player loaded there, the others -> extra slots x<k> */
   { RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
@@ -3294,11 +3323,11 @@ static void look_memplay(const char *key, const char *spec) {
     if (!keep[i]) { ngo++; continue; }
     uint32_t pu = posv[i][0] == 'm' ? mainu_ : sp_[posv[i][0] - '1']; int n = kept_newer(key, pu, tok[0], tok[1 + 2 * i]);
     char shown[40]; snprintf(shown, sizeof shown, "%s", tok[2 + 2 * i]); for (char *c = shown; *c; c++) if (*c == '_') *c = ' ';
-    if (n == 0) { go[i] = 0; size_t l = strlen(keptmsg); snprintf(keptmsg + l, sizeof keptmsg - l, "%s%s", l ? ", " : "", shown);
+    if (n == 0) { go[i] = 0; { int bi = posv[i][0] == 'm' ? 0 : posv[i][0] - '0'; mb_refresh(bi); mb_set(bi, 'd', g_mb_cur[bi], shown); } size_t l = strlen(keptmsg); snprintf(keptmsg + l, sizeof keptmsg - l, "%s%s", l ? ", " : "", shown);
       sv_log("member play: %s/%s '%s' already on profile %08x with the newest saves - nothing copied, removed or loaded", tok[0], tok[1 + 2 * i], shown, pu); }
     else { ngo++; sv_log("member play: %s/%s '%s' stays on profile %08x; %d game(s) were played in another room since - only those load", tok[0], tok[1 + 2 * i], shown, pu, n); } }
   if (keptmsg[0]) bpop("%s: already on this PS4 - saves kept as they are", keptmsg);
-  if (!ngo) { char v[200]; snprintf(v, sizeof v, "%08x %s already on this PS4 - nothing to load", mainu_, keptmsg); look_kv("memplay/ready", v); unlink("/data/round2/memqn"); keep_order(1); return; }
+  if (!ngo) { g_mb_end = (long long)time(0) + 180; char v[200]; snprintf(v, sizeof v, "%08x %s already on this PS4 - nothing to load", mainu_, keptmsg); look_kv("memplay/ready", v); unlink("/data/round2/memqn"); keep_order(1); return; }
   { FILE *qf = fopen("/data/round2/memqn", "w"); if (qf) { fprintf(qf, "%d %s\n", ngo, tok[2]); fclose(qf); } } /* 1.1.101 */
   int first = -1; for (int i = 0; i < np && i < 6; i++) if (go[i]) { first = i; break; }
   { FILE *f = 0; for (int i = first + 1; i < np && i < 6; i++) if (go[i]) { if (!f) f = fopen(MEMQ, "w"); if (f) fprintf(f, "%s %s %s %s\n", tok[0], tok[1 + 2 * i], tok[2 + 2 * i], posv[i]); } if (f) fclose(f); }
@@ -4061,6 +4090,8 @@ static void clean_step(const char *key, int budget) {
       char rn[120] = "", kd[16] = "", lb[48] = ""; long long t0 = 0; cl_rd("run", rn, sizeof rn); sscanf(rn, "%15s %lld %47s", kd, &t0, lb);
       if (!strcmp(kd, "prep")) { for (char *c = lb; *c; c++) if (*c == '_') *c = ' ';
         sv_log("member prep DONE: %s - %d games, %d failed, %.0f s", lb, done, fails, atof(tb)); bpop_key("clprog", "%s is READY: %d game%s loaded%s (%.0f s)", lb, done - fails, done - fails == 1 ? "" : "s", fails ? " - some failed, staff will check" : "", atof(tb)); }
+      if (!strcmp(kd, "prep")) for (int i = 0; i < g_mb_n; i++) if (g_mb_st[i] == 'l') { mb_refresh(i); g_mb_st[i] = fails ? 'f' : 'd'; if (i) snprintf(g_mb_tgt[i], 32, "%s", g_mb_cur[i]); }   /* 1.1.148 */
+      if (!strcmp(kd, "prep") && !file_exists(MEMQ)) g_mb_end = (long long)time(0) + 180;
       if (!strcmp(kd, "prep") && file_exists(MEMQ)) memplay_next(key); /* 1.1.94: next ticked player */
       if (!strcmp(kd, "prep") && !file_exists(MEMQ)) { unlink("/data/round2/memqn"); keep_order(1); g_after_load = time(0); } /* 1.1.101: batch finished – profiles back in order; 1.1.119: pop-up once the tile is gone */
       if (!strcmp(kd, "prep")) { char s4[400]; report(key, s4, sizeof s4); } /* tell the tile at once (next player started, or all ready) */
