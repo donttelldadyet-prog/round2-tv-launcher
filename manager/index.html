@@ -962,6 +962,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div class="row" style="gap:6px;margin:6px 0;flex-wrap:wrap;align-items:center"><input id="pkFind2" placeholder="Search" style="flex:1;min-width:160px"><button class="btn" type="button" id="pkUnGame">Uninstall the ticked games</button><button class="btn ghost" type="button" id="pkUnPatch">Remove only their patches</button></div>
       <div id="pkOnPs4" style="overflow:auto"></div>
       <p class="hint" id="pkMsg2" style="margin:6px 0 0"></p></div>
+    <div class="card" style="margin-top:10px;padding:10px 12px"><b>Home-screen folders</b> <span class="hint">– e.g. a Halloween folder. Put on <b>every profile</b> of the chosen rooms' PS4s; guests see it after the next profile switch or clean slate. A game sits in one folder at a time. Needs PS4 helper 1.1.145 or newer (Kaeden now, other rooms after the next helper release).</span>
+      <div id="pkFolders" style="margin-top:6px"></div>
+      <div class="row" style="gap:6px;margin-top:6px"><button class="btn" type="button" id="pkFoldNew">+ New folder</button></div>
+      <p class="hint" id="pkMsg3" style="margin:6px 0 0"></p></div>
     <p class="hint">Atlas and Bella are on the other Wi-Fi (round2-ps4) and can't reach the laptop yet. Firmware: a PKG needs the PS4's firmware or newer (9.00 Max · Kai · Atlas, 11.00 Bella · Scarlett · Vale, 13.50 Kaeden) – older rooms need a backport.</p>
   </section>
 
@@ -3414,6 +3418,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var GM = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, lap = null, rooms = {}, q = {}, pick = {}, sel = {};
     var cat = {}, choice = {}, unpick = {}, sigList = '', sigPs4 = '';   /* 21 Nov: cat = per game {tier, rooms, patch, nopatch} (engine pkgcat); choice = main game file + "all DLC" per game; unpick = room|tid ticked for uninstall */
     var HIDE = /^(RTWO|APOL|LAPY)/, VUE = 'CUSA00960', HOUSE = { CUSA02168: 'max' };
+    var folders = [], foldTouch = 0;   /* 21 Nov 6:20pm: home-screen folder plan (engine pkgfold) */
     var ROOMS = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'], TIER = { netflix: ROOMS, deluxe: ['kai', 'bella', 'atlas', 'max'], vip: ['max'] };
     var FW = { max: '9.00', kai: '9.00', atlas: '9.00', bella: '11.00', scarlett: '11.00', vale: '11.00', kaeden: '13.50' }, FAR = { atlas: 1, bella: 1 };
     var CAT = { gd: 'Game', gp: 'Patch', ac: 'DLC' };
@@ -3530,6 +3535,47 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       m.textContent = 'Sending…';
       gm({ action: 'pkgsend', items: JSON.stringify(items), by: 'control centre: on the PS4s' }).then(function (j) { m.textContent = j.error ? j.error : '✅ ' + j.queued + ' removal job(s) queued on ' + j.rooms + ' PS4(s).'; if (!j.error) unpick = {}; loadQ(); });
     }
+    function allGames() { var T = {}; ROOMS.forEach(function (r) { ((rooms[r] && rooms[r].games) || []).forEach(function (x) { if (x.id && x.id !== VUE && !HIDE.test(x.id) && (!x.cat || x.cat === 'gd')) T[x.id] = x.t || x.id; }); }); if (lap) { var G = groups(); for (var k in G) if (!T[k]) T[k] = G[k].title; } return T; }
+    function fTarget(fo) { return fo.tier ? TIER[fo.tier].slice() : (fo.rooms || []).slice(); }
+    function vge(a, b) { var x = String(a || '').split('.').map(Number), y = String(b).split('.').map(Number); for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return true; }
+    function saveFolders(msg) { foldTouch = Date.now(); return gm({ action: 'pkgfoldset', set: JSON.stringify(folders), by: 'control centre' }).then(function (j) { if (j && j.folders) folders = j.folders; $('pkMsg3').textContent = j.error ? j.error : (msg || '✅ Saved.'); drawFolders(); }); }
+    function drawFolders() {
+      var el = $('pkFolders'), T = allGames(), ids = Object.keys(T).sort(function (a, b) { return String(T[a]).localeCompare(T[b]); });
+      if (!folders.length) { el.innerHTML = '<p class="hint">No folders yet – press "+ New folder".</p>'; return; }
+      el.innerHTML = folders.map(function (fo, i) {
+        var tg = fTarget(fo), inFold = {}; folders.forEach(function (o, j) { if (j !== i) (o.tids || []).forEach(function (t) { inFold[t] = o.name; }); });
+        var sel = '<select data-fotier="' + i + '"><option value="netflix"' + (fo.tier === 'netflix' ? ' selected' : '') + '>Netflix · all rooms</option><option value="deluxe"' + (fo.tier === 'deluxe' ? ' selected' : '') + '>Deluxe · Kai Bella Atlas Max</option><option value="vip"' + (fo.tier === 'vip' ? ' selected' : '') + '>VIP · Max</option><option value=""' + (!fo.tier ? ' selected' : '') + '>My own rooms…</option></select>';
+        if (!fo.tier) sel += ' ' + ROOMS.map(function (r) { return '<label style="white-space:nowrap;margin-right:6px"><input type="checkbox" data-foroom="' + i + '|' + r + '"' + ((fo.rooms || []).indexOf(r) >= 0 ? ' checked' : '') + '>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '</label>'; }).join('');
+        var chips = (fo.tids || []).map(function (t, k) { return '<span style="display:inline-block;border:1px solid var(--line2);border-radius:12px;padding:1px 8px;margin:2px 4px 2px 0;font-size:12px">' + esc(T[t] || t) + ' <a href="#" data-form="' + i + '|' + k + '" style="color:#f77;text-decoration:none">×</a></span>'; }).join('') || '<span class="hint">no games yet</span>';
+        var add = '<select data-foadd="' + i + '"><option value="">+ add a game…</option>' + ids.filter(function (t) { return (fo.tids || []).indexOf(t) < 0; }).map(function (t) { return '<option value="' + t + '">' + esc(T[t]) + (inFold[t] ? ' (now in ' + esc(inFold[t]) + ')' : '') + '</option>'; }).join('') + '</select>';
+        var st = tg.map(function (r) { var o = rooms[r], sent = fo.sent && fo.sent[r]; var ok = o && vge(o.v, '1.1.145'); return r.charAt(0).toUpperCase() + r.slice(1, 4) + ': ' + (!o ? 'no PS4' : !ok ? '<span class="hint">needs helper 1.1.145 (has ' + esc(o.v || '?') + ')</span>' : sent ? '<span style="color:#7d7">sent ' + new Date(sent).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + '</span>' : '<span style="color:#fa5">not sent</span>'); }).join(' · ');
+        return '<div style="border-top:1px solid var(--line2);padding:8px 0"><div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><input data-foname="' + i + '" value="' + esc(fo.name) + '" maxlength="30" style="width:180px;font-weight:600"> ' + sel + '</div>' +
+          '<div style="margin:4px 0">' + chips + ' ' + add + '</div><div class="hint" style="margin:2px 0">' + st + '</div>' +
+          '<div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn primary" type="button" data-fosend="' + i + '" style="padding:3px 10px;font-size:12px">Send to its rooms</button><button class="btn" type="button" data-fodel="' + i + '" style="padding:3px 10px;font-size:12px">Take off the PS4s</button><button class="btn ghost" type="button" data-foforget="' + i + '" style="padding:3px 10px;font-size:12px">Delete from this list</button></div></div>';
+      }).join('');
+      function on(sel2, ev, fn) { [].forEach.call(el.querySelectorAll(sel2), function (c) { c[ev] = function (e) { fn(c, e); }; }); }
+      on('[data-foname]', 'onchange', function (c) { var i = +c.getAttribute('data-foname'), v = c.value.replace(/[^A-Za-z0-9 -]/g, '').trim().slice(0, 30); if (!v) { c.value = folders[i].name; return; } if (v !== folders[i].name) { $('pkMsg3').textContent = 'Renamed – press "Send to its rooms" (the old name stays on the PS4s until you take it off).'; folders[i].oldName = folders[i].oldName || folders[i].name; folders[i].name = v; folders[i].sent = {}; saveFolders('✅ Renamed to ' + v + ' – press Send to its rooms.'); } });
+      on('[data-fotier]', 'onchange', function (c) { var i = +c.getAttribute('data-fotier'); folders[i].tier = c.value; if (!c.value && !(folders[i].rooms || []).length) folders[i].rooms = ['kaeden']; saveFolders(); });
+      on('[data-foroom]', 'onchange', function (c) { var x = c.getAttribute('data-foroom').split('|'), fo = folders[+x[0]]; fo.rooms = (fo.rooms || []).filter(function (r) { return r !== x[1]; }); if (c.checked) fo.rooms.push(x[1]); saveFolders(); });
+      on('[data-foadd]', 'onchange', function (c) { var i = +c.getAttribute('data-foadd'), t = c.value; if (!t) return; folders.forEach(function (o, j) { if (j !== i) o.tids = (o.tids || []).filter(function (x) { return x !== t; }); }); folders[i].tids = (folders[i].tids || []).concat([t]); saveFolders('✅ Added – press Send to its rooms.'); });
+      on('[data-form]', 'onclick', function (c, e) { e.preventDefault(); var x = c.getAttribute('data-form').split('|'); folders[+x[0]].tids.splice(+x[1], 1); saveFolders('✅ Removed – press Send to its rooms.'); });
+      on('[data-fosend]', 'onclick', function (c) { foldSend(+c.getAttribute('data-fosend'), false); });
+      on('[data-fodel]', 'onclick', function (c) { foldSend(+c.getAttribute('data-fodel'), true); });
+      on('[data-foforget]', 'onclick', function (c) { var i = +c.getAttribute('data-foforget'); if (!confirm('Delete "' + folders[i].name + '" from this list? It stays on the PS4s it was sent to – use "Take off the PS4s" first to remove it there.')) return; folders.splice(i, 1); saveFolders('✅ Deleted from the list.'); });
+    }
+    function foldSend(i, del) {
+      var fo = folders[i], m = $('pkMsg3'); if (!fo) return;
+      if (!del && !(fo.tids || []).length) { m.textContent = 'Add at least one game first.'; return; }
+      var tg = fTarget(fo).filter(function (r) { return rooms[r] && rooms[r].id && vge(rooms[r].v, '1.1.145'); }); if (!tg.length) { m.textContent = 'None of its rooms has helper 1.1.145 yet.'; return; }
+      var nm = fo.name.replace(/ /g, '_'), cmds = [];
+      if (del) cmds.push('/_fold.del.' + nm); else { if (fo.oldName && fo.oldName !== fo.name) cmds.push('/_fold.del.' + fo.oldName.replace(/ /g, '_')); cmds.push('/_fold.set.' + nm + '.' + fo.tids.join('-')); }
+      if (!confirm((del ? 'Take the folder "' + fo.name + '" off ' : 'Put the folder "' + fo.name + '" (' + fo.tids.length + ' games) on every profile of ') + tg.join(', ') + '?\nA PS4 with a game open says no – send again later. Shows after the next profile switch / clean slate.')) return;
+      m.textContent = 'Sending…';
+      Promise.all(tg.map(function (r) { return gm({ action: 'ps4look', id: rooms[r].id, paths: cmds.join(';'), by: 'control centre: folders' }).then(function (j) { return [r, j]; }); })).then(function (rs) {
+        var bad = rs.filter(function (x) { return x[1].error; }); fo.sent = fo.sent || {}; rs.forEach(function (x) { if (!x[1].error) { if (del) delete fo.sent[x[0]]; else fo.sent[x[0]] = Date.now(); } });
+        if (!del) delete fo.oldName;
+        saveFolders((bad.length ? '⚠ ' + bad.map(function (x) { return x[0] + ': ' + x[1].error; }).join(' · ') + ' · ' : '✅ ') + (del ? 'Taking it off ' : 'Sent to ') + (rs.length - bad.length) + ' PS4(s). Each does it within a minute (not while a game is open); guests see it after the next profile switch.'); });
+    }
     function byId(id) { if (!lap) return null; for (var i = 0; i < lap.pkgs.length; i++) if (lap.pkgs[i].id === id) return lap.pkgs[i]; return null; }
     function drawRooms() {
       $('pkRooms').innerHTML = ROOMS.map(function (r) { var o = rooms[r], on = o && Date.now() - (o.poll || 0) < 3 * 60e3; return '<label style="white-space:nowrap"><input type="checkbox" data-pkr="' + r + '"' + (sel[r] ? ' checked' : '') + '> ' + r.charAt(0).toUpperCase() + r.slice(1) + ' <span class="hint">' + (on ? 'on' : 'off') + ' · FW ' + (o && o.fw || FW[r]) + (FAR[r] ? ' · other Wi-Fi' : '') + '</span></label>'; }).join('');
@@ -3562,14 +3608,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     function loadQ() {
       return Promise.all([gm({ action: 'pkglist' }), gm({ action: 'ps4list', g: '1' })]).then(function (a) {
-        q = (a[0] && a[0].rooms) || {}; if (a[0] && a[0].cat) cat = a[0].cat; lapFrom(a[0] && a[0].lap); drawLap(); rooms = {}; ((a[1] && a[1].list) || []).forEach(function (p) { if (p.room) rooms[p.room] = p; });
+        q = (a[0] && a[0].rooms) || {}; if (a[0] && a[0].cat) cat = a[0].cat; if (a[0] && a[0].folders && Date.now() - foldTouch > 60e3) folders = a[0].folders; lapFrom(a[0] && a[0].lap); drawLap(); rooms = {}; ((a[1] && a[1].list) || []).forEach(function (p) { if (p.room) rooms[p.room] = p; });
         var h = ''; ROOMS.forEach(function (r) { var L = q[r] || [], o = rooms[r], pk = o && o.pkg; if (!L.length && !(pk && pk.on)) return;
           h += '<div style="margin-top:4px"><b>' + r.charAt(0).toUpperCase() + r.slice(1) + '</b>' + (pk && pk.last ? ' <span class="hint">' + esc(pk.last) + '</span>' : '') + L.map(function (j) {
             var c = j.state === 'done' ? '#7d7' : j.state === 'failed' ? '#f88' : j.state === 'running' || j.state === 'sent' ? '#7cf' : '#ccc';
             return '<div style="margin-left:12px"><span style="color:' + c + '">' + esc(j.state) + '</span> ' + (j.op === 'rm' ? 'remove ' : '') + esc((j.title || j.name) + ' ' + (CAT[j.cat] || '') + ' ' + (j.ver || '')) + (j.why ? ' <span class="hint">' + esc(j.why) + '</span>' : '') + (j.state !== 'done' && j.state !== 'failed' ? ' <button class="btn ghost" type="button" data-pkc="' + r + '|' + j.jid + '" style="padding:1px 8px;font-size:11px">cancel</button>' : '') + '</div>'; }).join('') + '</div>'; });
         $('pkQueue').innerHTML = h || '<span class="hint">Nothing queued.</span>';
         [].forEach.call($('pkQueue').querySelectorAll('[data-pkc]'), function (b) { b.onclick = function () { var x = b.getAttribute('data-pkc').split('|'); gm({ action: 'pkgcancel', room: x[0], jid: x[1], by: 'control centre' }).then(loadQ); }; });
-        drawRooms(); drawList(); drawOnPs4();
+        drawRooms(); drawList(); drawOnPs4(); if (Date.now() - foldTouch > 60e3) drawFolders();
       });
     }
     function wire() {
@@ -3580,6 +3626,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('pkSync').onclick = function () { sync(Object.keys(cat)); };
       $('pkUnGame').onclick = function () { unSend('gd'); };
       $('pkUnPatch').onclick = function () { unSend('gp'); };
+      $('pkFoldNew').onclick = function () { var n = (prompt('Folder name (letters, digits, spaces, up to 30):', 'Halloween') || '').replace(/[^A-Za-z0-9 -]/g, '').trim().slice(0, 30); if (!n) return; folders.push({ name: n, tids: [], tier: 'netflix', rooms: [], sent: {} }); saveFolders('✅ ' + n + ' added – now add its games.'); };
       $('pkSend').onclick = function () { send('install'); };
       $('pkRm').onclick = function () { send('rm'); };
       [].forEach.call(document.querySelectorAll('[data-pktier]'), function (b) { b.onclick = function () { var t = b.getAttribute('data-pktier'); sel = {}; (TIER[t] || []).forEach(function (r) { sel[r] = 1; }); drawRooms(); drawBasket(); }; });
