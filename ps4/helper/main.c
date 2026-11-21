@@ -1244,7 +1244,7 @@ static int zl_has(const char *zs, int i) { if (!zs) return 0; const char *c = zs
     if (*c == '-') { c++; b = 0; while (*c >= '0' && *c <= '9') b = b * 10 + (*c++ - '0'); }
     if (i >= a && i <= b) return 1; if (*c != ',') break; c++; }
   return 0; }
-static int zs_on(void) { return !file_exists("/data/round2/zeroskip-off"); }
+static int zs_on(void) { return file_exists("/data/round2/zeroskip-on"); }   /* OFF unless switched on (/_zeroskip.on) - rooms below 1.1.139 can't load such saves */
 static void man_line(char *o, size_t on, const char *r, unsigned long long sz, int pieces, const char *hx, zl_t *z) {
   const char *zs = z ? zl_end(z) : ""; if (zs[0]) snprintf(o, on, "%s\t%llu\t%d\t%s\tz%s\n", r, sz, pieces, hx, zs); else snprintf(o, on, "%s\t%llu\t%d\t%s\n", r, sz, pieces, hx); }
 /* the z list of file r in a manifest text (0 if none) - copied into out */
@@ -1365,7 +1365,7 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
     if (sv_defer) { snprintf(sv_prep, sizeof sv_prep, "%s/%s", sv_defer_dir, nm); mkdirs_for(sv_prep); mkdir(sv_prep, 0777); } /* 1.1.123 */
     else if (sv_noprep) sv_prep[0] = 0; else { snprintf(sv_prep, sizeof sv_prep, "/data/round2/prep/%s/%s/%s", u, t, nm); mkdirs_for(sv_prep); } sv_prep_fail = 0;
     sv_log("backup start: user %s game %s save %s -> prep %s + cloud %s", u, t, nm, sv_prep, base);
-    sv_files = sv_fail = 0; sv_bytes = 0; sv_man_n = 0; if (sv_man) sv_man[0] = 0;
+    unsigned long long zb0 = g_zero_up; sv_files = sv_fail = 0; sv_bytes = 0; sv_man_n = 0; if (sv_man) sv_man[0] = 0;
     sv_up_dir(key, base, SV_MNT, "", 0);
     int cr = sv_close();
     char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", base);
@@ -1375,7 +1375,7 @@ static int look_sback(const char *key, const char *spec) { /* "/_sback.<user>.<t
     { char kk[80]; snprintf(kk, sizeof kk, "backup/%s/result", nm); look_kv(kk, v); }
     if (sv_prep[0]) { char pmf[300]; snprintf(pmf, sizeof pmf, "%s/manifest.txt", sv_prep); FILE *pf = fopen(pmf, "w"); if (pf) { if (sv_man) fputs(sv_man, pf); fclose(pf); }
       char cf[300]; snprintf(cf, sizeof cf, "%s/cloud.txt", sv_prep); FILE *cf2 = fopen(cf, "w"); if (cf2) { fprintf(cf2, "%s\n", base); fclose(cf2); } }
-    sv_log("backup done: user %s game %s save %s: %d files, %llu bytes, %d failed, prep-fails %d, manifest %s", u, t, nm, sv_files, sv_bytes, sv_fail, sv_prep_fail, mr ? "NOT saved" : "saved");
+    sv_log("backup done: user %s game %s save %s: %d files, %llu bytes, %d failed, prep-fails %d, manifest %s, %llu KB empty pieces not sent%s", u, t, nm, sv_files, sv_bytes, sv_fail, sv_prep_fail, mr ? "NOT saved" : "saved", (g_zero_up - zb0) / 1024, sv_defer ? " (deferred)" : "");
     sv_prep[0] = 0;
     ok = sv_fail || mr ? -1 : 0;
   } else { look_kv("backup/error", v); sv_log("backup FAILED to open: user %s game %s save %s: %s", u, t, nm, v); }
@@ -2264,7 +2264,10 @@ static int sv_make_part_do(const char *key, const char *u, const char *t, const 
   char mk[300]; snprintf(mk, sizeof mk, "%s/manifest.txt", src);
   unsigned char *man = 0; size_t ml = 0; char gw[130] = "";
   if (sv_get(key, mk, &man, &ml, gw, sizeof gw) || !ml) { free(man); snprintf(why, wn, "source not found (%s)", gw); return -1; }
-  static char mt[16384]; size_t mc = ml < sizeof mt - 1 ? ml : sizeof mt - 1; memcpy(mt, man, mc); mt[mc] = 0; free(man);
+  /* 1.1.139: the whole manifest (was cut at 16 KB - longer lines now carry a fingerprint + empty-piece list, and a save with
+     many files could lose its param.sfo line) */
+  static char *mt; static size_t mtcap; if (ml + 1 > mtcap) { char *nb = realloc(mt, ml + 1); if (!nb) { free(man); snprintf(why, wn, "no memory for the manifest"); return -1; } mt = nb; mtcap = ml + 1; }
+  memcpy(mt, man, ml); mt[ml] = 0; free(man);
   static char sysn[16][64]; static unsigned char *sysd[16]; static size_t sysl[16]; int ns = 0, sfoi = -1;
   { /* 1.1.81: all label files in one request (fallback: one by one) */
     static char lk[16][400]; const char *kp2[16]; int nk = 0;
@@ -4946,6 +4949,8 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_mi.off")) { put_file("/data/round2/mi-skip-off", "1"); look_kv("mi/result", "member-index skip OFF"); }
     else if (!strcmp(t, "/_mi.on")) { unlink("/data/round2/mi-skip-off"); look_kv("mi/result", "member-index skip ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
+    else if (!strcmp(t, "/_zeroskip.on")) { put_file("/data/round2/zeroskip-on", "1\n"); sv_log("zero-skip ON: empty pieces are not sent from now on"); look_kv("zeroskip/result", "on"); }
+    else if (!strcmp(t, "/_zeroskip.off")) { unlink("/data/round2/zeroskip-on"); sv_log("zero-skip OFF: every piece is sent"); look_kv("zeroskip/result", "off"); }
     else if (!strncmp(t, "/_resend.", 9)) { char ru[16] = "", rt[16] = "", rp[200]; /* 1.1.139 */
       if (sscanf(t, "/_resend.%8[0-9a-f].%9[A-Z0-9]", ru, rt) == 2 && strlen(ru) == 8 && strlen(rt) == 9) { snprintf(rp, sizeof rp, PREPD "/%s/%s/resend.txt", ru, rt); mkdirs_for(rp); sleep(1);
         put_file(rp, "resend\n"); sv_log("resend: %s %s - its parts go to the cloud again at the next cloud batch, even if unchanged", ru, rt); look_kv("resend/result", "marked"); }
