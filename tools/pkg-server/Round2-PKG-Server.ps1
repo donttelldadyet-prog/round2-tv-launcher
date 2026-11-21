@@ -77,8 +77,8 @@ public static class R2Srv {
             if (idle > 600) { lines.Add(x.Room + " stopped " + Short(x.Name) + " at " + (100 * x.Done / Math.Max(1, x.Size)) + "% (" + Mb(x.Done) + " of " + Mb(x.Size) + ") - nothing asked for 10 min"); drop.Add(x.Key); continue; }
             double secs = Math.Max(1, (DateTime.Now - x.LastLog).TotalSeconds); double rate = (x.Done - x.LastLogDone) / secs;
             if (x.Done == x.LastLogDone && idle > 60) continue;   // quiet: don't repeat the same line
-            string left = rate > 1024 ? " · about " + Dur((x.Size - x.Done) / rate) + " left" : "";
-            lines.Add(x.Room + " · " + Short(x.Name) + ": " + Mb(x.Done) + " of " + Mb(x.Size) + " (" + (100 * x.Done / Math.Max(1, x.Size)) + "%) · " + (rate / 1048576).ToString("0.0") + " MB/s" + left + (x.Conns > 1 ? " · " + x.Conns + " connections" : ""));
+            string left = rate > 1024 ? " - about " + Dur((x.Size - x.Done) / rate) + " left" : "";
+            lines.Add(x.Room + " - " + Short(x.Name) + ": " + Mb(x.Done) + " of " + Mb(x.Size) + " (" + (100 * x.Done / Math.Max(1, x.Size)) + "%) - " + (rate / 1048576).ToString("0.0") + " MB/s" + left + (x.Conns > 1 ? " - " + x.Conns + " connections" : ""));
             x.LastLog = DateTime.Now; x.LastLogDone = x.Done;
           }
           foreach (string k in drop) xf.Remove(k);
