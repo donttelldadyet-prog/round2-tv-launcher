@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.137"   /* 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.138"   /* 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2161,7 +2161,13 @@ static int sv_db_add(const char *u, const char *t, const char *nm, const char *m
   if (file_copy(dp, bak) || file_copy(dp, work)) { snprintf(why, wn, "can't copy the save list (errno %d)", errno); return -1; }
   sqlite3 *db = 0; if (sqlite3_open_v2(work, &db, SQLITE_OPEN_READWRITE, 0) != SQLITE_OK) { snprintf(why, wn, "save list won't open"); sqlite3_close(db); return -1; }
   sqlite3_exec(db, "PRAGMA journal_mode=OFF", 0, 0, 0);
-  int before = db_count(db, t, nm);
+  int before = db_count(db, t, nm), stale = 0;
+  /* 1.1.138 (Kaeden 21 Nov 12:07, Karen's GTA: "save list row not added (rc 0, 1->2)"): the list still had a row for GTA's
+     sce_bu_ backup part although its files were gone (only called when the part's image + key don't exist) - a stale row is
+     replaced, not a reason to fail */
+  if (before == 1) { sqlite3_stmt *dq = 0; if (sqlite3_prepare_v2(db, "DELETE FROM savedata WHERE title_id=?1 AND dir_name=?2", -1, &dq, 0) == SQLITE_OK) {
+      sqlite3_bind_text(dq, 1, t, -1, SQLITE_STATIC); sqlite3_bind_text(dq, 2, nm, -1, SQLITE_STATIC); sqlite3_step(dq); } sqlite3_finalize(dq);
+    before = db_count(db, t, nm); stale = 1; sv_log("save list: user %s game %s part %s had a row but no files - old row replaced (%s)", u, t, nm, before == 0 ? "ok" : "still there"); }
   char mtime[40]; time_t now = time(0); struct tm tm; gmtime_r(&now, &tm); strftime(mtime, sizeof mtime, "%Y-%m-%dT%H:%M:%S.00Z", &tm);
   sqlite3_stmt *q = 0; int rc = sqlite3_prepare_v2(db, "INSERT INTO savedata(title_id, dir_name, main_title, sub_title, detail, tmp_dir_name, is_broken, user_param, blocks, free_blocks, size_kib, mtime, fake_broken, account_id, user_id, faked_owner, cloud_icon_url, cloud_revision, game_title_id) "
     "VALUES (?1, ?2, ?3, ?4, ?5, '', 0, 0, ?6, ?6, ?7, ?8, 0, ?9, ?10, 0, '', 0, ?1)", -1, &q, 0);
@@ -2691,7 +2697,10 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
       if (!strcmp(w2, "part already exists")) { sv_log("member load: %s %s %s is already on the disk - using it (1.1.122: GTA V sce_bu_ backup part, Kaeden 20 Nov 8:36pm)", u, t, pn[i]); /* NOT marked made: a failed load must never delete it */ }
       else { fails++; sv_log("member load: making %s %s %s failed: %s", u, t, pn[i], w2); } } else made[i] = 1; } }
   g_t_mk += tm_now() - tmk0;
-  if (fails) { snprintf(why, wn, "%d part(s) could not be made", fails); return -1; }
+  if (fails) { /* 1.1.138 (Kaeden 12:07: GTA was left with 4 empty parts): take back the parts made in this run, like a failed restore */
+    int back = 0; for (int i = 0; i < np; i++) if (made[i]) { char res[300]; if (!sv_del_part(u, t, pn[i], res, sizeof res)) back++; }
+    sv_log("member load: %s %s NOT loaded - %d part(s) could not be made; %d new part(s) taken back so the game starts clean (the member's cloud save is untouched)", u, t, fails, back);
+    snprintf(why, wn, "%d part(s) could not be made (game left clean)", fails); return -1; }
   int okp[64] = { 0 };
   for (int pass = 0; pass < 2; pass++) { fails = 0; /* 1.1.93: a part that fails gets one more try */
     for (int i = 0; i < np; i++) { if (okp[i]) continue; char rs[420]; snprintf(rs, sizeof rs, "/_srest.%s.%s.%s.%s", u, t, pn[i], pb[i]); if (look_srest(key, rs) != 0) fails++; else okp[i] = 1; }
