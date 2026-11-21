@@ -49,7 +49,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.140"   /* 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.141"   /* 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -98,6 +98,7 @@ static void cloud_report(void); /* 1.1.52 */
 static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
 static char pkg_last[200]; /* 1.1.132: last PKG job line for the report */
 static void sv_log(const char *fmt, ...);
+static void look_appdb(void);
 static void hexs(const unsigned char *b, int n, char *o);
 static void look_pkgjob(const char *spec); static void look_pkgstop(void); static void look_pkgrm(const char *spec);
 static int bg_load(char *why, size_t wn); static int (*bg_unreg)(int);
@@ -4950,6 +4951,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_mi.off")) { put_file("/data/round2/mi-skip-off", "1"); look_kv("mi/result", "member-index skip OFF"); }
     else if (!strcmp(t, "/_mi.on")) { unlink("/data/round2/mi-skip-off"); look_kv("mi/result", "member-index skip ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
+    else if (!strcmp(t, "/_appdb")) look_appdb();   /* 1.1.141 read-only */
     else if (!strcmp(t, "/_zeroskip.on")) { put_file("/data/round2/zeroskip-on", "1\n"); sv_log("zero-skip ON: empty pieces are not sent from now on"); look_kv("zeroskip/result", "on"); }
     else if (!strcmp(t, "/_zeroskip.off")) { unlink("/data/round2/zeroskip-on"); sv_log("zero-skip OFF: every piece is sent"); look_kv("zeroskip/result", "off"); }
     else if (!strncmp(t, "/_resend.", 9)) { char ru[16] = "", rt[16] = "", rp[200]; /* 1.1.139 */
@@ -5328,6 +5330,37 @@ static void look_pkgstop(void) {
   char jid[24] = ""; int task = -1; sscanf(b, "%23s %d", jid, &task); char why[120], v[160]; int r1 = -1, r2 = -1;
   if (!bg_load(why, sizeof why)) { if (bg_stop) r1 = bg_stop(task); if (bg_unreg) r2 = bg_unreg(task); }
   unlink(PKGJOB); snprintf(v, sizeof v, "job %s task %d stopped (stop 0x%08x, unregister 0x%08x)", jid, task, (unsigned)r1, (unsigned)r2); sv_log("pkg: %s", v); look_kv("pkgstop/result", v);
+}
+/* 1.1.141 (owner 21 Nov 3:07pm: "ps4 homescreen folders that I'll be able to name, or rename"): READ-ONLY probe of the PS4's
+   app list database (/system_data/priv/mms/app.db) - how home-screen folders are stored. Works on a copy; the system's file is
+   never opened for writing. Result: /data/round2/appdb-probe.txt (read it with /_tail). */
+static FILE *adb_out;
+static int adb_row(void *u, int n, char **v, char **c) { (void)u; if (!adb_out) return 0; size_t w = 0; fputs("  ", adb_out);
+  for (int i = 0; i < n && w < 900; i++) { int k = fprintf(adb_out, "%s%s=%.120s", i ? " | " : "", c[i], v[i] ? v[i] : "NULL"); if (k > 0) w += (size_t)k; }
+  fputs("\n", adb_out); return 0; }
+static void look_appdb(void) {
+  const char *src = "/system_data/priv/mms/app.db", *cp = "/data/round2/appdb-copy.db";
+  FILE *in = fopen(src, "rb"); if (!in) { look_kv("appdb/error", "can't open app.db"); return; }
+  FILE *o = fopen(cp, "wb"); if (!o) { fclose(in); look_kv("appdb/error", "can't copy"); return; }
+  static unsigned char b[65536]; size_t n, tot = 0; while ((n = fread(b, 1, sizeof b, in)) > 0) { fwrite(b, 1, n, o); tot += n; } fclose(in); fclose(o);
+  sqlite3 *db = 0; if (sqlite3_open_v2(cp, &db, SQLITE_OPEN_READONLY, 0) != SQLITE_OK) { sqlite3_close(db); unlink(cp); look_kv("appdb/error", "copy won't open"); return; }
+  adb_out = fopen("/data/round2/appdb-probe.txt", "w"); if (!adb_out) { sqlite3_close(db); unlink(cp); look_kv("appdb/error", "can't write the result"); return; }
+  fprintf(adb_out, "app.db copy %zu bytes, helper %s\n== tables (rows)\n", tot, R2_VERSION);
+  char *err = 0; static char tn[200][96]; int nt = 0; sqlite3_stmt *q = 0;
+  if (sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", -1, &q, 0) == SQLITE_OK) { while (sqlite3_step(q) == SQLITE_ROW && nt < 200) snprintf(tn[nt++], 96, "%s", (const char *)sqlite3_column_text(q, 0)); } sqlite3_finalize(q);
+  for (int i = 0; i < nt; i++) { char sql[300]; snprintf(sql, sizeof sql, "SELECT '%s' AS tbl, COUNT(*) AS n, (SELECT group_concat(name, ',') FROM pragma_table_info('%s')) AS cols FROM \"%s\"", tn[i], tn[i], tn[i]); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { sqlite3_free(err); err = 0; } }
+  for (int i = 0; i < nt; i++) { /* every column whose name mentions folders: rows where it is set */
+    char sql[400]; sqlite3_stmt *c = 0; snprintf(sql, sizeof sql, "SELECT name FROM pragma_table_info('%s') WHERE lower(name) LIKE '%%folder%%' OR lower(name) LIKE '%%parent%%'", tn[i]);
+    if (sqlite3_prepare_v2(db, sql, -1, &c, 0) != SQLITE_OK) { sqlite3_finalize(c); continue; }
+    while (sqlite3_step(c) == SQLITE_ROW) { const char *col = (const char *)sqlite3_column_text(c, 0); fprintf(adb_out, "== %s: rows with %s set (max 40)\n", tn[i], col);
+      snprintf(sql, sizeof sql, "SELECT * FROM \"%s\" WHERE \"%s\" IS NOT NULL AND \"%s\" != '' AND \"%s\" != 0 LIMIT 40", tn[i], col, col, col); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { fprintf(adb_out, "  (%s)\n", err); sqlite3_free(err); err = 0; } }
+    sqlite3_finalize(c); }
+  for (int i = 0; i < nt; i++) if (!strncmp(tn[i], "tbl_appbrowse", 13)) { char sql[300]; /* non-game rows (folders etc.) + 3 sample games */
+    fprintf(adb_out, "== %s: rows that aren't CUSA games (max 40)\n", tn[i]); snprintf(sql, sizeof sql, "SELECT * FROM \"%s\" WHERE titleId NOT LIKE 'CUSA%%' LIMIT 40", tn[i]); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { sqlite3_free(err); err = 0; }
+    fprintf(adb_out, "== %s: 3 sample games\n", tn[i]); snprintf(sql, sizeof sql, "SELECT * FROM \"%s\" WHERE titleId LIKE 'CUSA%%' LIMIT 3", tn[i]); sqlite3_exec(db, sql, adb_row, 0, &err); if (err) { sqlite3_free(err); err = 0; } }
+  fprintf(adb_out, "== tbl_appinfo keys that mention folders (max 40)\n"); sqlite3_exec(db, "SELECT * FROM tbl_appinfo WHERE lower(key) LIKE '%folder%' LIMIT 40", adb_row, 0, &err); if (err) { fprintf(adb_out, "  (%s)\n", err); sqlite3_free(err); err = 0; }
+  fclose(adb_out); adb_out = 0; sqlite3_close(db); unlink(cp);
+  char v[120]; snprintf(v, sizeof v, "%d tables - read /data/round2/appdb-probe.txt", nt); sv_log("app.db probe (read-only copy): %s", v); look_kv("appdb/result", v);
 }
 static void look_pkgrm(const char *spec) {
   char tid[16] = "", cat[4] = "gd", v[160], rt[32] = ""; if (sscanf(spec, "/_pkgrm.%9[A-Z0-9].%3[a-z]", tid, cat) < 1 || strlen(tid) != 9) { look_kv("pkgrm/error", "bad spec"); return; }
