@@ -8,9 +8,24 @@
 #   - keeps the laptop awake while a PS4 is downloading; 30 min after the last download Windows' own sleep timer takes over.
 # Start: double-click "Start Round2 PKG server.bat". Windows asks once to allow it on the network: tick Private (and Public if
 # the shop Wi-Fi is marked Public), then Allow.
+# 1.5 (21 Nov): the page opens in its own app window (Edge, else Chrome) with its own profile, so no browser tab shows an old copy.
+#   "Open Round2 PKG window.bat" reopens the window if it was closed (the server keeps running in the black window).
+param([switch]$WindowOnly)
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $port = 8890
+function Open-R2Window {
+  $u = "http://localhost:$port/?t=" + [DateTime]::Now.Ticks   # a new address each time, so nothing old is reused
+  $prof = Join-Path $env:LOCALAPPDATA 'Round2PKG\window'       # own profile: no restored tabs, no old cache
+  $cands = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")
+  $b = $cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+  try {
+    if ($b) { Start-Process -FilePath $b -ArgumentList @("--app=$u", "--user-data-dir=`"$prof`"", '--no-first-run', '--no-default-browser-check', '--disk-cache-size=1', '--window-size=1320,900') }
+    else { Start-Process $u }
+  } catch { Start-Process $u }
+}
+if ($WindowOnly) { Open-R2Window; exit }
 $code = @'
 using System;
 using System.IO;
@@ -43,7 +58,7 @@ public class R2Xfer {
   }
 }
 public static class R2Srv {
-  public static string ConfigPath, Token, StaffPath, Version = "1.4";
+  public static string ConfigPath, Token, StaffPath, Version = "1.5";
   public static int Port;
   public static List<string> Folders = new List<string>();
   public static List<R2Pkg> Pkgs = new List<R2Pkg>();
@@ -400,5 +415,5 @@ if (-not $tok -or $tok.Length -lt 16) { $b = New-Object byte[] 12; (New-Object S
 Write-Host "Round2 PKG server - keep this window open. Page: http://localhost:$port/" -ForegroundColor Cyan
 if ([R2Srv]::Folders.Count -eq 0) { Write-Host 'No folders yet - opening the page so you can add one.'; }
 [R2Srv]::Scan()
-Start-Process "http://localhost:$port/"
+Open-R2Window
 [R2Srv]::Run()

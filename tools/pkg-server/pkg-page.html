@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Round2 PKG server</title>
+<meta http-equiv="Cache-Control" content="no-store">
 <style>
 :root { --bg:#06050A; --panel:#110E1A; --panel2:#191527; --line:rgba(244,241,251,.12); --line2:rgba(244,241,251,.22);
   --ink:#F4F1FB; --mute:#9C94B3; --accent:#F2C21B; --ok:#4DB848; --warn:#F2A21B; --bad:#E8436A; --focus:#8EC5FF;
@@ -114,6 +115,7 @@ function drawLive() {
   lg.innerHTML = (live.log || []).map(function (l) { var c = /finished/.test(l) ? 'ok' : /stopped|error|fail/i.test(l) ? 'bad' : /started/.test(l) ? 'hl' : ''; return '<div class="' + c + '">' + esc(l) + '</div>'; }).join('') || '<div>Quiet.</div>';
   if (atEnd) lg.scrollTop = lg.scrollHeight;
 }
-function tick() { fetch('/api/live').then(function (r) { return r.json(); }).then(function (j) { live = j; drawLive(); }).catch(function () { $('now').innerHTML = '<div class="empty" style="color:var(--bad)">This page lost the server – is the PKG server window still open?</div>'; }); }
-go('/api/list'); tick(); setInterval(tick, 2000); setInterval(function () { fetch('/api/list').then(function (r) { return r.json(); }).then(function (j) { L = j; drawList(); }); }, 60000);
+var lost = false;   // 1.5: after the server comes back (restart), reload so the window shows the newest page
+function tick() { fetch('/api/live', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { if (lost) { location.replace('/?t=' + Date.now()); return; } live = j; drawLive(); }).catch(function () { lost = true; $('now').innerHTML = '<div class="empty" style="color:var(--bad)">This page lost the server – is the PKG server window still open?</div>'; }); }
+go('/api/list'); tick(); setInterval(tick, 2000); setInterval(function () { fetch('/api/list', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { L = j; drawList(); }); }, 60000);
 </script></body></html>
