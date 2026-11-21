@@ -49,7 +49,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.143"   /* 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.144"   /* 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -99,6 +99,7 @@ static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /
 static char pkg_last[200]; /* 1.1.132: last PKG job line for the report */
 static void sv_log(const char *fmt, ...);
 static void look_appdb(void);
+static void look_fold(const char *spec);
 static void hexs(const unsigned char *b, int n, char *o);
 static void look_pkgjob(const char *spec); static void look_pkgstop(void); static void look_pkgrm(const char *spec);
 static int bg_load(char *why, size_t wn); static int (*bg_unreg)(int);
@@ -4957,6 +4958,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_mi.on")) { unlink("/data/round2/mi-skip-off"); look_kv("mi/result", "member-index skip ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
     else if (!strcmp(t, "/_appdb")) look_appdb();   /* 1.1.141 read-only */
+    else if (!strncmp(t, "/_fold.", 7)) look_fold(t);   /* 1.1.144 */
     else if (!strcmp(t, "/_zeroskip.on")) { put_file("/data/round2/zeroskip-on", "1\n"); sv_log("zero-skip ON: empty pieces are not sent from now on"); look_kv("zeroskip/result", "on"); }
     else if (!strcmp(t, "/_zeroskip.off")) { unlink("/data/round2/zeroskip-on"); sv_log("zero-skip OFF: every piece is sent"); look_kv("zeroskip/result", "off"); }
     else if (!strncmp(t, "/_resend.", 9)) { char ru[16] = "", rt[16] = "", rp[200]; /* 1.1.139 */
@@ -5381,6 +5383,56 @@ static void look_appdb(void) {
     fclose(adb_out); adb_out = 0; }
   sqlite3_close(db); unlink(cp);
   char v[120]; snprintf(v, sizeof v, "%d tables - read /data/round2/appdb-short.txt (all: appdb-probe.txt)", nt); sv_log("app.db probe (read-only copy): %s", v); look_kv("appdb/result", v);
+}
+/* 1.1.144 (owner 21 Nov: home-screen folders he can name/rename): folders live in app.db, one table per profile
+   (tbl_appbrowse_<user id in decimal>): a folder = a row with folderType=1 (titleId = 9 digits, titleName = its name), a game in
+   it has parentFolderId = that titleId + positionInFolder. /_fold.list writes /data/round2/folders.txt (read-only).
+   /_fold.ren.<user hex>.<folder id>.<Name_with_underscores> renames ONE folder: app.db is copied to /data/round2/db/ first,
+   then ONE row is changed in the live file in a single SQLite transaction (nothing else touched). */
+static void look_fold(const char *spec) {
+  const char *db_p = "/system_data/priv/mms/app.db";
+  if (!strcmp(spec, "/_fold.list")) {
+    sqlite3 *db = 0; if (sqlite3_open_v2(db_p, &db, SQLITE_OPEN_READONLY, 0) != SQLITE_OK) { sqlite3_close(db); look_kv("fold/error", "app.db won't open"); return; }
+    sqlite3_busy_timeout(db, 3000);
+    FILE *o = fopen("/data/round2/folders.txt", "w"); if (!o) { sqlite3_close(db); look_kv("fold/error", "can't write"); return; }
+    RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L); int nf = 0;
+    for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; uint32_t u = (uint32_t)L.userId[i]; char nm[40] = ""; sceUserServiceGetUserName(L.userId[i], nm, sizeof nm);
+      char sql[300]; sqlite3_stmt *q = 0; snprintf(sql, sizeof sql, "SELECT titleId, titleName, folderInfo FROM tbl_appbrowse_%010u WHERE folderType=1", u);
+      fprintf(o, "profile %08x (%s): table tbl_appbrowse_%010u\n", u, nm, u);
+      if (sqlite3_prepare_v2(db, sql, -1, &q, 0) != SQLITE_OK) { fprintf(o, "  (no table: %s)\n", sqlite3_errmsg(db)); sqlite3_finalize(q); continue; }
+      while (sqlite3_step(q) == SQLITE_ROW) { const char *fid = (const char *)sqlite3_column_text(q, 0), *fn = (const char *)sqlite3_column_text(q, 1); nf++;
+        fprintf(o, "  folder %s '%s':", fid ? fid : "?", fn ? fn : "");
+        sqlite3_stmt *g = 0; if (sqlite3_prepare_v2(db, "SELECT 0", -1, &g, 0) == SQLITE_OK) sqlite3_finalize(g);
+        char sq2[300]; snprintf(sq2, sizeof sq2, "SELECT titleId, titleName FROM tbl_appbrowse_%010u WHERE parentFolderId=?1 ORDER BY positionInFolder", u);
+        if (sqlite3_prepare_v2(db, sq2, -1, &g, 0) == SQLITE_OK) { sqlite3_bind_text(g, 1, fid ? fid : "", -1, SQLITE_TRANSIENT); while (sqlite3_step(g) == SQLITE_ROW) fprintf(o, " %s (%s);", (const char *)sqlite3_column_text(g, 0), (const char *)sqlite3_column_text(g, 1)); }
+        sqlite3_finalize(g); fputs("\n", o); }
+      sqlite3_finalize(q); }
+    fclose(o); sqlite3_close(db); char v[80]; snprintf(v, sizeof v, "%d folder(s) - /data/round2/folders.txt", nf); look_kv("fold/result", v); sv_log("folders: listed %d (read-only)", nf); return; }
+  if (!strcmp(spec, "/_fold.undo")) { /* put the newest backup back (emergency) */
+    DIR *d = opendir("/data/round2/db"); struct dirent *e; char best[160] = ""; long long bt = 0;
+    while (d && (e = readdir(d))) { long long t2 = 0; if (sscanf(e->d_name, "app-%lld.db", &t2) == 1 && t2 > bt) { bt = t2; snprintf(best, sizeof best, "/data/round2/db/%s", e->d_name); } } if (d) closedir(d);
+    if (!best[0]) { look_kv("fold/error", "no app.db backup"); return; }
+    int r = file_copy(best, db_p); char v[200]; snprintf(v, sizeof v, "app.db put back from %s: %s", best, r ? "FAILED" : "done - restart the PS4 to be sure the menu reads it"); sv_log("folders: %s", v); look_kv(r ? "fold/error" : "fold/result", v); return; }
+  char uh[16] = "", fid[16] = "", name[64] = "";
+  if (sscanf(spec, "/_fold.ren.%8[0-9a-f].%9[0-9].%40[A-Za-z0-9_-]", uh, fid, name) != 3 || strlen(fid) != 9 || !name[0]) { look_kv("fold/error", "bad spec"); return; }
+  for (char *c = name; *c; c++) if (*c == '_') *c = ' ';
+  uint32_t u = (uint32_t)strtoul(uh, 0, 16);
+  char rt[32] = ""; running_title(rt, sizeof rt); if (rt[0] && strcmp(rt, "RTWO00001")) { look_kv("fold/refused", "- a game is open"); return; }
+  mkdir("/data/round2/db", 0777); char bak[160]; snprintf(bak, sizeof bak, "/data/round2/db/app-%lld.db", (long long)time(0));
+  if (file_copy(db_p, bak)) { look_kv("fold/error", "backup of app.db failed - nothing changed"); return; }
+  sqlite3 *db = 0; if (sqlite3_open_v2(db_p, &db, SQLITE_OPEN_READWRITE, 0) != SQLITE_OK) { sqlite3_close(db); look_kv("fold/error", "app.db won't open for writing - nothing changed"); return; }
+  sqlite3_busy_timeout(db, 5000);
+  char sql[300], v[220], old[64] = ""; int ch = -1, rc;
+  snprintf(sql, sizeof sql, "SELECT titleName FROM tbl_appbrowse_%010u WHERE titleId=?1 AND folderType=1", u);
+  sqlite3_stmt *q = 0; if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, fid, -1, SQLITE_STATIC); if (sqlite3_step(q) == SQLITE_ROW) snprintf(old, sizeof old, "%s", (const char *)sqlite3_column_text(q, 0)); } sqlite3_finalize(q);
+  if (!old[0]) { sqlite3_close(db); look_kv("fold/error", "no such folder on that profile - nothing changed"); return; }
+  rc = sqlite3_exec(db, "BEGIN IMMEDIATE", 0, 0, 0);
+  if (rc == SQLITE_OK) { snprintf(sql, sizeof sql, "UPDATE tbl_appbrowse_%010u SET titleName=?1 WHERE titleId=?2 AND folderType=1", u);
+    q = 0; if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, name, -1, SQLITE_STATIC); sqlite3_bind_text(q, 2, fid, -1, SQLITE_STATIC); rc = sqlite3_step(q) == SQLITE_DONE ? SQLITE_OK : -1; ch = sqlite3_changes(db); } else rc = -1; sqlite3_finalize(q);
+    if (rc == SQLITE_OK && ch == 1) rc = sqlite3_exec(db, "COMMIT", 0, 0, 0); else { sqlite3_exec(db, "ROLLBACK", 0, 0, 0); if (rc == SQLITE_OK) rc = -2; } }
+  sqlite3_close(db);
+  snprintf(v, sizeof v, "profile %08x folder %s '%s' -> '%s': %s (rows %d, backup %s)", u, fid, old, name, rc == SQLITE_OK ? "renamed" : "NOT changed", ch, bak);
+  sv_log("folders: %s", v); look_kv(rc == SQLITE_OK ? "fold/result" : "fold/error", v);
 }
 static void look_pkgrm(const char *spec) {
   char tid[16] = "", cat[4] = "gd", v[160], rt[32] = ""; if (sscanf(spec, "/_pkgrm.%9[A-Z0-9].%3[a-z]", tid, cat) < 1 || strlen(tid) != 9) { look_kv("pkgrm/error", "bad spec"); return; }
