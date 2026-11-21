@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.149"   /* 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.150"   /* 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -2816,6 +2816,13 @@ static int memload_game(const char *key, const char *u, const char *t, char *why
     snprintf(why, wn, "%d of %d parts failed to load (game left clean)", fails, np); return -1; }
   for (int j = 0; j < nr; j++) { int keep = 0; for (int i = 0; i < np; i++) if (!strcmp(pn[i], recv[j])) keep = 1; if (!keep) { char res[300]; sv_del_part(u, t, recv[j], res, sizeof res); } }
   sv_log("member load: user %s game %s: %d parts in (%d answered from the prefetch)", u, t, np, pf_hits); pf_clear();
+  { FILE *sf = 0; for (int i = 0; i < np; i++) {   /* 1.1.150: an old full-size cloud save (no empty-piece list) of 2 MB+ - check it later */
+      char mp[300]; snprintf(mp, sizeof mp, "/data/round2/prep/%s/%s/%s/manifest.txt", u, t, pn[i]); size_t ml = 0; char *m = read_all(mp, &ml, 256 * 1024);
+      if (!m) continue; unsigned long long tot = 0; int hasz = strstr(m, "\tz") != 0;
+      for (char *ln = m; ln && *ln; ) { char *nx = strchr(ln, '\n'); if (nx) *nx = 0; char f1[200]; unsigned long long sz = 0; if (sscanf(ln, "%199[^\t]\t%llu", f1, &sz) == 2 && strncmp(f1, "sce_sys/", 8)) tot += sz; ln = nx ? nx + 1 : 0; }
+      free(m);
+      if (!hasz && tot >= 2ull << 20) { if (!sf) sf = fopen("/data/round2/prep/slim.txt", "a"); if (sf) fprintf(sf, "%s %s %s\n", u, t, pn[i]); } }
+    if (sf) fclose(sf); }
   { char bf[120]; snprintf(bf, sizeof bf, "/data/round2/prep/noup_%s_%s", u, t); unlink(bf); }   /* 1.1.137: loaded fine - its saves are the member's again */
   return 0;
 }
@@ -4306,6 +4313,39 @@ send_now:
   { char gn[64], pn[40]; sw_game_name(t, gn, sizeof gn); pname(u, pn, sizeof pn); bpop_key("cprog", "PS4 -> Round2 cloud: %s (%s) uploaded%s", gn, pn, strncmp(base, "members/", 8) ? "" : " to the crew's account"); }
   return 0;
 }
+/* 1.1.150 (owner 22 Nov 00:52: "should we have this check for every game … future proof"): every upload already leaves out empty
+   1 MB pieces (zero-skip, 1.1.139) – but saves sent BEFORE that stay full size in the cloud (Vampire Survivors: 32 MB, 39 s to
+   load). After a member load, each such part of 2 MB+ is listed in prep/slim.txt; here, one a minute while nothing else runs,
+   its internal copy (exactly what was just loaded – not the live save) is checked for empty pieces, and if 1 MB+ is empty it is
+   sent again (/_resend way) so the member's cloud copy becomes the slim one. Only with zero-skip on (Kaeden for now). */
+static void slim_tick(void) {
+  if (!zs_on() || clean_on || snap_on || file_exists("/data/round2/memqn")) return;
+  size_t sl = 0; char *sb = read_all(PREPD "/slim.txt", &sl, 64 * 1024); if (!sb) return; if (!sl) { free(sb); unlink(PREPD "/slim.txt"); return; }
+  char *nl = strchr(sb, '\n'); char line[160]; snprintf(line, sizeof line, "%.*s", nl ? (int)(nl - sb) : (int)sl, sb);
+  { FILE *w = fopen(PREPD "/slim.tmp", "w"); if (w) { if (nl) fputs(nl + 1, w); fclose(w); rename(PREPD "/slim.tmp", PREPD "/slim.txt"); } }
+  free(sb);
+  char u[16] = "", t[16] = "", nm[64] = ""; if (sscanf(line, "%15s %15s %63s", u, t, nm) != 3) return;
+  char d[220], mp[300]; snprintf(d, sizeof d, PREPD "/%s/%s/%s", u, t, nm); snprintf(mp, sizeof mp, "%s/manifest.txt", d);
+  size_t ml = 0; char *m = read_all(mp, &ml, 256 * 1024); if (!m) { sv_log("slim: %s %s %s - no internal copy any more, skipped", u, t, nm); return; }
+  if (strstr(m, "\tz")) { free(m); return; }   /* already slim */
+  unsigned char *buf = malloc(SV_PIECE); if (!buf) { free(m); return; }
+  unsigned long long tot = 0, zero = 0;
+  for (char *ln = m; ln && *ln; ) { char *nx = strchr(ln, '\n'); if (nx) *nx = 0; char f1[200]; unsigned long long sz = 0;
+    if (sscanf(ln, "%199[^\t]\t%llu", f1, &sz) == 2 && strncmp(f1, "sce_sys/", 8)) { char fp[460]; snprintf(fp, sizeof fp, "%s/%s", d, f1); FILE *f = fopen(fp, "rb");
+      if (f) { size_t g; while ((g = fread(buf, 1, SV_PIECE, f)) > 0) { tot += g; if (g == SV_PIECE && is_zero(buf, g)) zero += g; } fclose(f); } }
+    ln = nx ? nx + 1 : 0; }
+  free(buf); free(m);
+  if (zero < (1ull << 20)) { sv_log("slim: %s %s %s - %llu of %llu KB empty, left as it is", u, t, nm, zero >> 10, tot >> 10); return; }
+  char mt[64] = ""; { char op[120]; snprintf(op, sizeof op, PREPD "/owner_%s.txt", u); FILE *of = fopen(op, "r"); if (of) { if (!fgets(mt, sizeof mt, of)) mt[0] = 0; fclose(of); mt[strcspn(mt, "\r\n ")] = 0; } }
+  if (r2_protected(t) || r2_replay_part(t, nm)) mt[0] = 0;
+  { char bf[120]; struct stat bs; snprintf(bf, sizeof bf, PREPD "/noup_%s_%s", u, t); if (!stat(bf, &bs)) mt[0] = 0; }
+  if (!mt[0] || strstr(mt, "/x")) { sv_log("slim: %s %s %s - %llu of %llu KB empty, but the profile isn't a member's save now - not sent", u, t, nm, zero >> 10, tot >> 10); return; }
+  { char rp[320]; snprintf(rp, sizeof rp, PREPD "/%s/%s/resend.txt", u, t); size_t rl = 0; char *rb = read_all(rp, &rl, 16384); FILE *w = fopen(rp, "w");   /* this part goes again, the others as they were */
+    if (w) { fputs("resend\n", w); if (rb) for (char *ln = rb, *nx; ln && *ln; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; if (strcmp(ln, "resend") && strcmp(ln, nm) && *ln) fprintf(w, "%s\n", ln); } fclose(w); }
+    free(rb); }
+  FILE *q = fopen(PREPD "/pending.txt", "a"); if (q) { fprintf(q, "%s %s %s %lld m=%s\n", u, t, nm, (long long)time(0), mt); fclose(q); }
+  sv_log("slim: %s %s %s - %llu of %llu KB empty: sent again without the empty pieces for member %s", u, t, nm, zero >> 10, tot >> 10, mt);
+}
 static void cloud_step(const char *key, int budget) {
   if (!file_exists(PREPD "/cloud_on") || sv_game_open()) return;
   char a[80]; pr_rd("cloud_pos", a, sizeof a); long pos = atol(a);
@@ -5713,6 +5753,7 @@ int main(void) {
     if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
     if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
     if (key[0]) defer_tick(key); /* 1.1.123: pre-load backups to the cloud after the load */
+    if (key[0]) slim_tick(); /* 1.1.150: old full-size cloud saves get a slim copy */
     if (key[0]) pkg_tick(key); /* 1.1.132: PKG download progress */
     if (key[0] && g_pkg_rep) { g_pkg_rep = 0; int st = report(key, status, sizeof status); write_status(status); sv_log("pkg: told Round2 straight away (%d) - next job can start", st); } /* 1.1.147 (owner 21 Nov 7:47pm: "why doesnt the patch follow immediately") */
     if (R2_SHELL && key[0]) { r2_where("job menu add-on", 1); shell_auto(key); } /* 1.1.115 (test build only): Round2 menu add-on at every PS4 start */
