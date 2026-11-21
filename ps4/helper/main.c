@@ -96,6 +96,7 @@ static int sv_defer; static char sv_defer_dir[300];
 static void cloud_report(void); /* 1.1.52 */
 static int cd_on, cd_ok; static long long cd_deadline; static char cd_lab[48]; /* 1.1.55 reset countdown */
 static char pkg_last[200]; /* 1.1.132: last PKG job line for the report */
+static void sv_log(const char *fmt, ...);
 static void look_pkgjob(const char *spec); static void look_pkgstop(void); static void look_pkgrm(const char *spec);
 static int bg_load(char *why, size_t wn); static int (*bg_unreg)(int);
 static long long g_after_load; /* 1.1.119: a member load batch just finished (time) -> pop-up once the tile is gone */
