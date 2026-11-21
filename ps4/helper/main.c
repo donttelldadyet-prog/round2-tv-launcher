@@ -1207,7 +1207,7 @@ static void mkdirs_for(const char *file); /* defined below */
 /* 1.1.34 (owner 17 Nov): a log of every save backup/restore/prep step, so problems in the 3-copy flow can be analysed.
    /data/round2/save.log, rolled at 64 KB; shown in the report as log.save. */
 static void sv_log(const char *fmt, ...) {
-  struct stat st; if (!stat("/data/round2/save.log", &st) && st.st_size > 65536) rename("/data/round2/save.log", "/data/round2/save.log.old");
+  struct stat st; if (!stat("/data/round2/save.log", &st) && st.st_size > 262144) rename("/data/round2/save.log", "/data/round2/save-old.log");   /* 1.1.137: 256 KB, and the old one ends in .log so it can be read remotely */
   FILE *f = fopen("/data/round2/save.log", "a"); if (!f) return;
   time_t t = time(0) + 8 * 3600; struct tm tm; gmtime_r(&t, &tm);
   fprintf(f, "%02d/%02d %02d:%02d:%02d ", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, tm.tm_min, tm.tm_sec);
