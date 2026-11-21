@@ -48,7 +48,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.138"   /* 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.139"   /* 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -1225,11 +1225,49 @@ static void snap_tick(const char *key) { /* 1.1.41: during a background snapshot
   if (now - last >= 20) { last = now; sceSystemServicePowerTick(); sceShellCoreUtilResetAutoPowerDownTimer(); } /* finish before rest mode */
   if (now - snap_hb >= 300 && key && key[0]) { char st[400]; snap_hb = now; report(key, st, sizeof st); write_status(st); }
 }
+/* 1.1.139 (owner 21 Nov 1:02pm "implement 1": skip empty pieces): a 1 MB piece that is all zero bytes is not sent to the cloud.
+   The manifest line gets a 5th column "z<list>" (piece numbers, e.g. z3-31 or z0,5-9) and a restore writes zeros for those
+   pieces itself. Never for sce_sys/ files (the labels are fetched on their own when a part is made). The SHA-256 in column 4 is
+   of the whole file, so a restore checks the rebuilt file. /data/round2/zeroskip-off = send every piece (for comparing).
+   Helpers before 1.1.139 don't know column 5: they ask for the missing pieces, get "missing in the cloud" and leave the save
+   untouched - rooms must be on 1.1.139+ before they load saves sent this way. */
+static unsigned long long g_zero_up, g_zero_dn;   /* bytes not sent / written as zeros, for the logs */
+static int is_zero(const unsigned char *b, size_t n) { size_t i = 0; for (; i + 8 <= n; i += 8) { uint64_t w; memcpy(&w, b + i, 8); if (w) return 0; } for (; i < n; i++) if (b[i]) return 0; return 1; }
+typedef struct { char s[224]; int rs, re; } zl_t;
+static void zl_init(zl_t *z) { z->s[0] = 0; z->rs = z->re = -2; }
+static void zl_flush(zl_t *z) { if (z->rs < 0) return; size_t l = strlen(z->s);
+  if (z->rs == z->re) snprintf(z->s + l, sizeof z->s - l, "%s%d", l ? "," : "", z->rs); else snprintf(z->s + l, sizeof z->s - l, "%s%d-%d", l ? "," : "", z->rs, z->re); z->rs = z->re = -2; }
+static int zl_add(zl_t *z, int i) { if (z->rs >= 0 && i == z->re + 1) { z->re = i; return 1; } if (strlen(z->s) + 26 > sizeof z->s - 1) return 0; zl_flush(z); z->rs = z->re = i; return 1; }
+static const char *zl_end(zl_t *z) { zl_flush(z); return z->s; }
+static int zl_has(const char *zs, int i) { if (!zs) return 0; const char *c = zs;
+  while (*c >= '0' && *c <= '9') { int a = 0, b; while (*c >= '0' && *c <= '9') a = a * 10 + (*c++ - '0'); b = a;
+    if (*c == '-') { c++; b = 0; while (*c >= '0' && *c <= '9') b = b * 10 + (*c++ - '0'); }
+    if (i >= a && i <= b) return 1; if (*c != ',') break; c++; }
+  return 0; }
+static int zs_on(void) { return !file_exists("/data/round2/zeroskip-off"); }
+static void man_line(char *o, size_t on, const char *r, unsigned long long sz, int pieces, const char *hx, zl_t *z) {
+  const char *zs = z ? zl_end(z) : ""; if (zs[0]) snprintf(o, on, "%s\t%llu\t%d\t%s\tz%s\n", r, sz, pieces, hx, zs); else snprintf(o, on, "%s\t%llu\t%d\t%s\n", r, sz, pieces, hx); }
+/* the z list of file r in a manifest text (0 if none) - copied into out */
+static const char *man_zlist(const char *man, const char *r, char *out, size_t on) {
+  out[0] = 0; if (!man) return 0; size_t rl = strlen(r);
+  for (const char *ln = man; ln && *ln; ) { const char *nx = strchr(ln, '\n');
+    if (!strncmp(ln, r, rl) && ln[rl] == '\t') { const char *e = nx ? nx : ln + strlen(ln); const char *z = 0;
+      for (const char *q = ln; q < e; q++) if (*q == '\t' && q[1] == 'z') z = q + 2;
+      if (z) { size_t n = 0; while (z + n < e && n < on - 1 && ((z[n] >= '0' && z[n] <= '9') || z[n] == ',' || z[n] == '-')) n++; memcpy(out, z, n); out[n] = 0; return out; }
+      return 0; }
+    ln = nx ? nx + 1 : 0; }
+  return 0; }
+/* 1.1.139 (owner 21 Nov 1:02pm "implement 2"): fight replays / highlights are not progress - never in a member's saves */
+static int r2_replay_part(const char *t, const char *nm) {
+  if (!strcmp(t, "CUSA11379") && !strncmp(nm, "RecentRecording", 15)) return 1;                 /* Mortal Kombat 11 replays */
+  if (!strcmp(t, "CUSA06400") && !strcmp(nm, "Replay")) return 1;                                /* MARVEL VS. CAPCOM: INFINITE */
+  if (!strcmp(t, "CUSA44372") && (!strncmp(nm, "highlights", 10) || !strcmp(nm, "ghosts"))) return 1;   /* F1 24 */
+  return 0; }
 static void sv_up_dir(const char *key, const char *base, const char *dir, const char *rel, int depth) {
   DIR *d = opendir(dir);
   if (!d) { sv_fail++; return; }
   struct dirent *e;
-  char p[512], r[400], k[700], line[520];
+  char p[512], r[400], k[700], line[800];
   while ((e = readdir(d))) {
     if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
     snprintf(p, sizeof p, "%s/%s", dir, e->d_name);
@@ -1243,6 +1281,7 @@ static void sv_up_dir(const char *key, const char *base, const char *dir, const 
     unsigned long long sz = (unsigned long long)st.st_size, done = 0;
     int pieces = 0, bad = 0, pfd = -1;
     mbedtls_sha256_context uh; mbedtls_sha256_init(&uh); mbedtls_sha256_starts(&uh, 0);   /* 1.1.137: content fingerprint in the cloud manifest */
+    zl_t zl; zl_init(&zl); int zok = zs_on() && strncmp(r, "sce_sys/", 8);   /* 1.1.139 */
     char pp[600];
     if (sv_prep[0]) { snprintf(pp, sizeof pp, "%s/%s", sv_prep, r); mkdirs_for(pp); pfd = open(pp, O_WRONLY | O_CREAT | O_TRUNC, 0666); if (pfd < 0) { sv_prep_fail++; sv_log("prep write-open fail %s (errno %d)", r, errno); } }
     do {
@@ -1251,14 +1290,16 @@ static void sv_up_dir(const char *key, const char *base, const char *dir, const 
       if (got != want) { bad = 1; break; }
       mbedtls_sha256_update(&uh, sv_buf, got);
       snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pieces);
-      if (!sv_defer && sv_put(key, k, sv_buf, got)) { bad = 1; break; }   /* 1.1.123: deferred = on the PS4 only for now */
+      int zskip = zok && got && is_zero(sv_buf, got) && zl_add(&zl, pieces);   /* 1.1.139: empty piece - not sent */
+      if (zskip) { if (!sv_defer) g_zero_up += got; }
+      else if (!sv_defer && sv_put(key, k, sv_buf, got)) { bad = 1; break; }   /* 1.1.123: deferred = on the PS4 only for now */
       if (snap_bg) snap_tick(key);
       if (pfd >= 0 && write(pfd, sv_buf, got) != (ssize_t)got) { sv_prep_fail++; sv_log("prep write fail %s (errno %d)", r, errno); close(pfd); pfd = -1; }
       done += got; pieces++;
     } while (done < sz);
     close(fd);
     if (pfd >= 0) { fsync(pfd); close(pfd); }
-    { unsigned char uhs[32]; mbedtls_sha256_finish(&uh, uhs); mbedtls_sha256_free(&uh); if (!bad) { char uhx[65]; hexs(uhs, 32, uhx); snprintf(line, sizeof line, "%s\t%llu\t%d\t%s\n", r, sz, pieces, uhx); } }
+    { unsigned char uhs[32]; mbedtls_sha256_finish(&uh, uhs); mbedtls_sha256_free(&uh); if (!bad) { char uhx[65]; hexs(uhs, 32, uhx); man_line(line, sizeof line, r, sz, pieces, uhx, &zl); } }
     if (bad) { sv_fail++; continue; }
     sv_files++; sv_bytes += sz;
     sv_man_add(line);
@@ -1271,19 +1312,21 @@ static int rm_tree2(const char *p, int depth) { struct stat st; if (lstat(p, &st
   while ((e = readdir(d))) { if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue; snprintf(q, sizeof q, "%s/%s", p, e->d_name); if (depth < 10 && rm_tree2(q, depth + 1)) bad = 1; }
   closedir(d); return rmdir(p) || bad; }
 /* 1.1.123: upload ONE deferred pre-load backup (all its parts), then remove it. Only when no member load runs. */
-static int defer_up_dir(const char *key, const char *base, const char *dir, const char *rel, int depth) {   /* files -> base/f/<rel>~<piece> */
+static int defer_up_dir(const char *key, const char *base, const char *dir, const char *rel, int depth, const char *man) {   /* files -> base/f/<rel>~<piece>; man = the part's manifest (1.1.139: its z lists) */
   DIR *d = opendir(dir); if (!d) return -1; struct dirent *e; char p[600], r[400], k[800]; int bad = 0;
   while (!bad && (e = readdir(d))) { if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
     if (!rel[0] && (!strcmp(e->d_name, "manifest.txt") || !strcmp(e->d_name, "cloud.txt"))) continue;
     snprintf(p, sizeof p, "%s/%s", dir, e->d_name); snprintf(r, sizeof r, "%s%s%s", rel, rel[0] ? "/" : "", e->d_name);
     struct stat st; if (lstat(p, &st)) continue;
-    if (S_ISDIR(st.st_mode)) { if (depth < 8 && defer_up_dir(key, base, p, r, depth + 1)) bad = 1; continue; }
+    if (S_ISDIR(st.st_mode)) { if (depth < 8 && defer_up_dir(key, base, p, r, depth + 1, man)) bad = 1; continue; }
     int fd = open(p, O_RDONLY); if (fd < 0) { bad = 1; break; }
-    unsigned long long sz = (unsigned long long)st.st_size, done = 0; int pc = 0;
+    unsigned long long sz = (unsigned long long)st.st_size, done = 0; int pc = 0; char zb[224]; const char *zs = man_zlist(man, r, zb, sizeof zb);
     do { size_t want = sz - done > SV_PIECE ? SV_PIECE : (size_t)(sz - done), got = 0;
       while (got < want) { ssize_t x = read(fd, sv_buf + got, want - got); if (x <= 0) break; got += (size_t)x; }
       if (got != want) { bad = 1; break; }
-      snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pc); if (sv_put(key, k, sv_buf, got)) { bad = 1; break; }
+      snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pc);
+      if (zs && zl_has(zs, pc)) { if (!is_zero(sv_buf, got)) { bad = 1; sv_log("deferred backup: %s piece %d marked empty but isn't - not sent", r, pc); break; } g_zero_up += got; }
+      else if (sv_put(key, k, sv_buf, got)) { bad = 1; break; }
       done += got; pc++; } while (done < sz);
     close(fd); }
   closedir(d); return bad;
@@ -1299,8 +1342,8 @@ static void defer_tick(const char *key) {
   double t0 = tm_now(); int bad = 0, parts = 0; DIR *pd = opendir(top); struct dirent *pe; char p[600];
   while (pd && !bad && (pe = readdir(pd))) { if (pe->d_name[0] == '.') continue; snprintf(p, sizeof p, "%s/%s", top, pe->d_name); struct stat st; if (lstat(p, &st) || !S_ISDIR(st.st_mode)) continue;
     char cf[700], base[300] = ""; snprintf(cf, sizeof cf, "%s/cloud.txt", p); FILE *f = fopen(cf, "r"); if (!f || !fgets(base, sizeof base, f)) { if (f) fclose(f); bad = 1; break; } fclose(f); base[strcspn(base, "\r\n")] = 0;
-    if (defer_up_dir(key, base, p, "", 0)) { bad = 1; break; }
     size_t n = 0; char mp[700]; snprintf(mp, sizeof mp, "%s/manifest.txt", p); char *m = read_all(mp, &n, 4 << 20); char mk[400]; snprintf(mk, sizeof mk, "%s/manifest.txt", base);
+    if (defer_up_dir(key, base, p, "", 0, m)) { free(m); bad = 1; break; }
     if (!m || sv_put(key, mk, (const unsigned char *)m, n)) { free(m); bad = 1; break; } free(m); parts++; }
   if (pd) closedir(pd);
   if (!bad) { size_t n = 0; char gp[500], kp[500], gk[400] = ""; snprintf(gp, sizeof gp, "%s/game.txt", top); snprintf(kp, sizeof kp, "%s/gamekey.txt", top);
@@ -1542,18 +1585,29 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
   if (!fn || !fsz) { free(fn); free(fsz); free(mt); free(mt0); sv_rights_back(); look_kv("restore/error", "no memory"); return -1; }
   int *fpc = calloc((size_t)nl + 1, sizeof *fpc);
   char **fh = calloc((size_t)nl + 1, sizeof *fh); /* 1.1.137: each file's SHA-256 from the cloud manifest (saves sent from 1.1.137 on) */
+  char **fz = calloc((size_t)nl + 1, sizeof *fz); /* 1.1.139: each file's empty pieces (written as zeros here, never asked for) */
   for (char *ln = mt, *nx; ln && *ln && fpc && fh; ln = nx) { /* list the files */
     nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
     char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0;
     char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
-    char *t3 = strchr(t2, '\t'); if (t3) { *t3++ = 0; t3[strcspn(t3, "\r\n\t ")] = 0; if (strlen(t3) != 64) t3 = 0; }
+    char *t3 = strchr(t2, '\t'), *t4 = 0; if (t3) { *t3++ = 0; t4 = strchr(t3, '\t'); if (t4) { *t4++ = 0; if (*t4 == 'z') t4++; else t4 = 0; } t3[strcspn(t3, "\r\n\t ")] = 0; if (strlen(t3) != 64) t3 = 0; }
+    if (t4) t4[strcspn(t4, "\r\n\t ")] = 0;
     if (!strncmp(ln, "sce_sys/", 8) || strstr(ln, "..")) { skipped++; continue; } /* the receiving save keeps its own labels */
-    fn[nf] = ln; fsz[nf] = strtoull(t1, 0, 10); fpc[nf] = atoi_safe(t2); fh[nf] = t3; nf++;
+    fn[nf] = ln; fsz[nf] = strtoull(t1, 0, 10); fpc[nf] = atoi_safe(t2); fh[nf] = t3; if (fz) fz[nf] = t4; nf++;
   }
-  if (!fh) { free(fpc); fpc = 0; }
+  if (!fh || !fz) { free(fpc); fpc = 0; }
+  /* 1.1.139: one-piece files that are all zeros: made here, not downloaded */
+  for (int i = 0; fpc && i < nf && !fail; i++) { if (fpc[i] != 1 || !zl_has(fz[i], 0)) continue;
+    char tmp[520]; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, fn[i]); mkdirs_for(tmp);
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0666); unsigned long long left = fsz[i]; int wbad = fd < 0;
+    if (!wbad) memset(sv_buf, 0, SV_PIECE);
+    while (!wbad && left) { size_t n = left > SV_PIECE ? SV_PIECE : (size_t)left; if (write(fd, sv_buf, n) != (ssize_t)n) wbad = 1; else left -= n; }
+    if (fd >= 0) { fsync(fd); close(fd); }
+    if (wbad) { fail++; snprintf(first_err, sizeof first_err, "%s: can't write zeros (errno %d)", fn[i], errno); break; }
+    g_zero_dn += fsz[i]; fpc[i] = -1; }
   if (!fpc) { fail++; snprintf(first_err, sizeof first_err, "no memory"); }
   /* phase 1: download. 1.1.81: one-piece files go in bundles (up to 32 files / 6 MB a request), big files piece by piece */
-  int bundles_ok = 1; double tdl0 = tm_now();
+  int bundles_ok = 1; double tdl0 = tm_now(); unsigned long long zd0 = g_zero_dn;
   for (int i = 0; i < nf && !fail; ) {
     if (fpc[i] != 1 || !bundles_ok) { i++; continue; }
     static char bk[32][700]; const char *bkp[32]; int bi[32], nb = 0; unsigned long long bsz = 0;
@@ -1582,7 +1636,14 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     struct stat bbst; int bb = bundles_ok && stat("/data/round2/bigbundle-off", &bbst);
     int pdone = 0; /* 1.1.93: pieces already written - the one-by-one loop carries on from here */
     for (int pi = 0; bb && !bad && pi < fpc[i]; ) {
-      int m = fpc[i] - pi > 6 ? 6 : fpc[i] - pi; static char pk[6][700]; const char *pkp[6]; int pfd6[6]; long long pg[6]; char gw[130] = "";
+      while (pi < fpc[i] && zl_has(fz[i], pi)) {   /* 1.1.139: empty pieces - zeros written here */
+        unsigned long long off = (unsigned long long)pi * SV_PIECE; size_t n = fsz[i] - off > SV_PIECE ? SV_PIECE : (size_t)(fsz[i] - off);
+        memset(sv_buf, 0, n); if (write(fd, sv_buf, n) != (ssize_t)n) { bad = 1; snprintf(why, sizeof why, "%s piece %d: zeros not written (errno %d)", fn[i], pi, errno); break; }
+        got += n; g_zero_dn += n; pi++; pdone = pi; }
+      if (bad) break;
+      if (pi >= fpc[i]) { fpc[i] = -2; break; }
+      int m = 0; while (m < 6 && pi + m < fpc[i] && !zl_has(fz[i], pi + m)) m++;
+      static char pk[6][700]; const char *pkp[6]; int pfd6[6]; long long pg[6]; char gw[130] = "";
       for (int j = 0; j < m; j++) { snprintf(pk[j], sizeof pk[j], "%s/f/%s~%d", src, fn[i], pi + j); pkp[j] = pk[j]; pfd6[j] = fd; }
       off_t at = lseek(fd, 0, SEEK_CUR); /* 1.1.137: pieces go straight into the file; a failed bundle is cut back off */
       int gr = sv_getm_fd(key, pkp, m, pfd6, pg, gw, sizeof gw);
@@ -1598,6 +1659,9 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     }
     for (int pi = pdone; fpc[i] > 0 && !bad && pi < fpc[i]; pi++) {
       unsigned long long dl = 0; char gw[130] = "";   /* 1.1.137: straight into the file, not memory */
+      if (zl_has(fz[i], pi)) { unsigned long long off = (unsigned long long)pi * SV_PIECE; size_t n = fsz[i] - off > SV_PIECE ? SV_PIECE : (size_t)(fsz[i] - off);
+        memset(sv_buf, 0, n); if (write(fd, sv_buf, n) != (ssize_t)n) { bad = 1; snprintf(why, sizeof why, "%s piece %d: zeros not written (errno %d)", fn[i], pi, errno); break; }
+        got += n; g_zero_dn += n; continue; }   /* 1.1.139 */
       snprintf(k, sizeof k, "%s/f/%s~%d", src, fn[i], pi);
       if (sv_get_fd(key, k, fd, &dl, gw, sizeof gw)) { bad = 1; snprintf(why, sizeof why, "%s piece %d: %s", fn[i], pi, gw); break; }
       got += dl;
@@ -1608,13 +1672,14 @@ static int look_srest(const char *key, const char *spec) { /* "/_srest.<user>.<t
     if (bad) { unlink(tmp); fail++; sv_log("restore download fail %s: %s", fn[i], why); if (!first_err[0]) snprintf(first_err, sizeof first_err, "%s", why); break; }
   }
   g_t_dl += tm_now() - tdl0;
+  if (g_zero_dn > zd0) sv_log("restore: %s %s %s - %llu KB of empty pieces written here, not downloaded", u, t, nm, (g_zero_dn - zd0) / 1024);
   /* 1.1.137 (owner 21 Nov "does going straight into a file have checks?"): every file is checked for its size above; and if the
      cloud manifest has fingerprints (saves sent from 1.1.137 on), each file in the prep folder is read back and must match. */
   if (!fail && fh) { int nh = 0; double th0 = tm_now();
     for (int i = 0; i < nf && !fail; i++) { if (!fh[i]) continue; char tmp[520], hx[65] = ""; snprintf(tmp, sizeof tmp, "%s/%s", prepbase, fn[i]);
       if (sv_file_sha(tmp, hx) || strncmp(hx, fh[i], 64)) { fail++; snprintf(first_err, sizeof first_err, "%s: fingerprint differs - download damaged", fn[i]); sv_log("restore: %s fingerprint differs (cloud %.12s, here %.12s)", fn[i], fh[i], hx); unlink(tmp); } else nh++; }
     if (nh) sv_log("restore: %d file(s) fingerprint-checked in %.1f s", nh, tm_now() - th0); }
-  free(fpc); free(fh);
+  free(fpc); free(fh); free(fz);
   if (fail) sv_log("restore: download incomplete for user %s game %s save %s - the save was NOT touched (%s)", u, t, nm, first_err);
   else ok = sv_open(u, t, nm, 0, v, sizeof v);
   if (!fail && ok == 0) { /* phase 2: everything is here - into the save */
@@ -2436,6 +2501,7 @@ static int sv_local_copy(const char *u, const char *t, const char *nm, int *nf, 
      GT Sport (protected titles) is never a member's save (owner 19 Nov 7:47pm: a free-for-all house save). */
   char mt[64] = ""; { char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u); FILE *of = fopen(op, "r"); if (of) { if (!fgets(mt, sizeof mt, of)) mt[0] = 0; fclose(of); mt[strcspn(mt, "\r\n ")] = 0; } }
   if (r2_protected(t)) mt[0] = 0;
+  if (mt[0] && r2_replay_part(t, nm)) { sv_log("copy: %s %s %s is a replay/highlight - room backup only, not member %s's save (1.1.139)", u, t, nm, mt); mt[0] = 0; }
   /* 1.1.137 (owner 21 Nov 2:00am: Karen's GTA – after a FAILED load the game was empty, a fresh save was made and replaced her cloud
      save at 2:01am): a game whose member load failed on this profile is not the member's save – it goes to the room's backup only */
   if (mt[0]) { char bf[120]; struct stat bs; snprintf(bf, sizeof bf, "/data/round2/prep/noup_%s_%s", u, t);
@@ -2651,6 +2717,7 @@ static void pf_game(const char *key, char (*parts)[220], int np) {
     for (char *ln = m, *nx; ln && *ln && n2 < PF_MAX - np; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
       char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0; char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
       unsigned long long sz = strtoull(t1, 0, 10); int pcs = atoi_safe(t2); if (pcs != 1 || strstr(ln, "..") || tot + sz > (6u << 20)) continue;
+      { const char *zz = strstr(t2, "\tz"); if (zz && zl_has(zz + 2, 0)) continue; }   /* 1.1.139: an empty file isn't in the cloud */
       snprintf(ks[np + n2], 400, "%s/f/%s~0", parts[i], ln); n2++; tot += sz; }
     free(m); }
   pf_fetch(key, ks + np, n2);
@@ -2672,10 +2739,11 @@ static void look_memtag(const char *spec) {
 }
 static int memload_game(const char *key, const char *u, const char *t, char *why, size_t wn) {
   pf_clear();
-  static char ix[64 * 1024]; static char pn[64][64], pb[64][220], recv[64][32]; int np = 0;
+  static char ix[64 * 1024]; static char pn[64][64], pb[64][220], recv[64][32]; int np = 0, nskip_rp = 0;
   FILE *f = fopen(CLND "/memindex", "r"); if (!f) { snprintf(why, wn, "no member index"); return -1; }
   size_t il = fread(ix, 1, sizeof ix - 1, f); ix[il] = 0; fclose(f);
-  for (char *ln = ix, *nx; ln && *ln && np < 64; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a[16], b[64], c[220]; if (sscanf(ln, "%15s %63s %219s", a, b, c) == 3 && !strcmp(a, t) && !strstr(c, "..")) { snprintf(pn[np], 64, "%s", b); snprintf(pb[np], 220, "%s", c); np++; } }
+  for (char *ln = ix, *nx; ln && *ln && np < 64; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0; char a[16], b[64], c[220]; if (sscanf(ln, "%15s %63s %219s", a, b, c) == 3 && !strcmp(a, t) && !strstr(c, "..") && !(r2_replay_part(t, b) && ++nskip_rp)) { snprintf(pn[np], 64, "%s", b); snprintf(pb[np], 220, "%s", c); np++; } }
+  if (nskip_rp) sv_log("member load: %s %s - %d replay/highlight part(s) in the member's list left out (1.1.139)", u, t, nskip_rp);
   if (!np) { snprintf(why, wn, "member has no parts for this game"); return -1; }
   if (r2_protected(t)) { snprintf(why, wn, "house save - never a member's"); return -1; }
   if (!game_installed(t)) { snprintf(why, wn, "game not installed in this room"); return -1; }
@@ -4111,6 +4179,11 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
   snprintf(p, sizeof p, "%s/manifest.txt", d); char *man = read_all(p, &mn, 256 * 1024);
   if (!man || !mn) { free(man); snprintf(why, wn, "no internal copy"); return -2; }
   snprintf(p, sizeof p, "%s/uploaded.txt", d); char *upl = read_all(p, &un, 256 * 1024);
+  int resend = 0;
+  { /* 1.1.139 /_resend.<user>.<game>: send each of this game's parts once more even if unchanged (the marker lists parts done) */
+    char rp[320]; snprintf(rp, sizeof rp, PREPD "/%s/%s/resend.txt", u, t); size_t rl = 0; char *rb = read_all(rp, &rl, 16384);
+    if (rb) { char pat[80]; snprintf(pat, sizeof pat, "\n%s\n", nm); int done = strstr(rb, pat) != 0; free(rb);
+      if (!done) { resend = 1; free(upl); upl = 0; un = 0; sv_log("cloud batch: %s %s %s - sent again on request (/_resend)", u, t, nm); goto send_now; } } }
   { char cp[320], cb[220] = ""; snprintf(cp, sizeof cp, "%s/cloud.txt", d); FILE *cf = fopen(cp, "r"); if (cf) { if (!fgets(cb, sizeof cb, cf)) cb[0] = 0; fclose(cf); }
     char want[120]; if (mtag[0]) snprintf(want, sizeof want, "members/%s/", mtag); else snprintf(want, sizeof want, "%s/", console_id);
     int same_dest = !strncmp(cb, want, strlen(want)); /* 1.1.84: unchanged AND already in the same place (same member) */
@@ -4127,10 +4200,11 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
         free(b);
         if (hit) { snprintf(p, sizeof p, "%s/uploaded.txt", d); FILE *uf = fopen(p, "w"); if (uf) { fwrite(man, 1, mn, uf); fclose(uf); } free(man); free(upl); *same = 1; sv_log("cloud batch: %s %s %s already in member %s's folder - not sent", u, t, nm, mtag); return 0; } } } }
   free(upl);
+send_now:
   if (!sv_buf) { void *b = mmap(0, SV_PIECE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0); if (b == MAP_FAILED) { free(man); snprintf(why, wn, "no memory"); return -1; } sv_buf = b; }
   char base[220]; if (mtag[0]) snprintf(base, sizeof base, "members/%s/%s/%s/%lld", mtag, t, nm, (long long)time(0)); else snprintf(base, sizeof base, "%s/%s/%s/%s/%lld", console_id, u, t, nm, (long long)time(0));
   sv_man_n = 0; if (sv_man) sv_man[0] = 0;
-  int bad = 0, nfiles = 0;
+  int bad = 0, nfiles = 0; unsigned long long z0 = g_zero_up; double tu0 = tm_now();
   for (char *ln = man, *nx; ln && *ln && !bad; ln = nx) {
     nx = strchr(ln, '\n'); if (nx) *nx++ = 0;
     char *t1 = strchr(ln, '\t'); if (!t1) continue; *t1++ = 0; char *t2 = strchr(t1, '\t'); if (!t2) continue; *t2++ = 0;
@@ -4139,14 +4213,15 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
     char fp[600]; snprintf(fp, sizeof fp, "%s/%s", d, r);
     int fd = open(fp, O_RDONLY); if (fd < 0) { bad = 1; snprintf(why, wn, "internal file missing: %.80s", r); break; }
     mbedtls_sha256_context h; mbedtls_sha256_init(&h); mbedtls_sha256_starts(&h, 0);
-    unsigned long long done = 0; int pieces = 0;
+    unsigned long long done = 0; int pieces = 0; zl_t zl; zl_init(&zl); int zok = zs_on() && strncmp(r, "sce_sys/", 8);   /* 1.1.139 */
     do {
       size_t want = sz - done > SV_PIECE ? SV_PIECE : (size_t)(sz - done), got = 0;
       while (got < want) { ssize_t x = read(fd, sv_buf + got, want - got); if (x <= 0) break; got += (size_t)x; }
       if (got != want) { bad = 1; snprintf(why, wn, "internal file short: %.80s", r); break; }
       mbedtls_sha256_update(&h, sv_buf, got);
       char k[760]; snprintf(k, sizeof k, "%s/f/%s~%d", base, r, pieces);
-      if (sv_put(key, k, sv_buf, got)) { bad = 1; snprintf(why, wn, "upload failed: %.80s", r); break; }
+      if (zok && got && is_zero(sv_buf, got) && zl_add(&zl, pieces)) g_zero_up += got;   /* 1.1.139: empty piece - not sent */
+      else if (sv_put(key, k, sv_buf, got)) { bad = 1; snprintf(why, wn, "upload failed: %.80s", r); break; }
       snap_tick(key);
       done += got; pieces++;
     } while (done < sz);
@@ -4154,7 +4229,7 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
     unsigned char hs[32]; char hh[65]; mbedtls_sha256_finish(&h, hs); mbedtls_sha256_free(&h); hexs(hs, 32, hh);
     if (!bad && strncmp(hh, hx, 64)) { bad = 1; snprintf(why, wn, "fingerprint differs - internal copy damaged: %.80s", r); sv_log("cloud batch: DAMAGED internal copy %s %s %s file %s", u, t, nm, r); }
     if (bad) break;
-    char line[620]; snprintf(line, sizeof line, "%s\t%llu\t%d\t%s\n", r, sz, pieces, hh); sv_man_add(line); nfiles++; *sent += sz;   /* 1.1.137: + SHA-256 */
+    char line[900]; man_line(line, sizeof line, r, sz, pieces, hh, &zl); sv_man_add(line); nfiles++; *sent += sz;   /* 1.1.137: + SHA-256; 1.1.139: + empty pieces */
   }
   free(man);
   if (!bad) { char mk[260]; snprintf(mk, sizeof mk, "%s/manifest.txt", base); if (sv_put(key, mk, (const unsigned char *)(sv_man ? sv_man : ""), sv_man_n)) { bad = 1; snprintf(why, wn, "manifest upload failed"); } }
@@ -4165,7 +4240,8 @@ static int cloud_part_m(const char *key, const char *u, const char *t, const cha
   snprintf(p, sizeof p, "%s/cloud.txt", d); put_file(p, base);
   if (mtag[0]) { char ds[65]; size_t m3n = 0; char mp3[320]; snprintf(mp3, sizeof mp3, "%s/manifest.txt", d); char *m3 = read_all(mp3, &m3n, 256 * 1024); if (m3) data_sha(m3, m3n, ds); else snprintf(ds, sizeof ds, "-"); free(m3);
     if (mem_index_put(key, mtag, t, nm, base, ds)) { snprintf(why, wn, "member index not updated"); return -1; } }
-  sv_log("cloud batch: sent %s %s %s: %d files, %llu bytes -> %s", u, t, nm, nfiles, *sent, base);
+  if (resend) { char rp[320]; snprintf(rp, sizeof rp, PREPD "/%s/%s/resend.txt", u, t); FILE *rf = fopen(rp, "a"); if (rf) { fprintf(rf, "%s\n", nm); fclose(rf); } }
+  sv_log("cloud batch: sent %s %s %s: %d files, %llu bytes (%llu KB empty pieces not sent) in %.1f s -> %s", u, t, nm, nfiles, *sent, (g_zero_up - z0) / 1024, tm_now() - tu0, base);
   { char gn[64], pn[40]; sw_game_name(t, gn, sizeof gn); pname(u, pn, sizeof pn); bpop_key("cprog", "PS4 -> Round2 cloud: %s (%s) uploaded%s", gn, pn, strncmp(base, "members/", 8) ? "" : " to the crew's account"); }
   return 0;
 }
@@ -4185,6 +4261,7 @@ static void cloud_step(const char *key, int budget) {
     if (sscanf(ln, "%15s %15s %47s", u, t, nm) != 3 || strchr(nm, '/') || strstr(nm, "..")) { pos = next; continue; }
     int sm = 0; unsigned long long sent = 0; char why[160] = "";
     char mtag[64] = ""; { const char *mp = strstr(ln, " m="); if (mp) { sscanf(mp + 3, "%63s", mtag); if (strstr(mtag, "..")) mtag[0] = 0; } }
+    if (mtag[0] && r2_replay_part(t, nm)) mtag[0] = 0;   /* 1.1.139: replays -> room backup only, never the member's folder */
     int r = cloud_part_m(key, u, t, nm, mtag, &sm, &sent, why, sizeof why); worked = 1;
     if (r == 0) { if (sm) same++; else { up++; by += (long long)sent; } tries = 0; pos = next; }
     else if (r == -2 || ++tries >= 5) {
@@ -4869,6 +4946,10 @@ static void do_look(const char *key, const char *cid, const char *body) {
     else if (!strcmp(t, "/_mi.off")) { put_file("/data/round2/mi-skip-off", "1"); look_kv("mi/result", "member-index skip OFF"); }
     else if (!strcmp(t, "/_mi.on")) { unlink("/data/round2/mi-skip-off"); look_kv("mi/result", "member-index skip ON"); }
     else if (!strncmp(t, "/_memload.", 10)) look_memload(key, t);
+    else if (!strncmp(t, "/_resend.", 9)) { char ru[16] = "", rt[16] = "", rp[200]; /* 1.1.139 */
+      if (sscanf(t, "/_resend.%8[0-9a-f].%9[A-Z0-9]", ru, rt) == 2 && strlen(ru) == 8 && strlen(rt) == 9) { snprintf(rp, sizeof rp, PREPD "/%s/%s/resend.txt", ru, rt); mkdirs_for(rp); sleep(1);
+        put_file(rp, "resend\n"); sv_log("resend: %s %s - its parts go to the cloud again at the next cloud batch, even if unchanged", ru, rt); look_kv("resend/result", "marked"); }
+      else look_kv("resend/error", "bad spec"); }
     else if (!strncmp(t, "/_memplay.", 10)) look_memplay(key, t); /* 1.1.90 */
     else if (!strncmp(t, "/_regscan.", 10)) look_regscan(t); /* 1.1.97 */
     /* 1.1.92: "/_padoff" removed - scePadDisconnectDevice hung the helper on Kaeden (1.1.91) */
