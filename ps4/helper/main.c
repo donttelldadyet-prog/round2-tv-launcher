@@ -28,6 +28,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
+#include <ctype.h>
 #include <sys/ucontext.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -49,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.144"   /* 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.145"   /* 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -100,6 +101,7 @@ static char pkg_last[200]; /* 1.1.132: last PKG job line for the report */
 static void sv_log(const char *fmt, ...);
 static void look_appdb(void);
 static void look_fold(const char *spec);
+static void fold_set(const char *spec);
 static void hexs(const unsigned char *b, int n, char *o);
 static void look_pkgjob(const char *spec); static void look_pkgstop(void); static void look_pkgrm(const char *spec);
 static int bg_load(char *why, size_t wn); static int (*bg_unreg)(int);
@@ -5389,6 +5391,66 @@ static void look_appdb(void) {
    it has parentFolderId = that titleId + positionInFolder. /_fold.list writes /data/round2/folders.txt (read-only).
    /_fold.ren.<user hex>.<folder id>.<Name_with_underscores> renames ONE folder: app.db is copied to /data/round2/db/ first,
    then ONE row is changed in the live file in a single SQLite transaction (nothing else touched). */
+/* 1.1.145 (owner 21 Nov 6:20pm: "switching profiles made the name change, so a clean slate should work - we will use the
+   folders to categorise event games, e.g. Halloween"): /_fold.set.<Name_with_underscores>.<CUSA…-CUSA…-…> puts that folder on
+   EVERY profile of this PS4 with exactly those games (in that order; games it doesn't have are skipped; a game sitting in
+   another folder moves). A profile that has none of the games gets no folder. /_fold.del.<Name> removes the folder (its games
+   go back to the home screen). A new folder row is a copy of an existing folder row (the PS4's own format) with id / name /
+   first game changed - so one folder must exist somewhere (Test Member's). app.db backup first; one transaction per profile.
+   Shows after the next profile switch / clean slate. */
+static void fold_set(const char *spec) {
+  const char *db_p = "/system_data/priv/mms/app.db"; int del = !strncmp(spec, "/_fold.del.", 11);
+  char name[48] = "", list[640] = ""; const char *a = spec + 11, *dot = strchr(a, '.');
+  size_t nl = dot ? (size_t)(dot - a) : strlen(a); if (!nl || nl > 30) { look_kv("fold/error", "name: 1-30 letters"); return; }
+  memcpy(name, a, nl); name[nl] = 0; for (char *c = name; *c; c++) { if (*c == '_') *c = ' '; else if (!isalnum((unsigned char)*c) && *c != '-') { look_kv("fold/error", "name: letters, digits, - and _ only"); return; } }
+  if (!del) { if (!dot) { look_kv("fold/error", "no games given"); return; } snprintf(list, sizeof list, "%s", dot + 1); }
+  static char tids[48][12]; int nt = 0;
+  for (char *t = list, *nx; !del && t && *t && nt < 48; t = nx) { nx = strchr(t, '-'); if (nx) *nx++ = 0;
+    if (strlen(t) == 9 && isupper((unsigned char)t[0]) && isupper((unsigned char)t[3]) && isdigit((unsigned char)t[4]) && isdigit((unsigned char)t[8])) snprintf(tids[nt++], 12, "%s", t); }
+  if (!del && !nt) { look_kv("fold/error", "no valid game ids"); return; }
+  char rt[32] = ""; running_title(rt, sizeof rt); if (rt[0] && strcmp(rt, "RTWO00001")) { look_kv("fold/refused", "- a game is open"); return; }
+  mkdir("/data/round2/db", 0777); char bak[160]; snprintf(bak, sizeof bak, "/data/round2/db/app-%lld.db", (long long)time(0));
+  if (file_copy(db_p, bak)) { look_kv("fold/error", "backup of app.db failed - nothing changed"); return; }
+  sqlite3 *db = 0; if (sqlite3_open_v2(db_p, &db, SQLITE_OPEN_READWRITE, 0) != SQLITE_OK) { sqlite3_close(db); look_kv("fold/error", "app.db won't open - nothing changed"); return; }
+  sqlite3_busy_timeout(db, 5000);
+  RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
+  char tpl[64] = "", sql[1600]; sqlite3_stmt *q = 0;   /* a table that has a folder row to copy */
+  for (int i = 0; i < 16 && !tpl[0]; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; snprintf(sql, sizeof sql, "SELECT COUNT(*) FROM tbl_appbrowse_%010u WHERE folderType=1", (uint32_t)L.userId[i]);
+    if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK && sqlite3_step(q) == SQLITE_ROW && sqlite3_column_int(q, 0) > 0) snprintf(tpl, sizeof tpl, "tbl_appbrowse_%010u", (uint32_t)L.userId[i]); sqlite3_finalize(q); q = 0; }
+  if (!del && !tpl[0]) { sqlite3_close(db); look_kv("fold/error", "no folder on this PS4 to copy the format from - make one by hand once"); return; }
+  char cols[1200] = "", sel[1400] = "";   /* column list + the copy with id/name/info/parent/position replaced */
+  if (tpl[0]) { snprintf(sql, sizeof sql, "SELECT name FROM pragma_table_info('%s')", tpl);
+    if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) while (sqlite3_step(q) == SQLITE_ROW) { const char *c = (const char *)sqlite3_column_text(q, 0); size_t l1 = strlen(cols), l2 = strlen(sel);
+      snprintf(cols + l1, sizeof cols - l1, "%s\"%s\"", l1 ? "," : "", c);
+      const char *ex = !strcmp(c, "titleId") ? "?1" : !strcmp(c, "titleName") ? "?2" : !strcmp(c, "folderInfo") ? "?3" : (!strcmp(c, "parentFolderId") || !strcmp(c, "positionInFolder")) ? "NULL" : 0;
+      if (ex) snprintf(sel + l2, sizeof sel - l2, "%s%s", l2 ? "," : "", ex); else snprintf(sel + l2, sizeof sel - l2, "%s\"%s\"", l2 ? "," : "", c); }
+    sqlite3_finalize(q); q = 0; }
+  int nprof = 0, nfail = 0, ngames = 0; char res[400] = "";
+  for (int i = 0; i < 16; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; uint32_t u = (uint32_t)L.userId[i]; char T[48]; snprintf(T, sizeof T, "tbl_appbrowse_%010u", u);
+    if (sqlite3_exec(db, "BEGIN IMMEDIATE", 0, 0, 0) != SQLITE_OK) { nfail++; continue; }
+    int ok = 1; char fid[16] = "";
+    snprintf(sql, sizeof sql, "SELECT titleId FROM %s WHERE folderType=1 AND lower(titleName)=lower(?1)", T);
+    if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, name, -1, SQLITE_STATIC); if (sqlite3_step(q) == SQLITE_ROW) snprintf(fid, sizeof fid, "%s", (const char *)sqlite3_column_text(q, 0)); } else ok = 0; sqlite3_finalize(q); q = 0;
+    if (fid[0]) { snprintf(sql, sizeof sql, "UPDATE %s SET parentFolderId=NULL, positionInFolder=0 WHERE parentFolderId=?1 AND folderType=0", T); if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, fid, -1, SQLITE_STATIC); if (sqlite3_step(q) != SQLITE_DONE) ok = 0; } else ok = 0; sqlite3_finalize(q); q = 0; }
+    int have = 0; char first[12] = "";
+    if (ok && !del) { /* which of the games this profile has */
+      for (int k = 0; k < nt; k++) { snprintf(sql, sizeof sql, "SELECT COUNT(*) FROM %s WHERE titleId=?1 AND folderType=0", T); if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, tids[k], -1, SQLITE_STATIC); if (sqlite3_step(q) == SQLITE_ROW && sqlite3_column_int(q, 0) > 0) { if (!have) snprintf(first, sizeof first, "%s", tids[k]); have++; } } sqlite3_finalize(q); q = 0; } }
+    if (ok && (del || !have) && fid[0]) { snprintf(sql, sizeof sql, "DELETE FROM %s WHERE titleId=?1 AND folderType=1", T); if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, fid, -1, SQLITE_STATIC); if (sqlite3_step(q) != SQLITE_DONE) ok = 0; } else ok = 0; sqlite3_finalize(q); q = 0; fid[0] = 0; }
+    if (ok && !del && have) {
+      char info[80]; snprintf(info, sizeof info, "{\"titleId\":\"%s\",\"index\":0}", first);
+      if (!fid[0]) { int mx = 0; snprintf(sql, sizeof sql, "SELECT MAX(CAST(titleId AS INTEGER)) FROM %s WHERE folderType=1", T); if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK && sqlite3_step(q) == SQLITE_ROW) mx = sqlite3_column_int(q, 0); sqlite3_finalize(q); q = 0;
+        snprintf(fid, sizeof fid, "%09d", mx + 1);
+        snprintf(sql, sizeof sql, "INSERT INTO %s (%s) SELECT %s FROM %s WHERE folderType=1 LIMIT 1", T, cols, sel, tpl);
+        if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, fid, -1, SQLITE_STATIC); sqlite3_bind_text(q, 2, name, -1, SQLITE_STATIC); sqlite3_bind_text(q, 3, info, -1, SQLITE_STATIC); if (sqlite3_step(q) != SQLITE_DONE || sqlite3_changes(db) != 1) ok = 0; } else ok = 0; sqlite3_finalize(q); q = 0; }
+      else { snprintf(sql, sizeof sql, "UPDATE %s SET titleName=?1, folderInfo=?2 WHERE titleId=?3 AND folderType=1", T); if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, name, -1, SQLITE_STATIC); sqlite3_bind_text(q, 2, info, -1, SQLITE_STATIC); sqlite3_bind_text(q, 3, fid, -1, SQLITE_STATIC); if (sqlite3_step(q) != SQLITE_DONE) ok = 0; } else ok = 0; sqlite3_finalize(q); q = 0; }
+      int pos = 1; for (int k = 0; ok && k < nt; k++) { snprintf(sql, sizeof sql, "UPDATE %s SET parentFolderId=?1, positionInFolder=?2 WHERE titleId=?3 AND folderType=0", T);
+        if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, fid, -1, SQLITE_STATIC); sqlite3_bind_int(q, 2, pos); sqlite3_bind_text(q, 3, tids[k], -1, SQLITE_STATIC); if (sqlite3_step(q) != SQLITE_DONE) ok = 0; else if (sqlite3_changes(db) > 0) { pos++; ngames++; } } else ok = 0; sqlite3_finalize(q); q = 0; } }
+    if (ok && sqlite3_exec(db, "COMMIT", 0, 0, 0) == SQLITE_OK) nprof++; else { sqlite3_exec(db, "ROLLBACK", 0, 0, 0); nfail++; sv_log("folders: profile %08x - '%s' NOT changed (%s)", u, name, sqlite3_errmsg(db)); }
+    size_t rl = strlen(res); snprintf(res + rl, sizeof res - rl, " %08x:%s", u, !ok ? "fail" : del ? "removed" : have ? fid : "none"); }
+  sqlite3_close(db);
+  char v[600]; snprintf(v, sizeof v, "folder '%s' %s: %d profile(s) done, %d failed, %d game place(s);%s (backup %s)", name, del ? "removed" : "set", nprof, nfail, ngames, res, bak);
+  sv_log("folders: %s", v); look_kv(nfail ? "fold/error" : "fold/result", v);
+}
 static void look_fold(const char *spec) {
   const char *db_p = "/system_data/priv/mms/app.db";
   if (!strcmp(spec, "/_fold.list")) {
@@ -5413,6 +5475,7 @@ static void look_fold(const char *spec) {
     while (d && (e = readdir(d))) { long long t2 = 0; if (sscanf(e->d_name, "app-%lld.db", &t2) == 1 && t2 > bt) { bt = t2; snprintf(best, sizeof best, "/data/round2/db/%s", e->d_name); } } if (d) closedir(d);
     if (!best[0]) { look_kv("fold/error", "no app.db backup"); return; }
     int r = file_copy(best, db_p); char v[200]; snprintf(v, sizeof v, "app.db put back from %s: %s", best, r ? "FAILED" : "done - restart the PS4 to be sure the menu reads it"); sv_log("folders: %s", v); look_kv(r ? "fold/error" : "fold/result", v); return; }
+  if (!strncmp(spec, "/_fold.set.", 11) || !strncmp(spec, "/_fold.del.", 11)) { fold_set(spec); return; }
   char uh[16] = "", fid[16] = "", name[64] = "";
   if (sscanf(spec, "/_fold.ren.%8[0-9a-f].%9[0-9].%40[A-Za-z0-9_-]", uh, fid, name) != 3 || strlen(fid) != 9 || !name[0]) { look_kv("fold/error", "bad spec"); return; }
   for (char *c = name; *c; c++) if (*c == '_') *c = ' ';
