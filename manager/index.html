@@ -968,6 +968,8 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       <div id="pkFolders" style="margin-top:6px"></div>
       <div class="row" style="gap:6px;margin-top:6px"><button class="btn" type="button" id="pkFoldNew">+ New folder</button></div>
       <p class="hint" id="pkMsg3" style="margin:6px 0 0"></p></div>
+    <div id="pkBar" hidden style="position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--panel2);border-top:2px solid var(--accent);padding:10px 14px;box-shadow:0 -6px 18px rgba(0,0,0,.5)"></div>
+    <div style="height:120px"></div>
     <p class="hint">Atlas and Bella are on the other Wi-Fi (round2-ps4) and can't reach the laptop yet. Firmware: a PKG needs the PS4's firmware or newer (9.00 Max · Kai · Atlas, 11.00 Bella · Scarlett · Vale, 13.50 Kaeden) – older rooms need a backport.</p>
   </section>
 
@@ -3420,7 +3422,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var GM = 'https://round2-book.donttelldadyet.workers.dev/gm', timer = null, lap = null, rooms = {}, q = {}, pick = {}, sel = {};
     var cat = {}, choice = {}, unpick = {}, sigList = '', sigPs4 = '';   /* 21 Nov: cat = per game {tier, rooms, patch, nopatch} (engine pkgcat); choice = main game file + "all DLC" per game; unpick = room|tid ticked for uninstall */
     var HIDE = /^(RTWO|APOL|LAPY)/, VUE = 'CUSA00960', HOUSE = { CUSA02168: 'max' };
-    var folders = [], foldTouch = 0;   /* 21 Nov 6:20pm: home-screen folder plan (engine pkgfold) */
+    var folders = [], foldTouch = 0, barMsg = '';   /* 21 Nov 6:20pm: home-screen folder plan (engine pkgfold) */
     var ROOMS = ['vale', 'kaeden', 'scarlett', 'kai', 'bella', 'atlas', 'max'], TIER = { netflix: ROOMS, deluxe: ['kai', 'bella', 'atlas', 'max'], vip: ['max'] };
     var FW = { max: '9.00', kai: '9.00', atlas: '9.00', bella: '11.00', scarlett: '11.00', vale: '11.00', kaeden: '13.50' }, FAR = { atlas: 1, bella: 1 };
     var CAT = { gd: 'Game', gp: 'Patch', ac: 'DLC' };
@@ -3465,7 +3467,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       var G = groups(), f = ($('pkFind').value || '').toLowerCase(), ks = Object.keys(G).sort(function (a, b) { return String(G[a].title).localeCompare(G[b].title); });
       var sig = JSON.stringify([f, lap.pkgs.length, cat, choice, pick, ROOMS.map(function (r) { return rooms[r] && (rooms[r].games || []).map(function (x) { return x.id + (x.pv || x.v); }).join(); })]);
       if (!force && sig === sigList) { drawBasket(); return; } sigList = sig;   /* the 20 s refresh doesn't redraw (and close an open menu) unless something changed */
-      var h = '<table style="border-collapse:collapse;font-size:12px;width:100%"><tr><th style="text-align:left">Game</th><th style="text-align:left">Files to use</th><th style="text-align:left">Rooms</th>' + ROOMS.map(function (r) { return '<th>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '</th>'; }).join('') + '</tr>';
+      var h = '<table style="border-collapse:collapse;font-size:12px;width:100%"><tr><th>Pick</th><th style="text-align:left">Game</th><th style="text-align:left">Files to use</th><th style="text-align:left">Rooms</th>' + ROOMS.map(function (r) { return '<th>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '</th>'; }).join('') + '</tr>';
       ks.forEach(function (k) { var g = G[k]; if (f && (g.title + ' ' + k).toLowerCase().indexOf(f) < 0) return;
         var m = mainOf(g), pt = patchOf(g), c = cat[k] || {}, tg = target(k), ch = choice[k] || {};
         var want = pt ? (pt.appver || pt.ver) : m ? (m.appver || m.ver) : '';
@@ -3479,12 +3481,14 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         var tsel = '<select data-pktier2="' + k + '"><option value="">– not set –</option><option value="netflix"' + (c.tier === 'netflix' ? ' selected' : '') + '>Netflix · all rooms</option><option value="deluxe"' + (c.tier === 'deluxe' ? ' selected' : '') + '>Deluxe · Kai Bella Atlas Max</option><option value="vip"' + (c.tier === 'vip' ? ' selected' : '') + '>VIP · Max</option><option value="custom"' + (cat[k] && !c.tier ? ' selected' : '') + '>My own rooms…</option></select>';
         if (cat[k] && !c.tier) tsel += '<div style="margin-top:2px">' + ROOMS.map(function (r) { return '<label style="white-space:nowrap;margin-right:6px"><input type="checkbox" data-pkcr="' + k + '|' + r + '"' + ((c.rooms || []).indexOf(r) >= 0 ? ' checked' : '') + '>' + r.charAt(0).toUpperCase() + r.slice(1, 4) + '</label>'; }).join('') + '</div>';
         tsel += '<div style="margin-top:3px"><button class="btn" type="button" data-pkgo="' + k + '" style="padding:2px 8px;font-size:11px"' + (tg.length ? '' : ' disabled') + '>Install in its rooms</button></div>';
-        h += '<tr style="border-top:1px solid var(--line2);vertical-align:top"><td><b>' + esc(g.title) + '</b><br><span class="hint">' + k + '</span></td><td>' + files + '</td><td>' + tsel + '</td>' + ROOMS.map(function (r) {
+        var gp = gameFiles(g), np = gp.filter(function (p) { return pick[p.id]; }).length;
+        h += '<tr style="border-top:1px solid var(--line2);vertical-align:top' + (np ? ';background:color-mix(in srgb,var(--accent) 8%,transparent)' : '') + '"><td style="text-align:center"><input type="checkbox" data-pkg="' + k + '" style="width:20px;height:20px"' + (np && np === gp.length ? ' checked' : '') + (gp.length ? '' : ' disabled') + ' title="pick this game (the files chosen on the right)"></td><td><b>' + esc(g.title) + '</b><br><span class="hint">' + k + '</span></td><td>' + files + '</td><td>' + tsel + '</td>' + ROOMS.map(function (r) {
           var x = inst(r, k), v = x ? (x.pv || x.v) : '', inT = tg.indexOf(r) >= 0;
           if (!x) return '<td style="text-align:center">' + (inT ? '<span style="color:#fa5">need</span>' : '–') + '</td>';
           var col = vnum(v) >= vnum(want) ? '#7d7' : '#fa5'; return '<td style="text-align:center;color:' + col + '">' + (tg.length && !inT ? '<i>' + esc(v) + ' extra</i>' : esc(v)) + '</td>'; }).join('') + '</tr>'; });
       el.innerHTML = h + '</table>';
-      [].forEach.call(el.querySelectorAll('[data-pkf]'), function (c) { c.onchange = function () { var id = c.getAttribute('data-pkf'); if (c.checked) pick[id] = 1; else delete pick[id]; drawBasket(); }; });
+      [].forEach.call(el.querySelectorAll('[data-pkf]'), function (c) { c.onchange = function () { var id = c.getAttribute('data-pkf'); if (c.checked) pick[id] = 1; else delete pick[id]; drawList(true); }; });
+      [].forEach.call(el.querySelectorAll('[data-pkg]'), function (c) { c.onchange = function () { var g = G[c.getAttribute('data-pkg')]; gameFiles(g).forEach(function (p) { if (c.checked) pick[p.id] = 1; else delete pick[p.id]; }); if (!c.checked) ['gd', 'gp', 'ac'].forEach(function (cc) { g[cc].forEach(function (p) { delete pick[p.id]; }); }); drawList(true); }; });
       [].forEach.call(el.querySelectorAll('[data-pkgd]'), function (c) { c.onchange = function () { var k = c.getAttribute('data-pkgd'); choice[k] = Object.assign({}, choice[k], { gd: c.value }); drawList(true); }; });
       [].forEach.call(el.querySelectorAll('[data-pkdlc]'), function (c) { c.onchange = function () { var k = c.getAttribute('data-pkdlc'); choice[k] = Object.assign({}, choice[k], { dlc: c.checked }); }; });
       [].forEach.call(el.querySelectorAll('[data-pkgp]'), function (c) { c.onchange = function () { var k = c.getAttribute('data-pkgp'), o = Object.assign({ tier: '', rooms: [] }, cat[k], { title: G[k].title, patch: c.value, nopatch: !c.value }); saveCat(k, o).then(function () { drawList(true); }); }; });
@@ -3495,6 +3499,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       [].forEach.call(el.querySelectorAll('[data-pkgo]'), function (b) { b.onclick = function () { sync([b.getAttribute('data-pkgo')]); }; });
       drawBasket();
     }
+    function gameFiles(g) { /* what "Pick" on a game row takes: the chosen main game + the chosen patch + (if ticked) all DLC */ var m = mainOf(g), pt = patchOf(g), out = []; if (m) out.push(m); if (pt) out.push(pt); if ((choice[g.tid] || {}).dlc) out = out.concat(g.ac); return out; }
     function plan(tids) {   /* what "install in its rooms" would queue: main game where missing, the chosen patch where missing/older, DLC if ticked */
       var G = groups(), items = [], warn = [], order = { gd: 0, gp: 1, ac: 2 };
       tids.forEach(function (k) { var g = G[k]; if (!g) return; var m = mainOf(g), pt = patchOf(g), ch = choice[k] || {};
@@ -3588,8 +3593,20 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('pkRooms').innerHTML = ROOMS.map(function (r) { var o = rooms[r], on = o && Date.now() - (o.poll || 0) < 3 * 60e3; return '<label style="white-space:nowrap"><input type="checkbox" data-pkr="' + r + '"' + (sel[r] ? ' checked' : '') + '> ' + r.charAt(0).toUpperCase() + r.slice(1) + ' <span class="hint">' + (on ? 'on' : 'off') + ' · FW ' + (o && o.fw || FW[r]) + (FAR[r] ? ' · other Wi-Fi' : '') + '</span></label>'; }).join('');
       [].forEach.call($('pkRooms').querySelectorAll('[data-pkr]'), function (c) { c.onchange = function () { if (c.checked) sel[c.getAttribute('data-pkr')] = 1; else delete sel[c.getAttribute('data-pkr')]; drawBasket(); }; });
     }
+    function drawBar(ids, rs) {   /* 21 Nov 6:48pm (owner: "can't select individual games to send to individual or grouped PS4s"): a bar at the bottom while games are picked */
+      var b = $('pkBar'); if (!b) return; if ((!ids.length && !barMsg) || $('tab-pkgs').hidden) { b.hidden = true; return; } b.hidden = false;
+      if (!ids.length) { b.innerHTML = '<div class="row" style="gap:8px;align-items:center"><span>' + barMsg + '</span><span class="grow"></span><button class="btn ghost" type="button" id="pkBarClr">OK</button></div>'; $('pkBarClr').onclick = function () { barMsg = ''; drawBasket(); }; return; }
+      var gbs = ids.reduce(function (a, id) { var p = byId(id); return a + (p ? +p.size || 0 : 0); }, 0), games = {}; ids.forEach(function (id) { var p = byId(id); if (p) games[p.tid] = 1; });
+      b.innerHTML = '<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><b>' + Object.keys(games).length + ' game(s) · ' + ids.length + ' file(s) · ' + gb(gbs) + '</b><span class="hint">send to:</span>' +
+        ['netflix', 'deluxe', 'vip'].map(function (t) { return '<button class="btn" type="button" data-pkbt="' + t + '" style="padding:5px 10px;font-size:11px">' + { netflix: 'Netflix · all', deluxe: 'Deluxe', vip: 'VIP · Max' }[t] + '</button>'; }).join('') +
+        ROOMS.map(function (r) { return '<label style="white-space:nowrap;font-size:13px"><input type="checkbox" data-pkbr="' + r + '"' + (sel[r] ? ' checked' : '') + '> ' + r.charAt(0).toUpperCase() + r.slice(1) + '</label>'; }).join('') +
+        (barMsg ? '<div style="flex-basis:100%;font-size:13px">' + barMsg + '</div>' : '') + '<span class="grow"></span><button class="btn primary" type="button" id="pkBarGo"' + (rs.length ? '' : ' disabled') + '>Install on ' + (rs.length ? rs.length + ' PS4(s)' : 'the ticked rooms') + '</button><button class="btn" type="button" id="pkBarRm"' + (rs.length ? '' : ' disabled') + '>Uninstall</button><button class="btn ghost" type="button" id="pkBarClr">Clear</button></div>';
+      [].forEach.call(b.querySelectorAll('[data-pkbt]'), function (x) { x.onclick = function () { sel = {}; (TIER[x.getAttribute('data-pkbt')] || []).forEach(function (r) { sel[r] = 1; }); drawRooms(); drawBasket(); }; });
+      [].forEach.call(b.querySelectorAll('[data-pkbr]'), function (x) { x.onchange = function () { var r = x.getAttribute('data-pkbr'); if (x.checked) sel[r] = 1; else delete sel[r]; drawRooms(); drawBasket(); }; });
+      $('pkBarGo').onclick = function () { send('install'); }; $('pkBarRm').onclick = function () { send('rm'); }; $('pkBarClr').onclick = function () { pick = {}; drawList(true); };
+    }
     function drawBasket() {
-      var ids = Object.keys(pick), rs = Object.keys(sel), warn = [];
+      var ids = Object.keys(pick), rs = Object.keys(sel), warn = []; drawBar(ids, rs);
       ids.forEach(function (id) { var p = byId(id); if (!p) return; rs.forEach(function (r) { var fw = (rooms[r] && rooms[r].fw) || FW[r]; if (p.fw && vnum(p.fw) > vnum(fw)) warn.push(esc(p.title || p.name) + ' needs FW ' + p.fw + ' – ' + r + ' has ' + fw + ' (needs a backport)'); }); });
       rs.forEach(function (r) { if (FAR[r]) warn.push(r + ' is on the other Wi-Fi – it can\'t reach the laptop yet'); });
       $('pkBasket').innerHTML = ids.length ? '<b>' + ids.length + ' file(s):</b> ' + ids.map(function (id) { var p = byId(id); return p ? esc((p.title || p.name) + ' ' + (CAT[p.cat] || p.cat) + ' ' + (p.appver || p.ver || '')) : ''; }).join(' · ') + (warn.length ? '<div style="color:#fa5;margin-top:4px">⚠ ' + warn.join('<br>⚠ ') + '</div>' : '') : '<span class="hint">No files ticked yet.</span>';
@@ -3601,7 +3618,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       $('pkFind').value = p.tid; drawList();
     }
     function send(op) {
-      var rs = Object.keys(sel), ids = Object.keys(pick), items = [], m = $('pkMsg');
+      var rs = Object.keys(sel), ids = Object.keys(pick), items = [], m0 = $('pkMsg'), m = { set textContent(v) { m0.textContent = v; barMsg = esc(v); drawBasket(); } };
       if (!rs.length) { m.textContent = 'Tick at least one room.'; return; }
       if (!ids.length) { m.textContent = op === 'rm' ? 'Tick the game (or patch) to remove.' : 'Tick at least one file.'; return; }
       if (op !== 'rm' && !ip()) { m.textContent = 'The laptop PKG server isn\'t reachable.'; return; }
@@ -3649,7 +3666,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     }
     return {
       open: function () { wire(); $('pkKeyBox').hidden = !!sKey(); loadQ(); clearInterval(timer); timer = setInterval(loadQ, 20000); },
-      close: function () { clearInterval(timer); timer = null; }
+      close: function () { clearInterval(timer); timer = null; var b = $('pkBar'); if (b) b.hidden = true; }
     };
   })();
 
