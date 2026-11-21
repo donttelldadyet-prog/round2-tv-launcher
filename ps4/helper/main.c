@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.145"   /* 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.146"   /* 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -5414,11 +5414,11 @@ static void fold_set(const char *spec) {
   sqlite3 *db = 0; if (sqlite3_open_v2(db_p, &db, SQLITE_OPEN_READWRITE, 0) != SQLITE_OK) { sqlite3_close(db); look_kv("fold/error", "app.db won't open - nothing changed"); return; }
   sqlite3_busy_timeout(db, 5000);
   RegUserIdList L; memset(&L, 0xff, sizeof L); sceUserServiceGetRegisteredUserIdList(&L);
-  char tpl[64] = "", sql[1600]; sqlite3_stmt *q = 0;   /* a table that has a folder row to copy */
+  char tpl[64] = ""; static char sql[6144]; sqlite3_stmt *q = 0;   /* a table that has a folder row to copy (1.1.146: the INSERT is ~2 KB - 1.6 KB cut it) */
   for (int i = 0; i < 16 && !tpl[0]; i++) { if (L.userId[i] == -1 || !L.userId[i]) continue; snprintf(sql, sizeof sql, "SELECT COUNT(*) FROM tbl_appbrowse_%010u WHERE folderType=1", (uint32_t)L.userId[i]);
     if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK && sqlite3_step(q) == SQLITE_ROW && sqlite3_column_int(q, 0) > 0) snprintf(tpl, sizeof tpl, "tbl_appbrowse_%010u", (uint32_t)L.userId[i]); sqlite3_finalize(q); q = 0; }
   if (!del && !tpl[0]) { sqlite3_close(db); look_kv("fold/error", "no folder on this PS4 to copy the format from - make one by hand once"); return; }
-  char cols[1200] = "", sel[1400] = "";   /* column list + the copy with id/name/info/parent/position replaced */
+  static char cols[2600], sel[2600]; cols[0] = sel[0] = 0;   /* column list + the copy with id/name/info/parent/position replaced */
   if (tpl[0]) { snprintf(sql, sizeof sql, "SELECT name FROM pragma_table_info('%s')", tpl);
     if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) while (sqlite3_step(q) == SQLITE_ROW) { const char *c = (const char *)sqlite3_column_text(q, 0); size_t l1 = strlen(cols), l2 = strlen(sel);
       snprintf(cols + l1, sizeof cols - l1, "%s\"%s\"", l1 ? "," : "", c);
@@ -5445,7 +5445,8 @@ static void fold_set(const char *spec) {
       else { snprintf(sql, sizeof sql, "UPDATE %s SET titleName=?1, folderInfo=?2 WHERE titleId=?3 AND folderType=1", T); if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, name, -1, SQLITE_STATIC); sqlite3_bind_text(q, 2, info, -1, SQLITE_STATIC); sqlite3_bind_text(q, 3, fid, -1, SQLITE_STATIC); if (sqlite3_step(q) != SQLITE_DONE) ok = 0; } else ok = 0; sqlite3_finalize(q); q = 0; }
       int pos = 1; for (int k = 0; ok && k < nt; k++) { snprintf(sql, sizeof sql, "UPDATE %s SET parentFolderId=?1, positionInFolder=?2 WHERE titleId=?3 AND folderType=0", T);
         if (sqlite3_prepare_v2(db, sql, -1, &q, 0) == SQLITE_OK) { sqlite3_bind_text(q, 1, fid, -1, SQLITE_STATIC); sqlite3_bind_int(q, 2, pos); sqlite3_bind_text(q, 3, tids[k], -1, SQLITE_STATIC); if (sqlite3_step(q) != SQLITE_DONE) ok = 0; else if (sqlite3_changes(db) > 0) { pos++; ngames++; } } else ok = 0; sqlite3_finalize(q); q = 0; } }
-    if (ok && sqlite3_exec(db, "COMMIT", 0, 0, 0) == SQLITE_OK) nprof++; else { sqlite3_exec(db, "ROLLBACK", 0, 0, 0); nfail++; sv_log("folders: profile %08x - '%s' NOT changed (%s)", u, name, sqlite3_errmsg(db)); }
+    char em[160]; snprintf(em, sizeof em, "%s", sqlite3_errmsg(db));   /* 1.1.146: the reason, before ROLLBACK resets it */
+    if (ok && sqlite3_exec(db, "COMMIT", 0, 0, 0) == SQLITE_OK) nprof++; else { sqlite3_exec(db, "ROLLBACK", 0, 0, 0); nfail++; sv_log("folders: profile %08x - '%s' NOT changed (%s)", u, name, em); }
     size_t rl = strlen(res); snprintf(res + rl, sizeof res - rl, " %08x:%s", u, !ok ? "fail" : del ? "removed" : have ? fid : "none"); }
   sqlite3_close(db);
   char v[600]; snprintf(v, sizeof v, "folder '%s' %s: %d profile(s) done, %d failed, %d game place(s);%s (backup %s)", name, del ? "removed" : "set", nprof, nfail, ngames, res, bak);
