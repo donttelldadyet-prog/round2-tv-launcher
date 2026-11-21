@@ -27,8 +27,23 @@ public class R2Pkg {
   public long Size, Mtime;
 }
 
+// 1.3 (owner 21 Nov: "server doesn't show useful info and i think size counter is wrong"): the PS4 fetches one file over several
+// connections at once and asks for some parts again, so counting socket bytes over-counted. Now each (PS4, file) is one transfer
+// that remembers which byte ranges were sent; progress, speed, time left and "sent" come from those ranges (each byte once).
+public class R2Xfer {
+  public string Who, Room, Name, Key; public long Size, Done, LastLogDone; public DateTime Start, LastByte, LastLog; public bool Finished;
+  public int Conns; List<long[]> rs = new List<long[]>();
+  public long Add(long a, long b) {   // [a, b) sent; returns how many of those bytes are new
+    long before = Done; int i = 0;
+    while (i < rs.Count && rs[i][1] < a) i++;
+    long na = a, nb = b; int j = i;
+    while (j < rs.Count && rs[j][0] <= nb) { na = Math.Min(na, rs[j][0]); nb = Math.Max(nb, rs[j][1]); j++; }
+    rs.RemoveRange(i, j - i); rs.Insert(i, new long[] { na, nb });
+    long d = 0; foreach (long[] r in rs) d += r[1] - r[0]; Done = d; return Done - before;
+  }
+}
 public static class R2Srv {
-  public static string ConfigPath, Token, StaffPath, Version = "1.2";
+  public static string ConfigPath, Token, StaffPath, Version = "1.3";
   public static int Port;
   public static List<string> Folders = new List<string>();
   public static List<R2Pkg> Pkgs = new List<R2Pkg>();
@@ -36,7 +51,50 @@ public static class R2Srv {
   static readonly object L = new object();
   static int active;            // downloads running now
   static DateTime lastDl = DateTime.MinValue;
-  static long servedBytes;
+  static long servedBytes;      // 1.3: unique bytes sent (each part of a file counted once per PS4)
+  static Dictionary<string, R2Xfer> xf = new Dictionary<string, R2Xfer>();
+  static Dictionary<string, string> rooms = new Dictionary<string, string>();   // PS4 address -> room (pkg-rooms.txt)
+  public static string RoomsPath;
+  public static void LoadRooms() {
+    rooms.Clear(); if (RoomsPath == null || !File.Exists(RoomsPath)) return;
+    foreach (string l in File.ReadAllLines(RoomsPath)) { if (l.TrimStart().StartsWith("#")) continue; string[] a = l.Trim().Split(new char[] { ' ', '\t', '=' }, StringSplitOptions.RemoveEmptyEntries); if (a.Length >= 2) rooms[a[0]] = a[1]; }
+  }
+  static string RoomOf(string ip) { string r; return rooms.TryGetValue(ip, out r) ? r : ip; }
+  static string Mb(long b) { return b >= (1L << 30) ? (b / 1073741824.0).ToString("0.00") + " GB" : (b / 1048576.0).ToString("0") + " MB"; }
+  static string Dur(double s) { return s < 90 ? ((int)s) + " s" : s < 5400 ? (s / 60).ToString("0.0") + " min" : (s / 3600).ToString("0.0") + " h"; }
+  static string Short(string n) { return n.Length > 60 ? n.Substring(0, 57) + "..." : n; }
+  // every 30 s: one line per file being sent; a file nobody touched for 10 min is closed with a "stopped" line
+  static void Ticker() {
+    while (true) {
+      Thread.Sleep(30000);
+      try {
+        List<string> lines = new List<string>();
+        lock (xf) {
+          List<string> drop = new List<string>();
+          foreach (R2Xfer x in xf.Values) {
+            if (x.Finished) { if ((DateTime.Now - x.LastByte).TotalMinutes > 2) drop.Add(x.Key); continue; }
+            double idle = (DateTime.Now - x.LastByte).TotalSeconds;
+            if (idle > 600) { lines.Add(x.Room + " stopped " + Short(x.Name) + " at " + (100 * x.Done / Math.Max(1, x.Size)) + "% (" + Mb(x.Done) + " of " + Mb(x.Size) + ") - nothing asked for 10 min"); drop.Add(x.Key); continue; }
+            double secs = Math.Max(1, (DateTime.Now - x.LastLog).TotalSeconds); double rate = (x.Done - x.LastLogDone) / secs;
+            if (x.Done == x.LastLogDone && idle > 60) continue;   // quiet: don't repeat the same line
+            string left = rate > 1024 ? " · about " + Dur((x.Size - x.Done) / rate) + " left" : "";
+            lines.Add(x.Room + " · " + Short(x.Name) + ": " + Mb(x.Done) + " of " + Mb(x.Size) + " (" + (100 * x.Done / Math.Max(1, x.Size)) + "%) · " + (rate / 1048576).ToString("0.0") + " MB/s" + left + (x.Conns > 1 ? " · " + x.Conns + " connections" : ""));
+            x.LastLog = DateTime.Now; x.LastLogDone = x.Done;
+          }
+          foreach (string k in drop) xf.Remove(k);
+        }
+        foreach (string l in lines) Log(l);
+      } catch { }
+    }
+  }
+  static string DlJson() {
+    StringBuilder b = new StringBuilder("["); int n = 0;
+    lock (xf) foreach (R2Xfer x in xf.Values) {
+      double el = Math.Max(1, (x.LastByte - x.Start).TotalSeconds);
+      b.Append(n++ > 0 ? "," : "").Append("{\"room\":" + Q(x.Room) + ",\"name\":" + Q(x.Name) + ",\"size\":" + x.Size + ",\"done\":" + x.Done + ",\"fin\":" + (x.Finished ? "true" : "false") +
+        ",\"mbs\":" + (x.Done / el / 1048576).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + ",\"conns\":" + x.Conns + ",\"idle\":" + (int)(DateTime.Now - x.LastByte).TotalSeconds + "}"); }
+    return b.Append("]").ToString();
+  }
 
   [DllImport("kernel32.dll")] static extern uint SetThreadExecutionState(uint f);
 
@@ -125,7 +183,7 @@ public static class R2Srv {
     return o;
   }
   static string ListJson() {
-    StringBuilder b = new StringBuilder("{\"ok\":true,\"push\":" + Q(PushNote) + ",\"staff\":" + (Staff().Length > 0 ? "true" : "false") + ",\"v\":" + Q(Version) + ",\"port\":" + Port + ",\"token\":" + Q(Token) + ",\"active\":" + active + ",\"servedMB\":" + (servedBytes >> 20) + ",\"scanned\":" + Q(ScannedAt.ToString("HH:mm:ss")) + ",\"ips\":[");
+    StringBuilder b = new StringBuilder("{\"ok\":true,\"push\":" + Q(PushNote) + ",\"staff\":" + (Staff().Length > 0 ? "true" : "false") + ",\"v\":" + Q(Version) + ",\"port\":" + Port + ",\"token\":" + Q(Token) + ",\"active\":" + active + ",\"servedMB\":" + (servedBytes >> 20) + ",\"dl\":" + DlJson() + ",\"scanned\":" + Q(ScannedAt.ToString("HH:mm:ss")) + ",\"ips\":[");
     List<string> ips = Ips(); for (int i = 0; i < ips.Count; i++) { string[] p = ips[i].Split('|'); b.Append(i > 0 ? "," : "").Append("{\"ip\":" + Q(p[0]) + ",\"nic\":" + Q(p[1]) + "}"); }
     b.Append("],\"folders\":[");
     for (int i = 0; i < Folders.Count; i++) b.Append(i > 0 ? "," : "").Append("{\"path\":" + Q(Folders[i]) + ",\"there\":" + (Directory.Exists(Folders[i]) ? "true" : "false") + "}");
@@ -193,6 +251,7 @@ public static class R2Srv {
     Log("sharing on port " + Port + " - addresses: " + string.Join(", ", Ips().ToArray()));
     Thread keep = new Thread(KeepAwake); keep.IsBackground = true; keep.Start();
     Thread push = new Thread(Pusher); push.IsBackground = true; push.Start();
+    Thread tick = new Thread(Ticker); tick.IsBackground = true; tick.Start();
     while (true) { TcpClient c = l.AcceptTcpClient(); Thread th = new Thread(Handle); th.IsBackground = true; th.Start(c); }
   }
   static void KeepAwake() {
@@ -259,13 +318,23 @@ public static class R2Srv {
     if (m == "HEAD") return;
     Interlocked.Increment(ref active); lastDl = DateTime.Now;
     string who = ((IPEndPoint)c.Client.RemoteEndPoint).Address.ToString();
-    if (a == 0 || len > (256L << 20)) Log(who + " downloading " + p.Name + " (" + (a >> 20) + "-" + (b >> 20) + " MB of " + (size >> 20) + " MB)");
+    R2Xfer xt; string key = who + "|" + p.Id; bool fresh = false;
+    lock (xf) { if (!xf.TryGetValue(key, out xt) || xt.Finished) { xt = new R2Xfer(); xt.Key = key; xt.Who = who; xt.Room = RoomOf(who); xt.Name = p.Name; xt.Size = size;
+        xt.Start = xt.LastByte = xt.LastLog = DateTime.Now; xf[key] = xt; fresh = true; } xt.Conns++; }
+    if (fresh) Log(xt.Room + " started " + p.Name + " (" + Mb(size) + ")" + (a > 0 ? " - from " + Mb(a) : ""));
+    long pos = a;
     try {
       using (FileStream f = new FileStream(p.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 20)) {
         f.Seek(a, SeekOrigin.Begin); byte[] buf = new byte[1 << 20]; long left = len;
-        while (left > 0) { int r = f.Read(buf, 0, (int)Math.Min(buf.Length, left)); if (r <= 0) break; s.Write(buf, 0, r); left -= r; Interlocked.Add(ref servedBytes, r); lastDl = DateTime.Now; }
+        while (left > 0) { int r = f.Read(buf, 0, (int)Math.Min(buf.Length, left)); if (r <= 0) break; s.Write(buf, 0, r); left -= r; lastDl = DateTime.Now;
+          bool done = false; double secs = 0;
+          lock (xf) { long nw = xt.Add(pos, pos + r); Interlocked.Add(ref servedBytes, nw); xt.LastByte = DateTime.Now;
+            if (!xt.Finished && xt.Done >= xt.Size) { xt.Finished = true; done = true; secs = Math.Max(1, (xt.LastByte - xt.Start).TotalSeconds); } }
+          pos += r;
+          if (done) Log(xt.Room + " finished " + p.Name + ": " + Mb(size) + " in " + Dur(secs) + " (" + (size / secs / 1048576).ToString("0.0") + " MB/s average)");
+        }
       }
-    } finally { Interlocked.Decrement(ref active); lastDl = DateTime.Now; }
+    } finally { Interlocked.Decrement(ref active); lastDl = DateTime.Now; lock (xf) xt.Conns--; }
   }
   // 1.2 (Kaeden 23:21: the PS4 took a DLC from a direct link but refused the game): the PS4's download manager wants what the
   // PlayStation Store gives it - a small JSON "reference package" that lists the pieces of the PKG - like flatz's Remote Package
@@ -289,16 +358,20 @@ public static class R2Srv {
       "<style>body{font:15px system-ui;margin:20px;background:#111;color:#eee}button{font:inherit;padding:6px 12px;margin:2px}td{padding:3px 8px;border-bottom:1px solid #333}.g{color:#8f8}.p{color:#8cf}.a{color:#fc8}.e{color:#f88}</style>" +
       "<h2>Round2 PKG server</h2><p>Keep this running. Send games from the control centre (staff.round2.sg &rsaquo; PS4 games).</p>" +
       "<div id=k></div><div id=f></div><button onclick=\"go('/api/pick')\">+ Add folder or drive</button> <button onclick=\"go('/api/scan')\">Scan again</button><div id=l></div>" +
-      "<script>function go(u){fetch(u).then(r=>r.json()).then(show)}function rm(p){fetch('/api/remove',{method:'POST',body:p}).then(r=>r.json()).then(show)}" +
+      "<script>function mb(b){return b>=1073741824?(b/1073741824).toFixed(2)+' GB':Math.round(b/1048576)+' MB'}" +
+      "function dl(a){if(!a||!a.length)return '<h3>Sending now</h3><p>Nothing right now.</p>';return '<h3>Sending now</h3><table>'+a.map(x=>'<tr><td>'+x.room+'</td><td>'+x.name+'</td><td>'+mb(x.done)+' of '+mb(x.size)+'</td><td><b>'+Math.floor(100*x.done/Math.max(1,x.size))+'%</b></td><td>'+(x.fin?'<span class=g>finished</span>':x.idle>60?'<span class=a>waiting '+x.idle+' s</span>':x.mbs+' MB/s')+'</td></tr>').join('')+'</table>'}" +
+      "function go(u){fetch(u).then(r=>r.json()).then(show)}function rm(p){fetch('/api/remove',{method:'POST',body:p}).then(r=>r.json()).then(show)}" +
       "function stf(){fetch('/api/staff',{method:'POST',body:document.getElementById('sc').value}).then(r=>r.json()).then(show)}" +
-      "function show(j){document.getElementById('k').innerHTML='<p>Control centre: '+j.push+'</p>'+(j.staff?'':'<p>Staff code: <input id=sc type=password> <button onclick=stf()>Save</button></p>');document.getElementById('f').innerHTML='<h3>Folders</h3>'+j.folders.map(f=>'<div>'+f.path+(f.there?'':' <span class=e>(not connected)</span>')+' <button onclick=\\'rm('+JSON.stringify(f.path)+')\\'>remove</button></div>').join('')+'<p>Shared at '+j.ips.map(i=>i.ip+' ('+i.nic+')').join(', ')+' port '+j.port+' &middot; downloads now: '+j.active+' &middot; sent '+j.servedMB+' MB</p>';" +
-      "var c={gd:'g',gp:'p',ac:'a'},n={gd:'Game',gp:'Patch',ac:'DLC'};document.getElementById('l').innerHTML='<h3>'+j.pkgs.length+' PKG files</h3><table>'+j.pkgs.map(p=>'<tr><td class='+(p.err?'e':c[p.cat]||'')+'>'+(p.err?'unreadable':n[p.cat]||p.cat)+'</td><td>'+(p.title||p.name)+'</td><td>'+(p.tid||'')+'</td><td>'+(p.appver||p.ver||'')+'</td><td>FW '+(p.fw||'?')+'</td><td>'+(p.size/1073741824).toFixed(2)+' GB</td><td>'+p.name+'</td></tr>').join('')+'</table>'}go('/api/list');setInterval(()=>go('/api/list'),15000)</script>";
+      "function show(j){document.getElementById('k').innerHTML='<p>Control centre: '+j.push+'</p>'+(j.staff?'':'<p>Staff code: <input id=sc type=password> <button onclick=stf()>Save</button></p>');document.getElementById('f').innerHTML='<h3>Folders</h3>'+j.folders.map(f=>'<div>'+f.path+(f.there?'':' <span class=e>(not connected)</span>')+' <button onclick=\\'rm('+JSON.stringify(f.path)+')\\'>remove</button></div>').join('')+'<p>Shared at '+j.ips.map(i=>i.ip+' ('+i.nic+')').join(', ')+' port '+j.port+' &middot; sent '+j.servedMB+' MB</p>'+dl(j.dl);" +
+      "var c={gd:'g',gp:'p',ac:'a'},n={gd:'Game',gp:'Patch',ac:'DLC'};document.getElementById('l').innerHTML='<h3>'+j.pkgs.length+' PKG files</h3><table>'+j.pkgs.map(p=>'<tr><td class='+(p.err?'e':c[p.cat]||'')+'>'+(p.err?'unreadable':n[p.cat]||p.cat)+'</td><td>'+(p.title||p.name)+'</td><td>'+(p.tid||'')+'</td><td>'+(p.appver||p.ver||'')+'</td><td>FW '+(p.fw||'?')+'</td><td>'+(p.size/1073741824).toFixed(2)+' GB</td><td>'+p.name+'</td></tr>').join('')+'</table>'}go('/api/list');setInterval(()=>go('/api/list'),5000)</script>";
   }
 }
 '@
 Add-Type -TypeDefinition $code -ReferencedAssemblies System.Windows.Forms -Language CSharp
 [R2Srv]::Port = $port
 [R2Srv]::ConfigPath = Join-Path $here 'pkg-folders.txt'
+[R2Srv]::RoomsPath = Join-Path $here 'pkg-rooms.txt'   # 1.3: "<PS4 address> <room>" per line, so the window says Kaeden instead of 192.168.88.5
+[R2Srv]::LoadRooms()
 [R2Srv]::StaffPath = Join-Path $here 'pkg-staff.txt'   # the staff code, so the list reaches the control centre (via the engine)
 # the secret part of the file links - kept in pkg-token.txt so queued jobs still work after a restart of this program
 $tokFile = Join-Path $here 'pkg-token.txt'

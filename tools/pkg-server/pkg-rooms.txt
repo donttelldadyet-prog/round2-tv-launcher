@@ -1,0 +1,8 @@
+# PS4 address -> room, for the server window (from the control centre, 21 Nov 2026). Addresses can change; the window shows the address if it does not know it.
+192.168.88.11 Vale
+192.168.88.23 Max
+192.168.88.4 Scarlett
+192.168.120.3 Atlas
+192.168.120.2 Bella
+192.168.88.18 Kai
+192.168.88.5 Kaeden
