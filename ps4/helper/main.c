@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.151"   /* 1.1.151 Round2 tile first on the home screen after each load / clean slate (/_fold.pin); 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.152"   /* 1.1.152 "/_memadd" = a second crew joins the room on the free profiles (nobody else's profile is touched) + a profile taking a NEW player is released first when it holds someone else's games; 1.1.151 Round2 tile first on the home screen after each load / clean slate (/_fold.pin); 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -3182,11 +3182,12 @@ static void memplay_next(const char *key) {
    spares are renamed back to "Player k", pictures reset, member tags removed. The ticked players then load as before. While this
    runs the queue file holds a placeholder line, so the engine/tile keep showing "Getting <name>'s profile ready...". */
 #define MEMAFTER "/data/round2/memplay-after"
-static int prof_games(const char *u) {   /* how many games this profile has saves for (not PS Vue / homebrew) */
+static int prof_games2(const char *u, int memonly) {   /* how many games this profile has saves for (not PS Vue / homebrew) */
   char sd[120]; snprintf(sd, sizeof sd, "/user/home/%s/savedata", u); DIR *g = opendir(sd); struct dirent *f; static char nm[64][32]; int n = 0;
-  while (g && (f = readdir(g))) { if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name)) continue; if (sv_disk_parts(u, f->d_name, nm, 64)) n++; }
+  while (g && (f = readdir(g))) { if (strlen(f->d_name) != 9 || !strcmp(f->d_name, VUE_ID) || r2_homebrew(f->d_name) || (memonly && r2_protected(f->d_name))) continue; if (sv_disk_parts(u, f->d_name, nm, 64)) n++; }
   if (g) closedir(g); return n;
 }
+static int prof_games(const char *u) { return prof_games2(u, 0); }   /* 1.1.152: prof_games2(u, 1) = only games that can be a member's save (not the house GT Sport) */
 static void release_names(void) {   /* after the release clean slate: names, pictures, tags of the released profiles */
   char b[400] = ""; FILE *f = fopen(CLND "/release", "r"); if (!f) return; size_t n = fread(b, 1, sizeof b - 1, f); b[n] = 0; fclose(f); unlink(CLND "/release");
   uint32_t mainu = r2_main_user(); int ren = 0, pic = 0, tags = 0;
@@ -3265,8 +3266,15 @@ static void switch_resume(const char *key) {   /* the release is done: start the
   int m0 = look_mute; look_mute = 1; look_memplay(key, sp); look_mute = m0;
   { char s5[400]; report(key, s5, sizeof s5); }   /* tell the tile at once (loading, or all ready) */
 }
+/* 1.1.152 (owner 22 Nov 8:49pm: "what if there are 2 members in one room, each with individual saves, is there a way we can load
+   from each?"): "/_memadd.<member>.<slot>.<Name>…" = the same load, but ANOTHER crew is already playing in this room this session
+   (the engine decides). Their profiles are left exactly as they are: the main profile, and every spare linked to a member's player
+   (any crew), are never released, renamed or re-linked. The new players go on the free spares (no member link, or only an "extra
+   slot" link x<k>), clean ones first. Too few free spares = refused before anything changes. Each profile keeps its own member link,
+   so after the session every player's saves go back to their own crew. */
 static void look_memplay(const char *key, const char *spec) {
-  char buf[200], *tok[12]; int nt = 0; snprintf(buf, sizeof buf, "%s", spec + 10);
+  int add = !strncmp(spec, "/_memadd.", 9);
+  char buf[200], *tok[12]; int nt = 0; snprintf(buf, sizeof buf, "%s", spec + (add ? 9 : 10));
   for (char *p = buf, *q; p && nt < 12; p = q) { q = strchr(p, '.'); if (q) *q++ = 0; tok[nt++] = p; }
   if (nt < 3 || !(nt % 2) || !mem_ok(tok[0])) { look_kv("memplay/error", "bad spec"); return; }
   { char st[16] = ""; cl_rd("state", st, sizeof st); if (!strcmp(st, "running") || !strcmp(st, "paused")) { look_kv("memplay/waits", "- the room is being reset first"); return; } }
@@ -3289,11 +3297,19 @@ static void look_memplay(const char *key, const char *spec) {
     for (int i = 0; i < ns_; i++) for (int j = i + 1; j < ns_; j++) if (sp_[j] < sp_[i]) { uint32_t x = sp_[i]; sp_[i] = sp_[j]; sp_[j] = x; }
     for (int i = -1; i < ns_ && i < 4; i++) { char op[120]; snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", i < 0 ? mainu_ : sp_[i]); FILE *f = fopen(op, "r");
       char *d = i < 0 ? mtg : tg_[i]; if (f) { if (!fgets(d, 64, f)) d[0] = 0; fclose(f); d[strcspn(d, "\r\n ")] = 0; } } }
+  int kp[5] = {0}, mkeep = 0, busy[5] = {0}, gm[5] = {0};   /* 1.1.152: kp = spare keeps its player; busy = add mode, someone else's */
   for (int i = 0; i < np && i < 6; i++) { const char *sl = tok[1 + 2 * i]; char want[64]; snprintf(want, sizeof want, "%s/%s", tok[0], sl); posv[i][0] = 0;
-    if (!strcmp(sl, "main")) { snprintf(posv[i], 2, "m"); keep[i] = !strcmp(mtg, want); continue; }
-    for (int j = 0; j < ns_ && j < 4; j++) if (!taken[j] && !strcmp(tg_[j], want)) { taken[j] = 1; snprintf(posv[i], 2, "%d", j + 1); snprintf(used[j], 16, "%s", sl); keep[i] = 1; k++; break; } }
+    if (!strcmp(sl, "main")) { snprintf(posv[i], 2, "m"); keep[i] = mkeep = !strcmp(mtg, want);
+      if (add && !keep[i]) { look_kv("memplay/refused", "- The room's main profile belongs to the crew that loaded first. Pick Player profiles instead."); return; } continue; }
+    for (int j = 0; j < ns_ && j < 4; j++) if (!taken[j] && !strcmp(tg_[j], want)) { taken[j] = 1; kp[j] = 1; snprintf(posv[i], 2, "%d", j + 1); snprintf(used[j], 16, "%s", sl); keep[i] = 1; k++; break; } }
+  if (add) for (int j = 0; j < ns_ && j < 4; j++) { char u9[9]; snprintf(u9, sizeof u9, "%08x", sp_[j]); gm[j] = prof_games2(u9, 1); if (!taken[j] && tg_[j][0] && !strstr(tg_[j], "/x")) busy[j] = 1; }
+  if (add) { int need = 0, fr = 0; for (int i = 0; i < np && i < 6; i++) if (!posv[i][0]) need++; for (int j = 0; j < ns_ && j < 4; j++) if (!taken[j] && !busy[j]) fr++;
+    if (need > fr) { char v[200]; snprintf(v, sizeof v, "- This PS4 has %d free player profile%s and %d player%s to load. Untick some players, or ask staff.", fr, fr == 1 ? "" : "s", need, need == 1 ? "" : "s");
+      sv_log("member add refused: %s - %d free spare(s), %d needed", tok[2], fr, need); look_kv("memplay/refused", v); return; } }
   for (int i = 0; i < np && i < 6; i++) { const char *sl = tok[1 + 2 * i]; if (posv[i][0]) continue;
-    int j = 0; while (j < 4 && j < ns_ && taken[j]) j++;
+    int j = 0;
+    if (add) { j = -1; for (int pass = 0; pass < 2 && j < 0; pass++) for (int jj = 0; jj < ns_ && jj < 4; jj++) if (!taken[jj] && !busy[jj] && (pass || !gm[jj])) { j = jj; break; } if (j < 0) j = 4; }   /* clean ones first */
+    else while (j < 4 && j < ns_ && taken[j]) j++;
     snprintf(posv[i], 2, "%d", j + 1); if (j < 4 && j < ns_) { taken[j] = 1; snprintf(used[j], 16, "%s", sl); } k++; }
   /* 1.1.124: release the profiles that don't take a ticked player (see above) - once per load (MEMAFTER marks the second pass) */
   if (!file_exists(MEMAFTER ".done")) {
@@ -3304,11 +3320,16 @@ static void look_memplay(const char *key, const char *spec) {
     for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
     char rel[400] = ""; int nrel = 0; mkdir(CLND, 0777); FILE *td = fopen(CLND "/todo", "w"); int ng = 0;
     for (int i = -1; i < ns && i < 4; i++) { uint32_t pu = i < 0 ? mainu : sp[i]; if (!pu) continue;
-      if (i < 0 ? mainticked : taken[i]) continue;   /* takes a ticked player (1.1.125: kept players stay where they are) */
+      int tk1 = i < 0 ? mainticked : taken[i], newp = tk1 && !(i < 0 ? mkeep : kp[i]);
+      if (tk1 && !newp) continue;   /* keeps its player (1.1.125: kept players stay where they are) */
+      if (add && !newp) continue;   /* 1.1.152 add mode: only the profile a new player goes to - nobody else's */
       char u[9]; snprintf(u, sizeof u, "%08x", pu); char op[120], want[16], have[64] = ""; snprintf(op, sizeof op, "/data/round2/prep/owner_%s.txt", u);
       snprintf(want, sizeof want, "Player %d", i + 1); if (i >= 0) sceUserServiceGetUserName((int32_t)pu, have, sizeof have);
       int games = prof_games(u), tagd = 0; { char tb[64] = ""; FILE *tf = fopen(op, "r"); if (tf) { if (fgets(tb, sizeof tb, tf)) tagd = !strstr(tb, "/x"); else tagd = 1; fclose(tf); } }   /* 1.1.125: an "extra slot" link (x<k>) alone isn't worth a release */
       int dirty = games || tagd || (i >= 0 && strcmp(have, want));
+      /* 1.1.152: a profile taking a NEW player is released first when it still holds games (the last owner's - otherwise the games
+         the new player doesn't have stayed there and went to the new player's cloud after the session). No games = loaded as is. */
+      if (newp) dirty = prof_games2(u, 1) > 0;
       if (!dirty) continue;
       if (user_signed_in(pu) && pu != mainu && !menu_logout("profile switch - releasing a signed-in profile")) { sceUserServiceLogout((int32_t)pu); sleep(2); }   /* 1.1.136 */
       size_t l = strlen(rel); snprintf(rel + l, sizeof rel - l, "%s %d\n", u, i < 0 ? 0 : i + 1); nrel++;
@@ -3342,6 +3363,7 @@ static void look_memplay(const char *key, const char *spec) {
     for (int i = 0; i < ns; i++) for (int j = i + 1; j < ns; j++) if (sp[j] < sp[i]) { uint32_t x = sp[i]; sp[i] = sp[j]; sp[j] = x; }
     mkdir("/data/round2/prep", 0777);
     for (int i = -1; i < ns && i < 4; i++) { uint32_t pu = i < 0 ? mainu : sp[i]; if (!pu) continue; char op[120], tv[80];
+      if (add && !(i >= 0 && used[i][0])) continue;   /* 1.1.152: add mode links only this crew's players - the others stay linked to their crew */
       if (i < 0) snprintf(tv, sizeof tv, "%s/main", tok[0]); else if (used[i][0]) snprintf(tv, sizeof tv, "%s/%s", tok[0], used[i]); else snprintf(tv, sizeof tv, "%s/x%d", tok[0], i + 1);
       snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", pu); { char ob[80] = ""; FILE *of = fopen(op, "r"); if (of) { if (!fgets(ob, sizeof ob, of)) ob[0] = 0; fclose(of); ob[strcspn(ob, "\r\n ")] = 0; }
         if (strcmp(ob, tv)) { put_file(op, tv); sv_log("member link: profile %08x -> %s", pu, tv); } } } }   /* 1.1.125: unchanged = untouched (its time says when the player was loaded) */
@@ -5063,7 +5085,7 @@ static void do_look(const char *key, const char *cid, const char *body) {
       if (sscanf(t, "/_resend.%8[0-9a-f].%9[A-Z0-9]", ru, rt) == 2 && strlen(ru) == 8 && strlen(rt) == 9) { snprintf(rp, sizeof rp, PREPD "/%s/%s/resend.txt", ru, rt); mkdirs_for(rp); sleep(1);
         put_file(rp, "resend\n"); sv_log("resend: %s %s - its parts go to the cloud again at the next cloud batch, even if unchanged", ru, rt); look_kv("resend/result", "marked"); }
       else look_kv("resend/error", "bad spec"); }
-    else if (!strncmp(t, "/_memplay.", 10)) look_memplay(key, t); /* 1.1.90 */
+    else if (!strncmp(t, "/_memplay.", 10) || !strncmp(t, "/_memadd.", 9)) look_memplay(key, t); /* 1.1.90; 1.1.152 add */
     else if (!strncmp(t, "/_regscan.", 10)) look_regscan(t); /* 1.1.97 */
     /* 1.1.92: "/_padoff" removed - scePadDisconnectDevice hung the helper on Kaeden (1.1.91) */
     else if (!strcmp(t, "/_padoff.on")) { put_file("/data/round2/padoff-on", "1"); look_kv("padoff/auto", "on"); }
