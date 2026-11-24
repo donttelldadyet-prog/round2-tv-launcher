@@ -3895,7 +3895,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var LIGHT = false, sb0 = null;
     function autoQ() { return LIGHT ? { action: 'auto', lite: '1' } : { action: 'auto' }; }   /* lite: counters only, no SimplyBook */
     var LIGHT_OK = ['PS4 games queue', 'Booking engine is up', 'One clock', 'Screens follow the 7am rule', 'Watchdog', 'Background jobs running', 'Background jobs: 3 timers', 'SimplyBook requests today',
-      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'PS4 clean slate after each session', 'Phone widgets', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Design files', 'Member claim codes', 'Light check:'];
+      'Food menu', 'TVs reporting in', 'TVs say what', 'PS4 helpers', 'PS4 blocker settings', 'PS4 remote wake', 'PS4 clean slate after each session', 'Phone widgets', 'TV setup can save', 'Keys not about to expire', 'Public pages reachable', 'Design files', 'Member claim codes', 'PS4 tile words', 'Light check:'];
     function step(name, fn) {
       if (LIGHT && !LIGHT_OK.some(function (p) { return name.indexOf(p) === 0; })) return Promise.resolve();
       var r = { name: name, st: 'run', note: '' }; rows.push(r); draw();
@@ -4290,6 +4290,18 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           must(tile && tile.color, 'The engine’s PS4 tile answer (room colour) didn’t load');   /* the member page itself is HTML without CORS – the tile answer uses the same rooms.json */
           warnIf(rooms.kaeden && ('#' + tile.color).toLowerCase() !== String(rooms.kaeden.colour).toLowerCase(), 'The engine doesn’t use Kaeden’s colour from design/rooms.json yet (it keeps the file 5 min)');
           return '7 rooms · member.css ' + Math.round(css.length / 1024) + ' KB · engine uses the room colours';
+        });
+      }); })
+      .then(function () { return step('PS4 tile words + new member page (nothing changes)', function () {
+        /* 24 Nov (design: tile phase 2 + the membership pack): the tile 0.14+ reads its words and timings from design/tile.json
+           through the engine – every text must be plain ASCII (the tile shows anything else as "?") and the ready / closing times
+           must stay inside 0.5–5 s and 3–20 s (a bad file can't strand guests). The new member page (?v=2) is a preview. */
+        return fetch(ENG + '/ps4/tilecfg').then(function (r) { return r.json(); }).then(function (c) {
+          must(c && c.ok && c.s_title && c.w_title && c.n_title, 'The tile words did not come back: ' + JSON.stringify(c).slice(0, 120));
+          var bad = Object.keys(c).filter(function (k) { return typeof c[k] === 'string' && /[^\x20-\x7e]/.test(c[k]); });
+          must(!bad.length, 'Tile words with letters the TV can’t draw: ' + bad.join(', '));
+          must(+c.t_burst >= 0.5 && +c.t_burst <= 5 && +c.t_next >= 3 && +c.t_next <= 20, 'Tile timings out of range: ' + c.t_burst + ' / ' + c.t_next);
+          return 'Tile words from ' + (c.from === 'design' ? 'design/tile.json' : 'the built-in defaults') + ' · ready ' + c.t_burst + ' s, closing ' + c.t_next + ' s · title "' + c.s_title + '"';
         });
       }); })
       .then(function () { return step('Member claim codes + two crews in a room (nothing changes)', function () {

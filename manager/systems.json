@@ -1,6 +1,6 @@
 {
  "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
- "updated": "2026-11-22",
+ "updated": "2026-11-24",
  "areas": [
   {
    "name": "Website & booking",
@@ -130,6 +130,12 @@
      "status": "test",
      "what": "Removing a player from a crew now gives a one-time code (30 days, shown on the crew's page under Removed players). The removed player types it when they join with their own phone (or a crew types it under 'Got a claim code?') and their saves move to that account – nothing is copied twice, and a PS4 that still has them tonight sends their saves to the new account. Two crews in one room: when a second crew logs in with the same TV code, their players go on the free Player profiles and the first crew's profiles stay as they are; each player's saves go back to their own crew. Needs PS4 helper 1.1.152 (on the test channel, not installed yet) – rooms on older helpers load one crew at a time as before. Also in 1.1.152: a profile taking a new player is cleared first when it still holds someone else's games.",
      "runs": "Booking engine (member page /m + claim codes) + PS4 helper 1.1.152 (test) · System check › Member claim codes"
+    },
+    {
+     "name": "New member page + new PS4 tile screens (24 Nov, design's membership look)",
+     "status": "test",
+     "what": "From the design team's membership pack, without prices (pricing on hold while the owners decide). Phone: the crew name is the identity – crew header and a crew card ('CREW SINCE'), joining in 2 steps (phone, then name your crew + first player + PIN, then 'Your crew card is ready'), short player rows with an Edit panel that slides up, the room profile as the first row, 'Loading <crew>'s saves', and 'Forgot your PIN? WhatsApp us' (also on today's page). Preview only: book.round2.sg/m?v=2 – Kaeden's tile already opens it. PS4 tile 0.14: new scan screen (words, three matte cards, QR with room-colour corners), new 'Welcome back, <crew>' screen with the crew card and the profiles list, no version text, and its words and timings come from design/tile.json so the design team can change them without a new build.",
+     "runs": "Booking engine (member page /m?v=2, /ps4/tilecfg) + PS4 tile 0.14 (Kaeden) · System check › PS4 tile words"
     },
     {
      "name": "Game saves – proven so far (13–17 Nov 2026)",
