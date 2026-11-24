@@ -1,3 +1,8 @@
+/* 0.15 (24 Nov 1:45pm – Karen's TV mockups landed, round2-tv-launcher branch design-tv-tile docs/ps4-tile-design.md): layout matched to
+   them – room name top-right, kicker in the pixel font, thinner bar full width under the card with "n of m profiles ready", the
+   profiles list as plain rows (name left, Ready / Loading / Next right, thin lines; still lights up in order and turns "Player 1"
+   into the member), lines above the footer and the foot note, "[PS]" boxed, QR 300 px with its corners, crew card with the logo
+   top-right. Not in the mockups but kept: the moving shine on the row being loaded, the tick, the dots. */
 /* 0.14 (24 Nov 2026, design's membership pack: "new scan screen … new signed-in screen … room-colour glow, calm motion" + design
    concern "tile phase 2": words and timings from design/tile.json): all drawing moved to draw.h (shared with the desktop simulator).
    Scan screen: words left ("Pick up where you left off."), a stack of three matte cards in the middle, the QR right with
@@ -68,7 +73,7 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 }
 
 #include "draw.h"
-#define TILE_V "0.14"
+#define TILE_V "0.15"
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
@@ -211,6 +216,7 @@ int main() {
   scene->InitFont(&F.tiny, "/app0/assets/fonts/ChakraPetch-Regular.ttf", 24);
   scene->InitFont(&F.pix, "/app0/assets/fonts/PressStart2P-Regular.ttf", 64);
   scene->InitFont(&F.pixs, "/app0/assets/fonts/PressStart2P-Regular.ttf", 20);
+  scene->InitFont(&F.body, "/app0/assets/fonts/ChakraPetch-Regular.ttf", 30);
 
   find_id();
   cfg_default(&g_cfg);
@@ -219,7 +225,7 @@ int main() {
 
   uint32_t *BASE = (uint32_t *)malloc(W * H * 4), *BG0 = (uint32_t *)malloc(W * H * 4);
   int frame = 0, busy = 0, done = 0, total = 0; char st[24] = "wait"; Color AC = GOLD; float shown = 0;
-  const int BX = LX, BY = 930, BW = WCX + WCW - LX, BH = 22;   /* progress bar (signed-in screen, under the words + card) */
+  const int BX = LX, BY = 797, BW = RX - LX, BH = 8;   /* progress bar (signed-in screen, full width under the card – Karen's mockup) */
   char pkk[8] = "", pnn[8] = "", pnw[32] = "";
   int seen_loading = 0, howto = 0, seen_bar = 0; double ready_t0 = 0, done_since = 0;   /* 0.08; 0.11: seen_bar, done_since */
   TRows B; memset(&B, 0, sizeof B); int was_busy = 0;
@@ -275,7 +281,7 @@ int main() {
     if (mode == 1 && !howto) {
       draw_rows(F, AC, B, nowt);
       if (busy) {
-        char lab[96]; int lx; rect(BX, BY, BW, BH, CARD);
+        char lab[96]; int lx; recta(BX, BY, BW, BH, WHITE, 40);
         int bnt = 0, bnd = 0, bli = 0; for (int i = 0; i < B.bn; i++) { char c = B.bst[i]; if (c == 'w' || c == 'l' || c == 'd' || c == 'f') bnt++; if (c == 'd' || c == 'f') bnd++; if (c == 'l') bli = 1; }
         if (B.bn > 0 && bnt > 0) {   /* 0.13 (owner: 1 of 3 profiles in = the bar a third full): the bar is the whole load, player by player */
           int pd = lv_ok ? lv_pd : done, pt = lv_ok ? lv_pt : total; static int lastk = -1; static double since2 = 0; int key = bnd * 100 + pd; if (key != lastk) { lastk = key; since2 = now_s(); }
@@ -283,39 +289,39 @@ int main() {
           if (inside > 0.98f) inside = 0.98f; float want = ((float)bnd + inside) / bnt; shown += (want - shown) * 0.06f; if (shown > want) shown = want;
           int fw = BW * shown; if (fw < 26) fw = 26; rect(BX, BY, fw, BH, AC);
           int sx = (frame * 9) % (fw + 160) - 160; for (int x = sx; x < sx + 160; x++) if (x >= 0 && x < fw) { int a = 90 - abs(x - sx - 80) * 90 / 80; for (int j = 0; j < BH; j++) blend(BX + x, BY + j, WHITE, a); }
-          snprintf(lab, sizeof lab, "%d of %d profile%s ready  -  %d%%", bnd, bnt, bnt == 1 ? "" : "s", (int)(shown * 100)); }
+          snprintf(lab, sizeof lab, "%d of %d profile%s ready", bnd, bnt, bnt == 1 ? "" : "s"); }
         else if (total > 0) { static int lastdone = -1; static double since = 0; if (done != lastdone) { lastdone = done; since = now_s(); }
           double t = now_s() - since; float creep = done < total ? (float)(0.9 * (1.0 - 1.0 / (1.0 + t / 20.0))) : 0;   /* 0.09: inside a game */
           float want = ((float)done + creep) / total; shown += (want - shown) * 0.06f; if (shown > want) shown = want;
           int fw = BW * shown; if (fw < 26) fw = 26; rect(BX, BY, fw, BH, AC);
           if (pnn[0] && atoi(pnn) > 1) snprintf(lab, sizeof lab, "%s (player %s of %s)  -  %d of %d games", pnw, pkk, pnn, done, total); else snprintf(lab, sizeof lab, "%d of %d games  -  %d%%", done, total, done * 100 / total); }
         else { int span = BW - 220, p = (frame * 7) % (2 * span), x = p < span ? p : 2 * span - p; rect(BX + x, BY, 220, BH, AC); snprintf(lab, sizeof lab, "Getting ready"); }
-        lx = text(F.small, lab, BX, BY + 70, INK);
-        char dots[8]; int n = (frame / 20) % 4; for (int i = 0; i < n; i++) dots[i] = '.'; dots[n] = 0; text(F.small, dots, lx + 4, BY + 70, AC);
-        { int ph = frame % 60 < 30 ? frame % 30 : 30 - frame % 30; logo_d(LX, 96, 2, AC, 90 + ph * 5, (frame * 14) % (LOGO_W + 400) - 200, 160 - ph * 5); }   /* 0.09: breathes while loading */
-      } else if (!strcmp(st, "done")) { shown = 0; rect(BX, BY, BW, BH, GREEN); text(F.small, "All set - enjoy!", BX, BY + 70, GREEN); }
+        lx = text(F.body, lab, BX, BY + 62, LAV);
+        char dots[8]; int n = (frame / 20) % 4; for (int i = 0; i < n; i++) dots[i] = '.'; dots[n] = 0; text(F.body, dots, lx + 4, BY + 62, AC);
+        { int ph = frame % 60 < 30 ? frame % 30 : 30 - frame % 30; logo_d(LX, 85, 2, AC, 90 + ph * 5, (frame * 14) % (LOGO_W + 400) - 200, 160 - ph * 5); }   /* 0.09: breathes while loading */
+      } else if (!strcmp(st, "done")) { shown = 0; rect(BX, BY, BW, BH, GREEN); text(F.body, "All set - enjoy!", BX, BY + 62, GREEN); }
     }
     if (!ready_t0 && done_since && seen_loading && now_s() - done_since >= 10 && (!strcmp(st, "done") || !strcmp(st, "off"))) ready_t0 = now_s();   /* 0.11: nothing-to-load fallback */
     if (ready_t0) {   /* 0.08: ready burst, then "what happens next", then close – 0.14: both times from design/tile.json */
       double e = now_s() - ready_t0, tb = C.t_burst, tn = C.t_next;
-      if (e < tb) { int cx = LX + LOGO_W / 4, cy = 96 + LOGO_H / 4;
+      if (e < tb) { int cx = LX + LOGO_W / 4, cy = 85 + LOGO_H / 4;
         for (int k = 0; k < 3; k++) { double q = e - k * tb / 6; if (q > 0) ring(cx, cy, (int)(q * 1000 * 1.5 / tb), 6, k == 1 ? AC : GREEN, (int)(200 * (1 - q / tb))); }
-        logo_d(LX, 96, 2, GREEN, 120 + (int)(120 * (1 - (e / tb))), (int)(e * 800) % (LOGO_W + 300) - 150); }
+        logo_d(LX, 85, 2, GREEN, 120 + (int)(120 * (1 - (e / tb))), (int)(e * 800) % (LOGO_W + 300) - 150); }
       else if (e < tb + tn) {
         if (!howto && BASE) { howto = 1; FB = BASE;   /* compose the instruction card once */
-          { Glow g[1] = { { W / 2, 140, 900, 0.22f } }; bg_compose(BASE, AC, g, 1); } recta(0, 0, W, 6, AC, 255); logo_d(LX, 96, 2, WHITE, 255);
+          { Glow g[1] = { { W / 2, 140, 900, 0.22f } }; bg_compose(BASE, AC, g, 1); } recta(0, 0, W, 8, AC, 255); logo_d(LX, 85, 2, WHITE, 255);
           int y = wrap(F.big, C.n_title, LX, 380, 1660, 84, GREEN);
           y += 20; for (int i = 0; i < 5; i++) if (C.n[i][0]) y = wrap(F.mid, C.n[i], LX + 20, y + 18, 1620, 56, i == 2 || i == 3 ? INK : DIM);
           FB = scene->Buf(); memcpy(FB, BASE, W * H * 4); }
         double left = tb + tn - e; int bw = (int)(1660 * left / tn); if (bw < 0) bw = 0;
         rect(LX, 960, 1660, 18, CARD); rect(LX, 960, bw, 18, AC);
         char cl[48]; snprintf(cl, sizeof cl, "Closing in %d", (int)left + 1); text(F.small, cl, LX, 1030, DIM);
-        logo_d(LX, 96, 2, AC, 60, (frame * 10) % (LOGO_W + 300) - 150); }
+        logo_d(LX, 85, 2, AC, 60, (frame * 10) % (LOGO_W + 300) - 150); }
       else { sceSystemServiceLoadExec("exit", NULL); exit(0); }
     }
     else { if (!busy) shown = 0;   /* 0.13: was reset every frame, so the bar never got past ~6 % of the way */
       if (mode == 0 && !howto && it >= 2.0) { int a = 150 + (int)(105 * (frame % 240 < 120 ? frame % 120 : 120 - frame % 120) / 120); brackets(QX, QY, QS, AC, a, 1); }   /* 0.14: calm – the QR corners breathe */
-      if (mode == 0 && !howto && it >= 2.0) { int ph = frame % 240 < 120 ? frame % 120 : 120 - frame % 120; logo_d(LX, 96, 2, AC, ph, (frame * 4) % (LOGO_W + 900) - 300, ph / 2); } }   /* 0.09: gentle breathing when idle */
+      if (mode == 0 && !howto && it >= 2.0) { int ph = frame % 240 < 120 ? frame % 120 : 120 - frame % 120; logo_d(LX, 85, 2, AC, ph, (frame * 4) % (LOGO_W + 900) - 300, ph / 2); } }   /* 0.09: gentle breathing when idle */
     scene->SubmitFlip(frame); scene->FrameWait(frame); scene->FrameBufferSwap(); frame++;
   }
   return 0;
