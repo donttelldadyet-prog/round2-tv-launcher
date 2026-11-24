@@ -1,0 +1,182 @@
+// Round2 board – a desktop widget for the Mac (Übersicht).  Owner, 25 Nov 2026: "lets try 2, i bought a new macbook pro 16".
+// Get it from the control centre (Phone alerts & widgets › Download Mac board): this shop's widget key is filled in.
+// Put the file in Übersicht's widgets folder (Übersicht menu-bar icon › Open Widgets Folder). Same live data as the iPhone
+// widgets (the engine's /w), checked every 30 s; countdowns tick every second on the engine's clock (Singapore time).
+//
+// Change these to taste:
+const SIDE = 'left';          // 'left' or 'right' – macOS keeps desktop icons on the right
+const TOP = 46;               // points from the top (the MacBook's menu bar + notch are ~37)
+const EDGE = 24;              // points from the side
+const SCALE = 1;              // 1 = made for the 16" MacBook Pro's default size (1728 × 1117); 0.85 smaller, 1.15 bigger
+const NAMES = true;           // false = hide guest names
+
+const KEY = '__KEY__', API = '__URL__';
+const FONTS = 'https://staff.round2.sg/widget/fonts/';
+
+import { React } from 'uebersicht';
+
+const RC = { Vale: '#E8436A', Kaeden: '#4DB848', Scarlett: '#F2C21B', Bella: '#7A5BE0', Kai: '#24B49A', Atlas: '#E9E7EF', Max: '#E0402F' };
+const INK = '#f4f1fb', MUTE = '#8d84a6', ACC = '#F2C21B', OK = '#4DB848', WARN = '#ff9f43', BAD = '#ff4d5e';
+const RICON = { Vale: 'cat', Kaeden: 'leaf', Scarlett: 'saturn', Kai: 'mount', Bella: 'book', Atlas: 'boat', Max: 'car' };
+const PIX = {"tv":["..#.....#...","...#...#....","....#.#.....","############","#..........#","#...#......#","#...###....#","#...#####..#","#...###....#","#...#......#","#..........#","############"],"clock":["...######...","..#......#..",".#...#....#.","#....#.....#","#....#.....#","#....###...#","#.......#..#","#........#.#","#..........#",".#........#.","..#......#..","...######..."],"user":["....####....","...#....#...","...#....#...","...#....#...","....####....","............","..########..",".#........#.","#..........#","#..........#","#..........#","############"],"cake":[".....##.....","......#.....",".....##.....",".....##.....",".##########.",".#........#.",".#.##..##.#.",".##########.","#..........#","#.#.#..#.#.#","#..........#","############"],"cat":["............",".#.......#..",".##.....##..",".#.#####.#..",".#.......#..","#..#...#..#.","#.........#.","#....#....#.",".#..#.#..#..","..#.....#...","...#####....","............"],"mount":["............","............",".....#......","....#.#.....","...#...#.#..","..#.#.#.#.#.","..#..#..#..#",".#.........#",".#.........#","#...........","############","............"],"book":["............",".####..####.","#....##....#","#.##.##.##.#","#....##....#","#.##.##.##.#","#....##....#","#.##.##.##.#","#....##....#",".####..####.",".....##.....","............"],"boat":[".....#......",".....##.....",".....###....",".....####...",".....#####..",".....######.",".....#......","############",".##########.","..########..","............","#.##.##.##.#"],"car":["............","............","...######...","..#..#...#..",".#...#....#.","############","#..........#","#.##....##.#","############",".##......##.",".##......##.","............"],"saturn":["..............","..............",".....####.....","....######..##","...#########.#","...#######.##.","...#####..#...","...##...###...",".##..######...","#.#########...","##..######....",".....####.....","..............",".............."],"leaf":[".........###","......######","....#####..#","...####...#.","..####...#..","..###...#...",".###...#....",".##...#.....",".#.###......",".###........","#...........","............"],"moon":["....####....","..###.......",".##.........",".#..........","##..........","##..........","##..........","##.........#",".##.......##",".###.....##.","..########..","....####...."],"pad":["............","..########..",".#........#.","#..#....#..#","#.###..#.#.#","#..#....#..#","#..........#","#...####...#",".#.#....#.#.","..#......#..","............","............"],"bell":[".....##.....","....####....","...######...","...######...","..########..","..########..",".##########.","############","............",".....##.....","............","............"],"warn":[".....##.....","....####....","....#..#....","...##..##...","...##..##...","..###..###..","..###..###..",".##########.",".####..####.","#####..#####","############","............"],"check":["............","...........#","..........##",".........##.","#.......##..","##.....##...",".##...##....","..##.##.....","...###......","....#.......","............","............"],"sparkle":["......#.....","......#.....",".....###....","###########.",".....###....","......#.....","..#...#.....","..#.........",".###......#.","..#......###","..#.......#.","............"]};
+const LOGO = 'data:image/png;base64,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';
+
+/* ---------- data: every 30 s; the screen ticks every second ---------- */
+export const refreshFrequency = 1000;
+let last = 0, busy = false;
+export const command = async (dispatch) => {
+  dispatch({ type: 'TICK' });
+  if (busy || Date.now() - last < 30000) return;
+  busy = true;
+  try {
+    const t0 = Date.now(), r = await fetch(API + '?k=' + encodeURIComponent(KEY), { cache: 'no-store' }), j = await r.json();
+    last = Date.now();
+    if (j && j.ok) dispatch({ type: 'DATA', j, off: j.now - (t0 + last) / 2 }); else dispatch({ type: 'ERR', e: (j && j.error) || 'no answer' });
+  } catch (e) { last = Date.now() - 20000; dispatch({ type: 'ERR', e: 'offline – retrying' }); }
+  busy = false;
+};
+export const initialState = { j: null, off: 0, err: '', at: 0, tick: 0 };
+export const updateState = (ev, s) => {
+  if (ev.type === 'DATA') return { ...s, j: ev.j, off: ev.off, err: '', at: Date.now() };
+  if (ev.type === 'ERR') return { ...s, err: ev.e };
+  if (ev.type === 'TICK') return { ...s, tick: s.tick + 1 };
+  return s;
+};
+
+/* ---------- the engine's clock, Singapore time ---------- */
+const now = (s) => Date.now() + (s.off || 0);
+const sgd = (ms) => new Date(ms + 8 * 3600e3);
+const clk = (ms) => { const d = sgd(ms), h = d.getUTCHours(), m = d.getUTCMinutes(); return ((h + 11) % 12 + 1) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); };
+const clkFull = (ms) => { const d = sgd(ms), h = d.getUTCHours(); return ((h + 11) % 12 + 1) + ':' + String(d.getUTCMinutes()).padStart(2, '0') + (h < 12 ? 'am' : 'pm'); };
+const dayName = (ms) => { const d = sgd(ms); return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()]; };
+const left = (ms) => { const t = Math.max(0, Math.round(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), x = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+const ago = (t, n) => { const m = Math.round((n - t) / 60e3); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : Math.round(m / 60) + 'h ago'; };
+const money = (v) => 'S$' + (Math.round(+v * 100) / 100).toFixed(2).replace(/\.00$/, '');
+const mix = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+
+/* ---------- pieces ---------- */
+const Pix = ({ name, color, size = 14 }) => {
+  const P = PIX[name]; if (!P) return null;
+  const rects = []; P.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === '#') rects.push(<rect key={x + '-' + y} x={x} y={y} width="1.02" height="1.02" />); });
+  return <svg width={size} height={size * P.length / P[0].length} viewBox={`0 0 ${P[0].length} ${P.length}`} fill={color} style={{ display: 'block', flex: 'none', shapeRendering: 'crispEdges' }}>{rects}</svg>;
+};
+const Label = ({ children, color = MUTE, size = 8 }) => <div style={{ fontFamily: 'PS2P', fontSize: size, color, letterSpacing: 0.5, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</div>;
+const Seg = ({ w = 60 }) => <div style={{ width: w, height: 6, background: `repeating-linear-gradient(90deg, ${mix(ACC, 0.6)} 0 6px, transparent 6px 9px)`, flex: 'none' }} />;
+const Line = ({ icon, ic = MUTE, color = INK, children, bold, mono }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontWeight: bold ? 700 : 500, color, fontVariantNumeric: mono ? 'tabular-nums' : 'normal' }}>
+    {icon && <Pix name={icon} color={ic} size={12} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span>
+  </div>);
+const Frame = ({ color, strong, children, style }) => (
+  <div style={{ position: 'relative', background: mix(color, strong ? 0.2 : 0.08), border: `1.5px solid ${mix(color, strong ? 0.7 : 0.35)}`, padding: '10px 12px', ...style }}>
+    <i style={{ position: 'absolute', left: -1.5, top: -1.5, width: 16, height: 3, background: color }} /><i style={{ position: 'absolute', left: -1.5, top: -1.5, width: 3, height: 16, background: color }} />
+    <i style={{ position: 'absolute', right: -1.5, bottom: -1.5, width: 16, height: 3, background: color }} /><i style={{ position: 'absolute', right: -1.5, bottom: -1.5, width: 3, height: 16, background: color }} />
+    {children}
+  </div>);
+const Dot = ({ c, size = 10 }) => <span style={{ width: size, height: size, borderRadius: '50%', background: c, boxShadow: `0 0 0 3px ${mix(c, 0.25)}`, display: 'inline-block', flex: 'none' }} />;
+
+/* TV messages: automatic (10-min warning, That's a wrap) vs scheduled; grey coming · orange on the TV waiting for OK · green OK'd */
+const isAuto = (m) => m.k === 'wrapup' || m.k === 'timeup';
+const mState = (m, n) => m.ok ? 'ok' : m.at > n ? 'next' : m.ak === 0 ? 'shown' : 'wait';
+const mCol = (m, n) => ({ ok: OK, wait: WARN, shown: MUTE, next: INK })[mState(m, n)];
+const mIcon = (m) => isAuto(m) ? 'bell' : /birthday|bday|anniv|congrat/i.test(m.ti || '') || m.k === 'birthday' ? 'cake' : 'sparkle';
+
+const Room = ({ r, s }) => {
+  const n = now(s), col = RC[r.r] || INK, inn = r.st === 'in', soon = inn && r.till - n < 15 * 60e3;
+  const state = inn ? 'till ' + clk(r.till) : r.st === 'clean' ? 'cleaning till ' + clk(r.till) : r.st === 'next' ? 'next ' + clk(r.next) + (r.next - n < 24 * 3600e3 && sgd(r.next).getUTCDate() !== sgd(n).getUTCDate() ? ' tmr' : '') : r.st === 'closed' ? 'closed' : 'free';
+  const who = inn ? r.n : r.st === 'next' ? r.nn : '';
+  const tv = r.tv ? (r.tv.off ? 'TV off' : r.tv.quiet ? 'TV not reporting' : r.tv.app || 'TV on') : '';
+  const tvBad = inn && r.tv && (r.tv.off || r.tv.quiet);
+  const ps = r.ps4 && r.ps4.on ? r.ps4.g || 'PS4 menu' : '';
+  const A = (r.msgs || []).filter(isAuto), S = (r.msgs || []).filter((m) => !isAuto(m));
+  if (r.st === 'closed') return (
+    <Frame color={col} style={{ opacity: 0.45 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Pix name={RICON[r.r]} color={col} size={16} /><Label color={col} size={11}>{r.r}</Label></div>
+      <div style={{ color: MUTE, marginTop: 8 }}>Closed – renovation</div></Frame>);
+  return (
+    <Frame color={col} strong={inn}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Pix name={RICON[r.r]} color={col} size={16} /><Label color={col} size={11}>{r.r}</Label></div>
+      <div style={{ marginTop: 8, color: r.st === 'clean' ? ACC : inn ? INK : MUTE, fontWeight: 600 }}>{state}</div>
+      {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+        <span style={{ fontFamily: 'PS2P', fontSize: 17, color: soon ? WARN : OK, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span><span style={{ color: MUTE, fontSize: 12 }}>left</span></div>}
+      <div style={{ display: 'grid', gap: 3, marginTop: 6, fontSize: 12.5 }}>
+        {NAMES && who && <Line icon="user">{who}</Line>}
+        {tv && (inn || (r.tv && !r.tv.off && !r.tv.quiet)) && <Line icon="tv" ic={tvBad ? WARN : MUTE} color={tvBad ? WARN : INK}>{tv}</Line>}
+        {ps && <Line icon="pad">{ps}</Line>}
+        {A.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Pix name="bell" color={MUTE} size={12} />
+          {A.slice(0, 2).map((m) => <span key={m.at + m.k} style={{ color: mCol(m, n), fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{(m.k === 'wrapup' ? '10m ' : 'wrap ') + clkFull(m.at).replace(/[ap]m$/, '')}{m.ok ? ' ✓' : mState(m, n) === 'wait' ? ' …' : ''}</span>)}</div>}
+        {S.slice(0, 2).map((m) => <Line key={m.at + m.ti} icon={mIcon(m)} ic={mState(m, n) === 'next' ? ACC : mCol(m, n)} color={mState(m, n) === 'next' ? INK : mCol(m, n)}>{clk(m.at) + ' ' + (m.ti || 'TV message') + (m.ok ? ' ✓' : '')}</Line>)}
+      </div>
+    </Frame>);
+};
+
+const Side = ({ title, children }) => <div style={{ display: 'grid', gap: 7 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Label>{title}</Label><Seg w={36} /></div>{children}</div>;
+
+export const render = (s) => {
+  const j = s.j, n = now(s);
+  const fonts = <style>{`
+    @font-face { font-family: PS2P; src: url(${FONTS}PressStart2P-Regular.ttf); }
+    @font-face { font-family: Chakra; font-weight: 500; src: url(${FONTS}ChakraPetch-Medium.ttf); }
+    @font-face { font-family: Chakra; font-weight: 600; src: url(${FONTS}ChakraPetch-SemiBold.ttf); }
+    @font-face { font-family: Chakra; font-weight: 700; src: url(${FONTS}ChakraPetch-Bold.ttf); }`}</style>;
+  const wrap = (body) => <div style={{ position: 'fixed', top: TOP, [SIDE]: EDGE, width: 1000, transform: `scale(${SCALE})`, transformOrigin: `top ${SIDE}`, fontFamily: 'Chakra, -apple-system, sans-serif', fontSize: 13, color: INK,
+    background: 'linear-gradient(180deg, rgba(21,17,31,0.88), rgba(11,9,20,0.9))', WebkitBackdropFilter: 'blur(18px)', backdropFilter: 'blur(18px)', borderRadius: 20, padding: '18px 22px 20px', boxShadow: '0 20px 60px rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.06)' }}>{fonts}{body}</div>;
+  if (!j) return wrap(<div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><img src={LOGO} style={{ height: 22 }} /><span style={{ color: MUTE }}>{s.err || 'Loading the board…'}</span></div>);
+
+  const c = j.counts || {}, H = j.health || { lv: 0, list: [] }, hc = [OK, WARN, BAD][H.lv] || OK;
+  const rooms = j.rooms || [], M = j.money, T = j.tomorrow;
+  /* next starts / finishes, rooms at the same time together */
+  const G = []; for (const e of (j.events || []).filter((e) => e.at > n)) { const g = G[G.length - 1]; if (g && g.t === e.t && Math.abs(g.at - e.at) < 60e3) g.rs.push(e.r); else G.push({ at: e.at, t: e.t, rs: [e.r] }); }
+  const stale = Date.now() - s.at > 2 * 60e3;
+  return wrap(<div>
+    {/* header */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+      <img src={LOGO} style={{ height: 24, display: 'block' }} />
+      <Label color={INK} size={10}>{T && T.over ? 'Tonight done' : c.in + ' in · ' + c.left + ' to come'}</Label><Seg w={90} />
+      <div style={{ flex: 1 }} />
+      <Dot c={hc} /><span style={{ color: hc, fontWeight: 700 }}>{H.lv >= 2 ? 'Needs someone' : H.lv ? 'Keep an eye' : 'All OK'}</span>
+      <span style={{ color: MUTE, marginLeft: 6 }}>{dayName(n)}</span>
+      <span style={{ fontFamily: 'PS2P', fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{clkFull(n)}</span>
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 270px', gap: 18 }}>
+      {/* rooms */}
+      <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          {rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} />)}
+        </div>
+        {/* closed rooms (Kaeden, under renovation) – one quiet line instead of a whole box */}
+        {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.5 }}>
+          <Pix name={RICON[r.r]} color={RC[r.r]} size={12} /><Label color={RC[r.r]} size={8}>{r.r}</Label><span style={{ color: MUTE }}>closed – renovation</span></div>)}
+      </div>
+      {/* side column */}
+      <div style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
+        <Side title="Up next">
+          {G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: i ? 0.8 : 1 }}>
+            {g.rs.slice(0, 4).map((r) => <Pix key={r} name={RICON[r]} color={RC[r]} size={13} />)}
+            <span style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</span>
+            <span style={{ flex: 1 }} /><span style={{ color: i ? MUTE : ACC, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{left(g.at - n)}</span></div>)
+            : <div style={{ color: MUTE }}>Nothing more tonight</div>}
+        </Side>
+        {M && <Side title="Today">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}><span style={{ fontFamily: 'PS2P', fontSize: 20 }}>{M.n}</span><span style={{ color: MUTE }}>booked</span>
+            <span style={{ flex: 1 }} /><span style={{ fontFamily: 'PS2P', fontSize: 13, color: OK }}>{money(M.paid)}</span><span style={{ color: MUTE }}>paid</span></div>
+          {M.nUnpaid > 0 && <Line icon="warn" ic={WARN} color={WARN} bold>{M.nUnpaid + ' not paid · ' + money(M.unpaid)}</Line>}
+          {M.cx > 0 && <Line icon="warn" color={MUTE}>{M.cx + ' cancelled today'}</Line>}
+          {M.last && <Line icon={RICON[M.last.r]} ic={RC[M.last.r]}>{'Latest: ' + M.last.r + (NAMES && M.last.n ? ' · ' + M.last.n : '') + ' · ' + ago(M.last.t, n)}</Line>}
+        </Side>}
+        {T && <Side title={'Tomorrow' + (T.first ? ' · ' + dayName(T.first.at) : '')}>
+          {!T.n ? <div style={{ color: MUTE }}>Nothing booked yet</div> : (T.list || [T.first]).slice(0, 7).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <span style={{ width: 58, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={RC[x.r]} size={12} />
+            <span style={{ color: RC[x.r], fontWeight: 700 }}>{x.r}</span><span style={{ color: MUTE, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(x.e ? 'till ' + clk(x.e) : '') + (NAMES && x.n ? ' · ' + x.n : '')}</span></div>)}
+          {T.n > 7 && <div style={{ color: MUTE }}>{'+ ' + (T.n - 7) + ' more'}</div>}
+        </Side>}
+        <Side title="Health">
+          {H.list && H.list.length ? H.list.slice(0, 5).map((x, i) => <Line key={i} icon="warn" ic={[OK, WARN, BAD][x.lv]} color={[OK, WARN, BAD][x.lv]}>{x.t.replace(/^[^\w"]+/, '')}</Line>)
+            : <Line icon="check" ic={OK} color={OK} bold>All systems OK</Line>}
+          {H.sb != null && <div style={{ color: MUTE, fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today · limit ~10,000'}</div>}
+        </Side>
+        <div style={{ color: stale || s.err ? WARN : MUTE, fontSize: 11 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div>
+      </div>
+    </div>
+  </div>);
+};
+
+export const className = `pointer-events: none;`;
