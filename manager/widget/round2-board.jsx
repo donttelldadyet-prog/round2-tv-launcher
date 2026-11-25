@@ -1,9 +1,8 @@
 // Round2 board – a desktop widget for the Mac (Übersicht).  Owner, 25 Nov 2026: "lets try 2, i bought a new macbook pro 16".
-// Look (25 Nov, owner: "70% of the first iteration, while keeping the spacing and categorisation groups and pills like the
-// In till 5pm, but instead of a pill use our 1st design style"): the first board's save-slot frames, pixel room icons,
-// Press Start 2P names and yellow segment bars – with the grouping and spacing of the member-page version (status line,
-// countdown, details, message row; side panels for Up next / Today / Tomorrow / Health). Status "pills" are square slot tags:
-// a tinted box with a solid edge in the state's colour and a pixel icon.
+// Look (25 Nov, owner: "we are modern minimalist synthwave", "the grouping has improved"): the member-page grouping and
+// spacing, drawn soft and quiet – rounded glass cards with no hard borders, each room's colour as a gentle light and a neon
+// name, status as a glowing dot with its words on a soft chip, countdowns with a faint neon glow, one thin pink→violet→teal
+// line under the header. Pixel font and pixel room icons stay as the Round2 accent.
 // Get it from the control centre (Phone alerts & widgets › Download Mac board): this shop's widget key is filled in.
 // Put the file in Übersicht's widgets folder (Übersicht menu-bar icon › Open Widgets Folder). Same live data as the iPhone
 // widgets (the engine's /w), checked every 30 s; countdowns tick every second on the engine's clock (Singapore time).
@@ -59,66 +58,67 @@ const ago = (t, n) => { const m = Math.round((n - t) / 60e3); return m < 1 ? 'ju
 const money = (v) => 'S$' + (Math.round(+v * 100) / 100).toFixed(2).replace(/\.00$/, '');
 const mix = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
-/* ---------- pieces (first-board style) ---------- */
-const Pix = ({ name, color, size = 14 }) => {
+/* ---------- pieces (minimal synthwave) ---------- */
+const Pix = ({ name, color, size = 14, glow }) => {
   const P = PIX[name]; if (!P) return null;
   const rects = []; P.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === '#') rects.push(<rect key={x + '-' + y} x={x} y={y} width="1.02" height="1.02" />); });
-  return <svg width={size} height={size * P.length / P[0].length} viewBox={`0 0 ${P[0].length} ${P.length}`} fill={color} style={{ display: 'block', flex: 'none', shapeRendering: 'crispEdges' }}>{rects}</svg>;
+  return <svg width={size} height={size * P.length / P[0].length} viewBox={`0 0 ${P[0].length} ${P.length}`} fill={color} style={{ display: 'block', flex: 'none', shapeRendering: 'crispEdges', filter: glow ? `drop-shadow(0 0 5px ${mix(color, 0.7)})` : 'none' }}>{rects}</svg>;
 };
-const Label = ({ children, color = MUTE, size = 8 }) => <div style={{ fontFamily: 'PS2P', fontSize: size, color, letterSpacing: '.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</div>;
-const Seg = ({ w = 60 }) => <div style={{ width: w, height: 6, background: `repeating-linear-gradient(90deg, ${mix(ACC, 0.6)} 0 6px, transparent 6px 9px)`, flex: 'none' }} />;
-/* the slot tag – the first board's answer to a pill: square, tinted, a solid edge in the state colour, a pixel icon */
-const Tag = ({ c, icon, children, sm, text }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: sm ? 6 : 7, padding: sm ? '3px 8px 3px 6px' : '5px 11px 5px 8px', background: mix(c, sm ? 0.1 : 0.13), border: `1px solid ${mix(c, 0.4)}`, borderLeft: `3px solid ${c}`,
+const SYNTH = 'linear-gradient(90deg, #E8436A, #7A5BE0 50%, #24B49A)';
+const Kick = ({ children, color = 'rgba(244,241,251,.5)', size = 8 }) => <div style={{ fontFamily: 'PS2P', fontSize: size, color, letterSpacing: '.22em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</div>;
+const Dot = ({ c, size = 7 }) => <i style={{ width: size, height: size, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}, 0 0 12px ${mix(c, 0.6)}`, display: 'inline-block', flex: 'none' }} />;
+/* a soft status chip: glowing dot + words on a faint tint, rounded, no border */
+const Chip = ({ c, children, sm, text }) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: sm ? 6 : 8, padding: sm ? '3px 9px' : '6px 12px', borderRadius: sm ? 7 : 9, background: mix(c, sm ? 0.1 : 0.12),
     color: text || c, fontWeight: 600, fontSize: sm ? 11.5 : 13, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', fontVariantNumeric: 'tabular-nums' }}>
-    {icon && <Pix name={icon} color={c} size={sm ? 10 : 12} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{children}</span></span>);
-const Line = ({ icon, ic = MUTE, color = INK, children, bold }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, fontWeight: bold ? 700 : 500, color }}>
-    {icon && <Pix name={icon} color={ic} size={12} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span></div>);
-/* the save-slot frame: tinted fill, room-colour edge, bright corner brackets */
-const Frame = ({ color, strong, children, style }) => (
-  <div style={{ position: 'relative', background: mix(color, strong ? 0.2 : 0.08), border: `1.5px solid ${mix(color, strong ? 0.7 : 0.35)}`, padding: '14px 16px 16px', boxShadow: strong ? `0 0 26px -6px ${mix(color, 0.45)}` : 'none', ...style }}>
-    <i style={{ position: 'absolute', left: -1.5, top: -1.5, width: 18, height: 3, background: color }} /><i style={{ position: 'absolute', left: -1.5, top: -1.5, width: 3, height: 18, background: color }} />
-    <i style={{ position: 'absolute', right: -1.5, bottom: -1.5, width: 18, height: 3, background: color }} /><i style={{ position: 'absolute', right: -1.5, bottom: -1.5, width: 3, height: 18, background: color }} />
-    {children}
-  </div>);
-const Panel = ({ icon, title, children }) => (
-  <Frame color={MUTE} style={{ padding: '13px 15px 15px', display: 'grid', gap: 9 }}>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Pix name={icon} color={ACC} size={12} /><Label color={INK}>{title}</Label><Seg w={30} /></div>{children}</Frame>);
+    <Dot c={c} size={sm ? 5 : 7} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{children}</span></span>);
+const Line = ({ icon, ic = 'rgba(244,241,251,.4)', color = 'rgba(244,241,251,.82)', children, bold }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontWeight: bold ? 600 : 500, color }}>
+    {icon && <Pix name={icon} color={ic} size={11} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span></div>);
+/* a glass card: rounded, no hard border – the room's colour is a soft light in its corner, brighter when guests are in */
+const Glass = ({ color, lit, children, style }) => (
+  <div style={{ position: 'relative', borderRadius: 16, padding: '15px 16px 16px', overflow: 'hidden',
+    background: `radial-gradient(120% 80% at 0% 0%, ${mix(color, lit ? 0.22 : 0.09)}, transparent 60%), rgba(255,255,255,.028)`,
+    boxShadow: lit ? `inset 0 0 0 1px ${mix(color, 0.35)}, 0 0 28px -8px ${mix(color, 0.55)}` : 'inset 0 0 0 1px rgba(244,241,251,.06)', ...style }}>{children}</div>);
+const Group = ({ title, children }) => (
+  <Glass color="#7A5BE0" style={{ padding: '14px 16px 15px', display: 'grid', gap: 10 }}>
+    <Kick>{title}</Kick>{children}</Glass>);
 
-/* TV messages: automatic (10-min warning, That's a wrap) vs scheduled; grey coming · orange "…" on the TV waiting for OK ·
-   green ✓ OK'd */
+/* TV messages: automatic (10-min warning, That's a wrap) vs scheduled; coming = soft white · on the TV waiting for OK = orange …
+   · OK'd = green ✓ */
 const isAuto = (m) => m.k === 'wrapup' || m.k === 'timeup';
 const mState = (m, n) => m.ok ? 'ok' : m.at > n || m.ak === 0 ? 'next' : 'wait';
-const mC = (m, n) => ({ ok: OK, wait: WARN, next: MUTE })[mState(m, n)];
+const mC = (m, n) => ({ ok: OK, wait: WARN, next: '#bdb5d3' })[mState(m, n)];
 
 const Room = ({ r, s }) => {
   const n = now(s), col = RC[r.r] || INK, inn = r.st === 'in', soon = inn && r.till - n < 15 * 60e3;
   const tmr = r.st === 'next' && sgd(r.next).getUTCDate() !== sgd(n).getUTCDate();
-  const tag = inn ? <Tag c={soon ? WARN : OK} icon={soon ? 'warn' : 'check'}>{(soon ? 'Ending · ' : 'In · till ') + clk(r.till)}</Tag>
-    : r.st === 'clean' ? <Tag c={ACC} icon="sparkle">{'Cleaning till ' + clk(r.till)}</Tag>
-    : r.st === 'next' ? <Tag c={MUTE} icon="clock" text={INK}>{'Next ' + clk(r.next) + (tmr ? ' tmr' : '')}</Tag> : <Tag c={MUTE} icon="moon">Free</Tag>;
+  const chip = inn ? <Chip c={soon ? WARN : OK}>{(soon ? 'Ending · ' : 'In · till ') + clk(r.till)}</Chip>
+    : r.st === 'clean' ? <Chip c={ACC}>{'Cleaning till ' + clk(r.till)}</Chip>
+    : r.st === 'next' ? <Chip c="#bdb5d3" text="rgba(244,241,251,.85)">{'Next ' + clk(r.next) + (tmr ? ' tmr' : '')}</Chip> : <Chip c="#6f6888" text="rgba(244,241,251,.55)">Free</Chip>;
   const who = inn ? r.n : r.st === 'next' ? r.nn : '';
   const tv = r.tv ? (r.tv.off ? 'TV off' : r.tv.quiet ? 'TV not reporting' : r.tv.app || 'TV on') : '';
   const tvBad = inn && r.tv && (r.tv.off || r.tv.quiet);
   const ps = r.ps4 && r.ps4.on ? r.ps4.g || 'PS4 menu' : '';
   const A = (r.msgs || []).filter(isAuto), S = (r.msgs || []).filter((m) => !isAuto(m));
   return (
-    <Frame color={col} strong={inn}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}><Pix name={RICON[r.r]} color={col} size={16} /><Label color={col} size={12}>{r.r}</Label></div>
-      <div style={{ marginTop: 11 }}>{tag}</div>
-      {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 10 }}>
-        <span style={{ fontFamily: 'PS2P', fontSize: 19, color: soon ? WARN : INK, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span><Label size={7}>left</Label></div>}
-      <div style={{ display: 'grid', gap: 5, marginTop: 10, fontSize: 13 }}>
-        {NAMES && who && <Line icon="user" bold>{who}</Line>}
-        {tv && (inn || (r.tv && !r.tv.off && !r.tv.quiet)) && <Line icon="tv" ic={tvBad ? WARN : MUTE} color={tvBad ? WARN : INK}>{tv}</Line>}
+    <Glass color={col} lit={inn}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}><Pix name={RICON[r.r]} color={col} size={15} glow={inn} />
+        <span style={{ fontFamily: 'PS2P', fontSize: 11, letterSpacing: '.1em', color: col, textShadow: inn ? `0 0 8px ${mix(col, 0.7)}` : 'none' }}>{r.r.toUpperCase()}</span></div>
+      <div style={{ marginTop: 12 }}>{chip}</div>
+      {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 11 }}>
+        <span style={{ fontFamily: 'PS2P', fontSize: 20, color: soon ? WARN : INK, textShadow: `0 0 14px ${soon ? mix(WARN, 0.55) : 'rgba(163,60,255,.55)'}`, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span>
+        <Kick size={7}>left</Kick></div>}
+      <div style={{ display: 'grid', gap: 5, marginTop: 11, fontSize: 13 }}>
+        {NAMES && who && <Line icon="user" bold color={INK}>{who}</Line>}
+        {tv && (inn || (r.tv && !r.tv.off && !r.tv.quiet)) && <Line icon="tv" ic={tvBad ? WARN : undefined} color={tvBad ? WARN : undefined}>{tv}</Line>}
         {ps && <Line icon="pad">{ps}</Line>}
       </div>
-      {(A.length > 0 || S.length > 0) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
-        {A.slice(0, 2).map((m) => <Tag key={m.at + m.k} sm c={mC(m, n)} icon="bell" text={mState(m, n) === 'next' ? INK : undefined}>{(m.k === 'wrapup' ? '10m ' : 'Wrap ') + clkFull(m.at).replace(/[ap]m$/, '') + (m.ok ? ' ✓' : mState(m, n) === 'wait' ? ' …' : '')}</Tag>)}
-        {S.slice(0, 2).map((m) => <Tag key={m.at + m.ti} sm c={mState(m, n) === 'next' ? ACC : mC(m, n)} icon={/birthday|bday|anniv|congrat/i.test(m.ti || '') || m.k === 'birthday' ? 'cake' : 'sparkle'} text={mState(m, n) === 'next' ? INK : undefined}>{clk(m.at) + ' ' + (m.ti || 'TV message').slice(0, 26) + (m.ok ? ' ✓' : '')}</Tag>)}
+      {(A.length > 0 || S.length > 0) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+        {A.slice(0, 2).map((m) => <Chip key={m.at + m.k} sm c={mC(m, n)} text={mState(m, n) === 'next' ? 'rgba(244,241,251,.8)' : undefined}>{(m.k === 'wrapup' ? '10m ' : 'Wrap ') + clkFull(m.at).replace(/[ap]m$/, '') + (m.ok ? ' ✓' : mState(m, n) === 'wait' ? ' …' : '')}</Chip>)}
+        {S.slice(0, 2).map((m) => <Chip key={m.at + m.ti} sm c={mState(m, n) === 'next' ? '#E8436A' : mC(m, n)} text={mState(m, n) === 'next' ? 'rgba(244,241,251,.85)' : undefined}>{clk(m.at) + ' ' + (m.ti || 'TV message').slice(0, 26) + (m.ok ? ' ✓' : '')}</Chip>)}
       </div>}
-    </Frame>);
+    </Glass>);
 };
 
 export const render = (s) => {
@@ -129,55 +129,56 @@ export const render = (s) => {
     @font-face { font-family: Chakra; font-weight: 600; src: url(${FONTS}ChakraPetch-SemiBold.ttf); }
     @font-face { font-family: Chakra; font-weight: 700; src: url(${FONTS}ChakraPetch-Bold.ttf); }`}</style>;
   const wrap = (body) => <div style={{ position: 'fixed', top: TOP, [SIDE]: EDGE, width: 1040, transform: `scale(${SCALE})`, transformOrigin: `top ${SIDE}`, fontFamily: 'Chakra, -apple-system, sans-serif', fontSize: 13, color: INK,
-    background: 'linear-gradient(180deg, rgba(21,17,31,0.9), rgba(11,9,20,0.92))', WebkitBackdropFilter: 'blur(18px)', backdropFilter: 'blur(18px)', borderRadius: 20, padding: '20px 22px 22px', boxShadow: '0 20px 60px rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.06)' }}>{fonts}{body}</div>;
-  if (!j) return wrap(<div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><img src={LOGO} style={{ height: 22 }} /><span style={{ color: MUTE }}>{s.err || 'Loading the board…'}</span></div>);
+    background: 'radial-gradient(700px 360px at 100% 0%, rgba(163,60,255,.13), transparent 70%), radial-gradient(600px 300px at 0% 100%, rgba(232,67,106,.08), transparent 70%), linear-gradient(180deg, rgba(21,17,31,.9), rgba(14,11,23,.93))',
+    WebkitBackdropFilter: 'blur(22px)', backdropFilter: 'blur(22px)', borderRadius: 24, padding: '20px 22px 22px', boxShadow: '0 0 0 1px rgba(244,241,251,.07), 0 30px 80px -30px rgba(163,60,255,.45), 0 20px 50px rgba(0,0,0,.35)' }}>{fonts}{body}</div>;
+  if (!j) return wrap(<div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><img src={LOGO} style={{ height: 22 }} /><span style={{ color: '#bdb5d3' }}>{s.err || 'Loading the board…'}</span></div>);
 
   const c = j.counts || {}, H = j.health || { lv: 0, list: [] }, hc = [OK, WARN, BAD][H.lv] || OK, M = j.money, T = j.tomorrow, rooms = j.rooms || [];
   const G = []; for (const e of (j.events || []).filter((e) => e.at > n)) { const g = G[G.length - 1]; if (g && g.t === e.t && Math.abs(g.at - e.at) < 60e3) g.rs.push(e.r); else G.push({ at: e.at, t: e.t, rs: [e.r] }); }
   const stale = Date.now() - s.at > 2 * 60e3;
   return wrap(<div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 18 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
       <img src={LOGO} style={{ height: 24, display: 'block' }} />
-      <Label color={INK} size={10}>{T && T.over ? 'Tonight done' : c.in + ' in · ' + c.left + ' to come'}</Label><Seg w={90} />
+      <div><Kick>Tonight</Kick><div style={{ marginTop: 6, color: 'rgba(244,241,251,.75)', fontWeight: 500 }}>{T && T.over ? 'All done – tomorrow is on the right' : <><b style={{ color: INK }}>{c.in}</b> in · <b style={{ color: INK }}>{c.left}</b> to come · {c.done} done</>}</div></div>
       <div style={{ flex: 1 }} />
-      <Tag c={hc} icon={H.lv ? 'warn' : 'check'}>{H.lv >= 2 ? 'Needs someone' : H.lv ? 'Keep an eye' : 'All systems OK'}</Tag>
-      <span style={{ color: MUTE, marginLeft: 4 }}>{dayName(n)}</span>
-      <span style={{ fontFamily: 'PS2P', fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{clkFull(n)}</span>
+      <Chip c={hc}>{H.lv >= 2 ? 'Needs someone' : H.lv ? 'Keep an eye' : 'All systems OK'}</Chip>
+      <div style={{ textAlign: 'right' }}><Kick>{dayName(n)}</Kick><div style={{ fontFamily: 'PS2P', fontSize: 15, marginTop: 7, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(163,60,255,.5)' }}>{clkFull(n)}</div></div>
     </div>
+    <div style={{ height: 1, margin: '16px 0 18px', background: SYNTH, opacity: 0.85, boxShadow: '0 0 10px rgba(163,60,255,.6)' }} />
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 16 }}>
       <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>{rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} />)}</div>
-        {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 9, opacity: 0.55, paddingLeft: 4 }}>
-          <Pix name={RICON[r.r]} color={RC[r.r]} size={12} /><Label color={RC[r.r]}>{r.r}</Label><span style={{ color: MUTE }}>closed – renovation</span></div>)}
+        {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 9, opacity: 0.5, paddingLeft: 6 }}>
+          <Pix name={RICON[r.r]} color={RC[r.r]} size={11} /><Kick color={RC[r.r]}>{r.r}</Kick><span style={{ color: '#bdb5d3' }}>closed – renovation</span></div>)}
       </div>
       <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
-        <Panel icon="clock" title="Up next">
-          {G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: i ? 0.85 : 1 }}>
-            {g.rs.slice(0, 4).map((r) => <Pix key={r} name={RICON[r]} color={RC[r]} size={13} />)}
-            <span style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</span>
-            <span style={{ flex: 1 }} /><Tag sm c={i === 0 ? (g.at - n < 15 * 60e3 ? WARN : ACC) : MUTE} text={i ? INK : undefined}>{left(g.at - n)}</Tag></div>)
-            : <div style={{ color: MUTE }}>Nothing more tonight</div>}
-        </Panel>
-        {M && <Panel icon="sparkle" title="Today">
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}><span style={{ fontFamily: 'PS2P', fontSize: 20 }}>{M.n}</span><span style={{ color: MUTE }}>booked</span>
-            <span style={{ flex: 1 }} /><span style={{ fontFamily: 'PS2P', fontSize: 13, color: OK }}>{money(M.paid)}</span><span style={{ color: MUTE }}>paid</span></div>
+        <Group title="Up next">
+          {G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: i ? 0.8 : 1 }}>
+            {g.rs.slice(0, 4).map((r) => <Pix key={r} name={RICON[r]} color={RC[r]} size={12} />)}
+            <span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</span>
+            <span style={{ flex: 1 }} /><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: i === 0 ? (g.at - n < 15 * 60e3 ? WARN : ACC) : 'rgba(244,241,251,.55)', textShadow: i === 0 ? `0 0 8px ${mix(g.at - n < 15 * 60e3 ? WARN : ACC, 0.5)}` : 'none' }}>{left(g.at - n)}</span></div>)
+            : <div style={{ color: '#bdb5d3' }}>Nothing more tonight</div>}
+        </Group>
+        {M && <Group title="Today">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}><span style={{ fontFamily: 'PS2P', fontSize: 20, textShadow: '0 0 12px rgba(163,60,255,.45)' }}>{M.n}</span><span style={{ color: '#bdb5d3' }}>booked</span>
+            <span style={{ flex: 1 }} /><span style={{ fontFamily: 'PS2P', fontSize: 13, color: OK, textShadow: `0 0 10px ${mix(OK, 0.5)}` }}>{money(M.paid)}</span><span style={{ color: '#bdb5d3' }}>paid</span></div>
           {(M.nUnpaid > 0 || M.cx > 0) && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {M.nUnpaid > 0 && <Tag sm c={WARN} icon="warn">{M.nUnpaid + ' not paid · ' + money(M.unpaid)}</Tag>}
-            {M.cx > 0 && <Tag sm c={BAD} icon="warn">{M.cx + ' cancelled'}</Tag>}</div>}
+            {M.nUnpaid > 0 && <Chip sm c={WARN}>{M.nUnpaid + ' not paid · ' + money(M.unpaid)}</Chip>}
+            {M.cx > 0 && <Chip sm c={BAD}>{M.cx + ' cancelled'}</Chip>}</div>}
           {M.last && <Line icon={RICON[M.last.r]} ic={RC[M.last.r]}>{'Latest: ' + M.last.r + (NAMES && M.last.n ? ' · ' + M.last.n : '') + ' · ' + ago(M.last.t, n)}</Line>}
-        </Panel>}
-        {T && <Panel icon="clock" title={'Tomorrow' + (T.first ? ' · ' + dayName(T.first.at) : '')}>
-          {!T.n ? <div style={{ color: MUTE }}>Nothing booked yet</div> : (T.list || [T.first]).slice(0, 7).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 56, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={RC[x.r]} size={12} />
-            <span style={{ color: RC[x.r], fontWeight: 700 }}>{x.r}</span><span style={{ color: MUTE, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(x.e ? 'till ' + clk(x.e) : '') + (NAMES && x.n ? ' · ' + x.n : '')}</span></div>)}
-          {T.n > 7 && <div style={{ color: MUTE }}>{'+ ' + (T.n - 7) + ' more'}</div>}
-        </Panel>}
-        <Panel icon="warn" title="Health">
-          {H.list && H.list.length ? <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>{H.list.slice(0, 5).map((x, i) => <Tag key={i} sm c={x.lv >= 2 ? BAD : WARN} icon="warn">{x.t.replace(/^[^\w"]+/, '').slice(0, 44)}</Tag>)}</div>
-            : <Tag sm c={OK} icon="check">All systems OK</Tag>}
-          {H.sb != null && <div style={{ color: MUTE, fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today · limit ~10,000'}</div>}
-        </Panel>
-        <div style={{ color: stale || s.err ? WARN : MUTE, fontSize: 11, paddingLeft: 4 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div>
+        </Group>}
+        {T && <Group title={'Tomorrow' + (T.first ? ' · ' + dayName(T.first.at) : '')}>
+          {!T.n ? <div style={{ color: '#bdb5d3' }}>Nothing booked yet</div> : (T.list || [T.first]).slice(0, 7).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 56, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={RC[x.r]} size={11} />
+            <span style={{ color: RC[x.r], fontWeight: 600 }}>{x.r}</span><span style={{ color: 'rgba(244,241,251,.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(x.e ? 'till ' + clk(x.e) : '') + (NAMES && x.n ? ' · ' + x.n : '')}</span></div>)}
+          {T.n > 7 && <div style={{ color: '#bdb5d3' }}>{'+ ' + (T.n - 7) + ' more'}</div>}
+        </Group>}
+        <Group title="Health">
+          {H.list && H.list.length ? <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>{H.list.slice(0, 5).map((x, i) => <Chip key={i} sm c={x.lv >= 2 ? BAD : WARN}>{x.t.replace(/^[^\w"]+/, '').slice(0, 44)}</Chip>)}</div>
+            : <Chip sm c={OK}>All systems OK</Chip>}
+          {H.sb != null && <div style={{ color: 'rgba(244,241,251,.45)', fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today · limit ~10,000'}</div>}
+        </Group>
+        <div style={{ color: stale || s.err ? WARN : 'rgba(244,241,251,.35)', fontSize: 11, paddingLeft: 6 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div>
       </div>
     </div>
   </div>);
