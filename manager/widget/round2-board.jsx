@@ -85,6 +85,7 @@ const Line = ({ icon, children, bold, color }) => (
 /* a card: just a thin rounded outline; when guests are in, the outline takes the room's colour */
 const Card = ({ color, lit, children, style }) => (
   <div style={{ borderRadius: 12, padding: '15px 16px 16px', border: `1px solid ${lit ? color : K.line}`, ...style }}>{children}</div>);
+const Col = ({ title, first, children }) => <div style={{ display: 'grid', gap: 9, alignContent: 'start', minWidth: 0, padding: first ? '0 20px 0 4px' : '0 20px', borderLeft: first ? 'none' : `1px solid ${K.line}` }}><Kick>{title}</Kick>{children}</div>;
 const Group = ({ title, children }) => <Card style={{ padding: '14px 16px 15px', display: 'grid', gap: 10 }}><Kick>{title}</Kick>{children}</Card>;
 
 /* TV messages: automatic (10-min warning, That's a wrap) vs scheduled; dot: grey coming · orange on the TV waiting for OK ·
@@ -107,7 +108,7 @@ const Room = ({ r, s }) => {
   return (
     <Card color={col} lit={inn}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Pix name={RICON[r.r]} color={col} size={15} />
-        <span style={{ fontWeight: 600, fontSize: 14, letterSpacing: '.22em', textTransform: 'uppercase', color: K.fg }}>{r.r}</span></div>
+        <span style={{ fontFamily: 'PS2P', fontSize: 12, letterSpacing: '.12em', color: col }}>{r.r.toUpperCase()}</span></div>
       <div style={{ marginTop: 13 }}>{chip}</div>
       {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 10 }}>
         <span style={{ fontWeight: 300, fontSize: 36, lineHeight: 1, letterSpacing: '.02em', color: soon ? K.warn : K.fg, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span>
@@ -130,7 +131,7 @@ export const render = (s) => {
   const fonts = <style>{`
     @font-face { font-family: PS2P; src: url(${FONTS}PressStart2P-Regular.ttf); }
     @font-face { font-family: QS; font-weight: 300 700; src: url(${FONTS}Quicksand.ttf); }`}</style>;
-  const wrap = (body) => <div style={{ position: 'fixed', top: TOP, [SIDE]: EDGE, width: 1040, transform: `scale(${SCALE})`, transformOrigin: `top ${SIDE}`, fontFamily: 'QS, -apple-system, sans-serif', fontSize: 13, color: K.fg,
+  const wrap = (body) => <div style={{ position: 'fixed', top: TOP, [SIDE]: EDGE, width: 1100, transform: `scale(${SCALE})`, transformOrigin: `top ${SIDE}`, fontFamily: 'QS, -apple-system, sans-serif', fontSize: 13, color: K.fg,
     background: K.bg, borderRadius: 18, padding: '22px 24px 24px', border: `1px solid ${K.line}` }}>{fonts}{body}</div>;
   const logo = (h) => <img src={LOGO} style={{ height: h, display: 'block', filter: K.logo }} />;
   if (!j) return wrap(<div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>{logo(22)}<span style={{ color: K.sub }}>{s.err || 'Loading the board…'}</span></div>);
@@ -147,42 +148,43 @@ export const render = (s) => {
       <div style={{ textAlign: 'right' }}><Kick>{dayName(n)}</Kick><div style={{ fontWeight: 300, fontSize: 26, lineHeight: 1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{clkFull(n)}</div></div>
     </div>
     <div style={{ height: 1, margin: '18px 0 20px', background: K.line }} />
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 16 }}>
-      <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>{rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} />)}</div>
-        {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 9, opacity: 0.6, paddingLeft: 6 }}>
-          <Pix name={RICON[r.r]} color={K.room(r.r)} size={11} /><span style={{ fontWeight: 600, letterSpacing: '.22em', textTransform: 'uppercase', fontSize: 11 }}>{r.r}</span><span style={{ color: K.sub }}>closed – renovation</span></div>)}
-      </div>
-      <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
-        <Group title="Up next">
-          {G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: i ? 0.75 : 1 }}>
-            {g.rs.slice(0, 4).map((r) => <Pix key={r} name={RICON[r]} color={K.room(r)} size={12} />)}
-            <span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</span>
-            <span style={{ flex: 1 }} /><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: i === 0 && g.at - n < 15 * 60e3 ? K.warn : i === 0 ? K.fg : K.sub }}>{left(g.at - n)}</span></div>)
-            : <div style={{ color: K.sub }}>Nothing more tonight</div>}
-        </Group>
-        {M && <Group title="Today">
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}><span style={{ fontWeight: 300, fontSize: 30, lineHeight: 1 }}>{M.n}</span><span style={{ color: K.sub }}>booked</span>
-            <span style={{ flex: 1 }} /><span style={{ fontWeight: 600, fontSize: 17 }}>{money(M.paid)}</span><span style={{ color: K.sub }}>paid</span></div>
+    {/* the six rooms are the board: full width, two even rows */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(196px, auto)', gap: 14 }}>{rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} />)}</div>
+    {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 9, opacity: 0.6, padding: '12px 0 0 4px' }}>
+      <Pix name={RICON[r.r]} color={K.room(r.r)} size={11} /><span style={{ fontFamily: 'PS2P', fontSize: 9, letterSpacing: '.12em', color: K.room(r.r) }}>{r.r.toUpperCase()}</span><span style={{ color: K.sub }}>closed – renovation</span></div>)}
+    {/* everything else sits quietly underneath: four columns split by thin lines, no boxes */}
+    <div style={{ height: 1, margin: '18px 0 16px', background: K.line }} />
+    <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr 1.2fr 1fr', alignItems: 'start' }}>
+      <Col first title="Up next">
+        {G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: i ? 0.75 : 1 }}>
+          {g.rs.slice(0, 3).map((r) => <Pix key={r} name={RICON[r]} color={K.room(r)} size={11} />)}
+          <span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</span>
+          <span style={{ flex: 1 }} /><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: i === 0 && g.at - n < 15 * 60e3 ? K.warn : i === 0 ? K.fg : K.sub }}>{left(g.at - n)}</span></div>)
+          : <div style={{ color: K.sub }}>Nothing more tonight</div>}
+      </Col>
+      <Col title="Today">
+        {M ? <>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ fontWeight: 300, fontSize: 28, lineHeight: 1 }}>{M.n}</span><span style={{ color: K.sub }}>booked</span>
+            <span style={{ flex: 1 }} /><span style={{ fontWeight: 600, fontSize: 16 }}>{money(M.paid)}</span><span style={{ color: K.sub }}>paid</span></div>
           {(M.nUnpaid > 0 || M.cx > 0) && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {M.nUnpaid > 0 && <Chip sm c={K.warn}>{M.nUnpaid + ' not paid · ' + money(M.unpaid)}</Chip>}
             {M.cx > 0 && <Chip sm c={K.bad}>{M.cx + ' cancelled'}</Chip>}</div>}
-          {M.last && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: K.sub }}><Pix name={RICON[M.last.r]} color={K.room(M.last.r)} size={11} />
+          {M.last && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: K.sub, minWidth: 0 }}><Pix name={RICON[M.last.r]} color={K.room(M.last.r)} size={11} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{'Latest: ' + M.last.r + (NAMES && M.last.n ? ' · ' + M.last.n : '') + ' · ' + ago(M.last.t, n)}</span></div>}
-        </Group>}
-        {T && <Group title={'Tomorrow' + (T.first ? ' · ' + dayName(T.first.at) : '')}>
-          {!T.n ? <div style={{ color: K.sub }}>Nothing booked yet</div> : (T.list || [T.first]).slice(0, 7).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 56, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={K.room(x.r)} size={11} />
-            <span style={{ fontWeight: 600 }}>{x.r}</span><span style={{ color: K.sub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(x.e ? 'till ' + clk(x.e) : '') + (NAMES && x.n ? ' · ' + x.n : '')}</span></div>)}
-          {T.n > 7 && <div style={{ color: K.sub }}>{'+ ' + (T.n - 7) + ' more'}</div>}
-        </Group>}
-        <Group title="Health">
-          {H.list && H.list.length ? <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>{H.list.slice(0, 5).map((x, i) => <Chip key={i} sm c={x.lv >= 2 ? K.bad : K.warn}>{x.t.replace(/^[^\w"]+/, '').slice(0, 44)}</Chip>)}</div>
-            : <Chip sm c={K.ok}>All systems OK</Chip>}
-          {H.sb != null && <div style={{ color: K.sub, fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today · limit ~10,000'}</div>}
-        </Group>
-        <div style={{ color: stale || s.err ? K.warn : K.sub, fontSize: 11, paddingLeft: 6 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div>
-      </div>
+        </> : <div style={{ color: K.sub }}>–</div>}
+      </Col>
+      <Col title={'Tomorrow' + (T && T.first ? ' · ' + dayName(T.first.at) : '')}>
+        {!T || !T.n ? <div style={{ color: K.sub }}>Nothing booked yet</div> : (T.list || [T.first]).slice(0, 5).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={{ width: 54, flex: 'none', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={K.room(x.r)} size={11} />
+          <span style={{ fontWeight: 600 }}>{x.r}</span><span style={{ color: K.sub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{NAMES && x.n ? x.n : x.e ? 'till ' + clk(x.e) : ''}</span></div>)}
+        {T && T.n > 5 && <div style={{ color: K.sub }}>{'+ ' + (T.n - 5) + ' more'}</div>}
+      </Col>
+      <Col title="Health">
+        {H.list && H.list.length ? <div style={{ display: 'grid', gap: 6, justifyItems: 'start', minWidth: 0 }}>{H.list.slice(0, 3).map((x, i) => <Chip key={i} sm c={x.lv >= 2 ? K.bad : K.warn}>{x.t.replace(/^[^\w"]+/, '').slice(0, 34)}</Chip>)}</div>
+          : <Chip sm c={K.ok}>All systems OK</Chip>}
+        {H.sb != null && <div style={{ color: K.sub, fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today'}</div>}
+        <div style={{ color: stale || s.err ? K.warn : K.sub, fontSize: 11 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div>
+      </Col>
     </div>
   </div>);
 };
