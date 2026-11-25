@@ -19,7 +19,10 @@ const TOP = 46;               // points from the top (the MacBook's menu bar + n
 const EDGE = 24;              // points from the side
 const SCALE = 1;              // 1 = made for the 16" MacBook Pro's default size (1728 × 1117); 0.85 smaller, 1.15 bigger
 const NAMES = true;           // false = hide guest names
-const MODE = 'auto';          // 'dark' (white on black), 'light' (black on white) or 'auto' (follows the Mac's appearance)
+// The strip under the rooms – up to 5, in this order (or tap "Choose" on the board): next · today · tomorrow · health ·
+// free (rooms free now, for walk-ins) · msgs (all TV messages) · screens (TVs & PS4s) · turn (turnovers) · night (the night)
+const STRIP = ['next', 'today', 'tomorrow', 'health'];
+const MODE = 'auto';          // starting look: 'dark', 'light' or 'auto' (follows the Mac) – or tap the ◐ switch on the board
 
 const KEY = '__KEY__', API = '__URL__';
 const FONTS = 'https://staff.round2.sg/widget/fonts/';
@@ -49,14 +52,17 @@ export const command = async (dispatch) => {
 /* where the board sits and how big – remembered on this Mac (Übersicht keeps the browser storage) */
 const SAVE = 'round2-board-place';
 const saved = (() => { try { return JSON.parse(localStorage.getItem(SAVE) || '{}') || {}; } catch (e) { return {}; } })();
-const keep = (s) => { try { localStorage.setItem(SAVE, JSON.stringify({ pos: s.pos, scale: s.scale })); } catch (e) {} return s; };
-export const initialState = { j: null, off: 0, err: '', at: 0, tick: 0, pos: saved.pos || null, scale: saved.scale || SCALE, open: '' };
+const keep = (s) => { try { localStorage.setItem(SAVE, JSON.stringify({ pos: s.pos, scale: s.scale, strip: s.strip, mode: s.mode })); } catch (e) {} return s; };
+export const initialState = { j: null, off: 0, err: '', at: 0, tick: 0, pos: saved.pos || null, scale: saved.scale || SCALE, open: '', strip: Array.isArray(saved.strip) && saved.strip.length ? saved.strip : STRIP, pick: false, mode: ['dark', 'light', 'auto'].includes(saved.mode) ? saved.mode : MODE };
 export const updateState = (ev, s) => {
   if (ev.type === 'DATA') return { ...s, j: ev.j, off: ev.off, err: '', at: Date.now() };
   if (ev.type === 'ERR') return { ...s, err: ev.e };
   if (ev.type === 'TICK') return { ...s, tick: s.tick + 1 };
   if (ev.type === 'PLACE') return ev.done ? keep({ ...s, pos: ev.pos || s.pos, scale: ev.scale || s.scale }) : { ...s, pos: ev.pos || s.pos, scale: ev.scale || s.scale };
   if (ev.type === 'RESET') return keep({ ...s, pos: null, scale: SCALE });
+  if (ev.type === 'MODE') return keep({ ...s, mode: { dark: 'light', light: 'auto', auto: 'dark' }[s.mode || MODE] || 'dark' });
+  if (ev.type === 'PICK') return { ...s, pick: !s.pick };
+  if (ev.type === 'STRIP') return keep({ ...s, strip: ev.list.length ? ev.list : STRIP });
   if (ev.type === 'OPEN') return { ...s, open: s.open === ev.r ? '' : ev.r };
   return s;
 };
@@ -73,7 +79,7 @@ const money = (v) => 'S$' + (Math.round(+v * 100) / 100).toFixed(2).replace(/\.0
 const mix = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
 
 /* ---------- monochrome, like the logo ---------- */
-const lightNow = () => MODE === 'light' || (MODE === 'auto' && typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+const lightNow = (mode = MODE) => mode === 'light' || (mode === 'auto' && typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
 const themeOf = (L) => L ? { bg: '#fafafa', fg: '#0a0a0a', sub: 'rgba(10,10,10,.52)', line: 'rgba(10,10,10,.13)', line2: 'rgba(10,10,10,.28)', ok: '#2e8b36', warn: '#d9731a', acc: '#b38a00', bad: '#d13348', logo: 'invert(1)',
   room: (r) => ({ Atlas: '#7d7a8c', Scarlett: '#c79a00' })[r] || RC[r] }
   : { bg: '#050505', fg: '#f5f5f5', sub: 'rgba(245,245,245,.5)', line: 'rgba(245,245,245,.14)', line2: 'rgba(245,245,245,.3)', ok: '#4DB848', warn: '#ff9f43', acc: '#F2C21B', bad: '#ff4d5e', logo: 'none', room: (r) => RC[r] };
@@ -197,6 +203,81 @@ const Room = ({ r, s, d }) => {
     </Card>);
 };
 
+/* ---------- the strip's tiles – pick up to 5 (25 Nov, owner: "give me several bottom tiles … and ill decide") ---------- */
+const STRIP_MAX = 5;
+const R1 = ({ r, children, c }) => <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, color: c }}><Pix name={RICON[r]} color={K.room(r)} size={11} />{children}</div>;
+const Txt = ({ children, sub, bold, c, keep }) => <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: keep ? 'none' : undefined, color: c || (sub ? K.sub : undefined), fontWeight: bold ? 600 : 500 }}>{children}</span>;
+const None = ({ children }) => <div style={{ color: K.sub }}>{children}</div>;
+const sameNight = (a, n) => { const k = (t) => { const x = sgd(t - 7 * 3600e3); return x.getUTCFullYear() * 400 + x.getUTCMonth() * 31 + x.getUTCDate(); }; return k(a) === k(n); };   /* the shop night runs to 7am */
+const TILES = {
+  next: { name: 'Up next', what: 'the next guests in and out, with how long to go', title: () => 'Up next', w: '1.15fr',
+    body: ({ G, n }) => G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: i ? 0.75 : 1 }}>
+      {g.rs.slice(0, 3).map((r) => <Pix key={r} name={RICON[r]} color={K.room(r)} size={11} />)}
+      <Txt bold>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</Txt>
+      <span style={{ flex: 1 }} /><span style={{ fontWeight: 600, whiteSpace: 'nowrap', color: i === 0 && g.at - n < 15 * 60e3 ? K.warn : i === 0 ? K.fg : K.sub }}>{'in ' + durTxt(g.at - n)}</span></div>)
+      : <None>Nothing more tonight</None> },
+  today: { name: 'Today', what: 'bookings made today, paid / not paid, cancelled, the latest one', title: () => 'Today',
+    body: ({ M, n }) => M ? <>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ fontWeight: 300, fontSize: 28, lineHeight: 1 }}>{M.n}</span><span style={{ color: K.sub }}>booked</span>
+        <span style={{ flex: 1 }} /><span style={{ fontWeight: 600, fontSize: 16 }}>{money(M.paid)}</span><span style={{ color: K.sub }}>paid</span></div>
+      {(M.nUnpaid > 0 || M.cx > 0) && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {M.nUnpaid > 0 && <Chip sm c={K.warn}>{M.nUnpaid + ' not paid · ' + money(M.unpaid)}</Chip>}
+        {M.cx > 0 && <Chip sm c={K.bad}>{M.cx + ' cancelled'}</Chip>}</div>}
+      {M.last && <R1 r={M.last.r} c={K.sub}><Txt sub>{'Latest: ' + M.last.r + (NAMES && M.last.n ? ' · ' + M.last.n : '') + ' · ' + ago(M.last.t, n)}</Txt></R1>}
+    </> : <None>–</None> },
+  tomorrow: { name: 'Tomorrow', what: "tomorrow's bookings in time order", title: ({ T }) => 'Tomorrow' + (T && T.first ? ' · ' + dayName(T.first.at) : ''), w: '1.2fr',
+    body: ({ T }) => !T || !T.n ? <None>Nothing booked yet</None> : <>{(T.list || [T.first]).slice(0, 5).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <span style={{ width: 54, flex: 'none', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={K.room(x.r)} size={11} />
+      <span style={{ fontWeight: 600 }}>{x.r}</span><Txt sub>{NAMES && x.n ? x.n : x.e ? 'till ' + clk(x.e) : ''}</Txt></div>)}
+      {T.n > 5 && <None>{'+ ' + (T.n - 5) + ' more'}</None>}</> },
+  health: { name: 'Health', what: 'anything that needs someone, SimplyBook use, when the board last updated', title: () => 'Health',
+    body: ({ H, s, j, stale }) => <>
+      {H.list && H.list.length ? <div style={{ display: 'grid', gap: 6, justifyItems: 'start', minWidth: 0 }}>{H.list.slice(0, 3).map((x, i) => <Chip key={i} sm c={x.lv >= 2 ? K.bad : K.warn}>{x.t.replace(/^[^\w"]+/, '').slice(0, 34)}</Chip>)}</div>
+        : <Chip sm c={K.ok}>All systems OK</Chip>}
+      {H.sb != null && <div style={{ color: K.sub, fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today'}</div>}
+      <div style={{ color: stale || s.err ? K.warn : K.sub, fontSize: 11 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div></> },
+  free: { name: 'Free now', what: 'which rooms you can give a walk-in right now, and until when', title: () => 'Free now',
+    body: ({ rooms, n }) => { const L = rooms.filter((r) => r.st === 'free' || r.st === 'next' || r.st === 'clean');
+      return L.length ? L.slice(0, 6).map((r) => { const from = r.st === 'clean' ? r.till : n, till = r.next && sameNight(r.next, n) ? r.next : 0;
+        return <R1 key={r.r} r={r.r}><Txt bold keep>{r.r}</Txt><span style={{ flex: 1 }} />
+          <Txt sub c={till && till - from < 90 * 60e3 ? K.warn : undefined}>{(r.st === 'clean' ? clk(r.till) + '–' : till ? 'till ' : 'all night') + (till ? clk(till) + ' · ' + durTxt(till - from) : r.st === 'clean' ? 'late' : '')}</Txt></R1>; })
+        : <None>Every room is in use</None>; } },
+  msgs: { name: 'TV messages', what: "every room's coming TV messages – orange = on a TV waiting for the guest's OK", title: () => 'TV messages', w: '1.2fr',
+    body: ({ rooms, n }) => { const L = []; rooms.forEach((r) => (r.msgs || []).forEach((m) => L.push({ ...m, r: r.r })));
+      L.sort((a, b) => (mState(a, n) === 'wait' ? 0 : 1) - (mState(b, n) === 'wait' ? 0 : 1) || a.at - b.at);
+      const Lv = L.filter((m) => !m.ok || n - m.ok < 10 * 60e3);
+      return Lv.length ? Lv.slice(0, 5).map((m, i) => <R1 key={i} r={m.r}><Dot c={mC(m, n)} size={5} /><span style={{ width: 52, flex: 'none', fontWeight: 600 }}>{clk(m.at)}</span>
+        <Txt sub={mState(m, n) === 'next'}>{m.k === 'wrapup' ? '10-min warning' : m.k === 'timeup' ? "That's a wrap" : (m.ti || 'TV message')}</Txt></R1>)
+        : <None>None coming up</None>; } },
+  screens: { name: 'TVs & PS4s', what: "what each room's TV and PS4 are showing, and any TV that's off or not reporting", title: () => 'TVs & PS4s', w: '1.2fr',
+    body: ({ rooms }) => rooms.filter((r) => r.st !== 'closed').map((r) => { const bad = r.tv && (r.tv.off || r.tv.quiet), inn = r.st === 'in';
+      const tv = !r.tv ? '–' : r.tv.off ? 'TV off' : r.tv.quiet ? 'not reporting' : (r.tv.app || 'TV on');
+      return <R1 key={r.r} r={r.r}><span style={{ width: 62, flex: 'none', fontWeight: 600 }}>{r.r}</span><Txt sub={!inn} c={inn && bad ? K.warn : undefined}>{tv + (r.ps4 && r.ps4.on ? ' · ' + (r.ps4.g || 'PS4 menu') : '')}</Txt></R1>; }) },
+  turn: { name: 'Turnovers', what: 'the gaps between guests tonight – how long you have to clean each room (orange under 30 min)', title: () => 'Turnovers',
+    body: ({ rooms, n }) => { const L = rooms.filter((r) => (r.st === 'in' || r.st === 'clean') && r.next && r.gap != null && sameNight(r.next, n)).sort((a, b) => a.gap - b.gap);
+      return L.length ? L.slice(0, 5).map((r) => <R1 key={r.r} r={r.r}><Txt bold keep>{r.r}</Txt><Txt sub>{clk(r.till) + ' → ' + clk(r.next)}</Txt><span style={{ flex: 1 }} />
+        <span style={{ fontWeight: 600, whiteSpace: 'nowrap', color: r.gap < 30 ? K.warn : K.fg }}>{durTxt(r.gap * 60e3)}</span></R1>)
+        : <None>No back-to-back guests</None>; } },
+  night: { name: 'The night', what: 'guests tonight (done / in / to come), when the last guest leaves, first guest tomorrow', title: () => 'The night',
+    body: ({ c, j, n, T }) => { const outs = (j.events || []).filter((e) => e.t === 'out' && sameNight(e.at, n)), last = outs.length ? outs[outs.length - 1] : null;
+      return <>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ fontWeight: 300, fontSize: 28, lineHeight: 1 }}>{c.total || 0}</span><span style={{ color: K.sub }}>guests tonight</span></div>
+        <div style={{ color: K.sub }}>{(c.done || 0) + ' done · ' + (c.in || 0) + ' in · ' + (c.left || 0) + ' to come'}</div>
+        {last ? <R1 r={last.r}><Txt>{'Last out ' + clk(last.at) + ' · ' + last.r}</Txt></R1> : <None>Nobody left to leave</None>}
+        {T && T.first && <R1 r={T.first.r}><Txt sub>{'First in tomorrow ' + clk(T.first.at)}</Txt></R1>}</>; } },
+};
+const STRIP_ALL = ['next', 'today', 'tomorrow', 'health', 'free', 'msgs', 'screens', 'turn', 'night'];
+/* choosing: tap tiles in the order you want them (up to 5); tap again to take one off */
+const Picker = ({ s, d }) => { const cur = s.strip || STRIP;
+  return <div style={{ display: 'grid', gap: 12 }}>
+    <div style={{ color: K.sub }}>{'Hold your Übersicht key and tap the tiles you want, in order – up to ' + STRIP_MAX + '. Tap again to remove. Then Done.'}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>{STRIP_ALL.map((k) => { const i = cur.indexOf(k), on = i >= 0;
+      return <div key={k} role="button" onClick={() => d({ type: 'STRIP', list: on ? cur.filter((x) => x !== k) : cur.length < STRIP_MAX ? [...cur, k] : cur })}
+        style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8, border: `1px solid ${on ? K.fg : K.line}`, cursor: 'pointer', opacity: on || cur.length < STRIP_MAX ? 1 : 0.45 }}>
+        <span style={{ flex: 'none', width: 18, height: 18, borderRadius: 5, border: `1px solid ${on ? K.fg : K.line2}`, display: 'grid', placeItems: 'center', fontFamily: 'PS2P', fontSize: 7, background: on ? K.fg : 'transparent', color: K.bg }}>{on ? i + 1 : ''}</span>
+        <div style={{ display: 'grid', gap: 3, minWidth: 0 }}><b style={{ fontWeight: 600 }}>{TILES[k].name}</b><span style={{ color: K.sub, fontSize: 11.5, lineHeight: 1.35 }}>{TILES[k].what}</span></div></div>; })}</div>
+  </div>; };
+
 /* ---------- a room's details (double-click a room) – over the room tiles, in the room's colour ---------- */
 const mWords = (m, n) => m.ok ? "OK'd on the TV " + clk(m.ok) : m.ak === 0 ? (m.at > n ? 'shows ' + clk(m.at) + ' · no OK needed' : 'shown · no OK needed') : m.at > n ? 'shows ' + clk(m.at) : 'on the TV – waiting for OK';
 const mName = (m) => m.k === 'wrapup' ? '10-minute warning' : m.k === 'timeup' ? "That's a wrap" : (m.ti || 'TV message');
@@ -254,7 +335,7 @@ const Detail = ({ r, j, s, d }) => {
 
 export const render = (s, d) => {
   escD = d;
-  K = themeOf(lightNow());
+  K = themeOf(lightNow(s.mode));
   const j = s.j, n = now(s);
   const fonts = <style>{`
     @font-face { font-family: PS2P; src: url(${FONTS}PressStart2P-Regular.ttf); }
@@ -272,11 +353,17 @@ export const render = (s, d) => {
   const c = j.counts || {}, H = j.health || { lv: 0, list: [] }, hc = [K.ok, K.warn, K.bad][H.lv] || K.ok, M = j.money, T = j.tomorrow, rooms = j.rooms || [];
   const G = []; for (const e of (j.events || []).filter((e) => e.at > n)) { const g = G[G.length - 1]; if (g && g.t === e.t && Math.abs(g.at - e.at) < 60e3) g.rs.push(e.r); else G.push({ at: e.at, t: e.t, rs: [e.r] }); }
   const stale = Date.now() - s.at > 2 * 60e3;
+  const X = { j, n, s, c, H, M, T, rooms, G, stale };
   return wrap(<div>
     <div title="Drag to move" onMouseDown={(e) => d && startDrag(e, s, d, 'move')} style={{ display: 'flex', alignItems: 'center', gap: 22, cursor: drag ? 'grabbing' : 'grab' }}>
       {logo(26)}
       <div><Kick>Tonight</Kick><div style={{ marginTop: 7, color: K.sub, fontWeight: 500, fontSize: 14 }}>{T && T.over ? 'All done – tomorrow is on the right' : <><b style={{ color: K.fg, fontWeight: 700 }}>{c.in}</b> in · <b style={{ color: K.fg, fontWeight: 700 }}>{c.left}</b> to come · {c.done} done</>}</div></div>
       <div style={{ flex: 1 }} />
+      {/* light / dark switch (25 Nov): tap to go dark → light → auto (follows the Mac) – remembered */}
+      {d && <span role="button" title="Dark / light / auto" onClick={(e) => { e.stopPropagation(); d({ type: 'MODE' }); }} onMouseDown={(e) => e.stopPropagation()}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 10px', borderRadius: 6, border: `1px solid ${K.line2}`, cursor: 'pointer' }}>
+        <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: 'block' }}><circle cx="6" cy="6" r="5.25" fill="none" stroke={K.fg} strokeWidth="1.2" /><path d="M6 .75a5.25 5.25 0 0 1 0 10.5z" fill={K.fg} /></svg>
+        <Kick color={K.fg}>{s.mode || MODE}</Kick></span>}
       <Chip c={hc} strong={H.lv >= 1}>{H.lv >= 2 ? 'Needs someone' : H.lv ? 'Keep an eye' : 'All systems OK'}</Chip>
       <div style={{ textAlign: 'right' }}><Kick>{dayName(n)}</Kick><div style={{ fontWeight: 300, fontSize: 26, lineHeight: 1, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{clkFull(n)}</div></div>
     </div>
@@ -288,40 +375,16 @@ export const render = (s, d) => {
     </div>
     {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 9, opacity: 0.6, padding: '12px 0 0 4px' }}>
       <Pix name={RICON[r.r]} color={K.room(r.r)} size={11} /><span style={{ fontFamily: 'PS2P', fontSize: 9, letterSpacing: '.12em', color: K.room(r.r) }}>{r.r.toUpperCase()}</span><span style={{ color: K.sub }}>closed – renovation</span></div>)}
-    {/* everything else sits quietly underneath: four columns split by thin lines, no boxes */}
-    <div style={{ height: 1, margin: '18px 0 16px', background: K.line }} />
-    <div style={{ display: 'grid', gridTemplateColumns: '1.15fr 1fr 1.2fr 1fr', alignItems: 'start' }}>
-      <Col first title="Up next">
-        {G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: i ? 0.75 : 1 }}>
-          {g.rs.slice(0, 3).map((r) => <Pix key={r} name={RICON[r]} color={K.room(r)} size={11} />)}
-          <span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</span>
-          <span style={{ flex: 1 }} /><span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: i === 0 && g.at - n < 15 * 60e3 ? K.warn : i === 0 ? K.fg : K.sub }}>{'in ' + durTxt(g.at - n)}</span></div>)
-          : <div style={{ color: K.sub }}>Nothing more tonight</div>}
-      </Col>
-      <Col title="Today">
-        {M ? <>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ fontWeight: 300, fontSize: 28, lineHeight: 1 }}>{M.n}</span><span style={{ color: K.sub }}>booked</span>
-            <span style={{ flex: 1 }} /><span style={{ fontWeight: 600, fontSize: 16 }}>{money(M.paid)}</span><span style={{ color: K.sub }}>paid</span></div>
-          {(M.nUnpaid > 0 || M.cx > 0) && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {M.nUnpaid > 0 && <Chip sm c={K.warn}>{M.nUnpaid + ' not paid · ' + money(M.unpaid)}</Chip>}
-            {M.cx > 0 && <Chip sm c={K.bad}>{M.cx + ' cancelled'}</Chip>}</div>}
-          {M.last && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: K.sub, minWidth: 0 }}><Pix name={RICON[M.last.r]} color={K.room(M.last.r)} size={11} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{'Latest: ' + M.last.r + (NAMES && M.last.n ? ' · ' + M.last.n : '') + ' · ' + ago(M.last.t, n)}</span></div>}
-        </> : <div style={{ color: K.sub }}>–</div>}
-      </Col>
-      <Col title={'Tomorrow' + (T && T.first ? ' · ' + dayName(T.first.at) : '')}>
-        {!T || !T.n ? <div style={{ color: K.sub }}>Nothing booked yet</div> : (T.list || [T.first]).slice(0, 5).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <span style={{ width: 54, flex: 'none', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={K.room(x.r)} size={11} />
-          <span style={{ fontWeight: 600 }}>{x.r}</span><span style={{ color: K.sub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{NAMES && x.n ? x.n : x.e ? 'till ' + clk(x.e) : ''}</span></div>)}
-        {T && T.n > 5 && <div style={{ color: K.sub }}>{'+ ' + (T.n - 5) + ' more'}</div>}
-      </Col>
-      <Col title="Health">
-        {H.list && H.list.length ? <div style={{ display: 'grid', gap: 6, justifyItems: 'start', minWidth: 0 }}>{H.list.slice(0, 3).map((x, i) => <Chip key={i} sm c={x.lv >= 2 ? K.bad : K.warn}>{x.t.replace(/^[^\w"]+/, '').slice(0, 34)}</Chip>)}</div>
-          : <Chip sm c={K.ok}>All systems OK</Chip>}
-        {H.sb != null && <div style={{ color: K.sub, fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today'}</div>}
-        <div style={{ color: stale || s.err ? K.warn : K.sub, fontSize: 11 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div>
-      </Col>
+    {/* everything else sits quietly underneath: the strip – columns split by thin lines, no boxes. Which columns, and in
+        which order, is the owner's choice (25 Nov): "Choose" at the right of the line, or STRIP at the top of this file */}
+    <div style={{ position: 'relative', margin: '18px 0 16px' }}>
+      <div style={{ height: 1, background: K.line }} />
+      {d && <span role="button" onClick={() => d({ type: 'PICK' })} style={{ position: 'absolute', right: 0, top: -4, padding: '0 0 0 10px', background: K.bg, color: s.pick ? K.fg : K.sub, cursor: 'pointer' }}><Kick color={s.pick ? K.fg : K.sub}>{s.pick ? 'Done' : 'Choose'}</Kick></span>}
     </div>
+    {s.pick ? <Picker s={s} d={d} /> :
+    <div style={{ display: 'grid', gridTemplateColumns: (s.strip || STRIP).map((k) => (TILES[k] || {}).w || '1fr').join(' '), alignItems: 'start' }}>
+      {(s.strip || STRIP).filter((k) => TILES[k]).map((k, i) => <Col key={k} first={i === 0} title={TILES[k].title(X)}>{TILES[k].body(X)}</Col>)}
+    </div>}
   </div>);
 };
 
