@@ -121,10 +121,11 @@ const Room = ({ r, s }) => {
   const A = (r.msgs || []).filter(isAuto), S = (r.msgs || []).filter((m) => !isAuto(m));
   /* right-hand side: the ring (session used / cleaning / time to the next guest) and, under it, who's after this guest */
   const big = (t) => <span style={{ fontWeight: 300, fontSize: 19, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{t}</span>;
-  const ring = inn && r.since ? <Ring p={(n - r.since) / (r.till - r.since)} col={col}>{big(hrs(r.till - r.since))}<Kick size={6}>booked</Kick>{r.x ? <Kick size={6} color={col}>+ ext</Kick> : null}</Ring>
-    : r.st === 'clean' ? <Ring p={1 - (r.till - n) / (15 * 60e3)} col={col}>{big(Math.max(0, Math.ceil((r.till - n) / 60e3)) + 'm')}<Kick size={6}>clean</Kick></Ring>
-    : r.st === 'next' && r.next > n && r.next - n < 3 * 3600e3 ? <Ring p={1 - (r.next - n) / (3 * 3600e3)} col={col}>{big(hrs(r.next - n))}<Kick size={6}>to go</Kick></Ring>
-    : null;
+  /* (25 Nov, owner: "the circles … dont have uniform design") – the ring has ONE meaning: it only appears while guests are in,
+     fills as their booking is used, and says how long they booked. Every other countdown is the big number on the left. */
+  const ring = inn && r.since ? <Ring p={(n - r.since) / (r.till - r.since)} col={col}>{big(hrs(r.till - r.since))}<Kick size={6}>booked</Kick></Ring> : null;
+  /* the big number on the left: always the time to this room's next change, with words saying what that change is */
+  const cd = inn && r.till ? [r.till - n, 'left'] : r.st === 'clean' && r.till ? [r.till - n, 'cleaning left'] : r.st === 'next' && r.next > n && r.next - n < 3 * 3600e3 ? [r.next - n, 'till arrival'] : null;
   const then = (inn || r.st === 'clean') && r.next ? <div style={{ textAlign: 'right', display: 'grid', gap: 4, justifyItems: 'end' }}>
       <Kick size={6}>then</Kick>
       <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{clk(r.next) + (tmr ? ' tmr' : '')}</span>
@@ -138,11 +139,12 @@ const Room = ({ r, s }) => {
       <div style={{ display: 'flex', gap: 12, marginTop: 13, flex: 1 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {chip}
-          {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 10 }}>
-            <span style={{ fontWeight: 300, fontSize: 36, lineHeight: 1, letterSpacing: '.02em', color: soon ? col : K.fg, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span>
-            <Kick>left</Kick></div>}
+          {cd && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 10 }}>
+            <span style={{ fontWeight: 300, fontSize: 36, lineHeight: 1, letterSpacing: '.02em', color: soon ? col : inn ? K.fg : K.sub, fontVariantNumeric: 'tabular-nums' }}>{left(cd[0])}</span>
+            <Kick>{cd[1]}</Kick></div>}
           <div style={{ display: 'grid', gap: 5, marginTop: 12, fontSize: 13 }}>
             {NAMES && who && <Line icon="user" bold>{who}</Line>}
+            {inn && r.x ? <Line color={col}>Extended</Line> : null}
             {tv && (inn || (r.tv && !r.tv.off && !r.tv.quiet)) && <Line icon="tv" color={tvBad ? K.warn : undefined}>{tv}</Line>}
             {ps && <Line icon="pad">{ps}</Line>}
           </div>
