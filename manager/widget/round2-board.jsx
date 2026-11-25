@@ -64,7 +64,9 @@ const Pix = ({ name, color, size = 14, glow }) => {
   const rects = []; P.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === '#') rects.push(<rect key={x + '-' + y} x={x} y={y} width="1.02" height="1.02" />); });
   return <svg width={size} height={size * P.length / P[0].length} viewBox={`0 0 ${P[0].length} ${P.length}`} fill={color} style={{ display: 'block', flex: 'none', shapeRendering: 'crispEdges', filter: glow ? `drop-shadow(0 0 5px ${mix(color, 0.7)})` : 'none' }}>{rects}</svg>;
 };
-const SYNTH = 'linear-gradient(90deg, #E8436A, #7A5BE0 50%, #24B49A)';
+/* synthwave (owner, 25 Nov: "inject more of synthwave feel by 50%"): a sunset line, a dusk sky, a striped sun on the horizon
+   and a faint neon grid floor – kept behind everything and quiet, so the board still reads at a glance */
+const SYNTH = 'linear-gradient(90deg, #ffb347, #ff3cac 35%, #b04cff 65%, #2bd2ff)';
 const Kick = ({ children, color = 'rgba(244,241,251,.5)', size = 8 }) => <div style={{ fontFamily: 'PS2P', fontSize: size, color, letterSpacing: '.22em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</div>;
 const Dot = ({ c, size = 7 }) => <i style={{ width: size, height: size, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}, 0 0 12px ${mix(c, 0.6)}`, display: 'inline-block', flex: 'none' }} />;
 /* a soft status chip: glowing dot + words on a faint tint, rounded, no border */
@@ -78,8 +80,9 @@ const Line = ({ icon, ic = 'rgba(244,241,251,.4)', color = 'rgba(244,241,251,.82
 /* a glass card: rounded, no hard border – the room's colour is a soft light in its corner, brighter when guests are in */
 const Glass = ({ color, lit, children, style }) => (
   <div style={{ position: 'relative', borderRadius: 16, padding: '15px 16px 16px', overflow: 'hidden',
-    background: `radial-gradient(120% 80% at 0% 0%, ${mix(color, lit ? 0.22 : 0.09)}, transparent 60%), rgba(255,255,255,.028)`,
-    boxShadow: lit ? `inset 0 0 0 1px ${mix(color, 0.35)}, 0 0 28px -8px ${mix(color, 0.55)}` : 'inset 0 0 0 1px rgba(244,241,251,.06)', ...style }}>{children}</div>);
+    background: `radial-gradient(120% 80% at 0% 0%, ${mix(color, lit ? 0.24 : 0.1)}, transparent 60%), linear-gradient(180deg, rgba(60,22,96,.32), rgba(24,8,44,.42))`,
+    WebkitBackdropFilter: 'blur(6px)', backdropFilter: 'blur(6px)',
+    boxShadow: lit ? `inset 0 0 0 1px ${mix(color, 0.4)}, 0 0 30px -6px ${mix(color, 0.6)}` : 'inset 0 0 0 1px rgba(255,120,220,.09)', ...style }}>{children}</div>);
 const Group = ({ title, children }) => (
   <Glass color="#7A5BE0" style={{ padding: '14px 16px 15px', display: 'grid', gap: 10 }}>
     <Kick>{title}</Kick>{children}</Glass>);
@@ -107,7 +110,7 @@ const Room = ({ r, s }) => {
         <span style={{ fontFamily: 'PS2P', fontSize: 11, letterSpacing: '.1em', color: col, textShadow: inn ? `0 0 8px ${mix(col, 0.7)}` : 'none' }}>{r.r.toUpperCase()}</span></div>
       <div style={{ marginTop: 12 }}>{chip}</div>
       {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 11 }}>
-        <span style={{ fontFamily: 'PS2P', fontSize: 20, color: soon ? WARN : INK, textShadow: `0 0 14px ${soon ? mix(WARN, 0.55) : 'rgba(163,60,255,.55)'}`, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span>
+        <span style={{ fontFamily: 'PS2P', fontSize: 20, color: soon ? WARN : INK, textShadow: soon ? `0 0 10px ${mix(WARN, 0.7)}` : '0 0 8px rgba(255,60,172,.7), 0 0 18px rgba(176,76,255,.5)', fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span>
         <Kick size={7}>left</Kick></div>}
       <div style={{ display: 'grid', gap: 5, marginTop: 11, fontSize: 13 }}>
         {NAMES && who && <Line icon="user" bold color={INK}>{who}</Line>}
@@ -129,8 +132,21 @@ export const render = (s) => {
     @font-face { font-family: Chakra; font-weight: 600; src: url(${FONTS}ChakraPetch-SemiBold.ttf); }
     @font-face { font-family: Chakra; font-weight: 700; src: url(${FONTS}ChakraPetch-Bold.ttf); }`}</style>;
   const wrap = (body) => <div style={{ position: 'fixed', top: TOP, [SIDE]: EDGE, width: 1040, transform: `scale(${SCALE})`, transformOrigin: `top ${SIDE}`, fontFamily: 'Chakra, -apple-system, sans-serif', fontSize: 13, color: INK,
-    background: 'radial-gradient(700px 360px at 100% 0%, rgba(163,60,255,.13), transparent 70%), radial-gradient(600px 300px at 0% 100%, rgba(232,67,106,.08), transparent 70%), linear-gradient(180deg, rgba(21,17,31,.9), rgba(14,11,23,.93))',
-    WebkitBackdropFilter: 'blur(22px)', backdropFilter: 'blur(22px)', borderRadius: 24, padding: '20px 22px 22px', boxShadow: '0 0 0 1px rgba(244,241,251,.07), 0 30px 80px -30px rgba(163,60,255,.45), 0 20px 50px rgba(0,0,0,.35)' }}>{fonts}{body}</div>;
+    WebkitBackdropFilter: 'blur(22px)', backdropFilter: 'blur(22px)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 0 0 1px rgba(255,120,220,.16), 0 30px 90px -30px rgba(255,60,172,.5), 0 20px 50px rgba(0,0,0,.4)' }}>
+    {fonts}
+    {/* dusk sky: deep indigo at the top, purple, a magenta glow along the horizon */}
+    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(14,6,34,.94) 0%, rgba(30,10,58,.93) 48%, rgba(58,14,78,.92) 78%, rgba(36,8,52,.95) 100%)' }} />
+    <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(900px 240px at 70% 100%, rgba(255,60,172,.28), transparent 70%), radial-gradient(500px 220px at 0% 0%, rgba(43,210,255,.10), transparent 70%)' }} />
+    {/* the striped sun sitting on the horizon, under the room cards */}
+    <div style={{ position: 'absolute', width: 360, height: 360, left: 250, bottom: -150, borderRadius: '50%', background: 'linear-gradient(180deg, #ffd166 0%, #ff8a3c 35%, #ff3cac 70%, #b04cff 100%)', opacity: 0.32, filter: 'blur(1px)',
+      WebkitMaskImage: 'linear-gradient(180deg, #000 0 34%, transparent 34% 36%, #000 36% 42%, transparent 42% 45%, #000 45% 50%, transparent 50% 54%, #000 54% 58%, transparent 58% 63%, #000 63%)',
+      maskImage: 'linear-gradient(180deg, #000 0 34%, transparent 34% 36%, #000 36% 42%, transparent 42% 45%, #000 45% 50%, transparent 50% 54%, #000 54% 58%, transparent 58% 63%, #000 63%)', boxShadow: '0 0 80px rgba(255,60,172,.6)' }} />
+    {/* a faint neon grid floor fading up from the bottom */}
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 230, overflow: 'hidden', WebkitMaskImage: 'linear-gradient(to bottom, transparent, #000 85%)', maskImage: 'linear-gradient(to bottom, transparent, #000 85%)', opacity: 0.5 }}>
+      <div style={{ position: 'absolute', left: '-50%', right: '-50%', top: 0, height: 520, backgroundImage: 'linear-gradient(transparent 94%, rgba(255,60,172,.75) 94%), linear-gradient(90deg, transparent 94%, rgba(255,60,172,.55) 94%)', backgroundSize: '44px 44px', transform: 'perspective(420px) rotateX(62deg)', transformOrigin: 'top center' }} /></div>
+    {/* a whisper of scanlines */}
+    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,.12) 50%)', backgroundSize: '100% 3px', pointerEvents: 'none' }} />
+    <div style={{ position: 'relative', padding: '20px 22px 22px' }}>{body}</div></div>;
   if (!j) return wrap(<div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><img src={LOGO} style={{ height: 22 }} /><span style={{ color: '#bdb5d3' }}>{s.err || 'Loading the board…'}</span></div>);
 
   const c = j.counts || {}, H = j.health || { lv: 0, list: [] }, hc = [OK, WARN, BAD][H.lv] || OK, M = j.money, T = j.tomorrow, rooms = j.rooms || [];
@@ -142,9 +158,9 @@ export const render = (s) => {
       <div><Kick>Tonight</Kick><div style={{ marginTop: 6, color: 'rgba(244,241,251,.75)', fontWeight: 500 }}>{T && T.over ? 'All done – tomorrow is on the right' : <><b style={{ color: INK }}>{c.in}</b> in · <b style={{ color: INK }}>{c.left}</b> to come · {c.done} done</>}</div></div>
       <div style={{ flex: 1 }} />
       <Chip c={hc}>{H.lv >= 2 ? 'Needs someone' : H.lv ? 'Keep an eye' : 'All systems OK'}</Chip>
-      <div style={{ textAlign: 'right' }}><Kick>{dayName(n)}</Kick><div style={{ fontFamily: 'PS2P', fontSize: 15, marginTop: 7, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(163,60,255,.5)' }}>{clkFull(n)}</div></div>
+      <div style={{ textAlign: 'right' }}><Kick>{dayName(n)}</Kick><div style={{ fontFamily: 'PS2P', fontSize: 15, marginTop: 7, fontVariantNumeric: 'tabular-nums', color: '#ffe3f4', textShadow: '0 0 8px rgba(255,60,172,.8), 0 0 18px rgba(176,76,255,.6)' }}>{clkFull(n)}</div></div>
     </div>
-    <div style={{ height: 1, margin: '16px 0 18px', background: SYNTH, opacity: 0.85, boxShadow: '0 0 10px rgba(163,60,255,.6)' }} />
+    <div style={{ height: 2, margin: '16px 0 18px', background: SYNTH, boxShadow: '0 0 12px rgba(255,60,172,.7), 0 0 24px rgba(176,76,255,.4)' }} />
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 16 }}>
       <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>{rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} />)}</div>
