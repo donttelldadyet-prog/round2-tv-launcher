@@ -7,5 +7,5 @@
   "roomsLight": { "Scarlett": "#c79a00", "Atlas": "#7d7a8c" },
   "roomIcons": { "Vale": "cat", "Kaeden": "leaf", "Scarlett": "saturn", "Kai": "mount", "Bella": "book", "Atlas": "boat", "Max": "car" },
   "shape": { "line": "1px", "ring": "2.5px", "chipRadius": "6px", "cardRadius": "12px", "panelRadius": "18px", "gap": "14px", "pad": "16px" },
-  "motion": { "dur": "180ms", "durSlow": "420ms", "ease": "cubic-bezier(.2, .8, .2, 1)", "lift": "-2px", "press": 0.97, "hoverTint": "45%", "ringDraw": "900ms", "breathe": "2.4s" }
+  "motion": { "dur": "260ms", "durSlow": "600ms", "ease": "cubic-bezier(.4, 0, .2, 1)", "lift": "-1.5px", "press": 0.98, "hoverTint": "35%", "ringDraw": "1200ms", "breathe": "3.2s" }
 }

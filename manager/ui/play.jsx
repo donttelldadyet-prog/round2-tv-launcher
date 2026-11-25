@@ -13,15 +13,15 @@ const EASES = {
   Springy: 'cubic-bezier(.3, 1.4, .5, 1)', Linear: 'linear',
 };
 const KNOBS = [
-  { k: '--r2-dur', label: 'Hover & press speed', min: 40, max: 600, step: 10, unit: 'ms', def: 180 },
-  { k: '--r2-dur-slow', label: 'State changes & appearing', min: 100, max: 1400, step: 20, unit: 'ms', def: 420 },
-  { k: '--r2-lift', label: 'Rise on hover', min: -8, max: 0, step: 0.5, unit: 'px', def: -2 },
-  { k: '--r2-press', label: 'Shrink while pressed', min: 0.88, max: 1, step: 0.01, unit: '', def: 0.97 },
-  { k: '--r2-hover-tint', label: 'Room colour on tile hover', min: 0, max: 100, step: 5, unit: '%', def: 45 },
-  { k: '--r2-ring-draw', label: 'Ring drawing in', min: 0, max: 2400, step: 50, unit: 'ms', def: 900 },
-  { k: '--r2-breathe', label: '"Ending" dot breathing', min: 0.6, max: 6, step: 0.1, unit: 's', def: 2.4 },
+  { k: '--r2-dur', label: 'Hover & press speed', min: 40, max: 600, step: 10, unit: 'ms', def: 260 },
+  { k: '--r2-dur-slow', label: 'State changes & appearing', min: 100, max: 1400, step: 20, unit: 'ms', def: 600 },
+  { k: '--r2-lift', label: 'Rise on hover', min: -8, max: 0, step: 0.5, unit: 'px', def: -1.5 },
+  { k: '--r2-press', label: 'Shrink while pressed', min: 0.88, max: 1, step: 0.01, unit: '', def: 0.98 },
+  { k: '--r2-hover-tint', label: 'Room colour on tile hover', min: 0, max: 100, step: 5, unit: '%', def: 35 },
+  { k: '--r2-ring-draw', label: 'Ring drawing in', min: 0, max: 2400, step: 50, unit: 'ms', def: 1200 },
+  { k: '--r2-breathe', label: '"Ending" dot breathing', min: 0.6, max: 6, step: 0.1, unit: 's', def: 3.2 },
 ];
-const DEF = Object.fromEntries(KNOBS.map((x) => [x.k, x.def]).concat([['ease', 'Calm']]));
+const DEF = Object.fromEntries(KNOBS.map((x) => [x.k, x.def]).concat([['ease', 'Soft']]));
 const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem('r2-motion') || '{}')); } catch (e) { return { ...DEF }; } };
 const cssOf = (v) => ':root {\n' + KNOBS.map((x) => `  ${x.k}: ${v[x.k]}${x.unit};`).join('\n') + `\n  --r2-ease: ${EASES[v.ease] || v.ease};\n}`;
 
@@ -35,7 +35,7 @@ function MotionLab() {
   }, [v]);
   useEffect(() => { document.documentElement.style.setProperty('--r2-slow', slow); }, [slow]);
   useEffect(() => { document.documentElement.setAttribute('data-motion', on ? 'on' : 'off'); }, [on]);
-  const changed = KNOBS.some((x) => v[x.k] !== x.def) || v.ease !== 'Calm';
+  const changed = KNOBS.some((x) => v[x.k] !== x.def) || v.ease !== 'Soft';
   const copy = () => { const t = cssOf(v); setCopied(t); try { navigator.clipboard.writeText(t).catch(() => {}); } catch (e) {} };
   return <div style={{ display: 'grid', gap: 14 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Kick>Motion lab</Kick><span style={{ flex: 1 }} />

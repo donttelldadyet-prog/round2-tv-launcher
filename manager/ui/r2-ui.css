@@ -25,14 +25,15 @@
   --r2-pad: 16px;
   /* motion – ONE place for how everything moves (the live preview's Motion lab edits these and copies them out).
      Feel: calm and precise like the logo's lines – short, smooth, no bounce. */
-  --r2-dur: 180ms;            /* hover / press / switch */
-  --r2-dur-slow: 420ms;       /* state changes (a room going from In to Cleaning), things appearing */
-  --r2-ease: cubic-bezier(.2, .8, .2, 1);
-  --r2-lift: -2px;            /* how far a card / button rises on hover */
-  --r2-press: .97;            /* how much it shrinks while pressed */
-  --r2-hover-tint: 45%;       /* how much of the room colour a tile's outline takes on hover */
-  --r2-ring-draw: 900ms;      /* the ring drawing itself when it appears */
-  --r2-breathe: 2.4s;         /* the "Ending" dot breathing */
+  /* Motion: "soft and calm" – picked by Karen (design), 25 Nov 2026 */
+  --r2-dur: 260ms;            /* hover / press / switch */
+  --r2-dur-slow: 600ms;       /* state changes (a room going from In to Cleaning), things appearing */
+  --r2-ease: cubic-bezier(.4, 0, .2, 1);
+  --r2-lift: -1.5px;            /* how far a card / button rises on hover */
+  --r2-press: .98;            /* how much it shrinks while pressed */
+  --r2-hover-tint: 35%;       /* how much of the room colour a tile's outline takes on hover */
+  --r2-ring-draw: 1200ms;      /* the ring drawing itself when it appears */
+  --r2-breathe: 3.2s;         /* the "Ending" dot breathing */
   --r2-slow: 1;               /* slow-motion multiplier for checking animations (preview only: 4 = 4× slower) */
   --t: calc(var(--r2-dur) * var(--r2-slow));
   --t2: calc(var(--r2-dur-slow) * var(--r2-slow));
