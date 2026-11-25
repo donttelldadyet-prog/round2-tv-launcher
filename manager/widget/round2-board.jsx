@@ -93,18 +93,19 @@ const Pix = ({ name, color, size = 14 }) => {
 const Kick = ({ children, color, size = 7 }) => <div style={{ fontFamily: 'PS2P', fontSize: size, color: color || K.sub, letterSpacing: '.28em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</div>;
 const Dot = ({ c, size = 6 }) => <i style={{ width: size, height: size, borderRadius: '50%', background: c, display: 'inline-block', flex: 'none' }} />;
 /* a status chip drawn like the logo's II bars: a thin outline with small round corners; the state is only the dot's colour */
-const Chip = ({ c, children, sm, strong, fill, dim }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: sm ? 6 : 8, padding: sm ? '3px 9px' : '6px 12px', borderRadius: 6, border: `1px solid ${strong ? c : K.line2}`, background: fill || 'transparent', opacity: dim ? 0.85 : 1,
+const Chip = ({ c, children, sm, strong, fill, dim, tap }) => (
+  <span className={tap ? 'mo-btn' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: sm ? 6 : 8, padding: sm ? '3px 9px' : '6px 12px', borderRadius: 6, border: `1px solid ${strong ? c : K.line2}`, background: fill || 'transparent', opacity: dim ? 0.85 : 1,
     color: K.fg, fontWeight: 600, fontSize: sm ? 11.5 : 13, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', fontVariantNumeric: 'tabular-nums' }}>
-    {c && <Dot c={c} size={sm ? 5 : 6} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{children}</span></span>);
+    {c && <span className={fill ? 'mo-breathe' : undefined} style={{ display: 'inline-flex' }}><Dot c={c} size={sm ? 5 : 6} /></span>}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{children}</span></span>);
 const Line = ({ icon, children, bold, color }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontWeight: bold ? 600 : 500, color: color || (bold ? K.fg : K.sub) }}>
     {icon && <Pix name={icon} color={color || K.sub} size={11} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span></div>);
 /* a card: just a thin rounded outline; when guests are in, the outline takes the room's colour */
-const Card = ({ color, lit, children, style, onDoubleClick, title }) => (
-  <div title={title} onDoubleClick={onDoubleClick} style={{ borderRadius: 12, padding: '15px 16px 16px', border: `1px solid ${lit ? color : K.line}`, ...style }}>{children}</div>);
+const Card = ({ color, lit, children, style, onDoubleClick, title, tap }) => (
+  <div title={title} onDoubleClick={onDoubleClick} className={tap ? 'mo-tile' + (lit ? ' lit' : '') : undefined}
+    style={{ '--c': color || K.fg, borderRadius: 12, padding: '15px 16px 16px', border: `1px solid ${lit ? color : K.line}`, ...style }}>{children}</div>);
 /* a button in the same thin-outline style */
-const Btn = ({ children, onClick, c }) => <span role="button" onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6,
+const Btn = ({ children, onClick, c }) => <span role="button" className="mo-btn" onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6,
   border: `1px solid ${c || K.line2}`, fontWeight: 600, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</span>;
 
 /* ---------- moving and resizing (hold Übersicht's interaction key) ---------- */
@@ -136,7 +137,7 @@ const Ring = ({ p, col, size = 92, children }) => {
   return <div style={{ position: 'relative', width: size, height: size, flex: 'none' }}>
     <svg width={size} height={size} style={{ display: 'block', transform: 'rotate(-90deg)' }}>
       <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke={K.line} strokeWidth="2" />
-      {q > 0 && <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke={col} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={`${C * q} ${C}`} />}
+      {q > 0 && <circle className="mo-draw" style={{ '--C': C }} cx={size / 2} cy={size / 2} r={R} fill="none" stroke={col} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={`${C * q} ${C}`} />}
     </svg>
     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 5, textAlign: 'center' }}>{children}</div></div>;
 };
@@ -178,7 +179,7 @@ const Room = ({ r, s, d }) => {
       {r.gap != null && !tmr && <span style={{ fontSize: 11.5, color: r.gap < 30 ? K.warn : K.sub }}>{r.gap + ' min gap'}</span>}</div>
     : r.st === 'free' ? <div style={{ textAlign: 'right', color: K.sub, fontSize: 12 }}>{r.next ? 'next ' + clk(r.next) + (tmr ? ' tmr' : '') : 'nothing more tonight'}</div> : null;
   return (
-    <Card color={col} lit={inn} title={'Double-click for ' + r.r + "'s details"} onDoubleClick={() => d && d({ type: 'OPEN', r: r.r })} style={{ display: 'flex', flexDirection: 'column' }}>
+    <Card tap color={col} lit={inn} title={'Double-click for ' + r.r + "'s details"} onDoubleClick={() => d && d({ type: 'OPEN', r: r.r })} style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Pix name={RICON[r.r]} color={col} size={15} />
         <span style={{ fontFamily: 'PS2P', fontSize: 12, letterSpacing: '.12em', color: col }}>{r.r.toUpperCase()}</span></div>
       <div style={{ display: 'flex', gap: 12, marginTop: 13, flex: 1 }}>
@@ -272,7 +273,7 @@ const Picker = ({ s, d }) => { const cur = s.strip || STRIP;
   return <div style={{ display: 'grid', gap: 12 }}>
     <div style={{ color: K.sub }}>{'Hold your Übersicht key and tap the tiles you want, in order – up to ' + STRIP_MAX + '. Tap again to remove. Then Done.'}</div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>{STRIP_ALL.map((k) => { const i = cur.indexOf(k), on = i >= 0;
-      return <div key={k} role="button" onClick={() => d({ type: 'STRIP', list: on ? cur.filter((x) => x !== k) : cur.length < STRIP_MAX ? [...cur, k] : cur })}
+      return <div key={k} role="button" className="mo-opt" onClick={() => d({ type: 'STRIP', list: on ? cur.filter((x) => x !== k) : cur.length < STRIP_MAX ? [...cur, k] : cur })}
         style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 8, border: `1px solid ${on ? K.fg : K.line}`, cursor: 'pointer', opacity: on || cur.length < STRIP_MAX ? 1 : 0.45 }}>
         <span style={{ flex: 'none', width: 18, height: 18, borderRadius: 5, border: `1px solid ${on ? K.fg : K.line2}`, display: 'grid', placeItems: 'center', fontFamily: 'PS2P', fontSize: 7, background: on ? K.fg : 'transparent', color: K.bg }}>{on ? i + 1 : ''}</span>
         <div style={{ display: 'grid', gap: 3, minWidth: 0 }}><b style={{ fontWeight: 600 }}>{TILES[k].name}</b><span style={{ color: K.sub, fontSize: 11.5, lineHeight: 1.35 }}>{TILES[k].what}</span></div></div>; })}</div>
@@ -289,7 +290,7 @@ const Detail = ({ r, j, s, d }) => {
   const head = inn ? 'In · till ' + clk(r.till) : r.st === 'clean' ? 'Cleaning till ' + clk(r.till) : r.st === 'next' ? 'Next ' + clk(r.next) : 'Free';
   const Row = ({ a, b, c }) => <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', minWidth: 0 }}><span style={{ width: 62, flex: 'none', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{a}</span>
     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{b}</span>{c && <span style={{ color: K.sub, whiteSpace: 'nowrap' }}>{c}</span>}</div>;
-  return <div onDoubleClick={() => d({ type: 'OPEN', r: '' })} style={{ position: 'absolute', inset: 0, background: K.bg, border: `1px solid ${col}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+  return <div className="mo-in" onDoubleClick={() => d({ type: 'OPEN', r: '' })} style={{ position: 'absolute', inset: 0, background: K.bg, border: `1px solid ${col}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <Pix name={RICON[r.r]} color={col} size={18} /><span style={{ fontFamily: 'PS2P', fontSize: 15, letterSpacing: '.12em', color: col }}>{r.r.toUpperCase()}</span>
       <Chip c={col} strong={inn}>{head}</Chip><span style={{ flex: 1 }} />
@@ -339,7 +340,28 @@ export const render = (s, d) => {
   const j = s.j, n = now(s);
   const fonts = <style>{`
     @font-face { font-family: PS2P; src: url(${FONTS}PressStart2P-Regular.ttf); }
-    @font-face { font-family: QS; font-weight: 300 700; src: url(${FONTS}Quicksand.ttf); }`}</style>;
+    @font-face { font-family: QS; font-weight: 300 700; src: url(${FONTS}Quicksand.ttf); }
+    /* MOTION – the same tokens and moves as the Round2 UI kit (manager/ui/r2-ui.css, branch r2-ui). Tune them there with the
+       Motion lab, then copy the values here. Hover/press only reach the board while Übersicht's interaction key is held. */
+    [data-board] { --r2-dur: 180ms; --r2-dur-slow: 420ms; --r2-ease: cubic-bezier(.2, .8, .2, 1); --r2-lift: -2px; --r2-press: .97;
+      --r2-hover-tint: 45%; --r2-ring-draw: 900ms; --r2-breathe: 2.4s; }
+    [data-board] .mo-tile { transition: border-color var(--r2-dur-slow) var(--r2-ease), transform var(--r2-dur) var(--r2-ease), background var(--r2-dur) var(--r2-ease); }
+    [data-board] .mo-tile:hover { transform: translateY(var(--r2-lift)); border-color: color-mix(in srgb, var(--c) var(--r2-hover-tint), ${K.line}) !important; }
+    [data-board] .mo-tile.lit:hover { border-color: var(--c) !important; background: color-mix(in srgb, var(--c) 5%, transparent); }
+    [data-board] .mo-tile:active { transform: scale(calc((1 + var(--r2-press)) / 2)); }
+    [data-board] .mo-btn { transition: border-color var(--r2-dur) var(--r2-ease), background var(--r2-dur) var(--r2-ease), transform var(--r2-dur) var(--r2-ease); }
+    [data-board] .mo-btn:hover { transform: translateY(var(--r2-lift)); border-color: ${K.fg} !important; }
+    [data-board] .mo-btn:active { transform: translateY(0) scale(var(--r2-press)); transition-duration: calc(var(--r2-dur) / 2); }
+    [data-board] .mo-opt { transition: border-color var(--r2-dur) var(--r2-ease), transform var(--r2-dur) var(--r2-ease); }
+    [data-board] .mo-opt:hover { transform: translateY(var(--r2-lift)); border-color: ${K.sub} !important; }
+    [data-board] .mo-opt:active { transform: scale(var(--r2-press)); }
+    [data-board] .mo-draw { animation: mo-draw var(--r2-ring-draw) var(--r2-ease) both; }
+    @keyframes mo-draw { from { stroke-dasharray: 0 var(--C, 300); } }
+    [data-board] .mo-breathe { animation: mo-breathe var(--r2-breathe) ease-in-out infinite; }
+    @keyframes mo-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+    [data-board] .mo-in { animation: mo-in var(--r2-dur-slow) var(--r2-ease) both; }
+    @keyframes mo-in { from { opacity: 0; transform: translateY(4px); } }
+    @media (prefers-reduced-motion: reduce) { [data-board] * { animation: none !important; transition: none !important; } }`}</style>;
   const at = s.pos ? { top: s.pos.y, left: s.pos.x, transformOrigin: 'top left' } : { top: TOP, [SIDE]: EDGE, transformOrigin: `top ${SIDE}` };
   const wrap = (body) => <div data-board="1" style={{ position: 'fixed', ...at, width: 1100, transform: `scale(${s.scale || SCALE})`, fontFamily: 'QS, -apple-system, sans-serif', fontSize: 13, color: K.fg,
     background: K.bg, borderRadius: 18, padding: '22px 24px 24px', border: `1px solid ${K.line}`, userSelect: 'none', WebkitUserSelect: 'none' }}>{fonts}{body}
@@ -360,7 +382,7 @@ export const render = (s, d) => {
       <div><Kick>Tonight</Kick><div style={{ marginTop: 7, color: K.sub, fontWeight: 500, fontSize: 14 }}>{T && T.over ? 'All done – tomorrow is on the right' : <><b style={{ color: K.fg, fontWeight: 700 }}>{c.in}</b> in · <b style={{ color: K.fg, fontWeight: 700 }}>{c.left}</b> to come · {c.done} done</>}</div></div>
       <div style={{ flex: 1 }} />
       {/* light / dark switch (25 Nov): tap to go dark → light → auto (follows the Mac) – remembered */}
-      {d && <span role="button" title="Dark / light / auto" onClick={(e) => { e.stopPropagation(); d({ type: 'MODE' }); }} onMouseDown={(e) => e.stopPropagation()}
+      {d && <span role="button" className="mo-btn" title="Dark / light / auto" onClick={(e) => { e.stopPropagation(); d({ type: 'MODE' }); }} onMouseDown={(e) => e.stopPropagation()}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 10px', borderRadius: 6, border: `1px solid ${K.line2}`, cursor: 'pointer' }}>
         <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: 'block' }}><circle cx="6" cy="6" r="5.25" fill="none" stroke={K.fg} strokeWidth="1.2" /><path d="M6 .75a5.25 5.25 0 0 1 0 10.5z" fill={K.fg} /></svg>
         <Kick color={K.fg}>{s.mode || MODE}</Kick></span>}
@@ -381,8 +403,8 @@ export const render = (s, d) => {
       <div style={{ height: 1, background: K.line }} />
       {d && <span role="button" onClick={() => d({ type: 'PICK' })} style={{ position: 'absolute', right: 0, top: -4, padding: '0 0 0 10px', background: K.bg, color: s.pick ? K.fg : K.sub, cursor: 'pointer' }}><Kick color={s.pick ? K.fg : K.sub}>{s.pick ? 'Done' : 'Choose'}</Kick></span>}
     </div>
-    {s.pick ? <Picker s={s} d={d} /> :
-    <div style={{ display: 'grid', gridTemplateColumns: (s.strip || STRIP).map((k) => (TILES[k] || {}).w || '1fr').join(' '), alignItems: 'start' }}>
+    {s.pick ? <div className="mo-in"><Picker s={s} d={d} /></div> :
+    <div className="mo-in" style={{ display: 'grid', gridTemplateColumns: (s.strip || STRIP).map((k) => (TILES[k] || {}).w || '1fr').join(' '), alignItems: 'start' }}>
       {(s.strip || STRIP).filter((k) => TILES[k]).map((k, i) => <Col key={k} first={i === 0} title={TILES[k].title(X)}>{TILES[k].body(X)}</Col>)}
     </div>}
   </div>);
