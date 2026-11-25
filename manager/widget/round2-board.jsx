@@ -1,4 +1,7 @@
 // Round2 board – a desktop widget for the Mac (Übersicht).  Owner, 25 Nov 2026: "lets try 2, i bought a new macbook pro 16".
+// Look (25 Nov, "use design principles from the React UI i added yesterday"): the member page v2 language – graphite cards
+// with the room's light in the top corner and a room-colour line along the bottom, letter-spaced pixel kickers, the design
+// team's Spectrum-style status badges and Lucide line icons.
 // Get it from the control centre (Phone alerts & widgets › Download Mac board): this shop's widget key is filled in.
 // Put the file in Übersicht's widgets folder (Übersicht menu-bar icon › Open Widgets Folder). Same live data as the iPhone
 // widgets (the engine's /w), checked every 30 s; countdowns tick every second on the engine's clock (Singapore time).
@@ -19,6 +22,9 @@ const RC = { Vale: '#E8436A', Kaeden: '#4DB848', Scarlett: '#F2C21B', Bella: '#7
 const INK = '#f4f1fb', MUTE = '#8d84a6', ACC = '#F2C21B', OK = '#4DB848', WARN = '#ff9f43', BAD = '#ff4d5e';
 const RICON = { Vale: 'cat', Kaeden: 'leaf', Scarlett: 'saturn', Kai: 'mount', Bella: 'book', Atlas: 'boat', Max: 'car' };
 const PIX = {"tv":["..#.....#...","...#...#....","....#.#.....","############","#..........#","#...#......#","#...###....#","#...#####..#","#...###....#","#...#......#","#..........#","############"],"clock":["...######...","..#......#..",".#...#....#.","#....#.....#","#....#.....#","#....###...#","#.......#..#","#........#.#","#..........#",".#........#.","..#......#..","...######..."],"user":["....####....","...#....#...","...#....#...","...#....#...","....####....","............","..########..",".#........#.","#..........#","#..........#","#..........#","############"],"cake":[".....##.....","......#.....",".....##.....",".....##.....",".##########.",".#........#.",".#.##..##.#.",".##########.","#..........#","#.#.#..#.#.#","#..........#","############"],"cat":["............",".#.......#..",".##.....##..",".#.#####.#..",".#.......#..","#..#...#..#.","#.........#.","#....#....#.",".#..#.#..#..","..#.....#...","...#####....","............"],"mount":["............","............",".....#......","....#.#.....","...#...#.#..","..#.#.#.#.#.","..#..#..#..#",".#.........#",".#.........#","#...........","############","............"],"book":["............",".####..####.","#....##....#","#.##.##.##.#","#....##....#","#.##.##.##.#","#....##....#","#.##.##.##.#","#....##....#",".####..####.",".....##.....","............"],"boat":[".....#......",".....##.....",".....###....",".....####...",".....#####..",".....######.",".....#......","############",".##########.","..########..","............","#.##.##.##.#"],"car":["............","............","...######...","..#..#...#..",".#...#....#.","############","#..........#","#.##....##.#","############",".##......##.",".##......##.","............"],"saturn":["..............","..............",".....####.....","....######..##","...#########.#","...#######.##.","...#####..#...","...##...###...",".##..######...","#.#########...","##..######....",".....####.....","..............",".............."],"leaf":[".........###","......######","....#####..#","...####...#.","..####...#..","..###...#...",".###...#....",".##...#.....",".#.###......",".###........","#...........","............"],"moon":["....####....","..###.......",".##.........",".#..........","##..........","##..........","##..........","##.........#",".##.......##",".###.....##.","..########..","....####...."],"pad":["............","..########..",".#........#.","#..#....#..#","#.###..#.#.#","#..#....#..#","#..........#","#...####...#",".#.#....#.#.","..#......#..","............","............"],"bell":[".....##.....","....####....","...######...","...######...","..########..","..########..",".##########.","############","............",".....##.....","............","............"],"warn":[".....##.....","....####....","....#..#....","...##..##...","...##..##...","..###..###..","..###..###..",".##########.",".####..####.","#####..#####","############","............"],"check":["............","...........#","..........##",".........##.","#.......##..","##.....##...",".##...##....","..##.##.....","...###......","....#.......","............","............"],"sparkle":["......#.....","......#.....",".....###....","###########.",".....###....","......#.....","..#...#.....","..#.........",".###......#.","..#......###","..#.......#.","............"]};
+/* the design team's status badge (design/components/status-badge.css – Spectrum UI's look, Apache-2.0, Lucide icons), copied in
+   when the control centre builds this file */
+const BADGE_CSS = "/* ---- Status badge (25 Nov 2026) ------------------------------------------------------------------------------------------\n   Look from Spectrum UI's \"Status Badge\", dark variant (ui.spectrumhq.in, github.com/arihantcodes/spectrum-ui, Apache-2.0),\n   rebuilt in plain CSS for Round2 (the member page isn't React); icons are Lucide (lucide.dev, ISC), drawn by the CSS.\n   Use: a span with class \"bd\" and data-st=\"active\", holding the words (e.g. Active member). No SVG needed in the page.\n   States: active (green tick) / ready (green tick) / expiring (amber warning) / expired (red cross) /\n   loading (blue, spinning) / waiting (grey clock). Demo of every state: design/components/status-badge.html.\n   The same rules are in member-v2.css (the member page's look). */\n.bd{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 12px;font:600 13px/1 'Chakra Petch',system-ui,sans-serif;white-space:nowrap;\n  color:var(--bd-c,#d4d4d4);background:var(--bd-b,rgba(163,163,163,.1));box-shadow:inset 0 0 0 1px var(--bd-r,rgba(212,212,212,.2));transition:color .3s,background .3s,box-shadow .3s}\n.bd::before{content:\"\";width:14px;height:14px;flex:none;background:currentColor;-webkit-mask:var(--bd-i) center/contain no-repeat;mask:var(--bd-i) center/contain no-repeat}\n.bd[data-st=active],.bd[data-st=ready]{--bd-c:#6ee7b7;--bd-b:rgba(52,211,153,.1);--bd-r:rgba(110,231,183,.25);--bd-i:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E\")}\n.bd[data-st=expiring]{--bd-c:#fcd34d;--bd-b:rgba(251,191,36,.1);--bd-r:rgba(252,211,77,.25);--bd-i:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E\")}\n.bd[data-st=expired]{--bd-c:#fda4af;--bd-b:rgba(251,113,133,.1);--bd-r:rgba(253,164,175,.25);--bd-i:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m15 9-6 6'/%3E%3Cpath d='m9 9 6 6'/%3E%3C/svg%3E\")}\n.bd[data-st=loading]{--bd-c:#7dd3fc;--bd-b:rgba(56,189,248,.1);--bd-r:rgba(125,211,252,.25);--bd-i:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.1 2.182a10 10 0 0 1 3.8 0'/%3E%3Cpath d='M13.9 21.818a10 10 0 0 1-3.8 0'/%3E%3Cpath d='M17.609 3.721a10 10 0 0 1 2.69 2.7'/%3E%3Cpath d='M2.182 13.9a10 10 0 0 1 0-3.8'/%3E%3Cpath d='M20.279 17.609a10 10 0 0 1-2.7 2.69'/%3E%3Cpath d='M21.818 10.1a10 10 0 0 1 0 3.8'/%3E%3Cpath d='M3.721 6.391a10 10 0 0 1 2.7-2.69'/%3E%3Cpath d='M6.391 20.279a10 10 0 0 1-2.69-2.7'/%3E%3C/svg%3E\")}\n.bd[data-st=loading]::before{animation:bd-spin 3s linear infinite}\n.bd[data-st=waiting],.bd:not([data-st]){--bd-i:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 6v6l2 4'/%3E%3C/svg%3E\")}\n@keyframes bd-spin{to{transform:rotate(360deg)}}\n@media (prefers-reduced-motion:reduce){.bd[data-st=loading]::before{animation:none}.bd{transition:none}}\n";
 const LOGO = 'data:image/png;base64,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';
 
 /* ---------- data: every 30 s; the screen ticks every second ---------- */
@@ -60,120 +66,141 @@ const Pix = ({ name, color, size = 14 }) => {
   const rects = []; P.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] === '#') rects.push(<rect key={x + '-' + y} x={x} y={y} width="1.02" height="1.02" />); });
   return <svg width={size} height={size * P.length / P[0].length} viewBox={`0 0 ${P[0].length} ${P.length}`} fill={color} style={{ display: 'block', flex: 'none', shapeRendering: 'crispEdges' }}>{rects}</svg>;
 };
-const Label = ({ children, color = MUTE, size = 8 }) => <div style={{ fontFamily: 'PS2P', fontSize: size, color, letterSpacing: 0.5, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</div>;
-const Seg = ({ w = 60 }) => <div style={{ width: w, height: 6, background: `repeating-linear-gradient(90deg, ${mix(ACC, 0.6)} 0 6px, transparent 6px 9px)`, flex: 'none' }} />;
-const Line = ({ icon, ic = MUTE, color = INK, children, bold, mono }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, fontWeight: bold ? 700 : 500, color, fontVariantNumeric: mono ? 'tabular-nums' : 'normal' }}>
-    {icon && <Pix name={icon} color={ic} size={12} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span>
-  </div>);
-const Frame = ({ color, strong, children, style }) => (
-  <div style={{ position: 'relative', background: mix(color, strong ? 0.2 : 0.08), border: `1.5px solid ${mix(color, strong ? 0.7 : 0.35)}`, padding: '10px 12px', ...style }}>
-    <i style={{ position: 'absolute', left: -1.5, top: -1.5, width: 16, height: 3, background: color }} /><i style={{ position: 'absolute', left: -1.5, top: -1.5, width: 3, height: 16, background: color }} />
-    <i style={{ position: 'absolute', right: -1.5, bottom: -1.5, width: 16, height: 3, background: color }} /><i style={{ position: 'absolute', right: -1.5, bottom: -1.5, width: 3, height: 16, background: color }} />
+/* Lucide line icons (lucide.dev, ISC) – the same family as the badges' icons */
+const LU = {
+  user: <><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>,
+  tv: <><rect width="20" height="15" x="2" y="7" rx="2" ry="2" /><polyline points="17 2 12 7 7 2" /></>,
+  pad: <><line x1="6" x2="10" y1="11" y2="11" /><line x1="8" x2="8" y1="9" y2="13" /><line x1="15" x2="15.01" y1="12" y2="12" /><line x1="18" x2="18.01" y1="10" y2="10" /><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z" /></>,
+  clock: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>,
+  receipt: <><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" /><path d="M12 17.5v-11" /></>,
+  cal: <><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /></>,
+  pulse: <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
+};
+const Lu = ({ i, color = '#bdb5d3', size = 14 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none', display: 'block' }}>{LU[i]}</svg>;
+const Kick = ({ children, color = '#bdb5d3', size = 9 }) => <div style={{ fontFamily: 'PS2P', fontSize: size, color, letterSpacing: '.24em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</div>;
+const Bd = ({ st, children, sm }) => <span className={'bd' + (sm ? ' sm' : '')} data-st={st}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{children}</span></span>;
+const Row = ({ i, color = '#d9d3ea', children, bold }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, color, fontWeight: bold ? 600 : 500 }}>
+    <Lu i={i} size={13} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span></div>);
+/* a room card, built like the member page's crew card */
+const Card = ({ color, lit, children, dim }) => (
+  <div style={{ position: 'relative', borderRadius: 16, padding: '14px 16px 16px', border: '1px solid rgba(255,255,255,.1)', overflow: 'hidden', opacity: dim ? 0.55 : 1,
+    background: `radial-gradient(120% 90% at 100% 0%, ${mix(color, lit ? 0.32 : 0.14)}, transparent 55%), repeating-linear-gradient(115deg, rgba(255,255,255,.014) 0 2px, transparent 2px 4px), linear-gradient(155deg, #36353d 0%, #1e1d23 55%, #141318 100%)`,
+    boxShadow: `inset 0 1px 0 rgba(255,255,255,.14), inset 0 -1px 0 rgba(0,0,0,.4)${lit ? ', 0 22px 40px -18px ' + mix(color, 0.55) : ''}, 0 10px 24px rgba(0,0,0,.45)` }}>
     {children}
+    <div style={{ position: 'absolute', left: 18, right: 18, bottom: 0, height: 2, background: `linear-gradient(90deg, transparent, ${color}, transparent)`, opacity: lit ? 0.9 : 0.5 }} />
   </div>);
-const Dot = ({ c, size = 10 }) => <span style={{ width: size, height: size, borderRadius: '50%', background: c, boxShadow: `0 0 0 3px ${mix(c, 0.25)}`, display: 'inline-block', flex: 'none' }} />;
+const Panel = ({ i, title, children }) => (
+  <div style={{ borderRadius: 18, padding: '14px 16px', background: 'rgba(21,19,27,.78)', border: '1px solid rgba(255,255,255,.06)', display: 'grid', gap: 9 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Lu i={i} size={13} /><Kick>{title}</Kick></div>{children}</div>);
 
-/* TV messages: automatic (10-min warning, That's a wrap) vs scheduled; grey coming · orange on the TV waiting for OK · green OK'd */
+/* TV messages: automatic (10-min warning, That's a wrap) vs scheduled. Badge states: coming = waiting (grey clock) ·
+   on the TV, waiting for OK = loading (blue, turning) · OK'd = ready (green tick) · shown, no OK needed = waiting */
 const isAuto = (m) => m.k === 'wrapup' || m.k === 'timeup';
-const mState = (m, n) => m.ok ? 'ok' : m.at > n ? 'next' : m.ak === 0 ? 'shown' : 'wait';
-const mCol = (m, n) => ({ ok: OK, wait: WARN, shown: MUTE, next: INK })[mState(m, n)];
-const mIcon = (m) => isAuto(m) ? 'bell' : /birthday|bday|anniv|congrat/i.test(m.ti || '') || m.k === 'birthday' ? 'cake' : 'sparkle';
+const mSt = (m, n) => m.ok ? 'ready' : m.at > n ? 'waiting' : m.ak === 0 ? 'waiting' : 'loading';
 
 const Room = ({ r, s }) => {
   const n = now(s), col = RC[r.r] || INK, inn = r.st === 'in', soon = inn && r.till - n < 15 * 60e3;
-  const state = inn ? 'till ' + clk(r.till) : r.st === 'clean' ? 'cleaning till ' + clk(r.till) : r.st === 'next' ? 'next ' + clk(r.next) + (r.next - n < 24 * 3600e3 && sgd(r.next).getUTCDate() !== sgd(n).getUTCDate() ? ' tmr' : '') : r.st === 'closed' ? 'closed' : 'free';
+  const tmr = r.st === 'next' && sgd(r.next).getUTCDate() !== sgd(n).getUTCDate();
+  const badge = inn ? <Bd st={soon ? 'expiring' : 'active'}>{(soon ? 'Ending · ' : 'In · till ') + clk(r.till)}</Bd>
+    : r.st === 'clean' ? <Bd st="loading">{'Cleaning till ' + clk(r.till)}</Bd>
+    : r.st === 'next' ? <Bd st="waiting">{'Next ' + clk(r.next) + (tmr ? ' tmr' : '')}</Bd> : <Bd st="waiting">Free</Bd>;
   const who = inn ? r.n : r.st === 'next' ? r.nn : '';
   const tv = r.tv ? (r.tv.off ? 'TV off' : r.tv.quiet ? 'TV not reporting' : r.tv.app || 'TV on') : '';
   const tvBad = inn && r.tv && (r.tv.off || r.tv.quiet);
   const ps = r.ps4 && r.ps4.on ? r.ps4.g || 'PS4 menu' : '';
   const A = (r.msgs || []).filter(isAuto), S = (r.msgs || []).filter((m) => !isAuto(m));
-  if (r.st === 'closed') return (
-    <Frame color={col} style={{ opacity: 0.45 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Pix name={RICON[r.r]} color={col} size={16} /><Label color={col} size={11}>{r.r}</Label></div>
-      <div style={{ color: MUTE, marginTop: 8 }}>Closed – renovation</div></Frame>);
   return (
-    <Frame color={col} strong={inn}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Pix name={RICON[r.r]} color={col} size={16} /><Label color={col} size={11}>{r.r}</Label></div>
-      <div style={{ marginTop: 8, color: r.st === 'clean' ? ACC : inn ? INK : MUTE, fontWeight: 600 }}>{state}</div>
-      {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
-        <span style={{ fontFamily: 'PS2P', fontSize: 17, color: soon ? WARN : OK, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span><span style={{ color: MUTE, fontSize: 12 }}>left</span></div>}
-      <div style={{ display: 'grid', gap: 3, marginTop: 6, fontSize: 12.5 }}>
-        {NAMES && who && <Line icon="user">{who}</Line>}
-        {tv && (inn || (r.tv && !r.tv.off && !r.tv.quiet)) && <Line icon="tv" ic={tvBad ? WARN : MUTE} color={tvBad ? WARN : INK}>{tv}</Line>}
-        {ps && <Line icon="pad">{ps}</Line>}
-        {A.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Pix name="bell" color={MUTE} size={12} />
-          {A.slice(0, 2).map((m) => <span key={m.at + m.k} style={{ color: mCol(m, n), fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{(m.k === 'wrapup' ? '10m ' : 'wrap ') + clkFull(m.at).replace(/[ap]m$/, '')}{m.ok ? ' ✓' : mState(m, n) === 'wait' ? ' …' : ''}</span>)}</div>}
-        {S.slice(0, 2).map((m) => <Line key={m.at + m.ti} icon={mIcon(m)} ic={mState(m, n) === 'next' ? ACC : mCol(m, n)} color={mState(m, n) === 'next' ? INK : mCol(m, n)}>{clk(m.at) + ' ' + (m.ti || 'TV message') + (m.ok ? ' ✓' : '')}</Line>)}
+    <Card color={col} lit={inn}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}><Pix name={RICON[r.r]} color={col} size={16} />
+        <span style={{ fontFamily: 'PS2P', fontSize: 12, color: '#f3f1f8', textShadow: '0 1px 0 rgba(0,0,0,.6)', letterSpacing: '.06em' }}>{r.r.toUpperCase()}</span></div>
+      <div style={{ marginTop: 11 }}>{badge}</div>
+      {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 10 }}>
+        <span style={{ fontFamily: 'PS2P', fontSize: 20, color: soon ? '#fcd34d' : '#f3f1f8', fontVariantNumeric: 'tabular-nums', textShadow: '0 1px 0 rgba(0,0,0,.6)' }}>{left(r.till - n)}</span>
+        <Kick size={8}>left</Kick></div>}
+      <div style={{ display: 'grid', gap: 5, marginTop: 10, fontSize: 13 }}>
+        {NAMES && who && <Row i="user" color="#f4f1fb" bold>{who}</Row>}
+        {tv && (inn || (r.tv && !r.tv.off && !r.tv.quiet)) && <Row i="tv" color={tvBad ? '#fcd34d' : '#d9d3ea'}>{tv}</Row>}
+        {ps && <Row i="pad">{ps}</Row>}
       </div>
-    </Frame>);
+      {(A.length > 0 || S.length > 0) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
+        {A.slice(0, 2).map((m) => <Bd key={m.at + m.k} sm st={mSt(m, n)}>{(m.k === 'wrapup' ? '10 min ' : 'Wrap ') + clkFull(m.at).replace(/[ap]m$/, '')}</Bd>)}
+        {S.slice(0, 2).map((m) => <Bd key={m.at + m.ti} sm st={mSt(m, n)}>{clk(m.at) + ' ' + (m.ti || 'TV message').slice(0, 26)}</Bd>)}
+      </div>}
+    </Card>);
 };
-
-const Side = ({ title, children }) => <div style={{ display: 'grid', gap: 7 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Label>{title}</Label><Seg w={36} /></div>{children}</div>;
 
 export const render = (s) => {
   const j = s.j, n = now(s);
-  const fonts = <style>{`
+  const css = <style>{`
     @font-face { font-family: PS2P; src: url(${FONTS}PressStart2P-Regular.ttf); }
     @font-face { font-family: Chakra; font-weight: 500; src: url(${FONTS}ChakraPetch-Medium.ttf); }
     @font-face { font-family: Chakra; font-weight: 600; src: url(${FONTS}ChakraPetch-SemiBold.ttf); }
-    @font-face { font-family: Chakra; font-weight: 700; src: url(${FONTS}ChakraPetch-Bold.ttf); }`}</style>;
-  const wrap = (body) => <div style={{ position: 'fixed', top: TOP, [SIDE]: EDGE, width: 1000, transform: `scale(${SCALE})`, transformOrigin: `top ${SIDE}`, fontFamily: 'Chakra, -apple-system, sans-serif', fontSize: 13, color: INK,
-    background: 'linear-gradient(180deg, rgba(21,17,31,0.88), rgba(11,9,20,0.9))', WebkitBackdropFilter: 'blur(18px)', backdropFilter: 'blur(18px)', borderRadius: 20, padding: '18px 22px 20px', boxShadow: '0 20px 60px rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.06)' }}>{fonts}{body}</div>;
-  if (!j) return wrap(<div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><img src={LOGO} style={{ height: 22 }} /><span style={{ color: MUTE }}>{s.err || 'Loading the board…'}</span></div>);
+    @font-face { font-family: Chakra; font-weight: 700; src: url(${FONTS}ChakraPetch-Bold.ttf); }
+    ${BADGE_CSS}
+    .bd { font-family: Chakra, system-ui, sans-serif; max-width: 100%; }
+    .bd.sm { padding: 4px 9px; font-size: 11.5px; gap: 5px; }
+    .bd.sm::before { width: 12px; height: 12px; }`}</style>;
+  const wrap = (body) => <div style={{ position: 'fixed', top: TOP, [SIDE]: EDGE, width: 1040, transform: `scale(${SCALE})`, transformOrigin: `top ${SIDE}`, fontFamily: 'Chakra, -apple-system, sans-serif', fontSize: 13, color: INK,
+    borderRadius: 22, overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,.5)', border: '1px solid rgba(255,255,255,.07)' }}>
+    {css}
+    {/* the member page's background: deep gradient, a soft light top-right, a cool light bottom-left, darker edges, fine grain */}
+    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(13,11,19,.95) 0%, rgba(8,7,12,.95) 55%, rgba(6,5,9,.96) 100%)' }} />
+    <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(640px 420px at 85% -6%, ${mix('#E8436A', 0.16)}, transparent 70%), radial-gradient(520px 420px at -10% 105%, rgba(120,110,190,.10), transparent 70%), radial-gradient(130% 90% at 50% 40%, transparent 60%, rgba(0,0,0,.45) 100%)` }} />
+    <div style={{ position: 'absolute', inset: 0, opacity: 0.07, mixBlendMode: 'overlay', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url%28%23n%29'/%3E%3C/svg%3E")` }} />
+    <div style={{ position: 'relative', padding: '20px 22px 22px' }}>{body}</div></div>;
+  if (!j) return wrap(<div style={{ display: 'flex', alignItems: 'center', gap: 14 }}><img src={LOGO} style={{ height: 22, opacity: 0.92 }} /><span style={{ color: '#bdb5d3' }}>{s.err || 'Loading the board…'}</span></div>);
 
-  const c = j.counts || {}, H = j.health || { lv: 0, list: [] }, hc = [OK, WARN, BAD][H.lv] || OK;
-  const rooms = j.rooms || [], M = j.money, T = j.tomorrow;
-  /* next starts / finishes, rooms at the same time together */
+  const c = j.counts || {}, H = j.health || { lv: 0, list: [] }, M = j.money, T = j.tomorrow;
+  const rooms = j.rooms || [];
   const G = []; for (const e of (j.events || []).filter((e) => e.at > n)) { const g = G[G.length - 1]; if (g && g.t === e.t && Math.abs(g.at - e.at) < 60e3) g.rs.push(e.r); else G.push({ at: e.at, t: e.t, rs: [e.r] }); }
   const stale = Date.now() - s.at > 2 * 60e3;
   return wrap(<div>
-    {/* header */}
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-      <img src={LOGO} style={{ height: 24, display: 'block' }} />
-      <Label color={INK} size={10}>{T && T.over ? 'Tonight done' : c.in + ' in · ' + c.left + ' to come'}</Label><Seg w={90} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 18 }}>
+      <img src={LOGO} style={{ height: 24, display: 'block', opacity: 0.92 }} />
+      <div><Kick>{T && T.over ? 'Tonight' : 'Tonight'}</Kick>
+        <div style={{ marginTop: 6, fontWeight: 600, color: '#d9d3ea' }}>{T && T.over ? 'All done – see tomorrow' : <><b style={{ color: '#f4f1fb' }}>{c.in}</b> in · <b style={{ color: '#f4f1fb' }}>{c.left}</b> to come · {c.done} done</>}</div></div>
       <div style={{ flex: 1 }} />
-      <Dot c={hc} /><span style={{ color: hc, fontWeight: 700 }}>{H.lv >= 2 ? 'Needs someone' : H.lv ? 'Keep an eye' : 'All OK'}</span>
-      <span style={{ color: MUTE, marginLeft: 6 }}>{dayName(n)}</span>
-      <span style={{ fontFamily: 'PS2P', fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{clkFull(n)}</span>
+      <Bd st={H.lv >= 2 ? 'expired' : H.lv ? 'expiring' : 'active'}>{H.lv >= 2 ? 'Needs someone' : H.lv ? 'Keep an eye' : 'All systems OK'}</Bd>
+      <div style={{ textAlign: 'right' }}><Kick>{dayName(n)}</Kick><div style={{ fontFamily: 'PS2P', fontSize: 16, marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>{clkFull(n)}</div></div>
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 270px', gap: 18 }}>
-      {/* rooms */}
-      <div style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 16 }}>
+      <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           {rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} />)}
         </div>
-        {/* closed rooms (Kaeden, under renovation) – one quiet line instead of a whole box */}
-        {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.5 }}>
-          <Pix name={RICON[r.r]} color={RC[r.r]} size={12} /><Label color={RC[r.r]} size={8}>{r.r}</Label><span style={{ color: MUTE }}>closed – renovation</span></div>)}
+        {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 9, opacity: 0.55, paddingLeft: 4 }}>
+          <Pix name={RICON[r.r]} color={RC[r.r]} size={12} /><Kick size={8} color={RC[r.r]}>{r.r}</Kick><span style={{ color: '#bdb5d3' }}>closed – renovation</span></div>)}
       </div>
-      {/* side column */}
-      <div style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
-        <Side title="Up next">
-          {G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: i ? 0.8 : 1 }}>
+      <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
+        <Panel i="clock" title="Up next">
+          {G.length ? G.slice(0, 4).map((g, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: i ? 0.85 : 1 }}>
             {g.rs.slice(0, 4).map((r) => <Pix key={r} name={RICON[r]} color={RC[r]} size={13} />)}
-            <span style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</span>
-            <span style={{ flex: 1 }} /><span style={{ color: i ? MUTE : ACC, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{left(g.at - n)}</span></div>)
-            : <div style={{ color: MUTE }}>Nothing more tonight</div>}
-        </Side>
-        {M && <Side title="Today">
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}><span style={{ fontFamily: 'PS2P', fontSize: 20 }}>{M.n}</span><span style={{ color: MUTE }}>booked</span>
-            <span style={{ flex: 1 }} /><span style={{ fontFamily: 'PS2P', fontSize: 13, color: OK }}>{money(M.paid)}</span><span style={{ color: MUTE }}>paid</span></div>
-          {M.nUnpaid > 0 && <Line icon="warn" ic={WARN} color={WARN} bold>{M.nUnpaid + ' not paid · ' + money(M.unpaid)}</Line>}
-          {M.cx > 0 && <Line icon="warn" color={MUTE}>{M.cx + ' cancelled today'}</Line>}
-          {M.last && <Line icon={RICON[M.last.r]} ic={RC[M.last.r]}>{'Latest: ' + M.last.r + (NAMES && M.last.n ? ' · ' + M.last.n : '') + ' · ' + ago(M.last.t, n)}</Line>}
-        </Side>}
-        {T && <Side title={'Tomorrow' + (T.first ? ' · ' + dayName(T.first.at) : '')}>
-          {!T.n ? <div style={{ color: MUTE }}>Nothing booked yet</div> : (T.list || [T.first]).slice(0, 7).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ width: 58, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={RC[x.r]} size={12} />
-            <span style={{ color: RC[x.r], fontWeight: 700 }}>{x.r}</span><span style={{ color: MUTE, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(x.e ? 'till ' + clk(x.e) : '') + (NAMES && x.n ? ' · ' + x.n : '')}</span></div>)}
-          {T.n > 7 && <div style={{ color: MUTE }}>{'+ ' + (T.n - 7) + ' more'}</div>}
-        </Side>}
-        <Side title="Health">
-          {H.list && H.list.length ? H.list.slice(0, 5).map((x, i) => <Line key={i} icon="warn" ic={[OK, WARN, BAD][x.lv]} color={[OK, WARN, BAD][x.lv]}>{x.t.replace(/^[^\w"]+/, '')}</Line>)
-            : <Line icon="check" ic={OK} color={OK} bold>All systems OK</Line>}
-          {H.sb != null && <div style={{ color: MUTE, fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today · limit ~10,000'}</div>}
-        </Side>
-        <div style={{ color: stale || s.err ? WARN : MUTE, fontSize: 11 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div>
+            <span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{(g.rs.length > 2 ? g.rs.length + ' rooms' : g.rs.join(' · ')) + (g.t === 'out' ? ' out ' : ' in ') + clk(g.at)}</span>
+            <span style={{ flex: 1 }} /><Bd sm st={i === 0 ? (g.at - n < 15 * 60e3 ? 'expiring' : 'loading') : 'waiting'}>{left(g.at - n)}</Bd></div>)
+            : <div style={{ color: '#bdb5d3' }}>Nothing more tonight</div>}
+        </Panel>
+        {M && <Panel i="receipt" title="Today">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ fontFamily: 'PS2P', fontSize: 20 }}>{M.n}</span><span style={{ color: '#bdb5d3' }}>booked</span>
+            <span style={{ flex: 1 }} /><span style={{ fontFamily: 'PS2P', fontSize: 14, color: '#6ee7b7' }}>{money(M.paid)}</span><span style={{ color: '#bdb5d3' }}>paid</span></div>
+          {(M.nUnpaid > 0 || M.cx > 0) && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {M.nUnpaid > 0 && <Bd sm st="expiring">{M.nUnpaid + ' not paid · ' + money(M.unpaid)}</Bd>}
+            {M.cx > 0 && <Bd sm st="expired">{M.cx + ' cancelled'}</Bd>}</div>}
+          {M.last && <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: '#d9d3ea' }}><Pix name={RICON[M.last.r]} color={RC[M.last.r]} size={12} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{'Latest: ' + M.last.r + (NAMES && M.last.n ? ' · ' + M.last.n : '') + ' · ' + ago(M.last.t, n)}</span></div>}
+        </Panel>}
+        {T && <Panel i="cal" title={'Tomorrow' + (T.first ? ' · ' + dayName(T.first.at) : '')}>
+          {!T.n ? <div style={{ color: '#bdb5d3' }}>Nothing booked yet</div> : (T.list || [T.first]).slice(0, 7).map((x, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 56, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clk(x.at)}</span><Pix name={RICON[x.r]} color={RC[x.r]} size={12} />
+            <span style={{ color: RC[x.r], fontWeight: 700 }}>{x.r}</span><span style={{ color: '#bdb5d3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(x.e ? 'till ' + clk(x.e) : '') + (NAMES && x.n ? ' · ' + x.n : '')}</span></div>)}
+          {T.n > 7 && <div style={{ color: '#bdb5d3' }}>{'+ ' + (T.n - 7) + ' more'}</div>}
+        </Panel>}
+        <Panel i="pulse" title="Health">
+          {H.list && H.list.length ? <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>{H.list.slice(0, 5).map((x, i) => <Bd key={i} sm st={x.lv >= 2 ? 'expired' : 'expiring'}>{x.t.replace(/^[^\w"]+/, '').slice(0, 44)}</Bd>)}</div>
+            : <Bd sm st="active">All systems OK</Bd>}
+          {H.sb != null && <div style={{ color: '#bdb5d3', fontSize: 11.5 }}>{H.sb + ' SimplyBook requests today · limit ~10,000'}</div>}
+        </Panel>
+        <div style={{ color: stale || s.err ? '#fcd34d' : '#8d84a6', fontSize: 11, paddingLeft: 4 }}>{s.err ? s.err : 'Updated ' + ago(s.at, Date.now()) + (j.age > 15 ? ' · engine copy ' + j.age + ' min old' : '')}</div>
       </div>
     </div>
   </div>);
