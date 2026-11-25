@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Round2 UI</title>
+<link rel="stylesheet" href="r2-ui.css">
+<style>
+  html, body { margin: 0; background: var(--r2-bg); }
+  .page { max-width: 1160px; margin: 0 auto; padding: 32px 16px 64px; }
+  section { margin-top: 40px; }
+  h2 { margin: 0 0 6px; font: 400 10px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; }
+  .why { margin: 0 0 18px; max-width: 70ch; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .sw { display: grid; gap: 8px; justify-items: start; }
+  .sw i { width: 64px; height: 40px; border-radius: 6px; border: 1px solid var(--r2-line); background: var(--c); display: block; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="r2">
+<div class="page">
+  <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap">
+    <img class="r2-logo" src="r2-logo.png" alt="Round2">
+    <div><div class="r2-kick">Design language</div><div class="r2-sub" style="margin-top:7px;font-weight:500;font-size:14px">Round2 UI for staff screens · from the Mac board, 25 Nov 2026</div></div>
+    <div style="flex:1"></div>
+    <div class="r2-tabs" role="tablist" id="theme"></div>
+  </div>
+  <hr class="r2-rule">
+
+  <section>
+    <h2>1 · Feel</h2>
+    <p class="why r2-sub">Our feel comes from the logo: <b style="color:var(--r2-fg)">monochrome</b> – white on black, or black on white. Thin, rounded lines; outlines, not fills;
+      small round corners; wide letter-spacing. <b style="color:var(--r2-fg)">Colours are our product</b>: each room's colour, and the few state colours. Nothing else is coloured – no gradients, glass or glow.</p>
+    <div class="two">
+      <div class="r2-card"><div class="r2-kick">Text</div><div style="font-size:22px;font-weight:300;margin-top:10px">Quicksand – thin, rounded, like the logo's strokes</div>
+        <div class="r2-sub" style="margin-top:6px">300 for big numbers · 500 for text · 600 for names and times</div></div>
+      <div class="r2-card"><div class="r2-kick">Game font</div><div style="font:12px var(--r2-pixel);letter-spacing:.12em;margin-top:12px">PRESS START 2P</div>
+        <div class="r2-sub" style="margin-top:9px">Only for small labels (TONIGHT, LEFT) and room names – never for sentences</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Colour</h2>
+    <p class="why r2-sub">Rooms own their colour. States are a small dot, never a coloured block.</p>
+    <div class="row" id="rooms"></div>
+    <div class="row" style="margin-top:16px">
+      <span class="r2-chip ok"><span>OK / acknowledged</span></span><span class="r2-chip wait"><span>Waiting / keep an eye</span></span>
+      <span class="r2-chip bad"><span>Needs someone</span></span><span class="r2-chip next"><span>Coming up</span></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · Room tiles – the main view</h2>
+    <p class="why r2-sub">The six rooms are the screen. Inside a tile everything follows the room's colour. The <b style="color:var(--r2-fg)">big number is always a countdown with words</b>
+      (left · cleaning left · till arrival). The <b style="color:var(--r2-fg)">ring has one meaning</b>: guests are in – it fills as their booking is used and says how long they booked.</p>
+    <div class="r2-rooms" id="tiles"></div>
+  </section>
+
+  <section>
+    <h2>4 · Quiet info strip</h2>
+    <p class="why r2-sub">Everything that isn't a room sits underneath: columns split by thin lines, no boxes.</p>
+    <div class="r2-strip" id="strip"></div>
+  </section>
+
+  <section>
+    <h2>5 · Controls</h2>
+    <p class="why r2-sub">Outlines until pressed or on. One solid button per screen – the main action.</p>
+    <div class="row"><button class="r2-btn solid">Save</button><button class="r2-btn">Send to TV</button><button class="r2-btn room r2-kai">Kai TV</button>
+      <button class="r2-btn quiet">Cancel</button><button class="r2-btn danger">Cancel booking</button><button class="r2-btn" disabled>Not now</button></div>
+    <div class="two" style="margin-top:22px">
+      <label class="r2-field"><span class="r2-kick">Guest name</span><input class="r2-input" placeholder="e.g. Theodore"></label>
+      <div style="display:grid;gap:12px;align-content:end">
+        <label class="r2-toggle"><input type="checkbox" checked><i></i>Auto wrap-up messages</label>
+        <label class="r2-toggle r2-scarlett"><input type="checkbox" checked><i></i>Scarlett Home-button helper</label>
+      </div>
+    </div>
+    <div class="r2-tabs" style="margin-top:26px"><button class="r2-tab" aria-selected="true">Tonight</button><button class="r2-tab">Messages</button><button class="r2-tab">TVs</button><button class="r2-tab">Tests &amp; systems</button></div>
+  </section>
+
+  <section>
+    <h2>6 · Lists and notices</h2>
+    <div class="two">
+      <div class="r2-list" id="list"></div>
+      <div style="display:grid;gap:10px;align-content:start">
+        <div class="r2-notice ok"><div><b>Kai's helper is running again</b><span>Restarted by the TV itself at 2:31pm.</span></div></div>
+        <div class="r2-notice wait"><div><b>Bella TV not reporting</b><span>Last check-in 24 min ago – guests due at 3:28pm.</span></div></div>
+        <div class="r2-notice bad"><div><b>Payment not matched</b><span>S$96 paid at 1:52pm, no booking found.</span></div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+import { ROOMS, room, pixSvg, ringSvg, clk, left, hrs, setTheme, initTheme } from './r2-ui.js';
+const $ = (id) => document.getElementById(id);
+let mode = initTheme('dark');
+const drawTheme = () => { $('theme').innerHTML = ['dark', 'light', 'auto'].map((m) => `<button class="r2-tab" aria-selected="${m === mode}" data-m="${m}">${m}</button>`).join(''); };
+$('theme').onclick = (e) => { const m = e.target.dataset.m; if (m) { mode = m; setTheme(m); drawTheme(); } }; drawTheme();
+
+$('rooms').innerHTML = ROOMS.map((R) => `<div class="sw ${R.cls}"><i></i><span class="r2-room sm ${R.cls}">${pixSvg(R.icon, 11, 'var(--c)')}${R.r}</span></div>`).join('');
+
+/* sample rooms (made-up guests) */
+const now = Date.now(), m = 60e3;
+const sample = [
+  { r: 'Scarlett', st: 'in', since: now - 111 * m, till: now + 9 * m, n: 'Sakura', x: 1, tv: 'PS4 / HDMI', ps: 'EA FC 25', msgs: [['ok', '10m ' + clk(now - m)], ['next', 'Wrap ' + clk(now + 9 * m)]] },
+  { r: 'Kai', st: 'in', since: now - 140 * m, till: now + 40 * m, n: 'Theodore', tv: 'Netflix', ps: 'Gran Turismo 7', next: now + 75 * m, nn: 'Raph', gap: 20 },
+  { r: 'Bella', st: 'next', next: now + 46 * m, nn: 'daren', msgs: [['next', clk(now + 2 * 60 * m) + ' Happy birthday Daren!']] },
+  { r: 'Atlas', st: 'clean', till: now + 4 * m, next: now + 95 * m, nn: 'Priya', gap: 80 },
+  { r: 'Vale', st: 'free' }, { r: 'Max', st: 'free', next: now + 6 * 60 * m },
+];
+const chip = (cls, t) => `<span class="r2-chip ${cls}"><span>${t}</span></span>`;
+const line = (icon, t, cls = '') => `<div class="r2-line ${cls}">${icon ? pixSvg(icon, 11) : ''}<span>${t}</span></div>`;
+$('tiles').innerHTML = sample.map((x) => {
+  const R = room(x.r), inn = x.st === 'in', soon = inn && x.till - now < 15 * m;
+  const c = inn ? chip('dot strong' + (soon ? ' fill' : ''), (soon ? 'Ending · ' : 'In · till ') + clk(x.till)) : x.st === 'clean' ? chip('dot', 'Cleaning till ' + clk(x.till)) : x.st === 'next' ? chip('dot', 'Next ' + clk(x.next)) : chip('', 'Free');
+  const cd = inn ? [x.till - now, 'left', soon ? 'hot' : ''] : x.st === 'clean' ? [x.till - now, 'cleaning left', 'quiet'] : x.st === 'next' ? [x.next - now, 'till arrival', 'quiet'] : null;
+  const who = inn ? x.n : x.st === 'next' ? x.nn : '';
+  const side = (inn ? ringSvg((now - x.since) / (x.till - x.since), `<b>${hrs(x.till - x.since)}</b><span class="r2-kick sm">booked</span>`) : '') +
+    ((inn || x.st === 'clean') && x.next ? `<div class="r2-then"><span class="r2-kick sm">then</span><b>${clk(x.next)}</b><span class="r2-sub">${x.nn}</span><span class="gap ${x.gap < 30 ? 'tight' : 'r2-sub'}" style="font-size:11.5px">${x.gap} min gap</span></div>` : '') +
+    (x.st === 'free' ? `<span class="r2-sub" style="font-size:12px">${x.next ? 'next ' + clk(x.next) : 'nothing more tonight'}</span>` : '');
+  return `<div class="r2-card r2-tile ${R.cls} ${inn ? 'lit' : ''}"><span class="r2-room ${R.cls}">${pixSvg(R.icon, 15, 'var(--c)')}${R.r}</span>
+    <div class="body"><div class="main"><div>${c}</div>${cd ? `<div class="r2-count ${cd[2]}"><b>${left(cd[0])}</b><span class="r2-kick">${cd[1]}</span></div>` : ''}
+      <div style="display:grid;gap:5px">${who ? line('user', who, 'bold') : ''}${x.x ? line('', 'Extended', 'room') : ''}${x.tv ? line('tv', x.tv) : ''}${x.ps ? line('pad', x.ps) : ''}</div></div>
+      <div class="side">${side}</div></div>
+    ${x.msgs ? `<div class="msgs">${x.msgs.map(([s, t]) => chip(s + ' sm', t + (s === 'ok' ? ' ✓' : ''))).join('')}</div>` : ''}</div>`;
+}).join('');
+
+const rr = (r) => `<span class="${room(r).cls}" style="display:contents">${pixSvg(room(r).icon, 11, 'var(--c)')}</span>`;
+$('strip').innerHTML = `
+  <div><span class="r2-kick">Up next</span>
+    <div class="r2-row">${rr('Scarlett')}<b>Scarlett out ${clk(now + 9 * m)}</b><span class="push"></span><b style="color:var(--r2-warn)">${left(9 * m)}</b></div>
+    <div class="r2-row r2-sub">${rr('Bella')}<span>Bella in ${clk(now + 46 * m)}</span><span class="push"></span><span>${left(46 * m)}</span></div></div>
+  <div><span class="r2-kick">Today</span>
+    <div class="r2-row" style="align-items:baseline"><span class="r2-num">4</span><span class="r2-sub">booked</span><span class="push"></span><b style="font-size:16px">S$360</b><span class="r2-sub">paid</span></div>
+    <div class="row" style="gap:6px">${chip('wait sm', '1 not paid · S$96')}${chip('bad sm', '1 cancelled')}</div></div>
+  <div><span class="r2-kick">Tomorrow</span>
+    ${[['Vale', '6pm', 'Tom'], ['Kai', '10pm', 'Jess'], ['Max', '11:30pm', 'Ravi']].map(([r, t, n]) => `<div class="r2-row"><b style="width:54px">${t}</b>${rr(r)}<b>${r}</b><span class="r2-sub">${n}</span></div>`).join('')}</div>
+  <div><span class="r2-kick">Health</span><div>${chip('ok sm', 'All systems OK')}</div><span class="r2-sub" style="font-size:11.5px">Updated just now</span></div>`;
+
+$('list').innerHTML = [['Kai', '9:51pm', 'Jess', 'paid'], ['Max', '10:51pm', 'Ravi', 'not paid'], ['Bella', '1:51am', 'Mei', 'paid']].map(([r, t, n, p]) =>
+  `<div><b style="width:62px">${t}</b><span class="r2-room sm ${room(r).cls}">${pixSvg(room(r).icon, 11, 'var(--c)')}${r}</span><span>${n}</span><span style="flex:1"></span>${chip((p === 'paid' ? 'ok' : 'wait') + ' sm', p)}</div>`).join('');
+</script>
+</body>
+</html>
