@@ -325,11 +325,24 @@ const Detail = ({ r, j, s, d }) => {
       </div>
       <div style={{ display: 'grid', gap: 10, alignContent: 'start', padding: '0 20px', borderLeft: `1px solid ${K.line}`, minWidth: 0 }}>
         <Kick>TV messages</Kick>
-        {(r.msgs || []).length ? r.msgs.map((m) => <div key={m.at + (m.k || '') + (m.ti || '')} style={{ display: 'grid', gap: 3 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><Dot c={mC(m, n)} /><b style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{clk(m.at) + ' · ' + mName(m)}</b></div>
-          <span style={{ color: K.sub, fontSize: 12, paddingLeft: 14 }}>{(isAuto(m) ? 'automatic · ' : 'scheduled' + (m.fr ? ' by ' + m.fr : '') + ' · ') + mWords(m, n)}</span>
-          {m.tx && <div style={{ marginLeft: 14, marginTop: 3, padding: '8px 10px', borderLeft: `1.5px solid ${col}`, color: K.fg, fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 120, overflow: 'hidden' }}>{m.tx}</div>}</div>)
-          : <span style={{ color: K.sub }}>None from 15 min ago onwards</span>}
+        {/* (25 Nov, owner) the automatic ones (10-min warning, That's a wrap) are routine: just their times and whether the guest
+            OK'd them. Guest / scheduled messages are the unusual ones: shown in full, with a clear "did the guest OK it" mark. */}
+        {(() => { const A = (r.msgs || []).filter(isAuto), S = (r.msgs || []).filter((m) => !isAuto(m));
+          const okMark = (m) => { const st = mState(m, n);
+            return m.ok ? <Chip sm c={K.ok} strong>{'✓ Guest OK’d ' + clk(m.ok)}</Chip>
+              : m.ak === 0 ? <Chip sm c={K.sub}>{m.at > n ? 'Shows ' + clk(m.at) + ' · no OK needed' : 'Shown · no OK needed'}</Chip>
+              : st === 'wait' ? <Chip sm c={K.warn} strong fill={K.warn + '22'}>Waiting for guest OK</Chip>
+              : <Chip sm c={K.sub}>{'Shows ' + clk(m.at)}</Chip>; };
+          return !A.length && !S.length ? <span style={{ color: K.sub }}>None from 15 min ago onwards</span> : <>
+            {A.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{A.map((m) =>
+              <Chip key={m.at + m.k} sm c={mC(m, n)} strong={!!m.ok} fill={mState(m, n) === 'wait' ? K.warn + '22' : null}>{(m.k === 'wrapup' ? '10m ' : 'Wrap ') + clk(m.at) + (m.ok ? ' ✓' : mState(m, n) === 'wait' ? ' …' : '')}</Chip>)}</div>}
+            {S.map((m) => <div key={m.at + (m.ti || '')} style={{ display: 'grid', gap: 6, paddingTop: 8, borderTop: `1px solid ${K.line}` }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}><b style={{ fontWeight: 600, flex: 'none' }}>{clk(m.at)}</b>
+                <b style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.ti || 'TV message'}</b>
+                {m.fr && <span style={{ color: K.sub, fontSize: 12, whiteSpace: 'nowrap' }}>{'· ' + m.fr}</span>}</div>
+              {m.tx && <div style={{ padding: '2px 0 2px 10px', borderLeft: `1.5px solid ${col}`, color: K.fg, fontSize: 12.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 96, overflow: 'hidden' }}>{m.tx}</div>}
+              <div>{okMark(m)}</div></div>)}
+          </>; })()}
       </div>
       <div style={{ display: 'grid', gap: 9, alignContent: 'start', paddingLeft: 20, borderLeft: `1px solid ${K.line}`, minWidth: 0 }}>
         <Kick>{'Tonight · ' + r.r}</Kick>
