@@ -75,8 +75,8 @@ const Pix = ({ name, color, size = 14 }) => {
 const Kick = ({ children, color, size = 7 }) => <div style={{ fontFamily: 'PS2P', fontSize: size, color: color || K.sub, letterSpacing: '.28em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{children}</div>;
 const Dot = ({ c, size = 6 }) => <i style={{ width: size, height: size, borderRadius: '50%', background: c, display: 'inline-block', flex: 'none' }} />;
 /* a status chip drawn like the logo's II bars: a thin outline with small round corners; the state is only the dot's colour */
-const Chip = ({ c, children, sm, strong }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: sm ? 6 : 8, padding: sm ? '3px 9px' : '6px 12px', borderRadius: 6, border: `1px solid ${strong ? c : K.line2}`,
+const Chip = ({ c, children, sm, strong, fill, dim }) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: sm ? 6 : 8, padding: sm ? '3px 9px' : '6px 12px', borderRadius: 6, border: `1px solid ${strong ? c : K.line2}`, background: fill || 'transparent', opacity: dim ? 0.85 : 1,
     color: K.fg, fontWeight: 600, fontSize: sm ? 11.5 : 13, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', fontVariantNumeric: 'tabular-nums' }}>
     {c && <Dot c={c} size={sm ? 5 : 6} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{children}</span></span>);
 const Line = ({ icon, children, bold, color }) => (
@@ -94,29 +94,60 @@ const isAuto = (m) => m.k === 'wrapup' || m.k === 'timeup';
 const mState = (m, n) => m.ok ? 'ok' : m.at > n || m.ak === 0 ? 'next' : 'wait';
 const mC = (m, n) => ({ ok: K.ok, wait: K.warn, next: K.sub })[mState(m, n)];
 
+/* the session ring: a thin rounded line like the logo's strokes, in the room's colour – how much of the booking is used */
+const Ring = ({ p, col, size = 92, children }) => {
+  const R = size / 2 - 3, C = 2 * Math.PI * R, q = Math.max(0, Math.min(1, p));
+  return <div style={{ position: 'relative', width: size, height: size, flex: 'none' }}>
+    <svg width={size} height={size} style={{ display: 'block', transform: 'rotate(-90deg)' }}>
+      <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke={K.line} strokeWidth="2" />
+      {q > 0 && <circle cx={size / 2} cy={size / 2} r={R} fill="none" stroke={col} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={`${C * q} ${C}`} />}
+    </svg>
+    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 5, textAlign: 'center' }}>{children}</div></div>;
+};
+const hrs = (ms) => { const m = Math.round(ms / 60e3), h = Math.floor(m / 60), x = m % 60; return (h ? h + 'h' : '') + (x ? (h ? ' ' : '') + x + 'm' : h ? '' : '0m'); };
+
 const Room = ({ r, s }) => {
   const n = now(s), col = K.room(r.r) || K.fg, inn = r.st === 'in', soon = inn && r.till - n < 15 * 60e3;
-  const tmr = r.st === 'next' && sgd(r.next).getUTCDate() !== sgd(n).getUTCDate();
-  const chip = inn ? <Chip c={soon ? K.warn : K.ok} strong={soon}>{(soon ? 'Ending · ' : 'In · till ') + clk(r.till)}</Chip>
-    : r.st === 'clean' ? <Chip c={K.acc}>{'Cleaning till ' + clk(r.till)}</Chip>
-    : r.st === 'next' ? <Chip c={K.sub}>{'Next ' + clk(r.next) + (tmr ? ' tmr' : '')}</Chip> : <Chip>Free</Chip>;
+  const tmr = r.next && sgd(r.next).getUTCDate() !== sgd(n).getUTCDate() && sgd(r.next).getUTCHours() >= 7;
+  /* (25 Nov, owner) the status box follows the room's colour; "ending" fills it lightly instead of turning orange */
+  const tint = (a) => col + Math.round(a * 255).toString(16).padStart(2, '0');
+  const chip = inn ? <Chip c={col} strong fill={soon ? tint(0.16) : null}>{(soon ? 'Ending · ' : 'In · till ') + clk(r.till)}</Chip>
+    : r.st === 'clean' ? <Chip c={col}>{'Cleaning till ' + clk(r.till)}</Chip>
+    : r.st === 'next' ? <Chip c={col} dim>{'Next ' + clk(r.next) + (tmr ? ' tmr' : '')}</Chip> : <Chip>Free</Chip>;
   const who = inn ? r.n : r.st === 'next' ? r.nn : '';
   const tv = r.tv ? (r.tv.off ? 'TV off' : r.tv.quiet ? 'TV not reporting' : r.tv.app || 'TV on') : '';
   const tvBad = inn && r.tv && (r.tv.off || r.tv.quiet);
   const ps = r.ps4 && r.ps4.on ? r.ps4.g || 'PS4 menu' : '';
   const A = (r.msgs || []).filter(isAuto), S = (r.msgs || []).filter((m) => !isAuto(m));
+  /* right-hand side: the ring (session used / cleaning / time to the next guest) and, under it, who's after this guest */
+  const big = (t) => <span style={{ fontWeight: 300, fontSize: 19, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{t}</span>;
+  const ring = inn && r.since ? <Ring p={(n - r.since) / (r.till - r.since)} col={col}>{big(hrs(r.till - r.since))}<Kick size={6}>booked</Kick>{r.x ? <Kick size={6} color={col}>+ ext</Kick> : null}</Ring>
+    : r.st === 'clean' ? <Ring p={1 - (r.till - n) / (15 * 60e3)} col={col}>{big(Math.max(0, Math.ceil((r.till - n) / 60e3)) + 'm')}<Kick size={6}>clean</Kick></Ring>
+    : r.st === 'next' && r.next > n && r.next - n < 3 * 3600e3 ? <Ring p={1 - (r.next - n) / (3 * 3600e3)} col={col}>{big(hrs(r.next - n))}<Kick size={6}>to go</Kick></Ring>
+    : null;
+  const then = (inn || r.st === 'clean') && r.next ? <div style={{ textAlign: 'right', display: 'grid', gap: 4, justifyItems: 'end' }}>
+      <Kick size={6}>then</Kick>
+      <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{clk(r.next) + (tmr ? ' tmr' : '')}</span>
+      {NAMES && r.nn && <span style={{ color: K.sub, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.nn}</span>}
+      {r.gap != null && !tmr && <span style={{ fontSize: 11.5, color: r.gap < 30 ? K.warn : K.sub }}>{r.gap + ' min gap'}</span>}</div>
+    : r.st === 'free' ? <div style={{ textAlign: 'right', color: K.sub, fontSize: 12 }}>{r.next ? 'next ' + clk(r.next) + (tmr ? ' tmr' : '') : 'nothing more tonight'}</div> : null;
   return (
-    <Card color={col} lit={inn}>
+    <Card color={col} lit={inn} style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Pix name={RICON[r.r]} color={col} size={15} />
         <span style={{ fontFamily: 'PS2P', fontSize: 12, letterSpacing: '.12em', color: col }}>{r.r.toUpperCase()}</span></div>
-      <div style={{ marginTop: 13 }}>{chip}</div>
-      {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 10 }}>
-        <span style={{ fontWeight: 300, fontSize: 36, lineHeight: 1, letterSpacing: '.02em', color: soon ? K.warn : K.fg, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span>
-        <Kick>left</Kick></div>}
-      <div style={{ display: 'grid', gap: 5, marginTop: 12, fontSize: 13 }}>
-        {NAMES && who && <Line icon="user" bold>{who}</Line>}
-        {tv && (inn || (r.tv && !r.tv.off && !r.tv.quiet)) && <Line icon="tv" color={tvBad ? K.warn : undefined}>{tv}</Line>}
-        {ps && <Line icon="pad">{ps}</Line>}
+      <div style={{ display: 'flex', gap: 12, marginTop: 13, flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {chip}
+          {inn && r.till && <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 10 }}>
+            <span style={{ fontWeight: 300, fontSize: 36, lineHeight: 1, letterSpacing: '.02em', color: soon ? col : K.fg, fontVariantNumeric: 'tabular-nums' }}>{left(r.till - n)}</span>
+            <Kick>left</Kick></div>}
+          <div style={{ display: 'grid', gap: 5, marginTop: 12, fontSize: 13 }}>
+            {NAMES && who && <Line icon="user" bold>{who}</Line>}
+            {tv && (inn || (r.tv && !r.tv.off && !r.tv.quiet)) && <Line icon="tv" color={tvBad ? K.warn : undefined}>{tv}</Line>}
+            {ps && <Line icon="pad">{ps}</Line>}
+          </div>
+        </div>
+        {(ring || then) && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, flex: 'none' }}>{ring}{then}</div>}
       </div>
       {(A.length > 0 || S.length > 0) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
         {A.slice(0, 2).map((m) => <Chip key={m.at + m.k} sm c={mC(m, n)}>{(m.k === 'wrapup' ? '10m ' : 'Wrap ') + clkFull(m.at).replace(/[ap]m$/, '') + (m.ok ? ' ✓' : mState(m, n) === 'wait' ? ' …' : '')}</Chip>)}
