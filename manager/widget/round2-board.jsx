@@ -63,7 +63,7 @@ export const updateState = (ev, s) => {
   if (ev.type === 'MODE') return keep({ ...s, mode: { dark: 'light', light: 'auto', auto: 'dark' }[s.mode || MODE] || 'dark' });
   if (ev.type === 'PICK') return { ...s, pick: !s.pick };
   if (ev.type === 'STRIP') return keep({ ...s, strip: ev.list.length ? ev.list : STRIP });
-  if (ev.type === 'OPEN') return { ...s, open: s.open === ev.r ? '' : ev.r };
+  if (ev.type === 'OPEN') return { ...s, open: s.open === ev.r ? '' : ev.r, from: ev.from || null };
   return s;
 };
 
@@ -101,9 +101,15 @@ const Line = ({ icon, children, bold, color }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontWeight: bold ? 600 : 500, color: color || (bold ? K.fg : K.sub) }}>
     {icon && <Pix name={icon} color={color || K.sub} size={11} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span></div>);
 /* a card: just a thin rounded outline; when guests are in, the outline takes the room's colour */
+/* (25 Nov, owner: "give user feedback where tiles are hinted to be double tapped … do not use text") – a tile that opens has
+   four small corner brackets, drawn like the ends of the logo's [ ]. Hidden at rest; when the mouse is on the board (Übersicht
+   key held) every openable tile shows them faintly; on the tile under the mouse they take the room colour and step outward
+   ("this grows"); the first click snaps them in (a second click opens); opening grows the details out of the tile itself. */
+const Corners = () => <>{['tl', 'tr', 'bl', 'br'].map((k) => <i key={k} className={'mo-c mo-' + k} />)}</>;
+const arm = (e) => { const el = e.currentTarget; el.classList.remove('armed'); void el.offsetWidth; el.classList.add('armed'); clearTimeout(el.__arm); el.__arm = setTimeout(() => el.classList.remove('armed'), 450); };
 const Card = ({ color, lit, children, style, onDoubleClick, title, tap }) => (
-  <div title={title} onDoubleClick={onDoubleClick} className={tap ? 'mo-tile' + (lit ? ' lit' : '') : undefined}
-    style={{ '--c': color || K.fg, borderRadius: 12, padding: '15px 16px 16px', border: `1px solid ${lit ? color : K.line}`, ...style }}>{children}</div>);
+  <div title={title} onDoubleClick={onDoubleClick} onClick={tap ? arm : undefined} className={tap ? 'mo-tile' + (lit ? ' lit' : '') : undefined}
+    style={{ '--c': color || K.fg, position: 'relative', borderRadius: 12, padding: '15px 16px 16px', border: `1px solid ${lit ? color : K.line}`, ...style }}>{tap && <Corners />}{children}</div>);
 /* a button in the same thin-outline style */
 const Btn = ({ children, onClick, c }) => <span role="button" className="mo-btn" onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6,
   border: `1px solid ${c || K.line2}`, fontWeight: 600, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</span>;
@@ -179,7 +185,8 @@ const Room = ({ r, s, d }) => {
       {r.gap != null && !tmr && <span style={{ fontSize: 11.5, color: r.gap < 30 ? K.warn : K.sub }}>{r.gap + ' min gap'}</span>}</div>
     : r.st === 'free' ? <div style={{ textAlign: 'right', color: K.sub, fontSize: 12 }}>{r.next ? 'next ' + clk(r.next) + (tmr ? ' tmr' : '') : 'nothing more tonight'}</div> : null;
   return (
-    <Card tap color={col} lit={inn} title={'Double-click for ' + r.r + "'s details"} onDoubleClick={() => d && d({ type: 'OPEN', r: r.r })} style={{ display: 'flex', flexDirection: 'column' }}>
+    <Card tap color={col} lit={inn} title={'Double-click for ' + r.r + "'s details"} onDoubleClick={(e) => { if (!d) return; const t = e.currentTarget.getBoundingClientRect(), c = e.currentTarget.closest('[data-rooms]').getBoundingClientRect(), p = (v) => Math.max(0, Math.round(v * 1000) / 10) + '%';
+      d({ type: 'OPEN', r: r.r, from: [p((t.top - c.top) / c.height), p((c.right - t.right) / c.width), p((c.bottom - t.bottom) / c.height), p((t.left - c.left) / c.width)] }); }} style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Pix name={RICON[r.r]} color={col} size={15} />
         <span style={{ fontFamily: 'PS2P', fontSize: 12, letterSpacing: '.12em', color: col }}>{r.r.toUpperCase()}</span></div>
       <div style={{ display: 'flex', gap: 12, marginTop: 13, flex: 1 }}>
@@ -290,7 +297,8 @@ const Detail = ({ r, j, s, d }) => {
   const head = inn ? 'In · till ' + clk(r.till) : r.st === 'clean' ? 'Cleaning till ' + clk(r.till) : r.st === 'next' ? 'Next ' + clk(r.next) : 'Free';
   const Row = ({ a, b, c }) => <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', minWidth: 0 }}><span style={{ width: 62, flex: 'none', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{a}</span>
     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{b}</span>{c && <span style={{ color: K.sub, whiteSpace: 'nowrap' }}>{c}</span>}</div>;
-  return <div className="mo-in" onDoubleClick={() => d({ type: 'OPEN', r: '' })} style={{ position: 'absolute', inset: 0, background: K.bg, border: `1px solid ${col}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+  const f = s.from || ['0%', '0%', '0%', '0%'];
+  return <div className={s.from ? 'mo-grow' : 'mo-in'} onDoubleClick={() => d({ type: 'OPEN', r: '' })} style={{ '--ft': f[0], '--fr': f[1], '--fb': f[2], '--fl': f[3], position: 'absolute', inset: 0, background: K.bg, border: `1px solid ${col}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <Pix name={RICON[r.r]} color={col} size={18} /><span style={{ fontFamily: 'PS2P', fontSize: 15, letterSpacing: '.12em', color: col }}>{r.r.toUpperCase()}</span>
       <Chip c={col} strong={inn}>{head}</Chip><span style={{ flex: 1 }} />
@@ -361,6 +369,22 @@ export const render = (s, d) => {
     @keyframes mo-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
     [data-board] .mo-in { animation: mo-in var(--r2-dur-slow) var(--r2-ease) both; }
     @keyframes mo-in { from { opacity: 0; transform: translateY(4px); } }
+    /* the open-me corners */
+    [data-board] .mo-c { position: absolute; width: 10px; height: 10px; border: 0 solid var(--c); opacity: 0; pointer-events: none;
+      transition: opacity var(--r2-dur) var(--r2-ease), transform var(--r2-dur-slow) var(--r2-ease), border-color var(--r2-dur) var(--r2-ease); }
+    [data-board] .mo-tl { top: 6px; left: 6px; border-top-width: 1.5px; border-left-width: 1.5px; border-top-left-radius: 3px; }
+    [data-board] .mo-tr { top: 6px; right: 6px; border-top-width: 1.5px; border-right-width: 1.5px; border-top-right-radius: 3px; }
+    [data-board] .mo-bl { bottom: 6px; left: 6px; border-bottom-width: 1.5px; border-left-width: 1.5px; border-bottom-left-radius: 3px; }
+    [data-board] .mo-br { bottom: 6px; right: 6px; border-bottom-width: 1.5px; border-right-width: 1.5px; border-bottom-right-radius: 3px; }
+    [data-board]:hover .mo-c { opacity: .35; border-color: ${K.sub}; }
+    [data-board] .mo-tile:hover .mo-c { opacity: 1; border-color: var(--c); }
+    [data-board] .mo-tile:hover .mo-tl { transform: translate(-3px, -3px); } [data-board] .mo-tile:hover .mo-tr { transform: translate(3px, -3px); }
+    [data-board] .mo-tile:hover .mo-bl { transform: translate(-3px, 3px); } [data-board] .mo-tile:hover .mo-br { transform: translate(3px, 3px); }
+    [data-board] .mo-tile.armed .mo-c { opacity: 1; border-color: var(--c); animation: mo-snap 450ms var(--r2-ease); }
+    @keyframes mo-snap { 40% { transform: translate(0, 0) scale(1.35); } }
+    /* details grow out of the tile that was opened */
+    [data-board] .mo-grow { animation: mo-grow var(--r2-dur-slow) var(--r2-ease) both; }
+    @keyframes mo-grow { from { clip-path: inset(var(--ft) var(--fr) var(--fb) var(--fl) round 12px); } to { clip-path: inset(0 round 12px); } }
     @media (prefers-reduced-motion: reduce) { [data-board] * { animation: none !important; transition: none !important; } }`}</style>;
   const at = s.pos ? { top: s.pos.y, left: s.pos.x, transformOrigin: 'top left' } : { top: TOP, [SIDE]: EDGE, transformOrigin: `top ${SIDE}` };
   const wrap = (body) => <div data-board="1" style={{ position: 'fixed', ...at, width: 1100, transform: `scale(${s.scale || SCALE})`, fontFamily: 'QS, -apple-system, sans-serif', fontSize: 13, color: K.fg,
@@ -391,9 +415,9 @@ export const render = (s, d) => {
     </div>
     <div style={{ height: 1, margin: '18px 0 20px', background: K.line }} />
     {/* the six rooms are the board: full width, two even rows */}
-    <div style={{ position: 'relative' }}>
+    <div data-rooms="1" style={{ position: 'relative' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(196px, auto)', gap: 14 }}>{rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} d={d} />)}</div>
-      {s.open && rooms.find((r) => r.r === s.open) && <Detail r={rooms.find((r) => r.r === s.open)} j={j} s={s} d={d} />}
+      {s.open && rooms.find((r) => r.r === s.open) && <Detail key={s.open} r={rooms.find((r) => r.r === s.open)} j={j} s={s} d={d} />}
     </div>
     {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 9, opacity: 0.6, padding: '12px 0 0 4px' }}>
       <Pix name={RICON[r.r]} color={K.room(r.r)} size={11} /><span style={{ fontFamily: 'PS2P', fontSize: 9, letterSpacing: '.12em', color: K.room(r.r) }}>{r.r.toUpperCase()}</span><span style={{ color: K.sub }}>closed – renovation</span></div>)}
