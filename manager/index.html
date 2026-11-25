@@ -1085,7 +1085,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         <li>Install <b>Scriptable</b> from the App Store (free).</li>
         <li><b>Fonts (once per phone):</b> open this page in <b>Safari</b> on the iPhone, tap <b>Install Round2 fonts</b> below → <b>Allow</b>, then <b>Settings › Profile Downloaded › Install</b>. The widgets then use the website's own fonts (Press Start 2P + Chakra Petch). Without them iPhone shows its own font.</li>
         <li>Press <b>Copy widget script</b> below.</li>
-        <li><b>Mac desktop board</b> (25 Nov): install the free app <b>Übersicht</b> (tracesof.net/uebersicht), open it, then press <b>Download Mac board</b> below and move <code>round2.jsx</code> into Übersicht's widgets folder (Übersicht's menu-bar icon › <b>Open Widgets Folder</b>). Every room, time left, TV messages, up next, today's money, tomorrow and health – live, with the Round2 fonts and logo. Two looks: the member-page look, or <b>Vaporwave</b> (neon, grid floor, scanlines) – both download as <code>round2.jsx</code>, so the new one replaces the old. Clicking it does nothing. To move it or change its size, open the file and change the first lines (<code>SIDE</code>, <code>TOP</code>, <code>SCALE</code>).</li>
+        <li><b>Mac desktop board</b> (25 Nov): install the free app <b>Übersicht</b> (tracesof.net/uebersicht), open it, then press <b>Download Mac board</b> below and move <code>round2.jsx</code> into Übersicht's widgets folder (Übersicht's menu-bar icon › <b>Open Widgets Folder</b>). Every room, time left, TV messages, up next, today's money, tomorrow and health – live, with the Round2 fonts and logo. Clicking it does nothing. To move it or change its size, open the file and change the first lines (<code>SIDE</code>, <code>TOP</code>, <code>SCALE</code>).</li>
         <li>In Scriptable tap <b>+</b>, paste, then tap the title and name it <b>Round2</b>. Tap ▶ once to see it.</li>
         <li><b>Home screen:</b> hold an empty spot → <b>Edit → Add widget → Scriptable</b> → pick small, medium or large → tap the new widget → Script: <b>Round2</b>.</li>
         <li><b>Lock screen:</b> hold the lock screen → <b>Customize → Lock Screen</b> → tap the widget row (or the line above the clock) → <b>Scriptable</b> → tap it → Script: <b>Round2</b>.</li>
@@ -1101,7 +1101,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           <code>notap</code> – tapping the widget doesn't open the control centre ·
           <code>nonames</code> – hide guest names. Words can be combined, e.g. <code>tv nonames</code>. Every room shows in its own colour.</li>
       </ol>
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="wgCopy">Copy widget script</button><a class="btn" id="wgFonts" href="widget/round2-fonts.mobileconfig" download="round2-fonts.mobileconfig">Install Round2 fonts</a><button class="btn" type="button" id="wgMac">Download Mac board</button><button class="btn" type="button" id="wgMacV">Mac board – Vaporwave</button><button class="btn" type="button" id="wgReset">New key (old widgets stop)</button></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="wgCopy">Copy widget script</button><a class="btn" id="wgFonts" href="widget/round2-fonts.mobileconfig" download="round2-fonts.mobileconfig">Install Round2 fonts</a><button class="btn" type="button" id="wgMac">Download Mac board</button><button class="btn" type="button" id="wgReset">New key (old widgets stop)</button></div>
       <p class="hint" id="wgMsg" style="margin:8px 0 0"></p>
       <textarea id="wgTxt" readonly hidden style="width:100%;height:120px;margin-top:8px;font:11px ui-monospace,monospace;background:var(--panel2);color:var(--ink);border:1px solid var(--line2)"></textarea>
     </div>
@@ -5673,10 +5673,10 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
       msg(reset ? 'Making a new key…' : 'Getting the script…');
       Promise.all([
         fetch(GM, { method: 'POST', body: new URLSearchParams({ action: 'widgetkey', staff: staff(), reset: reset ? '1' : '' }) }).then(function (r) { return r.json(); }),
-        fetch((mode === 'mac' ? 'widget/round2-board.jsx' : mode === 'vapor' ? 'widget/round2-board-vaporwave.jsx' : 'widget/round2-widget.js') + '?v=' + Date.now()).then(function (r) { return r.text(); })
+        fetch((mode === 'mac' ? 'widget/round2-board.jsx' : 'widget/round2-widget.js') + '?v=' + Date.now()).then(function (r) { return r.text(); })
       ]).then(function (x) {
         var j = x[0]; if (!j || !j.ok) { msg((j && j.error) || 'No answer from the engine.', true); return; }
-        if (mode === 'mac' || mode === 'vapor') {   /* the Mac desktop board (Übersicht) with this shop's key – saved as round2.jsx */
+        if (mode === 'mac') {   /* the Mac desktop board (Übersicht) with this shop's key – saved as round2.jsx */
           var jsx = x[1].replace("'__KEY__'", JSON.stringify(j.key)).replace("'__URL__'", JSON.stringify(j.url)), a = document.createElement('a');
           a.href = URL.createObjectURL(new Blob([jsx], { type: 'text/plain' })); a.download = 'round2.jsx'; document.body.appendChild(a); a.click(); a.remove();
           msg('Downloaded round2.jsx ✓ Move it into Übersicht’s widgets folder (menu-bar icon › Open Widgets Folder).'); return;
@@ -5691,7 +5691,6 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     var c = document.getElementById('wgCopy'), r = document.getElementById('wgReset');
     if (c) c.onclick = function () { make(false); };
     var mc = document.getElementById('wgMac'); if (mc) mc.onclick = function () { make(false, 'mac'); };
-    var mv = document.getElementById('wgMacV'); if (mv) mv.onclick = function () { make(false, 'vapor'); };   /* same file name, so it replaces the other look */
     if (r) r.onclick = function () { if (confirm('Make a new widget key? Widgets on every phone stop until they get the script again.')) make(true); };
   })();
 
