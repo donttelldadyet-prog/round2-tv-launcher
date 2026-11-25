@@ -8,7 +8,12 @@
 // Put the file in Übersicht's widgets folder (Übersicht menu-bar icon › Open Widgets Folder). Same live data as the iPhone
 // widgets (the engine's /w), checked every 30 s; countdowns tick every second on the engine's clock (Singapore time).
 //
-// Change these to taste:
+// MOVE / RESIZE / ROOM DETAILS (25 Nov, owner: "can i resize it or move the widget … if i double click scarlett can it show
+// me that"): needs Übersicht › Preferences › Interaction Shortcut (e.g. ⌘) – then, while HOLDING that key:
+//   drag the top row (logo / Tonight) to move the board · drag the corner mark at the bottom right to resize it ·
+//   double-click that corner mark to put it back · double-click a room for its details (Esc / ✕ / double-click to close).
+// Where you put it is remembered on this Mac and kept when you download a new version.
+// Starting place (used until you move it):
 const SIDE = 'left';          // 'left' or 'right' – macOS keeps desktop icons on the right
 const TOP = 46;               // points from the top (the MacBook's menu bar + notch are ~37)
 const EDGE = 24;              // points from the side
@@ -19,7 +24,7 @@ const MODE = 'auto';          // 'dark' (white on black), 'light' (black on whit
 const KEY = '__KEY__', API = '__URL__';
 const FONTS = 'https://staff.round2.sg/widget/fonts/';
 
-import { React } from 'uebersicht';
+import { React, run } from 'uebersicht';
 
 const RC = { Vale: '#E8436A', Kaeden: '#4DB848', Scarlett: '#F2C21B', Bella: '#7A5BE0', Kai: '#24B49A', Atlas: '#E9E7EF', Max: '#E0402F' };
 const INK = '#f4f1fb', MUTE = '#8d84a6', ACC = '#F2C21B', OK = '#4DB848', WARN = '#ff9f43', BAD = '#ff4d5e';
@@ -41,11 +46,18 @@ export const command = async (dispatch) => {
   } catch (e) { last = Date.now() - 20000; dispatch({ type: 'ERR', e: 'offline – retrying' }); }
   busy = false;
 };
-export const initialState = { j: null, off: 0, err: '', at: 0, tick: 0 };
+/* where the board sits and how big – remembered on this Mac (Übersicht keeps the browser storage) */
+const SAVE = 'round2-board-place';
+const saved = (() => { try { return JSON.parse(localStorage.getItem(SAVE) || '{}') || {}; } catch (e) { return {}; } })();
+const keep = (s) => { try { localStorage.setItem(SAVE, JSON.stringify({ pos: s.pos, scale: s.scale })); } catch (e) {} return s; };
+export const initialState = { j: null, off: 0, err: '', at: 0, tick: 0, pos: saved.pos || null, scale: saved.scale || SCALE, open: '' };
 export const updateState = (ev, s) => {
   if (ev.type === 'DATA') return { ...s, j: ev.j, off: ev.off, err: '', at: Date.now() };
   if (ev.type === 'ERR') return { ...s, err: ev.e };
   if (ev.type === 'TICK') return { ...s, tick: s.tick + 1 };
+  if (ev.type === 'PLACE') return ev.done ? keep({ ...s, pos: ev.pos || s.pos, scale: ev.scale || s.scale }) : { ...s, pos: ev.pos || s.pos, scale: ev.scale || s.scale };
+  if (ev.type === 'RESET') return keep({ ...s, pos: null, scale: SCALE });
+  if (ev.type === 'OPEN') return { ...s, open: s.open === ev.r ? '' : ev.r };
   return s;
 };
 
@@ -83,8 +95,26 @@ const Line = ({ icon, children, bold, color }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, fontWeight: bold ? 600 : 500, color: color || (bold ? K.fg : K.sub) }}>
     {icon && <Pix name={icon} color={color || K.sub} size={11} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{children}</span></div>);
 /* a card: just a thin rounded outline; when guests are in, the outline takes the room's colour */
-const Card = ({ color, lit, children, style }) => (
-  <div style={{ borderRadius: 12, padding: '15px 16px 16px', border: `1px solid ${lit ? color : K.line}`, ...style }}>{children}</div>);
+const Card = ({ color, lit, children, style, onDoubleClick, title }) => (
+  <div title={title} onDoubleClick={onDoubleClick} style={{ borderRadius: 12, padding: '15px 16px 16px', border: `1px solid ${lit ? color : K.line}`, ...style }}>{children}</div>);
+/* a button in the same thin-outline style */
+const Btn = ({ children, onClick, c }) => <span role="button" onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6,
+  border: `1px solid ${c || K.line2}`, fontWeight: 600, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>{children}</span>;
+
+/* ---------- moving and resizing (hold Übersicht's interaction key) ---------- */
+let drag = null;
+const startDrag = (e, s, d, mode) => {
+  if (e.button !== 0) return; e.preventDefault(); e.stopPropagation();
+  const b = e.currentTarget.closest('[data-board]').getBoundingClientRect();
+  drag = { mode, x0: e.clientX, y0: e.clientY, left: b.left, top: b.top, w: b.width, sc: s.scale };
+  const mv = (ev) => { if (!drag) return; const dx = ev.clientX - drag.x0, dy = ev.clientY - drag.y0;
+    if (drag.mode === 'move') d({ type: 'PLACE', pos: { x: Math.round(drag.left + dx), y: Math.max(0, Math.round(drag.top + dy)) } });
+    else d({ type: 'PLACE', pos: { x: Math.round(drag.left), y: Math.round(drag.top) }, scale: Math.max(0.5, Math.min(1.8, Math.round(drag.sc * (drag.w + dx) / drag.w * 1000) / 1000)) }); };
+  const up = (ev) => { mv(ev); drag = null; d({ type: 'PLACE', done: 1 }); window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); };
+  window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+};
+let escD = null;
+if (typeof window !== 'undefined' && !window.__r2esc) { window.__r2esc = 1; window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && escD) escD({ type: 'OPEN', r: '' }); }); }
 const Col = ({ title, first, children }) => <div style={{ display: 'grid', gap: 9, alignContent: 'start', minWidth: 0, padding: first ? '0 20px 0 4px' : '0 20px', borderLeft: first ? 'none' : `1px solid ${K.line}` }}><Kick>{title}</Kick>{children}</div>;
 const Group = ({ title, children }) => <Card style={{ padding: '14px 16px 15px', display: 'grid', gap: 10 }}><Kick>{title}</Kick>{children}</Card>;
 
@@ -106,7 +136,7 @@ const Ring = ({ p, col, size = 92, children }) => {
 };
 const hrs = (ms) => { const m = Math.round(ms / 60e3), h = Math.floor(m / 60), x = m % 60; return (h ? h + 'h' : '') + (x ? (h ? ' ' : '') + x + 'm' : h ? '' : '0m'); };
 
-const Room = ({ r, s }) => {
+const Room = ({ r, s, d }) => {
   const n = now(s), col = K.room(r.r) || K.fg, inn = r.st === 'in', soon = inn && r.till - n < 15 * 60e3;
   const tmr = r.next && sgd(r.next).getUTCDate() !== sgd(n).getUTCDate() && sgd(r.next).getUTCHours() >= 7;
   /* (25 Nov, owner) the status box follows the room's colour; "ending" fills it lightly instead of turning orange */
@@ -133,7 +163,7 @@ const Room = ({ r, s }) => {
       {r.gap != null && !tmr && <span style={{ fontSize: 11.5, color: r.gap < 30 ? K.warn : K.sub }}>{r.gap + ' min gap'}</span>}</div>
     : r.st === 'free' ? <div style={{ textAlign: 'right', color: K.sub, fontSize: 12 }}>{r.next ? 'next ' + clk(r.next) + (tmr ? ' tmr' : '') : 'nothing more tonight'}</div> : null;
   return (
-    <Card color={col} lit={inn} style={{ display: 'flex', flexDirection: 'column' }}>
+    <Card color={col} lit={inn} title={'Double-click for ' + r.r + "'s details"} onDoubleClick={() => d && d({ type: 'OPEN', r: r.r })} style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Pix name={RICON[r.r]} color={col} size={15} />
         <span style={{ fontFamily: 'PS2P', fontSize: 12, letterSpacing: '.12em', color: col }}>{r.r.toUpperCase()}</span></div>
       <div style={{ display: 'flex', gap: 12, marginTop: 13, flex: 1 }}>
@@ -158,14 +188,74 @@ const Room = ({ r, s }) => {
     </Card>);
 };
 
-export const render = (s) => {
+/* ---------- a room's details (double-click a room) – over the room tiles, in the room's colour ---------- */
+const mWords = (m, n) => m.ok ? "OK'd on the TV " + clk(m.ok) : m.ak === 0 ? (m.at > n ? 'shows ' + clk(m.at) + ' · no OK needed' : 'shown · no OK needed') : m.at > n ? 'shows ' + clk(m.at) : 'on the TV – waiting for OK';
+const mName = (m) => m.k === 'wrapup' ? '10-minute warning' : m.k === 'timeup' ? "That's a wrap" : (m.ti || 'TV message');
+const Detail = ({ r, j, s, d }) => {
+  const n = now(s), col = K.room(r.r) || K.fg, inn = r.st === 'in', T = j.tomorrow || {};
+  const ev = (j.events || []).filter((e) => e.r === r.r), tm = (T.list || []).filter((x) => x.r === r.r);
+  const tv = r.tv ? (r.tv.off ? 'TV off' : r.tv.quiet ? 'TV not reporting' : (r.tv.app || 'TV on') + (r.tv.at ? ' · since ' + clk(r.tv.at) : '')) : 'TV not reporting yet';
+  const cd = inn ? [r.till - n, 'left'] : r.st === 'clean' ? [r.till - n, 'cleaning left'] : r.st === 'next' && r.next > n ? [r.next - n, 'till arrival'] : null;
+  const head = inn ? 'In · till ' + clk(r.till) : r.st === 'clean' ? 'Cleaning till ' + clk(r.till) : r.st === 'next' ? 'Next ' + clk(r.next) : 'Free';
+  const Row = ({ a, b, c }) => <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', minWidth: 0 }}><span style={{ width: 62, flex: 'none', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{a}</span>
+    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{b}</span>{c && <span style={{ color: K.sub, whiteSpace: 'nowrap' }}>{c}</span>}</div>;
+  return <div onDoubleClick={() => d({ type: 'OPEN', r: '' })} style={{ position: 'absolute', inset: 0, background: K.bg, border: `1px solid ${col}`, borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <Pix name={RICON[r.r]} color={col} size={18} /><span style={{ fontFamily: 'PS2P', fontSize: 15, letterSpacing: '.12em', color: col }}>{r.r.toUpperCase()}</span>
+      <Chip c={col} strong={inn}>{head}</Chip><span style={{ flex: 1 }} />
+      <Btn onClick={() => { try { run('open "https://staff.round2.sg/"'); } catch (e) {} }}>Open control centre</Btn>
+      <Btn onClick={() => d({ type: 'OPEN', r: '' })}>✕ Close</Btn>
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr', gap: 0, flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'grid', gap: 10, alignContent: 'start', paddingRight: 20 }}>
+        <Kick>Now</Kick>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          {cd ? <div style={{ display: 'grid', gap: 6 }}><span style={{ fontWeight: 300, fontSize: 40, lineHeight: 1, color: inn ? K.fg : K.sub, fontVariantNumeric: 'tabular-nums' }}>{left(cd[0])}</span><Kick>{cd[1]}</Kick></div>
+            : <span style={{ color: K.sub }}>{r.next ? 'Next guest ' + clk(r.next) : 'Nothing more tonight'}</span>}
+          <span style={{ flex: 1 }} />
+          {inn && r.since && <Ring p={(n - r.since) / (r.till - r.since)} col={col} size={84}><span style={{ fontWeight: 300, fontSize: 18 }}>{hrs(r.till - r.since)}</span><Kick size={6}>booked</Kick></Ring>}
+        </div>
+        <div style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+          {NAMES && (inn ? r.n : r.nn) && <Line icon="user" bold>{inn ? r.n : r.nn}</Line>}
+          {inn && r.since && <Line icon="clock">{'Booked ' + clk(r.since) + ' – ' + clk(r.till)}</Line>}
+          {inn && r.x ? <Line color={col}>Extended</Line> : null}
+          <Line icon="tv" color={inn && r.tv && (r.tv.off || r.tv.quiet) ? K.warn : undefined}>{tv}</Line>
+          <Line icon="pad">{r.ps4 && r.ps4.on ? (r.ps4.g || 'PS4 menu') : 'PS4 off or quiet'}</Line>
+          {r.next && (inn || r.st === 'clean') && <Line icon="bell">{'Then ' + clk(r.next) + (NAMES && r.nn ? ' · ' + r.nn : '') + (r.gap != null ? ' · ' + r.gap + ' min gap' : '')}</Line>}
+        </div>
+      </div>
+      <div style={{ display: 'grid', gap: 10, alignContent: 'start', padding: '0 20px', borderLeft: `1px solid ${K.line}`, minWidth: 0 }}>
+        <Kick>TV messages</Kick>
+        {(r.msgs || []).length ? r.msgs.map((m) => <div key={m.at + (m.k || '') + (m.ti || '')} style={{ display: 'grid', gap: 3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}><Dot c={mC(m, n)} /><b style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{clk(m.at) + ' · ' + mName(m)}</b></div>
+          <span style={{ color: K.sub, fontSize: 12, paddingLeft: 14 }}>{(isAuto(m) ? 'automatic · ' : 'scheduled · ') + mWords(m, n)}</span></div>)
+          : <span style={{ color: K.sub }}>None from 15 min ago onwards</span>}
+      </div>
+      <div style={{ display: 'grid', gap: 9, alignContent: 'start', paddingLeft: 20, borderLeft: `1px solid ${K.line}`, minWidth: 0 }}>
+        <Kick>{'Tonight · ' + r.r}</Kick>
+        {ev.length ? ev.slice(0, 6).map((e, i) => <Row key={i} a={clk(e.at)} b={e.t === 'in' ? 'in' : 'out'} c={NAMES && e.n ? e.n : ''} />) : <span style={{ color: K.sub }}>Nothing more tonight</span>}
+        <div style={{ height: 4 }} />
+        <Kick>Tomorrow</Kick>
+        {tm.length ? tm.slice(0, 4).map((x, i) => <Row key={i} a={clk(x.at)} b={x.e ? 'till ' + clk(x.e) : ''} c={NAMES && x.n ? x.n : ''} />) : <span style={{ color: K.sub }}>Nothing booked yet</span>}
+      </div>
+    </div>
+  </div>;
+};
+
+export const render = (s, d) => {
+  escD = d;
   K = themeOf(lightNow());
   const j = s.j, n = now(s);
   const fonts = <style>{`
     @font-face { font-family: PS2P; src: url(${FONTS}PressStart2P-Regular.ttf); }
     @font-face { font-family: QS; font-weight: 300 700; src: url(${FONTS}Quicksand.ttf); }`}</style>;
-  const wrap = (body) => <div style={{ position: 'fixed', top: TOP, [SIDE]: EDGE, width: 1100, transform: `scale(${SCALE})`, transformOrigin: `top ${SIDE}`, fontFamily: 'QS, -apple-system, sans-serif', fontSize: 13, color: K.fg,
-    background: K.bg, borderRadius: 18, padding: '22px 24px 24px', border: `1px solid ${K.line}` }}>{fonts}{body}</div>;
+  const at = s.pos ? { top: s.pos.y, left: s.pos.x, transformOrigin: 'top left' } : { top: TOP, [SIDE]: EDGE, transformOrigin: `top ${SIDE}` };
+  const wrap = (body) => <div data-board="1" style={{ position: 'fixed', ...at, width: 1100, transform: `scale(${s.scale || SCALE})`, fontFamily: 'QS, -apple-system, sans-serif', fontSize: 13, color: K.fg,
+    background: K.bg, borderRadius: 18, padding: '22px 24px 24px', border: `1px solid ${K.line}`, userSelect: 'none', WebkitUserSelect: 'none' }}>{fonts}{body}
+    {/* the resize mark: a thin corner like the logo's brackets – drag to resize, double-click to put the board back */}
+    <div title="Drag to resize · double-click to put it back" onMouseDown={(e) => d && startDrag(e, s, d, 'size')} onDoubleClick={() => d && d({ type: 'RESET' })}
+      style={{ position: 'absolute', right: 7, bottom: 7, width: 14, height: 14, borderRight: `1.5px solid ${K.line2}`, borderBottom: `1.5px solid ${K.line2}`, borderBottomRightRadius: 5, cursor: 'nwse-resize' }} />
+  </div>;
   const logo = (h) => <img src={LOGO} style={{ height: h, display: 'block', filter: K.logo }} />;
   if (!j) return wrap(<div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>{logo(22)}<span style={{ color: K.sub }}>{s.err || 'Loading the board…'}</span></div>);
 
@@ -173,7 +263,7 @@ export const render = (s) => {
   const G = []; for (const e of (j.events || []).filter((e) => e.at > n)) { const g = G[G.length - 1]; if (g && g.t === e.t && Math.abs(g.at - e.at) < 60e3) g.rs.push(e.r); else G.push({ at: e.at, t: e.t, rs: [e.r] }); }
   const stale = Date.now() - s.at > 2 * 60e3;
   return wrap(<div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+    <div title="Drag to move" onMouseDown={(e) => d && startDrag(e, s, d, 'move')} style={{ display: 'flex', alignItems: 'center', gap: 22, cursor: drag ? 'grabbing' : 'grab' }}>
       {logo(26)}
       <div><Kick>Tonight</Kick><div style={{ marginTop: 7, color: K.sub, fontWeight: 500, fontSize: 14 }}>{T && T.over ? 'All done – tomorrow is on the right' : <><b style={{ color: K.fg, fontWeight: 700 }}>{c.in}</b> in · <b style={{ color: K.fg, fontWeight: 700 }}>{c.left}</b> to come · {c.done} done</>}</div></div>
       <div style={{ flex: 1 }} />
@@ -182,7 +272,10 @@ export const render = (s) => {
     </div>
     <div style={{ height: 1, margin: '18px 0 20px', background: K.line }} />
     {/* the six rooms are the board: full width, two even rows */}
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(196px, auto)', gap: 14 }}>{rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} />)}</div>
+    <div style={{ position: 'relative' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(196px, auto)', gap: 14 }}>{rooms.filter((r) => r.st !== 'closed').map((r) => <Room key={r.r} r={r} s={s} d={d} />)}</div>
+      {s.open && rooms.find((r) => r.r === s.open) && <Detail r={rooms.find((r) => r.r === s.open)} j={j} s={s} d={d} />}
+    </div>
     {rooms.filter((r) => r.st === 'closed').map((r) => <div key={r.r} style={{ display: 'flex', alignItems: 'center', gap: 9, opacity: 0.6, padding: '12px 0 0 4px' }}>
       <Pix name={RICON[r.r]} color={K.room(r.r)} size={11} /><span style={{ fontFamily: 'PS2P', fontSize: 9, letterSpacing: '.12em', color: K.room(r.r) }}>{r.r.toUpperCase()}</span><span style={{ color: K.sub }}>closed – renovation</span></div>)}
     {/* everything else sits quietly underneath: four columns split by thin lines, no boxes */}
@@ -222,4 +315,4 @@ export const render = (s) => {
   </div>);
 };
 
-export const className = `pointer-events: none;`;
+export const className = ``;   /* clicks only reach the board while Übersicht's interaction key is held */
