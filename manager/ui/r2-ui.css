@@ -23,6 +23,19 @@
   --r2-r-panel: 18px;
   --r2-gap: 14px;
   --r2-pad: 16px;
+  /* motion – ONE place for how everything moves (the live preview's Motion lab edits these and copies them out).
+     Feel: calm and precise like the logo's lines – short, smooth, no bounce. */
+  --r2-dur: 180ms;            /* hover / press / switch */
+  --r2-dur-slow: 420ms;       /* state changes (a room going from In to Cleaning), things appearing */
+  --r2-ease: cubic-bezier(.2, .8, .2, 1);
+  --r2-lift: -2px;            /* how far a card / button rises on hover */
+  --r2-press: .97;            /* how much it shrinks while pressed */
+  --r2-hover-tint: 45%;       /* how much of the room colour a tile's outline takes on hover */
+  --r2-ring-draw: 900ms;      /* the ring drawing itself when it appears */
+  --r2-breathe: 2.4s;         /* the "Ending" dot breathing */
+  --r2-slow: 1;               /* slow-motion multiplier for checking animations (preview only: 4 = 4× slower) */
+  --t: calc(var(--r2-dur) * var(--r2-slow));
+  --t2: calc(var(--r2-dur-slow) * var(--r2-slow));
   /* rooms – the product colours (the only colours besides states) */
   --r2-vale: #E8436A; --r2-kaeden: #4DB848; --r2-scarlett: #F2C21B; --r2-bella: #7A5BE0;
   --r2-kai: #24B49A; --r2-atlas: #E9E7EF; --r2-max: #E0402F;
@@ -142,7 +155,8 @@
 /* ---------- controls for staff screens (same language: outlines, small round corners, no fills until pressed/on) ---------- */
 .r2-btn { appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 0 16px;
   border-radius: var(--r2-r-chip); border: var(--r2-line-w) solid var(--r2-line2); background: transparent; color: var(--r2-fg);
-  font: 600 13px var(--r2-text); letter-spacing: .02em; cursor: pointer; transition: border-color .15s, background .15s; }
+  font: 600 13px var(--r2-text); letter-spacing: .02em; cursor: pointer;
+  transition: border-color var(--t) var(--r2-ease), background var(--t) var(--r2-ease), color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
 .r2-btn:hover { border-color: var(--r2-fg); }
 .r2-btn:focus-visible { outline: 2px solid var(--c, var(--r2-fg)); outline-offset: 2px; }
 .r2-btn.solid { background: var(--r2-fg); color: var(--r2-bg); border-color: var(--r2-fg); }   /* the ONE main action on a screen */
@@ -161,9 +175,9 @@
 /* Toggle – a thin outlined pill; the knob is a small rounded bar (the logo's II), filled when on */
 .r2-toggle { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
 .r2-toggle input { position: absolute; opacity: 0; pointer-events: none; }
-.r2-toggle i { position: relative; width: 38px; height: 22px; border-radius: 7px; border: var(--r2-line-w) solid var(--r2-line2); transition: border-color .15s; }
+.r2-toggle i { position: relative; width: 38px; height: 22px; border-radius: 7px; border: var(--r2-line-w) solid var(--r2-line2); transition: border-color var(--t) var(--r2-ease); }
 .r2-toggle i::after { content: ''; position: absolute; top: 4px; left: 5px; width: 6px; height: 12px; border-radius: 2px;
-  border: var(--r2-line-w) solid var(--r2-sub); transition: left .15s, background .15s, border-color .15s; }
+  border: var(--r2-line-w) solid var(--r2-sub); transition: left var(--t) var(--r2-ease), width var(--t) var(--r2-ease), background var(--t) var(--r2-ease), border-color var(--t) var(--r2-ease); }
 .r2-toggle input:checked + i { border-color: var(--c, var(--r2-ok)); }
 .r2-toggle input:checked + i::after { left: 24px; background: var(--c, var(--r2-ok)); border-color: var(--c, var(--r2-ok)); }
 .r2-toggle input:focus-visible + i { outline: 2px solid var(--r2-fg); outline-offset: 2px; }
@@ -172,7 +186,7 @@
 .r2-tabs { display: flex; gap: 22px; border-bottom: var(--r2-line-w) solid var(--r2-line); }
 .r2-tab { appearance: none; background: none; border: 0; padding: 0 0 11px; margin-bottom: -1px; cursor: pointer; font-family: var(--r2-pixel);
   font-size: 8px; letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); border-bottom: 1.5px solid transparent; }
-.r2-tab[aria-selected="true"] { color: var(--r2-fg); border-bottom-color: var(--c, var(--r2-fg)); }
+.r2-tab[aria-selected="true"] { color: var(--r2-fg); }
 
 /* List – rows split by thin lines (bookings, messages, logs) */
 .r2-list { display: grid; }
@@ -188,4 +202,67 @@
 .r2-notice b { display: block; font-weight: 600; }
 .r2-notice span { color: var(--r2-sub); }
 
-@media (prefers-reduced-motion: reduce) { .r2 * { transition: none !important; } }
+
+
+/* ==========================================================================================================
+   MOTION – hover, press and reactions. Every timing comes from the tokens at the top (--r2-dur, --r2-ease …).
+   ========================================================================================================== */
+/* buttons: rise a little on hover, settle and shrink slightly while pressed */
+.r2-btn:hover:not(:disabled) { transform: translateY(var(--r2-lift)); }
+.r2-btn:active:not(:disabled) { transform: translateY(0) scale(var(--r2-press)); transition-duration: calc(var(--t) / 2); }
+.r2-btn.solid:hover:not(:disabled) { background: color-mix(in srgb, var(--r2-fg) 88%, var(--r2-bg)); }
+.r2-btn.room:hover:not(:disabled) { background: color-mix(in srgb, var(--c) 12%, transparent); }
+.r2-btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--r2-bad) 12%, transparent); }
+
+/* cards and room tiles: outline takes some of the room colour and the card rises; state changes fade slowly */
+.r2-card { transition: border-color var(--t2) var(--r2-ease), transform var(--t) var(--r2-ease), background var(--t) var(--r2-ease); }
+.r2-card.tap { cursor: pointer; }
+.r2-card.tap:hover, .r2-tile.tap:hover { transform: translateY(var(--r2-lift)); border-color: color-mix(in srgb, var(--c, var(--r2-fg)) var(--r2-hover-tint), var(--r2-line)); }
+.r2-card.tap.lit:hover { border-color: var(--c); background: color-mix(in srgb, var(--c) 5%, transparent); }
+.r2-card.tap:active { transform: scale(calc((1 + var(--r2-press)) / 2)); }
+
+/* chips: tappable ones brighten their outline; "Ending" breathes its dot */
+.r2-chip { transition: border-color var(--t2) var(--r2-ease), background var(--t2) var(--r2-ease), color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+.r2-chip.tap { cursor: pointer; }
+.r2-chip.tap:hover { border-color: var(--dot, var(--r2-fg)); }
+.r2-chip.tap:active { transform: scale(var(--r2-press)); }
+.r2-chip.fill::before { animation: r2-breathe calc(var(--r2-breathe) * var(--r2-slow)) ease-in-out infinite; }
+@keyframes r2-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* the ring draws itself when it appears (needs --C = its circumference, set by ringSvg() / <Ring>) */
+.r2-ring .used { animation: r2-draw calc(var(--r2-ring-draw) * var(--r2-slow)) var(--r2-ease) both; transition: stroke-dasharray var(--t2) var(--r2-ease); }
+@keyframes r2-draw { from { stroke-dasharray: 0 var(--C, 300); } }
+
+/* countdown number: a soft fade when it changes meaning (In → Cleaning) – add .r2-in to replay */
+.r2-in { animation: r2-in var(--t2) var(--r2-ease) both; }
+@keyframes r2-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* toggle: the knob slides and squashes a little while pressed */
+.r2-toggle:hover i { border-color: var(--r2-fg); }
+.r2-toggle:active i::after { width: 10px; }
+.r2-toggle input:checked + i::after { transition-delay: 0s; }
+.r2-toggle:active input:checked + i::after { left: 20px; }
+
+/* tabs: the underline grows from the left; hovering shows a faint one */
+.r2-tab { position: relative; border-bottom: 0; transition: color var(--t) var(--r2-ease); }
+.r2-tab::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--c, var(--r2-fg));
+  transform: scaleX(0); transform-origin: left; transition: transform var(--t2) var(--r2-ease), opacity var(--t) var(--r2-ease); opacity: 0; }
+.r2-tab:hover { color: var(--r2-fg); }
+.r2-tab:hover::after { transform: scaleX(.35); opacity: .4; }
+.r2-tab[aria-selected="true"]::after { transform: scaleX(1); opacity: 1; }
+.r2-tab:focus-visible { outline: 2px solid var(--r2-fg); outline-offset: 4px; }
+
+/* list rows: a faint wash and a small nudge right */
+.r2-list > * { transition: background var(--t) var(--r2-ease), padding var(--t) var(--r2-ease); border-radius: 4px; }
+.r2-list.tap > *:hover { background: color-mix(in srgb, var(--r2-fg) 5%, transparent); padding-left: 10px; cursor: pointer; }
+
+/* inputs: outline eases to the text colour */
+.r2-input { transition: border-color var(--t) var(--r2-ease); }
+.r2-input:hover { border-color: var(--r2-sub); }
+
+/* notices slide in */
+.r2-notice { animation: r2-in var(--t2) var(--r2-ease) both; }
+
+/* motion off: for people who ask their device for less motion, or the preview's switch */
+@media (prefers-reduced-motion: reduce) { .r2 *, .r2 *::before, .r2 *::after { animation: none !important; transition: none !important; } }
+[data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after { animation: none !important; transition: none !important; }

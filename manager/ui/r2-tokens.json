@@ -1,0 +1,11 @@
+{
+  "_readme": "Round2 UI tokens (name pending) – the same values as r2-ui.css, for screens that can't use CSS: the Android TV app (Java/XML colours), the iPhone widget (Scriptable), the Mac board, later the PS4 tile and LG menu. Change a value here AND in r2-ui.css. Owner, 25 Nov 2026: staff screens first, then guest-facing (PS4 tile, Android/LG home screens).",
+  "fonts": { "text": "Quicksand (300 big numbers · 500 text · 600 names/times)", "pixel": "Press Start 2P (labels + room names only)", "files": "manager/widget/fonts/" },
+  "dark":  { "bg": "#050505", "fg": "#f5f5f5", "sub": "rgba(245,245,245,.5)", "line": "rgba(245,245,245,.14)", "line2": "rgba(245,245,245,.3)", "ok": "#4DB848", "wait": "#ff9f43", "clean": "#F2C21B", "bad": "#ff4d5e" },
+  "light": { "bg": "#fafafa", "fg": "#0a0a0a", "sub": "rgba(10,10,10,.52)", "line": "rgba(10,10,10,.13)", "line2": "rgba(10,10,10,.28)", "ok": "#2e8b36", "wait": "#d9731a", "clean": "#b38a00", "bad": "#d13348" },
+  "rooms": { "Vale": "#E8436A", "Kaeden": "#4DB848", "Scarlett": "#F2C21B", "Bella": "#7A5BE0", "Kai": "#24B49A", "Atlas": "#E9E7EF", "Max": "#E0402F" },
+  "roomsLight": { "Scarlett": "#c79a00", "Atlas": "#7d7a8c" },
+  "roomIcons": { "Vale": "cat", "Kaeden": "leaf", "Scarlett": "saturn", "Kai": "mount", "Bella": "book", "Atlas": "boat", "Max": "car" },
+  "shape": { "line": "1px", "ring": "2.5px", "chipRadius": "6px", "cardRadius": "12px", "panelRadius": "18px", "gap": "14px", "pad": "16px" },
+  "motion": { "dur": "180ms", "durSlow": "420ms", "ease": "cubic-bezier(.2, .8, .2, 1)", "lift": "-2px", "press": 0.97, "hoverTint": "45%", "ringDraw": "900ms", "breathe": "2.4s" }
+}

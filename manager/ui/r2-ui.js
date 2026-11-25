@@ -23,7 +23,7 @@ export function pixSvg(name, size = 14, color = 'currentColor') {
 /* the ring: p = 0…1 used; mid = HTML for the middle (e.g. '<b>3h</b><span class="r2-kick sm">booked</span>') */
 export function ringSvg(p, mid = '', size = 92) {
   const R = size / 2 - 3, C = 2 * Math.PI * R, q = Math.max(0, Math.min(1, +p || 0));
-  return `<div class="r2-ring" style="width:${size}px;height:${size}px"><svg width="${size}" height="${size}"><circle class="track" cx="${size / 2}" cy="${size / 2}" r="${R}"/>` +
+  return `<div class="r2-ring" style="width:${size}px;height:${size}px;--C:${C}"><svg width="${size}" height="${size}"><circle class="track" cx="${size / 2}" cy="${size / 2}" r="${R}"/>` +
     (q > 0 ? `<circle class="used" cx="${size / 2}" cy="${size / 2}" r="${R}" stroke-dasharray="${C * q} ${C}"/>` : '') + `</svg><div class="mid">${mid}</div></div>`;
 }
 
@@ -32,6 +32,9 @@ const sgd = (ms) => new Date(ms + 8 * 3600e3);
 export const clk = (ms) => { const d = sgd(ms), h = d.getUTCHours(), m = d.getUTCMinutes(); return ((h + 11) % 12 + 1) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'am' : 'pm'); };
 export const left = (ms) => { const t = Math.max(0, Math.round(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), x = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 export const hrs = (ms) => { const m = Math.round(ms / 60e3), h = Math.floor(m / 60), x = m % 60; return (h ? h + 'h' : '') + (x ? (h ? ' ' : '') + x + 'm' : h ? '' : '0m'); };
+
+/* The UI's name is still to be decided (owner, 25 Nov) – change it here and in the page titles */
+export const UI_NAME = 'Round2 UI';
 
 /* light / dark: 'dark' | 'light' | 'auto' (follows the device). Remembered per device. */
 export function setTheme(mode) {
@@ -43,4 +46,4 @@ export function initTheme(def = 'auto') {
   document.documentElement.setAttribute('data-theme', m); return m;
 }
 
-if (typeof window !== 'undefined') window.R2UI = { ROOMS, room, PIX, pixSvg, ringSvg, clk, left, hrs, setTheme, initTheme };
+if (typeof window !== 'undefined') window.R2UI = { UI_NAME, ROOMS, room, PIX, pixSvg, ringSvg, clk, left, hrs, setTheme, initTheme };

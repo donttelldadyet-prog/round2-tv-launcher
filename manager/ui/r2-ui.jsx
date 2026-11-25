@@ -5,7 +5,8 @@
             Button, Field, Toggle, Tabs, List, Notice, ThemeSwitch } from './ui/r2-ui.jsx';
 */
 import React from 'react';
-import { PIX, room, clk, left, hrs, setTheme } from './r2-ui.js';
+import { PIX, room, clk, left, hrs, setTheme, UI_NAME } from './r2-ui.js';
+export { UI_NAME };
 
 const cx = (...a) => a.filter(Boolean).join(' ');
 
@@ -21,8 +22,9 @@ export const Kick = ({ children, sm, as: T = 'div' }) => <T className={cx('r2-ki
 export const RoomName = ({ r, sm }) => { const R = room(r); return <span className={cx('r2-room', sm && 'sm', R.cls)}><Pix name={R.icon} size={sm ? 11 : 15} color="var(--c)" />{R.r}</span>; };
 /** status box. state: 'ok' | 'wait' | 'bad' | 'next' (message/health dot) – or inside a room tile use dot (room colour).
     strong = outline in the colour; fill = light fill in the colour ("Ending") */
-export const Chip = ({ children, state, dot, strong, fill, sm, className }) =>
-  <span className={cx('r2-chip', state, dot && 'dot', strong && 'strong', fill && 'fill', sm && 'sm', className)}><span>{children}</span></span>;
+export const Chip = ({ children, state, dot, strong, fill, sm, className, onClick }) =>
+  <span className={cx('r2-chip', state, dot && 'dot', strong && 'strong', fill && 'fill', sm && 'sm', onClick && 'tap', className)} onClick={onClick}
+    role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}><span>{children}</span></span>;
 /** pixel icon + text */
 export const Line = ({ icon, children, bold, roomColour }) =>
   <div className={cx('r2-line', bold && 'bold', roomColour && 'room')}>{icon && <Pix name={icon} size={11} />}<span>{children}</span></div>;
@@ -33,7 +35,7 @@ export const Countdown = ({ ms, label, quiet, hot }) =>
 /** the ring – ONE meaning: guests in. p = share of the booking used; booked = booking length (ms) */
 export const Ring = ({ p, booked, label = 'booked', size = 92 }) => {
   const R = size / 2 - 3, C = 2 * Math.PI * R, q = Math.max(0, Math.min(1, +p || 0));
-  return <div className="r2-ring" style={{ width: size, height: size }}>
+  return <div className="r2-ring" style={{ width: size, height: size, '--C': C }}>
     <svg width={size} height={size}><circle className="track" cx={size / 2} cy={size / 2} r={R} />
       {q > 0 && <circle className="used" cx={size / 2} cy={size / 2} r={R} strokeDasharray={`${C * q} ${C}`} />}</svg>
     <div className="mid"><b>{hrs(booked)}</b><Kick sm>{label}</Kick></div></div>;
@@ -44,7 +46,8 @@ export const Then = ({ at, name, gap }) => <div className="r2-then"><Kick sm>the
 
 /* ---------- layout ---------- */
 export const Panel = ({ children, style }) => <div className="r2 r2-panel" style={style}>{children}</div>;
-export const Card = ({ r, lit, children, className }) => <div className={cx('r2-card', r && room(r).cls, lit && 'lit', className)}>{children}</div>;
+/** tap / onClick = it reacts to hover and press (rises, outline takes the room colour) */
+export const Card = ({ r, lit, children, className, onClick, tap }) => <div className={cx('r2-card', r && room(r).cls, lit && 'lit', (tap || onClick) && 'tap', className)} onClick={onClick}>{children}</div>;
 export const Rule = () => <hr className="r2-rule" />;
 export const Header = ({ logo = 'ui/r2-logo.png', kick, line, right }) =>
   <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
@@ -58,7 +61,7 @@ export const Col = ({ title, children }) => <div><Kick>{title}</Kick>{children}<
 
 /** A room tile, as on the Mac board. r = a room from the engine's /w answer ({ r, st, till, since, n, x, next, nn, gap, tv, ps4, msgs }).
     now = the engine's time (never the device clock). */
-export const RoomTile = ({ r, now, names = true }) => {
+export const RoomTile = ({ r, now, names = true, onClick, tap }) => {
   const R = room(r.r), inn = r.st === 'in', soon = inn && r.till - now < 15 * 60e3;
   const tmr = r.next && new Date(r.next + 8 * 3600e3).getUTCDate() !== new Date(now + 8 * 3600e3).getUTCDate() && new Date(r.next + 8 * 3600e3).getUTCHours() >= 7;
   const chip = inn ? <Chip dot strong fill={soon}>{(soon ? 'Ending · ' : 'In · till ') + clk(r.till)}</Chip>
@@ -69,11 +72,11 @@ export const RoomTile = ({ r, now, names = true }) => {
     : r.st === 'next' && r.next > now && r.next - now < 3 * 3600e3 ? <Countdown ms={r.next - now} label="till arrival" quiet /> : null;
   const who = inn ? r.n : r.st === 'next' ? r.nn : '';
   const tv = r.tv ? (r.tv.off ? 'TV off' : r.tv.quiet ? 'TV not reporting' : r.tv.app || 'TV on') : '';
-  return <Card r={r.r} lit={inn} className="r2-tile">
+  return <Card r={r.r} lit={inn} className="r2-tile" onClick={onClick} tap={tap}>
     <RoomName r={r.r} />
     <div className="body">
       <div className="main">
-        <div>{chip}</div>{cd}
+        <div>{chip}</div>{cd && <div key={r.st} className="r2-in">{cd}</div>}
         <div style={{ display: 'grid', gap: 5 }}>
           {names && who && <Line icon="user" bold>{who}</Line>}
           {inn && r.x ? <Line roomColour>Extended</Line> : null}
@@ -82,7 +85,7 @@ export const RoomTile = ({ r, now, names = true }) => {
         </div>
       </div>
       <div className="side">
-        {inn && r.since && <Ring p={(now - r.since) / (r.till - r.since)} booked={r.till - r.since} />}
+        {inn && r.since && <Ring key={r.since} p={(now - r.since) / (r.till - r.since)} booked={r.till - r.since} />}
         {(inn || r.st === 'clean') && r.next && <Then at={r.next} name={names ? r.nn : ''} gap={tmr ? null : r.gap} />}
         {r.st === 'free' && <span className="r2-sub" style={{ fontSize: 12 }}>{r.next ? 'next ' + clk(r.next) + (tmr ? ' tmr' : '') : 'nothing more tonight'}</span>}
       </div>
@@ -102,7 +105,7 @@ export const Toggle = ({ label, checked, onChange, r }) =>
   <label className={cx('r2-toggle', r && room(r).cls)}><input type="checkbox" checked={!!checked} onChange={(e) => onChange && onChange(e.target.checked)} /><i />{label}</label>;
 export const Tabs = ({ tabs, value, onChange }) => <div className="r2-tabs" role="tablist">{tabs.map((t) =>
   <button key={t} role="tab" className="r2-tab" aria-selected={t === value} onClick={() => onChange && onChange(t)}>{t}</button>)}</div>;
-export const List = ({ children }) => <div className="r2-list">{children}</div>;
+export const List = ({ children, tap }) => <div className={cx('r2-list', tap && 'tap')}>{children}</div>;
 /** a message for staff. state: 'ok' | 'wait' | 'bad' */
 export const Notice = ({ state, title, children }) => <div className={cx('r2-notice', state)} role={state === 'bad' ? 'alert' : undefined}><div><b>{title}</b><span>{children}</span></div></div>;
 /** dark / light / auto – sets <html data-theme> and remembers it on this device */

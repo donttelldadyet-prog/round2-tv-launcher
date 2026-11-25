@@ -3,11 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Round2 UI</title>
+<title>Round2 UI</title>  <!-- name pending (owner, 25 Nov) – also UI_NAME in r2-ui.js -->
 <link rel="stylesheet" href="r2-ui.css">
 <style>
   html, body { margin: 0; background: var(--r2-bg); }
-  .page { max-width: 1160px; margin: 0 auto; padding: 32px 16px 64px; }
+  /* two columns: the style guide (left) and the live preview with the Motion lab (right, stays in view) */
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 440px; max-width: 1640px; margin: 0 auto; }
+  .page { min-width: 0; padding: 32px 28px 64px 16px; }
+  aside { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 32px 16px 48px 28px; border-left: 1px solid var(--r2-line); overscroll-behavior: contain; }
+  @media (max-width: 1100px) { .wrap { grid-template-columns: 1fr; } aside { position: static; height: auto; border-left: 0; border-top: 1px solid var(--r2-line); padding: 32px 16px 48px; } .page { padding-right: 16px; } }
+  .pv { display: grid; gap: 12px; margin: 0; }
+  .lab { padding: 16px; border: 1px solid var(--r2-line2); border-radius: var(--r2-r-card); }
+  .lab-knob { display: grid; gap: 6px; font-size: 12.5px; }
+  .lab-row { display: flex; justify-content: space-between; gap: 10px; } .lab-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .lab-out { margin: 0; padding: 12px; border-radius: var(--r2-r-chip); border: 1px solid var(--r2-line); font: 11.5px/1.5 ui-monospace, monospace; white-space: pre-wrap; color: var(--r2-sub); }
+  /* sliders drawn in the same thin-line language */
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: transparent; margin: 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--r2-line2); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 8px; height: 16px; margin-top: -7.5px; border-radius: 2px; border: 1px solid var(--r2-fg); background: var(--r2-bg); transition: background var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+  input[type=range]:hover::-webkit-slider-thumb { background: var(--r2-fg); }
+  input[type=range]:active::-webkit-slider-thumb { transform: scaleY(.8); }
+  input[type=range]::-moz-range-track { height: 1px; background: var(--r2-line2); }
+  input[type=range]::-moz-range-thumb { width: 8px; height: 16px; border-radius: 2px; border: 1px solid var(--r2-fg); background: var(--r2-bg); }
   section { margin-top: 40px; }
   h2 { margin: 0 0 6px; font: 400 10px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; }
   .why { margin: 0 0 18px; max-width: 70ch; }
@@ -19,10 +36,11 @@
 </style>
 </head>
 <body class="r2">
+<div class="wrap">
 <div class="page">
   <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap">
     <img class="r2-logo" src="r2-logo.png" alt="Round2">
-    <div><div class="r2-kick">Design language</div><div class="r2-sub" style="margin-top:7px;font-weight:500;font-size:14px">Round2 UI for staff screens · from the Mac board, 25 Nov 2026</div></div>
+    <div><div class="r2-kick">Design language</div><div class="r2-sub" style="margin-top:7px;font-weight:500;font-size:14px">Round2 UI <span class="r2-chip next sm" style="margin-left:4px"><span>name pending</span></span> · for staff screens · from the Mac board, 25 Nov 2026</div></div>
     <div style="flex:1"></div>
     <div class="r2-tabs" role="tablist" id="theme"></div>
   </div>
@@ -55,6 +73,7 @@
     <p class="why r2-sub">The six rooms are the screen. Inside a tile everything follows the room's colour. The <b style="color:var(--r2-fg)">big number is always a countdown with words</b>
       (left · cleaning left · till arrival). The <b style="color:var(--r2-fg)">ring has one meaning</b>: guests are in – it fills as their booking is used and says how long they booked.</p>
     <div class="r2-rooms" id="tiles"></div>
+    <p class="r2-sub" style="font-size:12px;margin:12px 0 0">Hover a tile, button, row or tab – everything here reacts the way it will in the apps. The live preview on the right lets you switch a tile's state and tune the motion.</p>
   </section>
 
   <section>
@@ -81,7 +100,7 @@
   <section>
     <h2>6 · Lists and notices</h2>
     <div class="two">
-      <div class="r2-list" id="list"></div>
+      <div class="r2-list tap" id="list"></div>
       <div style="display:grid;gap:10px;align-content:start">
         <div class="r2-notice ok"><div><b>Kai's helper is running again</b><span>Restarted by the TV itself at 2:31pm.</span></div></div>
         <div class="r2-notice wait"><div><b>Bella TV not reporting</b><span>Last check-in 24 min ago – guests due at 3:28pm.</span></div></div>
@@ -90,6 +109,9 @@
     </div>
   </section>
 </div>
+<aside><div id="play"></div></aside>
+</div>
+<script src="play.bundle.js" defer></script>
 
 <script type="module">
 import { ROOMS, room, pixSvg, ringSvg, clk, left, hrs, setTheme, initTheme } from './r2-ui.js';
@@ -97,6 +119,7 @@ const $ = (id) => document.getElementById(id);
 let mode = initTheme('dark');
 const drawTheme = () => { $('theme').innerHTML = ['dark', 'light', 'auto'].map((m) => `<button class="r2-tab" aria-selected="${m === mode}" data-m="${m}">${m}</button>`).join(''); };
 $('theme').onclick = (e) => { const m = e.target.dataset.m; if (m) { mode = m; setTheme(m); drawTheme(); } }; drawTheme();
+new MutationObserver(() => { const m = document.documentElement.getAttribute('data-theme'); if (m !== mode) { mode = m; drawTheme(); } }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
 $('rooms').innerHTML = ROOMS.map((R) => `<div class="sw ${R.cls}"><i></i><span class="r2-room sm ${R.cls}">${pixSvg(R.icon, 11, 'var(--c)')}${R.r}</span></div>`).join('');
 
@@ -119,7 +142,7 @@ $('tiles').innerHTML = sample.map((x) => {
   const side = (inn ? ringSvg((now - x.since) / (x.till - x.since), `<b>${hrs(x.till - x.since)}</b><span class="r2-kick sm">booked</span>`) : '') +
     ((inn || x.st === 'clean') && x.next ? `<div class="r2-then"><span class="r2-kick sm">then</span><b>${clk(x.next)}</b><span class="r2-sub">${x.nn}</span><span class="gap ${x.gap < 30 ? 'tight' : 'r2-sub'}" style="font-size:11.5px">${x.gap} min gap</span></div>` : '') +
     (x.st === 'free' ? `<span class="r2-sub" style="font-size:12px">${x.next ? 'next ' + clk(x.next) : 'nothing more tonight'}</span>` : '');
-  return `<div class="r2-card r2-tile ${R.cls} ${inn ? 'lit' : ''}"><span class="r2-room ${R.cls}">${pixSvg(R.icon, 15, 'var(--c)')}${R.r}</span>
+  return `<div class="r2-card r2-tile tap ${R.cls} ${inn ? 'lit' : ''}"><span class="r2-room ${R.cls}">${pixSvg(R.icon, 15, 'var(--c)')}${R.r}</span>
     <div class="body"><div class="main"><div>${c}</div>${cd ? `<div class="r2-count ${cd[2]}"><b>${left(cd[0])}</b><span class="r2-kick">${cd[1]}</span></div>` : ''}
       <div style="display:grid;gap:5px">${who ? line('user', who, 'bold') : ''}${x.x ? line('', 'Extended', 'room') : ''}${x.tv ? line('tv', x.tv) : ''}${x.ps ? line('pad', x.ps) : ''}</div></div>
       <div class="side">${side}</div></div>
