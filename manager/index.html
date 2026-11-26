@@ -745,6 +745,22 @@ body.r2on details.r2help .hint { margin: 10px 0 0; max-width: 80ch; }
   body.r2on main h1 { font-size: 13px; }
 }
 
+/* Rescheduling › Moves: each move as a small block – who + paid on top, FROM / TO with the room in its colour, details last */
+.mvrow { display: grid; gap: 7px; padding: 14px 2px 15px; border-bottom: 1px solid var(--r2-line); }
+.mvrow:last-child { border-bottom: 0; }
+.mvhd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mvhd b { font-size: 16px; font-weight: 700; }
+.mvpay { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mvft { display: grid; grid-template-columns: 38px auto 1fr; align-items: baseline; gap: 10px; color: var(--r2-sub); }
+.mvft .mvl { font: 400 7px var(--r2-pixel); letter-spacing: .2em; text-transform: uppercase; color: var(--r2-sub); }
+.mvft .mvroom { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--rc); }
+html[data-theme="light"] .mvft[style*="--rc:#E9E7EF"] { --rc: var(--r2-atlas) !important; } html[data-theme="light"] .mvft[style*="--rc:#F2C21B"] { --rc: var(--r2-scarlett) !important; }
+.mvft .mvroom .r2-pix { width: 12px; height: auto; }
+.mvft.to .mvwhen { color: var(--r2-fg); font-weight: 600; }
+.mvft.to .mvl { color: var(--r2-fg); }
+.mvmeta { font-size: 12px; color: var(--r2-sub); line-height: 1.45; }
+@media (max-width: 560px) { .mvft { grid-template-columns: 32px auto 1fr; gap: 8px; } .mvrow { gap: 5px; } }
+
 /* PS4s: wake / sleep as one even group (owner, 27 Nov: "the wake all buttons stack weirdly") */
 .p4grp { display: grid; grid-template-columns: auto auto auto; justify-content: start; gap: 8px; margin: 12px 0 4px; }
 .p4grp .btn { justify-content: center; text-align: center; }
@@ -3185,9 +3201,23 @@ body.r2on dialog::backdrop { background: color-mix(in srgb, #000 58%, transparen
         var L = j.list || [], fees = 0, waived = 0, diffs = 0; L.forEach(function (x) { fees += +x.fee || 0; waived += (+x.feeWas || 0) - (+x.fee || 0); diffs += +x.diff || 0; });
         $('rsNums').innerHTML = '<div class="card"><b>' + L.length + '</b><br><span class="hint">moves</span></div><div class="card"><b>' + money(fees) + '</b><br><span class="hint">fees taken</span></div><div class="card"><b>' + money(waived) + '</b><br><span class="hint">fees lowered / waived</span></div><div class="card"><b>' + money(diffs) + '</b><br><span class="hint">price differences</span></div>';
         $('rsList').innerHTML = L.length ? L.map(function (x) {
-          return '<div style="padding:8px 0;border-bottom:1px solid var(--line2)"><b>' + esc(x.name || 'guest') + '</b> · ' + esc(rn(x.from.room)) + ' ' + x.from.date + ' ' + x.from.time + ' → <b>' + esc(rn(x.to.room)) + ' ' + x.to.date + ' ' + x.to.time + '</b> (' + x.to.hours + 'h)<br><span class="hint">' + clk(x.t) + ' ' + R2Day.night(x.t) + ' · fee ' + money(x.fee) + (x.fee < x.feeWas ? ' (was ' + money(x.feeWas) + ')' : '') + ' + ' + money(x.diff) + ' · ' + esc(x.how) + (x.by ? ' · by ' + esc(x.by) : '') + (x.why ? ' · “' + esc(x.why) + '”' : '') + '</span></div>';
+          /* (27 Nov, owner: "everything is white … hard to visually pick out more important details") – guest + what was paid on
+             top, then FROM and TO on their own lines with the room in its colour and a readable date, the details last */
+          var how = String(x.how || ''), paid = (+x.fee || 0) + (+x.diff || 0);
+          var hc = /waiv/i.test(how) && !paid ? 'next' : /paid/i.test(how) ? 'ok' : 'wait';
+          return '<div class="mvrow"><div class="mvhd"><b>' + esc(x.name || 'guest') + '</b><span class="mvpay">' + money(paid) + '</span><span class="r2-chip sm ' + hc + '"><span>' + esc(how || '–') + '</span></span></div>' +
+            mvSide('from', x.from) + mvSide('to', x.to, x.to.hours) +
+            '<div class="mvmeta">fee ' + money(x.fee) + (x.fee < x.feeWas ? ' (was ' + money(x.feeWas) + ')' : '') + ' + difference ' + money(x.diff) + (x.by ? ' · by ' + esc(x.by) : '') + (x.why ? ' · “' + esc(x.why) + '”' : '') + ' · moved ' + esc(clk(x.t)) + ' ' + esc(mvDate(R2Day.night(x.t))) + '</div></div>';
         }).join('') : '<p class="hint">No moves yet.</p>';
       });
+    }
+    /* one side of a move: FROM / TO label, the room's icon + name in its colour, then the day and time in words */
+    function mvDate(d) { var p = String(d || '').split('-'); if (p.length < 3) return d || ''; var dt = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dt.getUTCDay()] + ' ' + (+p[2]) + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+p[1] - 1]; }
+    function mvTime(t) { var m = String(t || '').match(/^(\d+):(\d+)/); if (!m) return t || ''; var h = +m[1]; return ((h + 11) % 12 + 1) + (m[2] !== '00' ? ':' + m[2] : '') + (h < 12 ? 'am' : 'pm'); }
+    function mvSide(lbl, o, hrs) {
+      var nm = rn(o.room), k = nm.toLowerCase() === 'max' ? 'maximillion' : nm.toLowerCase(), R = ROOMS[k] || {}, U = window.R2UI;
+      return '<div class="mvft' + (lbl === 'to' ? ' to' : '') + '" style="--rc:' + (R.c || 'var(--r2-fg)') + '"><span class="mvl">' + lbl + '</span><span class="mvroom">' + (U ? U.pixSvg(U.room(nm).icon, 12, 'var(--rc)') : '') + esc(nm) + '</span>' +
+        '<span class="mvwhen">' + esc(mvDate(o.date)) + ' · ' + esc(mvTime(o.time)) + (hrs ? ' · ' + hrs + 'h' : '') + '</span></div>';
     }
     return { open: open, log: log };
   })();
