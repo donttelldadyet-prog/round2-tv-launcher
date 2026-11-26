@@ -62,6 +62,27 @@ Files: `manager/widget/fonts/` (both OFL – free to use).
 Pieces: Panel · Header · RoomName · RoomGrid · RoomTile · Card · Chip · Countdown · Ring · Then · Line · Pix · Kick ·
 Strip/Col · Button · Field · Toggle · Tabs · List · Notice · ThemeSwitch.
 
+## Organising a page (27 Nov)
+
+Owner: *"everything is white and is separated by font size and font so it's hard to visually pick out more important details"* ·
+*"waiting for messages shouldn't take up the first space … just organise them better"* · *"the wake all buttons stack weirdly"*.
+
+1. **The line that matters comes first.** In any list item: **time · room (in its colour) · state** on one line
+   (`.r2-item-top`). Details under it in grey (`.r2-item-sub`). Money or the result on the right.
+2. **Room names are always in their room's colour** – in lists, moves, filters – with the pixel icon where there's room.
+3. **Lists follow what's picked.** A calendar or filter decides the list under it (the list jumps with it); the list opens on
+   today (the shop night) – or the next day that has something. Heading = the day in words + a count (`.r2-dayhd`, `.r2-n`),
+   with **All dates** on the right to widen it again.
+4. **Order by time, not by status.** The state is a small information box on each item – never a block heading that pushes the
+   useful items down ("Waiting for guest" doesn't get the first screen).
+5. **Everyday actions visible, rare or destructive ones behind "More"** (`details.r2-more`) – e.g. Copy link visible; Fix
+   room / Cancel inside More.
+6. **Changes read FROM → TO on their own lines** (`.r2-change`): room in colour, day + time in words, the new side stronger.
+7. **Dates and times in words** – "Sat 21 Nov · 4pm", never 2026-11-21 16:00. Counts quiet next to headings, never boxed.
+8. **Related buttons are one even group** (`.r2-grp`): same widths, one block; on phones two across, a longer one spans the row
+   (`.wide`). No emoji in buttons – words (and pixel icons if needed).
+9. **One short intro line per page**; explanations go in "+ How this page works" at the bottom; phones show 2 lines of intro.
+
 ## Motion (hover, press, reactions)
 
 All timing lives in the tokens at the top of `r2-ui.css` (`--r2-dur`, `--r2-dur-slow`, `--r2-ease`, `--r2-lift`, `--r2-press`,

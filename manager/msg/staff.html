@@ -116,7 +116,7 @@ label.f input, label.f select { width: 100%; -webkit-appearance: none; appearanc
 .mini { background: #0b0914; border: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 4px; }
 .mini .tg { font-size: 10px; letter-spacing: .18em; color: var(--rc); text-transform: uppercase; }
 .mini .t { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; }
-.mini p { margin: 0; color: #e4def0; overflow-wrap: anywhere; font-size: 14px; }
+.mini p { margin: 0; color: var(--ink); overflow-wrap: anywhere; font-size: 14px; }
 .mini .fr { color: var(--rc); font-weight: 600; font-size: 13px; }
 .mini .at { color: var(--mute); font-size: 12px; font-variant-numeric: tabular-nums; }
 .confirm { border: 1px solid var(--line2); padding: 10px; display: grid; gap: 10px; font-size: 14px; }
@@ -132,7 +132,7 @@ label.f input, label.f select { width: 100%; -webkit-appearance: none; appearanc
 .cal .d.out { opacity: .3; }
 .cal .d.past { color: var(--mute); }
 .cal .d.today { border-color: var(--ink); }
-.cal .d.has { background: #1d1730; border-color: var(--accent); }
+.cal .d.has { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); }
 .cal .d.has .num { color: var(--accent); font-weight: 700; }
 .cal .d[aria-pressed="true"] { outline: 2px solid var(--focus); outline-offset: -2px; }
 .cal .dots { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -156,11 +156,30 @@ label.f input, label.f select { width: 100%; -webkit-appearance: none; appearanc
 .rgroup { display: grid; gap: 8px; }
 .rgroup > .rh { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: var(--rc); display: flex; gap: 8px; align-items: center; }
 .rgroup > .rh::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+/* the list under the calendar (27 Nov): the chosen day, its links in time order, compact */
+.dayhd { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.dayhd h2 { margin: 0; font-family: var(--r2-text, inherit) !important; font-size: 18px !important; font-weight: 700 !important; letter-spacing: 0 !important; text-transform: none !important; } .dayhd .btn { margin-left: auto; padding: 6px 12px; font-size: 13px; }
+.dayhd .n, .dsub .n { color: var(--mute); font-weight: 500; margin-left: 4px; border: 0 !important; padding: 0 !important; background: none !important; }
+.dayhd .btn { flex: none; white-space: nowrap; }
+.dsub { margin: 10px 0 0; font-size: 13px; color: var(--mute); }
+.item .top { gap: 8px 10px; }
+.item .itime { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+.item .iroom { font-weight: 700; color: var(--rc); letter-spacing: .02em; }
+.item .when { color: var(--mute); font-weight: 500; font-size: 13px; }
+.item .chip { border-color: transparent; background: color-mix(in srgb, var(--ink) 8%, transparent); letter-spacing: .04em; text-transform: none; font-size: 12px; padding: 2px 8px; border-radius: 6px; }
+.item .chip.st-open { color: var(--mute); }
+.item .chip.st-scheduled { color: var(--ink); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.item .chip.st-ontv { color: var(--ink); background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.item.st-open .shows { color: var(--mute); font-size: 14px; }
+.item details.more { display: inline-block; }
+.item details.more > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; padding: 8px 12px; border: 1px solid var(--line2); border-radius: 6px; font-size: 13px; color: var(--mute); }
+.item details.more > summary::-webkit-details-marker { display: none; }
+.item details.more[open] { display: block; width: 100%; } .item details.more > .row { margin-top: 8px; }
 details.past { border-top: 1px solid var(--line); padding-top: 12px; }
 details.past summary { cursor: pointer; color: var(--mute); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; }
 details.past .list { margin-top: 10px; }
 .empty { color: var(--mute); border: 1px dashed var(--line2); padding: 14px; font-size: 14px; }
-.item .shows{margin:8px 0 2px;font-size:15px;color:#d6d0e3}.item .shows b{color:#F2C21B;font-size:17px}
+.item .shows{margin:8px 0 2px;font-size:15px;color:var(--ink)}.item .shows b{color:var(--accent,#F2C21B);font-size:17px}
 </style>
 
 <header class="top"><div class="wrap">
@@ -242,7 +261,7 @@ details.past .list { margin-top: 10px; }
   var TAGS = { birthday: 'Birthday', anniversary: 'Anniversary', celebrate: 'Celebration', note: 'A message for you' };
   var $ = function (id) { return document.getElementById(id); };
   var laterMap = {};   /* "Show again at…" times kept by the booking engine: code → ms */
-  var room = 'vale', lastList = [], open = null, fDay = 'all', fRoom = 'all', fSt = 'all', calMonth = null;   /* open: { a: 'move'|'now'|'cancel', code, room } */
+  var room = 'vale', lastList = [], open = null, fDay = 'auto', fRoom = 'all', fSt = 'all', calMonth = null;   /* open: { a: 'move'|'now'|'cancel', code, room } */
 
   var lg = new Image(); lg.alt = 'Round2'; lg.onload = function () { $('brand').innerHTML = ''; $('brand').appendChild(lg); }; lg.src = LOGO;
 
@@ -424,10 +443,13 @@ details.past .list { margin-top: 10px; }
 
   function itemHtml(x) {
     var d = x.data, st = state(x), R = ROOMS[d.room] || [d.room, '#F2C21B'], c = esc(x.key), r2 = /^R2/.test(x.key);   /* R2… = queued from the control centre */
-    var h = '<article class="item" style="--rc:' + R[1] + '"><div class="top"><span class="chip room">' + esc(R[0]) + '</span><span class="chip st-' + st + '">' + CHIP[st] + '</span>' + (r2 ? '<span class="chip">Round2 message</span>' : '') + tieChip(x, st) +
-      '<span class="when">' + esc(day(d.start)) + ' · starts ' + esc(clock(d.start)) + '</span><span class="code">' + c + '</span></div>';
+    /* (27 Nov, owner: "organise them better") – one line: start time, the room in its colour, the stage; the date only when
+       the list shows more than one day */
+    var h = '<article class="item st-' + st + '" style="--rc:' + R[1] + '"><div class="top"><span class="itime">' + esc(clock(d.start)) + '</span><span class="iroom">' + esc(R[0]) + '</span>' +
+      '<span class="chip st-' + st + '">' + CHIP[st] + '</span>' + (r2 ? '<span class="chip">Round2 message</span>' : '') + tieChip(x, st) +
+      (fDay === 'all' || st === 'cancelled' || st === 'ended' ? '<span class="when">' + esc(day(d.start)) + '</span>' : '') + '<span class="code">' + c + '</span></div>';
     /* owner, 16 Nov: "starts 11:00 am" is the booking – say right under it when the message shows (it was only in small print below) */
-    if (st !== 'cancelled' && st !== 'ended') h += '<div class="shows">' + (d.title && d.at ? '📺 Message ' + (st === 'ontv' ? 'showed ' : 'shows ') + '<b>' + esc(clock(d.at)) + '</b>' + (day(d.at) !== day(d.start) ? ' on ' + esc(day(d.at)) : '') + (d.at > d.start ? ' · ' + Math.round((d.at - d.start) / 60000) + ' min after the start' : d.at === d.start ? ' · right at the start' : '') : '📺 No message yet – the guest hasn’t written it') + '</div>';
+    if (st !== 'cancelled' && st !== 'ended') h += '<div class="shows">' + (d.title && d.at ? 'Message ' + (st === 'ontv' ? 'showed ' : 'shows ') + '<b>' + esc(clock(d.at)) + '</b>' + (day(d.at) !== day(d.start) ? ' on ' + esc(day(d.at)) : '') + (d.at > d.start ? ' · ' + Math.round((d.at - d.start) / 60000) + ' min after the start' : d.at === d.start ? ' · right at the start' : '') : 'Guest hasn’t written their message yet') + '</div>';
     if (d.label && !r2) h += '<div class="label">' + esc(d.label) + '</div>';
     if (d.title) h += '<div class="mini"><div class="tg">' + esc((TAGS[d.kind] || '') + (d.to ? ' · for ' + d.to : '')) + '</div><div class="t">' + esc(d.title) + '</div><p>' + esc(d.text) + '</p>' +
       (d.from ? '<div class="fr">— ' + esc(d.from) + '</div>' : '') + '<div class="at">Pops up ' + esc(day(d.at)) + ' at ' + esc(clock(d.at)) + '</div></div>';
@@ -437,8 +459,9 @@ details.past .list { margin-top: 10px; }
       : '<button class="btn" data-a="later" data-c="' + c + '">Show again at…</button>';
     if (untied(x, st)) btns += '<button class="btn ok" data-a="pair" data-c="' + c + '">Pair with booking</button>';
     if ((st === 'scheduled' || st === 'ontv') && d.title) btns += '<button class="btn" data-a="retime" data-c="' + c + '">Change pop-up time</button>';   /* owner, 9 Nov: only when the message shows */
-    if (live) btns += '<button class="btn" data-a="move" data-c="' + c + '">Fix this link’s room or start</button>' + (r2 ? '' : '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>') + '<button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel</button>';
-    if (btns) h += '<div class="row">' + btns + '</div>';
+    if (live && !r2) btns = '<button class="btn" data-a="copy" data-c="' + c + '">Copy link</button>' + btns;
+    var more = live ? '<button class="btn" data-a="move" data-c="' + c + '">Fix this link’s room or start</button><button class="btn danger" data-a="cancel" data-c="' + c + '">Cancel link</button>' : '';
+    if (btns || more) h += '<div class="row">' + btns + (more ? '<details class="more"><summary>More</summary><div class="row">' + more + '</div></details>' : '') + '</div>';
     if (open && open.code === x.key) {
       var a = open.a;
       if (a === 'move') {
@@ -533,41 +556,29 @@ details.past .list { margin-top: 10px; }
     var days = {}, rooms = {};
     live.forEach(function (x) { var k = dayKey(x.data.start); days[k] = (days[k] || 0) + 1; rooms[x.data.room] = (rooms[x.data.room] || 0) + 1; });
     var dayKeys = Object.keys(days).sort();
-    var dayHasPast = lastList.some(function (x) { return dayKey(x.data.start) === fDay; });
-    if (fDay !== 'all' && !days[fDay] && !/^\d{4}-\d{2}-\d{2}$/.test(fDay) && !dayHasPast) fDay = 'all';
+    /* (27 Nov, owner: "sync the design to which calendar date is selected") – the list shows the day picked on the calendar;
+       it opens on today (the shop night) if today has links, else the next day that does */
+    if (fDay === 'auto') { var td = dayKey(R2Day.now()); fDay = days[td] ? td : (dayKeys.filter(function (k) { return k >= td; })[0] || 'all'); }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fDay)) calMonth = fDay.slice(0, 7);
     var inDR = live.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
-    /* by stage (owner, 2 Nov): waiting for the guest to write · scheduled (written, waiting for its time) · on the TV */
-    var STG = [['open', '⏳ Waiting for guest'], ['scheduled', '📅 Scheduled'], ['ontv', '📺 On the TV']], cnt = {};
+    var STG = [['open', 'Waiting for guest'], ['scheduled', 'Scheduled'], ['ontv', 'On the TV']], cnt = {};
     inDR.forEach(function (x) { var st = state(x); cnt[st] = (cnt[st] || 0) + 1; });
     if (fSt !== 'all' && !cnt[fSt]) fSt = 'all';
     var shown = inDR.filter(function (x) { return fSt === 'all' || state(x) === fSt; });
-    var html = calendarHtml(live) + '<div class="filters">' +
-      '<div class="chips" role="group" aria-label="Date"><button type="button" data-fday="all" aria-pressed="' + (fDay === 'all') + '">All dates<span class="n">' + live.length + '</span></button>' +
-        (fDay !== 'all' && dayKeys.indexOf(fDay) < 0 ? dayKeys.concat([fDay]).sort() : dayKeys).map(function (k) { return '<button type="button" data-fday="' + k + '" aria-pressed="' + (fDay === k) + '">' + esc(dayName(k).replace(/ · .*$/, function (m) { return /Today|Tomorrow/.test(dayName(k)) ? '' : m; })) + '<span class="n">' + (days[k] || 0) + '</span></button>'; }).join('') + '</div>' +
+    var html = calendarHtml(live);
+    /* the chosen day as the heading, its links in time order (whatever their stage – the stage is on each link) */
+    html += '<div class="dayhd"><h2>' + (fDay === 'all' ? 'All upcoming' : esc(dayName(fDay))) + ' <span class="n">' + inDR.length + '</span></h2>' +
+      (fDay === 'all' ? '' : '<button type="button" class="btn" data-fday="all">All dates</button>') + '</div>';
+    html += '<div class="filters"><div class="chips stg" role="group" aria-label="Stage"><button type="button" data-fst="all" aria-pressed="' + (fSt === 'all') + '">All<span class="n">' + inDR.length + '</span></button>' +
+      STG.map(function (g) { return cnt[g[0]] ? '<button type="button" data-fst="' + g[0] + '" aria-pressed="' + (fSt === g[0]) + '">' + g[1] + '<span class="n">' + cnt[g[0]] + '</span></button>' : ''; }).join('') + '</div>' +
       '<div class="chips rf" role="group" aria-label="Room"><button type="button" data-froom="all" aria-pressed="' + (fRoom === 'all') + '">All rooms</button>' +
-        Object.keys(ROOMS).map(function (k) { return '<button type="button" data-froom="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (fRoom === k) + '">' + ROOMS[k][0] + (rooms[k] ? '<span class="n">' + rooms[k] + '</span>' : '') + '</button>'; }).join('') + '</div></div>';
-    html += '<div class="chips stg" role="group" aria-label="Stage"><button type="button" data-fst="all" aria-pressed="' + (fSt === 'all') + '">All<span class="n">' + inDR.length + '</span></button>' +
-      STG.map(function (g) { return '<button type="button" data-fst="' + g[0] + '" aria-pressed="' + (fSt === g[0]) + '"' + (cnt[g[0]] ? '' : ' disabled') + '>' + g[1] + '<span class="n">' + (cnt[g[0]] || 0) + '</span></button>'; }).join('') + '</div>';
-    if (!shown.length) html += '<div class="empty">' + (live.length ? 'No links for this date and room.' : 'No upcoming links. Make one in \u201CMake a guest link\u201D after a booking is paid.') + '</div>';
-    /* each stage its own block (All), then by date, then by room, then by start time */
-    function block(xs0) {
-      var html = '', byDay = {};
-      xs0.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || {}); (byDay[k][x.data.room] = byDay[k][x.data.room] || []).push(x); });
-      Object.keys(byDay).sort().forEach(function (k) {
-        var n = 0; Object.keys(byDay[k]).forEach(function (r) { n += byDay[k][r].length; });
-        html += '<section class="day" id="day-' + k + '"><h2>' + esc(dayName(k)) + ' <span class="n">' + n + '</span></h2>';
-        Object.keys(ROOMS).concat(Object.keys(byDay[k]).filter(function (r) { return !ROOMS[r]; })).forEach(function (r) {
-          var xs = byDay[k][r]; if (!xs) return;
-          xs.sort(function (a, b) { return a.data.start - b.data.start || ORDER[state(a)] - ORDER[state(b)]; });
-          html += '<div class="rgroup" style="--rc:' + (ROOMS[r] ? ROOMS[r][1] : '#F2C21B') + '"><div class="rh">' + esc(ROOMS[r] ? ROOMS[r][0] : r) + '</div><div class="list">' + xs.map(itemHtml).join('') + '</div></div>';
-        });
-        html += '</section>';
-      });
-      return html;
-    }
-    STG.forEach(function (g) {
-      var xs = shown.filter(function (x) { return state(x) === g[0]; }); if (!xs.length) return;
-      html += '<div class="stgblock stg-' + g[0] + '"><h2 class="stgh">' + g[1] + ' <span class="n">' + xs.length + '</span></h2>' + block(xs) + '</div>';
+        Object.keys(ROOMS).filter(function (k) { return rooms[k] || fRoom === k; }).map(function (k) { return '<button type="button" data-froom="' + k + '" style="--rc:' + ROOMS[k][1] + '" aria-pressed="' + (fRoom === k) + '">' + ROOMS[k][0] + '<span class="n">' + (rooms[k] || 0) + '</span></button>'; }).join('') + '</div></div>';
+    if (!shown.length) html += '<div class="empty">' + (live.length ? (fDay === 'all' ? 'No links for this room.' : 'No links on this day' + (fRoom !== 'all' ? ' for this room' : '') + ' – tap another day on the calendar.') : 'No upcoming links. Make one in “Make a guest link” after a booking is paid.') + '</div>';
+    var byDay = {};
+    shown.forEach(function (x) { var k = dayKey(x.data.start); (byDay[k] = byDay[k] || []).push(x); });
+    Object.keys(byDay).sort().forEach(function (k) {
+      var xs = byDay[k].sort(function (a, b) { return a.data.start - b.data.start || ORDER[state(a)] - ORDER[state(b)]; });
+      html += '<section class="day" id="day-' + k + '">' + (fDay === 'all' ? '<h3 class="dsub">' + esc(dayName(k)) + ' <span class="n">' + xs.length + '</span></h3>' : '') + '<div class="list">' + xs.map(itemHtml).join('') + '</div></section>';
     });
     past = past.filter(function (x) { return (fDay === 'all' || dayKey(x.data.start) === fDay) && (fRoom === 'all' || x.data.room === fRoom); });
     if (past.length) {
@@ -588,7 +599,7 @@ details.past .list { margin-top: 10px; }
     var cb = e.target.closest('button[data-cal], button[data-calday]');
     if (cb) {
       if (cb.hasAttribute('data-cal')) { var y = +calMonth.slice(0, 4), m = +calMonth.slice(5, 7) + Number(cb.getAttribute('data-cal')); if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; } calMonth = y + '-' + ('0' + m).slice(-2); }
-      else { var k = cb.getAttribute('data-calday'); fDay = fDay === k ? 'all' : k; }
+      else { fDay = cb.getAttribute('data-calday'); fSt = 'all'; }   /* the list follows the day tapped */
       render(); return;
     }
     var f = e.target.closest('button[data-fday], button[data-froom]');

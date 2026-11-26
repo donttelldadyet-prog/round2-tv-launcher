@@ -308,3 +308,45 @@
 .r2-enter .r2-rooms > :nth-child(n+7), .r2-enter .r2-stagger > :nth-child(n+7) { animation-delay: 240ms; }
 @media (prefers-reduced-motion: reduce) { .r2-ask-back, .r2-ask, .r2-toast, .r2-enter, .r2-enter * { animation: none !important; } }
 [data-motion="off"] .r2-ask-back, [data-motion="off"] .r2-ask, [data-motion="off"] .r2-toast { animation: none !important; }
+
+/* ==========================================================================================================
+   ORGANISING A PAGE (27 Nov, owner: "build these organisation reworks into the R2 UI … small details that help future designs")
+   See README "Organising a page". Pieces: .r2-grp · .r2-dayhd · .r2-item (+ .r2-more) · .r2-change · .r2-n
+   ========================================================================================================== */
+/* a group of related buttons: even widths, one block – never a ragged wrap (phones: 2 across, a .wide one spans the row) */
+.r2-grp { display: grid; grid-template-columns: repeat(var(--cols, 3), auto); justify-content: start; gap: 8px; }
+.r2-grp > * { justify-content: center; text-align: center; }
+@media (max-width: 560px) { .r2-grp { grid-template-columns: 1fr 1fr; justify-content: stretch; } .r2-grp > .wide { grid-column: 1 / -1; } }
+
+/* a count next to a heading or a filter: quiet, never boxed */
+.r2-n { color: var(--r2-sub); font-weight: 500; margin-left: 5px; font-variant-numeric: tabular-nums; }
+
+/* the heading of a list that follows a picked day (or filter): the day in words + how many, a way back to everything on the right */
+.r2-dayhd { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; }
+.r2-dayhd h2, .r2-dayhd .r2-dayhd-t { margin: 0; font: 700 18px/1.3 var(--r2-text); letter-spacing: 0; text-transform: none; color: var(--r2-fg); }
+.r2-dayhd > .r2-btn, .r2-dayhd > button { margin-left: auto; flex: none; white-space: nowrap; }
+
+/* one thing in a list (a booking, a link, a message): the line that matters first – time · room in its colour · state –
+   then the details, then the actions: the everyday ones visible, rare or destructive ones behind "More" */
+.r2-item { display: grid; gap: 8px; padding: 14px 2px 15px; border-bottom: var(--r2-line-w) solid var(--r2-line); min-width: 0; }
+.r2-item:last-child { border-bottom: 0; }
+.r2-item-top { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; min-width: 0; }
+.r2-item-time { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+.r2-item-room { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--c, var(--r2-fg)); }
+.r2-item-code { margin-left: auto; font: 12px ui-monospace, Menlo, monospace; color: var(--r2-sub); }
+.r2-item-sub { color: var(--r2-sub); font-size: 13px; }
+.r2-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+details.r2-more { display: inline-block; }
+details.r2-more > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border: var(--r2-line-w) solid var(--r2-line2);
+  border-radius: var(--r2-r-chip); font: 600 13px var(--r2-text); color: var(--r2-sub); transition: border-color var(--t) var(--r2-ease), color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+details.r2-more > summary::-webkit-details-marker { display: none; }
+details.r2-more > summary:hover { border-color: var(--r2-fg); color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
+details.r2-more[open] { display: block; width: 100%; } details.r2-more[open] > summary { color: var(--r2-fg); }
+details.r2-more > .r2-actions { margin-top: 8px; animation: r2-in var(--t2) var(--r2-ease) both; }
+
+/* a change of room / day / time: FROM and TO on their own lines, the room in its colour, the new one stronger */
+.r2-change { display: grid; gap: 5px; }
+.r2-change > div { display: grid; grid-template-columns: 38px auto 1fr; align-items: baseline; gap: 10px; color: var(--r2-sub); }
+.r2-change .r2-change-l { font: 400 7px var(--r2-pixel); letter-spacing: .2em; text-transform: uppercase; }
+.r2-change .r2-item-room { font-weight: 600; }
+.r2-change > .to, .r2-change > .to .r2-change-l { color: var(--r2-fg); } .r2-change > .to .r2-change-w { font-weight: 600; }
