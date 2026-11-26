@@ -81,7 +81,7 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 }
 
 #include "draw.h"
-#define TILE_V "0.16"
+#define TILE_V "0.17"   /* 0.17 (owner 27 Nov 2:43am: the "Closing in" countdown was cut ~2 s in): a load with nothing to copy waited 10 s before "ready", so ready + what happens next (4 + 6 s) ran past the menu add-on's 20-s wait and its log-out cut it. With the helper's live file: 3 s. */
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
@@ -252,7 +252,7 @@ int main() {
       if (busy) { seen_loading = 1; if (total > 0) seen_bar = 1; if (ready_t0 && !howto) ready_t0 = 0; done_since = 0; }   /* 0.11: back to loading = not the end */
       { int fin = !strcmp(st, "done") || (!strcmp(st, "off") && !strncmp(ti, "Sorry", 5));
         if (fin && seen_loading && !done_since) done_since = now_s();
-        if (fin && seen_loading && !ready_t0 && (seen_bar || now_s() - done_since >= 10)) ready_t0 = now_s(); }   /* 0.08/0.10/0.11 */
+        if (fin && seen_loading && !ready_t0 && (seen_bar || now_s() - done_since >= (lv_ok ? 3 : 10))) ready_t0 = now_s(); }   /* 0.08/0.10/0.11; 0.17: 3 s when the helper's file says done */
       /* the screen's words. Scan screen: only a status line when the room isn't simply ready (reset, can't reach Round2,
          "One moment – this PS4 is finishing a job", signed in for this session). The version + id only show with an error. */
       signedin = (B.bn > 0 && (busy || !strcmp(st, "done"))) || (!strcmp(st, "loading") && crew[0]);
@@ -296,7 +296,7 @@ int main() {
     }
     else if (mode == 2) { ready_live(S, it); draw_rows(F, C, S, B, nowt, 400, 0); }
     if (!busy) shown = 0;   /* 0.13 */
-    if (!ready_t0 && done_since && seen_loading && now_s() - done_since >= 10 && (!strcmp(st, "done") || !strcmp(st, "off"))) ready_t0 = now_s();   /* 0.11: nothing-to-load fallback */
+    if (!ready_t0 && done_since && seen_loading && now_s() - done_since >= (lv_ok ? 3 : 10) && (!strcmp(st, "done") || !strcmp(st, "off"))) ready_t0 = now_s();   /* 0.11: nothing-to-load fallback; 0.17: 3 s with the helper's file */
     if (ready_t0) {   /* 0.08: ready, then "what happens next", then close – both times from design/tile.json */
       double e = now_s() - ready_t0, tb = C.t_burst, tn = C.t_next;
       if (e >= tb && !howto) howto = 1;   /* the next frame switches to screen 4 */
