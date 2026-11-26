@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Round2 UI (name pending) – the design language from the Mac board (manager/ui/README.md). Moving the control centre over one
-     area at a time (owner, 26 Nov: "lets do the whole TVs tab"): only pages under body[data-g="tvs"] wear it so far. -->
+     area at a time – the TVs area first, then every area (owner, 26 Nov). -->
 <link rel="stylesheet" href="ui/r2-ui.css">
 <script type="module" src="ui/r2-ui.js"></script>
 <style>
@@ -609,169 +609,198 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 </style>
 <style id="r2-skin">
 /* ======================================================================================================================
-   ROUND2 UI SKIN – the TVs area (Status · PS4s · PS4 games · Test a TV). The control centre's own colour words (--bg,
+   ROUND2 UI SKIN – the whole control centre (TVs area 26 Nov, every area 26 Nov 9:30pm: owner "with this rules launch it on
+   the whole control centre"). The control centre's own colour words (--bg,
    --panel, --ink …) are pointed at the Round2 UI tokens, so every existing piece follows: monochrome (white on black /
    black on white – ◐ in the page bar), thin rounded outlines instead of filled panels, Quicksand text, the game font only
    for labels and room names, colour only for rooms and states. Behaviour is untouched – this is looks only.
-   Next areas: copy this block's selector list (and the tile changes in the page code) to their data-g.
    ====================================================================================================================== */
-html:has(body[data-g="tvs"]) { background: var(--r2-bg); }
-html body[data-g="tvs"] {
-  --bg: var(--r2-bg); --panel: transparent; --panel2: color-mix(in srgb, var(--r2-fg) 4%, transparent);
+html:has(body.r2on) { background: var(--r2-bg); }
+html body.r2on {
+  --bg: var(--r2-bg); --panel: var(--r2-bg); --panel2: color-mix(in srgb, var(--r2-fg) 5%, var(--r2-bg));
   --line: var(--r2-line); --line2: var(--r2-line2); --ink: var(--r2-fg); --mute: var(--r2-sub);
   --accent: var(--r2-fg); --ok: var(--r2-ok); --warn: var(--r2-warn); --bad: var(--r2-bad); --focus: var(--r2-fg);
   --f: var(--r2-text);   /* --c / --gc stay the area's own colour (owner, 26 Nov: "the header tabs should keep the color codings") */
   background: var(--r2-bg); color: var(--r2-fg); font-family: var(--r2-text); font-variant-numeric: tabular-nums;
 }
-html[data-theme="light"] body[data-g="tvs"] { color-scheme: light; }
-@media (prefers-color-scheme: light) { html[data-theme="auto"] body[data-g="tvs"] { color-scheme: light; } }
-body[data-g="tvs"] header.top { background: color-mix(in srgb, var(--r2-bg) 92%, transparent); }
-body[data-g="tvs"] .brand { border-color: var(--r2-fg); }
-body[data-g="tvs"] .brand.logo img { filter: var(--r2-logo-filter); }
-body[data-g="tvs"] nav.tabs button[aria-selected="true"] { background: transparent; }
+html[data-theme="light"] body.r2on { color-scheme: light; }
+@media (prefers-color-scheme: light) { html[data-theme="auto"] body.r2on { color-scheme: light; } }
+body.r2on header.top { background: color-mix(in srgb, var(--r2-bg) 92%, transparent); }
+body.r2on .brand { border-color: var(--r2-fg); }
+body.r2on .brand.logo img { filter: var(--r2-logo-filter); }
+body.r2on nav.tabs button[aria-selected="true"] { background: transparent; }
 
 /* the page bar: area label + pages as game-font tabs with a thin underline, ◐ on the right */
-body[data-g="tvs"] nav.subtabs { gap: 22px; background: var(--r2-bg); }
-body[data-g="tvs"] nav.subtabs .sect { color: var(--gc); font: 400 8px var(--r2-pixel); letter-spacing: .24em; border-right-color: var(--r2-line); gap: 10px; }
-body[data-g="tvs"] nav.subtabs .sect .ico { width: 15px; height: 15px; }
-body[data-g="tvs"] nav.subtabs button[data-tab] { position: relative; border: 0; border-radius: 0; background: none; padding: 6px 0 9px; font: 400 8px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); transition: color var(--t) var(--r2-ease); }
-body[data-g="tvs"] nav.subtabs button[data-tab]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--gc); transform: scaleX(0); transform-origin: left; opacity: 0; transition: transform var(--t2) var(--r2-ease), opacity var(--t) var(--r2-ease); }
-body[data-g="tvs"] nav.subtabs button[data-tab]:hover { color: var(--r2-fg); }
-body[data-g="tvs"] nav.subtabs button[data-tab]:hover::after { transform: scaleX(.35); opacity: .4; }
-body[data-g="tvs"] nav.subtabs button[aria-current="page"] { background: none; color: var(--r2-fg); font-weight: 400; }
-body[data-g="tvs"] nav.subtabs button[aria-current="page"]::after { transform: scaleX(1); opacity: 1; }
+body.r2on nav.subtabs { gap: 22px; background: var(--r2-bg); }
+body.r2on nav.subtabs .sect { color: var(--gc); font: 400 8px var(--r2-pixel); letter-spacing: .24em; border-right-color: var(--r2-line); gap: 10px; }
+body.r2on nav.subtabs .sect .ico { width: 15px; height: 15px; }
+body.r2on nav.subtabs button[data-tab] { position: relative; border: 0; border-radius: 0; background: none; padding: 6px 0 9px; font: 400 8px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); transition: color var(--t) var(--r2-ease); }
+body.r2on nav.subtabs button[data-tab]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--gc); transform: scaleX(0); transform-origin: left; opacity: 0; transition: transform var(--t2) var(--r2-ease), opacity var(--t) var(--r2-ease); }
+body.r2on nav.subtabs button[data-tab]:hover { color: var(--r2-fg); }
+body.r2on nav.subtabs button[data-tab]:hover::after { transform: scaleX(.35); opacity: .4; }
+body.r2on nav.subtabs button[aria-current="page"] { background: none; color: var(--r2-fg); font-weight: 400; }
+body.r2on nav.subtabs button[aria-current="page"]::after { transform: scaleX(1); opacity: 1; }
 /* ◐ dark / light / auto – in the top bar, only in areas that wear the Round2 UI */
 .r2mode { display: none; }
-body[data-g="tvs"] .r2mode { display: inline-flex; margin-left: auto; cursor: pointer; flex: none; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--r2-line2); border-radius: 6px; background: none;
+body.r2on .r2mode { display: inline-flex; margin-left: auto; cursor: pointer; flex: none; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--r2-line2); border-radius: 6px; background: none;
   font: 400 7px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-fg); transition: transform var(--t) var(--r2-ease), border-color var(--t) var(--r2-ease); }
-body[data-g="tvs"] .r2mode:hover { border-color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
-body[data-g="tvs"] .r2mode:active { transform: scale(var(--r2-press)); }
-body[data-g="tvs"] .r2mode svg { width: 12px; height: 12px; }
-@media (max-width: 560px) { body[data-g="tvs"] .r2mode { padding: 7px; } body[data-g="tvs"] .r2mode span { display: none; } }
+body.r2on .r2mode:hover { border-color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
+body.r2on .r2mode:active { transform: scale(var(--r2-press)); }
+body.r2on .r2mode svg { width: 12px; height: 12px; }
+@media (max-width: 560px) { body.r2on .r2mode { padding: 7px; } body.r2on .r2mode span { display: none; } }
 
 /* type: page titles are labels (game font); everything else Quicksand */
 /* page titles: the area's colour, with its thin bar (rounded like the logo's II) */
-body[data-g="tvs"] main > section > .row:first-child, body[data-g="tvs"] .pkhd { margin-top: 26px; align-items: center !important; }
-body[data-g="tvs"] main > section > h1:first-child { margin-top: 26px; }
-body[data-g="tvs"] main > section > .row:first-child + .sub, body[data-g="tvs"] main > section > h1 + .sub { margin-top: 6px; }
-body[data-g="tvs"] main h1 { display: flex; align-items: center; gap: 12px; font: 400 15px/1.5 var(--r2-pixel); letter-spacing: .14em; text-transform: uppercase; color: var(--gc); }
-body[data-g="tvs"] main > section > h1::before, body[data-g="tvs"] main > section > .row h1::before, body[data-g="tvs"] .pkhd h1::before { content: ''; flex: none; width: 4px; height: 1.15em; border-radius: 2px; background: var(--gc); }
-body[data-g="tvs"] .pkname { color: var(--r2-fg); }
-body[data-g="tvs"] main h3 { font-weight: 600; }
-body[data-g="tvs"] .sub { font-size: 14px; max-width: 72ch; }
-body[data-g="tvs"] .hint { font-size: 12.5px; line-height: 1.5; }
-body[data-g="tvs"] details summary { text-transform: none; letter-spacing: .01em; font-size: 13px; transition: color var(--t) var(--r2-ease); }
-body[data-g="tvs"] details summary:hover { color: var(--r2-fg); }
-body[data-g="tvs"] code, body[data-g="tvs"] pre { font-family: ui-monospace, Menlo, monospace; }
+body.r2on main > section > .row:first-child, body.r2on .pkhd { margin-top: 26px; align-items: center !important; }
+body.r2on main > section > h1:first-child { margin-top: 26px; }
+body.r2on main > section > .row:first-child + .sub, body.r2on main > section > h1 + .sub { margin-top: 6px; }
+body.r2on main h1 { display: flex; align-items: center; gap: 12px; font: 400 15px/1.5 var(--r2-pixel); letter-spacing: .14em; text-transform: uppercase; color: var(--gc); }
+body.r2on main > section > h1::before, body.r2on main > section > .row h1::before, body.r2on .pkhd h1::before { content: ''; flex: none; width: 4px; height: 1.15em; border-radius: 2px; background: var(--gc); }
+body.r2on .pkname { color: var(--r2-fg); }
+body.r2on main h3 { font-weight: 600; }
+body.r2on .sub { font-size: 14px; max-width: 72ch; }
+body.r2on .hint { font-size: 12.5px; line-height: 1.5; }
+body.r2on details summary { text-transform: none; letter-spacing: .01em; font-size: 13px; transition: color var(--t) var(--r2-ease); }
+body.r2on details summary:hover { color: var(--r2-fg); }
+body.r2on code, body.r2on pre { font-family: ui-monospace, Menlo, monospace; }
 
 /* buttons: outline, small round corners; the one solid button is the main action; rise on hover, shrink on press */
-body[data-g="tvs"] .btn, body[data-g="tvs"] .tvu, body[data-g="tvs"] .pkseg button, body[data-g="tvs"] .tlock .pick button {
+body.r2on .btn, body.r2on .tvu, body.r2on .pkseg button, body.r2on .tlock .pick button {
   border-radius: 6px; background: transparent; text-transform: none; letter-spacing: .02em; font: 600 13px var(--r2-text); box-shadow: none;
   transition: border-color var(--t) var(--r2-ease), background var(--t) var(--r2-ease), color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
-body[data-g="tvs"] .btn { padding: 9px 14px; border: 1px solid var(--r2-line2); color: var(--r2-fg); }
-body[data-g="tvs"] .btn:hover:not(:disabled), body[data-g="tvs"] .tvu:hover:not(:disabled) { border-color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
-body[data-g="tvs"] .btn:active:not(:disabled), body[data-g="tvs"] .tvu:active:not(:disabled) { transform: scale(var(--r2-press)); transition-duration: calc(var(--t) / 2); }
-body[data-g="tvs"] .btn.primary { background: var(--r2-fg); border-color: var(--r2-fg); color: var(--r2-bg); }
-body[data-g="tvs"] .btn.danger, body[data-g="tvs"] .btn.pkred { border-color: var(--r2-bad); color: var(--r2-bad); }
-body[data-g="tvs"] .btn.ghost { border-color: var(--r2-line2); }
+body.r2on .btn { padding: 9px 14px; border: 1px solid var(--r2-line2); color: var(--r2-fg); }
+body.r2on .btn:hover:not(:disabled), body.r2on .tvu:hover:not(:disabled) { border-color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
+body.r2on .btn:active:not(:disabled), body.r2on .tvu:active:not(:disabled) { transform: scale(var(--r2-press)); transition-duration: calc(var(--t) / 2); }
+body.r2on .btn.primary { background: var(--r2-fg); border-color: var(--r2-fg); color: var(--r2-bg); }
+body.r2on .btn.danger, body.r2on .btn.pkred { border-color: var(--r2-bad); color: var(--r2-bad); }
+body.r2on .btn.ghost { border-color: var(--r2-line2); }
 
 /* cards, banners, inputs */
-body[data-g="tvs"] .card { background: transparent; border: 1px solid var(--r2-line); border-radius: 12px; }
-body[data-g="tvs"] details.card > summary { color: var(--r2-fg); }
+body.r2on .card { background: transparent; border: 1px solid var(--r2-line); border-radius: 12px; }
+body.r2on details.card > summary { color: var(--r2-fg); }
 /* information boxes: a soft fill, no outline – buttons are outlines (owner, 26 Nov: "distinguish which are buttons and which are
    information boxes"; manager/ui/README.md rule 5) */
-body[data-g="tvs"] .banner { position: relative; background: color-mix(in srgb, var(--r2-fg) 6%, transparent); border: 0; border-radius: 12px; padding-left: 30px; }
-body[data-g="tvs"] .banner::before { content: ''; position: absolute; left: 14px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--r2-sub); }
-body[data-g="tvs"] .banner.ok::before { background: var(--r2-ok); } body[data-g="tvs"] .banner.warn::before { background: var(--r2-warn); }
-body[data-g="tvs"] .banner.bad { background: color-mix(in srgb, var(--r2-bad) 14%, transparent); } body[data-g="tvs"] .banner.bad::before { background: var(--r2-bad); }
-body[data-g="tvs"] input:not([type=checkbox]):not([type=radio]), body[data-g="tvs"] select, body[data-g="tvs"] textarea {
+body.r2on .banner { position: relative; background: color-mix(in srgb, var(--r2-fg) 6%, transparent); border: 0; border-radius: 12px; padding-left: 30px; }
+body.r2on .banner::before { content: ''; position: absolute; left: 14px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--r2-sub); }
+body.r2on .banner.ok::before { background: var(--r2-ok); } body.r2on .banner.warn::before { background: var(--r2-warn); }
+body.r2on .banner.bad { background: color-mix(in srgb, var(--r2-bad) 14%, transparent); } body.r2on .banner.bad::before { background: var(--r2-bad); }
+body.r2on input:not([type=checkbox]):not([type=radio]), body.r2on select, body.r2on textarea {
   border-radius: 6px; background: transparent; border: 1px solid var(--r2-line2); color: var(--r2-fg); font-family: var(--r2-text); transition: border-color var(--t) var(--r2-ease); }
-body[data-g="tvs"] input:not([type=checkbox]):not([type=radio]):focus, body[data-g="tvs"] select:focus, body[data-g="tvs"] textarea:focus { border-color: var(--r2-fg); outline: none; }
-body[data-g="tvs"] select option { background: var(--r2-bg); color: var(--r2-fg); }
-body[data-g="tvs"] input[type=checkbox] { accent-color: var(--r2-fg); }
-body[data-g="tvs"] .chip, body[data-g="tvs"] .pktag { border-radius: 6px; border-color: transparent !important; background: color-mix(in srgb, var(--r2-fg) 7%, transparent); text-transform: none; letter-spacing: .02em; font-weight: 600; }
+body.r2on input:not([type=checkbox]):not([type=radio]):focus, body.r2on select:focus, body.r2on textarea:focus { border-color: var(--r2-fg); outline: none; }
+body.r2on select option { background: var(--r2-bg); color: var(--r2-fg); }
+body.r2on input[type=checkbox] { accent-color: var(--r2-fg); }
+body.r2on .chip, body.r2on .pktag { border-radius: 6px; border-color: transparent !important; background: color-mix(in srgb, var(--r2-fg) 7%, transparent); text-transform: none; letter-spacing: .02em; font-weight: 600; }
 
 /* ---------- room tiles (Status and PS4s): like the Mac board – room name in the game font and its colour, thin outline that
    takes the room colour while the TV / PS4 is on, state as a small dot ---------- */
-body[data-g="tvs"] .tvgrid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin: 10px 0 12px; }
-body[data-g="tvs"] .p4grid { grid-template-columns: 1fr; } @media (min-width: 900px) { body[data-g="tvs"] .p4grid { grid-template-columns: repeat(2, 1fr); } }
-body[data-g="tvs"] .tvt { position: relative; border: 1px solid var(--r2-line); border-left-width: 1px; border-radius: 12px; background: transparent; padding: 15px 16px 16px;
+body.r2on .tvgrid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin: 10px 0 12px; }
+body.r2on .p4grid { grid-template-columns: 1fr; } @media (min-width: 900px) { body.r2on .p4grid { grid-template-columns: repeat(2, 1fr); } }
+body.r2on .tvt { position: relative; border: 1px solid var(--r2-line); border-left-width: 1px; border-radius: 12px; background: transparent; padding: 15px 16px 16px;
   transition: border-color var(--t2) var(--r2-ease), transform var(--t) var(--r2-ease), background var(--t) var(--r2-ease); }
-body[data-g="tvs"] .tvt:hover { transform: translateY(var(--r2-lift)); border-color: color-mix(in srgb, var(--rc) var(--r2-hover-tint), var(--r2-line)); }
-body[data-g="tvs"] .tvt.ok, body[data-g="tvs"] .tvt.lit { border-color: var(--rc); }
+body.r2on .tvt:hover { transform: translateY(var(--r2-lift)); border-color: color-mix(in srgb, var(--rc) var(--r2-hover-tint), var(--r2-line)); }
+body.r2on .tvt.ok, body.r2on .tvt.lit { border-color: var(--rc); }
 /* a TV / PS4 that's off or offline keeps the plain outline – the red is its status box (red rooms like Vale and Max own red) */
-body[data-g="tvs"] .tvt.bad, body[data-g="tvs"] .p4grid .tvt:not(.lit) { border-color: var(--r2-line) !important; }
-body[data-g="tvs"] .tvt .r2st .r2-chip { display: inline-flex; color: var(--r2-fg); }
-body[data-g="tvs"] .tvt .r2st .r2-chip > span { display: inline; font-size: 12px; color: var(--r2-fg); }
+body.r2on .tvt.bad, body.r2on .p4grid .tvt:not(.lit) { border-color: var(--r2-line) !important; }
+body.r2on .tvt .r2st .r2-chip { display: inline-flex; color: var(--r2-fg); }
+body.r2on .tvt .r2st .r2-chip > span { display: inline; font-size: 12px; color: var(--r2-fg); }
 
-body[data-g="tvs"] .tvt b { display: flex; align-items: center; gap: 9px; font: 400 11px var(--r2-pixel); letter-spacing: .12em; text-transform: uppercase; color: var(--rc); }
+body.r2on .tvt b { display: flex; align-items: center; gap: 9px; font: 400 11px var(--r2-pixel); letter-spacing: .12em; text-transform: uppercase; color: var(--rc); }
 /* the two pale room colours have darker light-mode versions in the UI tokens (Atlas white → grey, Scarlett yellow → gold) */
-body[data-g="tvs"] [style*="--rc:#E9E7EF"] { --rc: var(--r2-atlas) !important; }
-body[data-g="tvs"] [style*="--rc:#F2C21B"] { --rc: var(--r2-scarlett) !important; }
-body[data-g="tvs"] .tvt b .r2-pix { width: 14px; height: auto; }
-body[data-g="tvs"] .tvt span, body[data-g="tvs"] .p4grid .tvt span { font-size: 13px; color: var(--r2-sub); }
-body[data-g="tvs"] .p4grid .tvt { gap: 6px 14px; padding: 15px 16px 16px; }
-body[data-g="tvs"] .p4grid .tvt b { margin-bottom: 6px; }
-body[data-g="tvs"] .tvt .tvv { color: var(--r2-sub) !important; font-size: 12px; }
-body[data-g="tvs"] .tvt .tvv .uo::before, body[data-g="tvs"] .tvt .tvv .uw::before, body[data-g="tvs"] .tvt .tvv .ub::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin: 0 6px 1px 0; vertical-align: middle; background: var(--r2-ok); }
-body[data-g="tvs"] .tvt .tvv .uw::before { background: var(--r2-warn); } body[data-g="tvs"] .tvt .tvv .ub::before { background: var(--r2-bad); }
-body[data-g="tvs"] .tvt .tvv .uo, body[data-g="tvs"] .tvt .tvv .uw, body[data-g="tvs"] .tvt .tvv .ub { color: var(--r2-fg); }
-body[data-g="tvs"] .tvt .tvu { border: 1px solid var(--r2-line2); color: var(--r2-fg); padding: 7px 12px; font-size: 12.5px; }
-body[data-g="tvs"] .tvt .tvu[data-tvu] { border-color: var(--rc); }
-body[data-g="tvs"] .p4grid .tvt .tvu { padding: 9px 12px; }
-body[data-g="tvs"] .tvt details summary { font-size: 12px; }
+body.r2on [style*="--rc:#E9E7EF"] { --rc: var(--r2-atlas) !important; }
+body.r2on [style*="--rc:#F2C21B"] { --rc: var(--r2-scarlett) !important; }
+body.r2on .tvt b .r2-pix { width: 14px; height: auto; }
+body.r2on .tvt span, body.r2on .p4grid .tvt span { font-size: 13px; color: var(--r2-sub); }
+body.r2on .p4grid .tvt { gap: 6px 14px; padding: 15px 16px 16px; }
+body.r2on .p4grid .tvt b { margin-bottom: 6px; }
+body.r2on .tvt .tvv { color: var(--r2-sub) !important; font-size: 12px; }
+body.r2on .tvt .tvv .uo::before, body.r2on .tvt .tvv .uw::before, body.r2on .tvt .tvv .ub::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin: 0 6px 1px 0; vertical-align: middle; background: var(--r2-ok); }
+body.r2on .tvt .tvv .uw::before { background: var(--r2-warn); } body.r2on .tvt .tvv .ub::before { background: var(--r2-bad); }
+body.r2on .tvt .tvv .uo, body.r2on .tvt .tvv .uw, body.r2on .tvt .tvv .ub { color: var(--r2-fg); }
+body.r2on .tvt .tvu { border: 1px solid var(--r2-line2); color: var(--r2-fg); padding: 7px 12px; font-size: 12.5px; }
+body.r2on .tvt .tvu[data-tvu] { border-color: var(--rc); }
+body.r2on .p4grid .tvt .tvu { padding: 9px 12px; }
+body.r2on .tvt details summary { font-size: 12px; }
 /* the TV status tile's own pieces (written by the TVs page code) */
 .tvt .r2st { margin: 13px 0 0; }
 .tvt .r2ln { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--r2-sub); min-width: 0; }
 .tvt .r2ln.on { color: var(--r2-fg); font-weight: 600; } .tvt .r2ln.w { color: var(--r2-warn); }
 .tvt .r2ln > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-body[data-g="tvs"] .tvt .r2ln.on > span { color: var(--r2-fg); } body[data-g="tvs"] .tvt .r2ln.w > span { color: var(--r2-warn); }
+body.r2on .tvt .r2ln.on > span { color: var(--r2-fg); } body.r2on .tvt .r2ln.w > span { color: var(--r2-warn); }
 .tvt .r2ln .r2-pix { width: 11px; height: auto; }
-body[data-g="tvs"] .tvt .tvv { display: block; margin-top: 12px; }
+body.r2on .tvt .tvv { display: block; margin-top: 12px; }
 
 /* "How this page works": the long explanations, folded away (owner, 26 Nov: on phones every page's instructions just wrap
    into walls of text) */
-body[data-g="tvs"] details.r2help { margin-top: 18px; border-top: 1px solid var(--r2-line); padding-top: 12px; }
-body[data-g="tvs"] details.r2help > summary { font: 400 8px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); padding: 6px 0; list-style: none; display: flex; align-items: center; gap: 10px; }
-body[data-g="tvs"] details.r2help > summary::-webkit-details-marker { display: none; }
-body[data-g="tvs"] details.r2help > summary::before { content: '+'; font: 600 14px var(--r2-text); width: 16px; text-align: center; transition: transform var(--t) var(--r2-ease); }
-body[data-g="tvs"] details.r2help[open] > summary::before { transform: rotate(45deg); }
-body[data-g="tvs"] details.r2help .hint { margin: 10px 0 0; max-width: 80ch; }
+body.r2on details.r2help { margin-top: 18px; border-top: 1px solid var(--r2-line); padding-top: 12px; }
+body.r2on details.r2help > summary { font: 400 8px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); padding: 6px 0; list-style: none; display: flex; align-items: center; gap: 10px; }
+body.r2on details.r2help > summary::-webkit-details-marker { display: none; }
+body.r2on details.r2help > summary::before { content: '+'; font: 600 14px var(--r2-text); width: 16px; text-align: center; transition: transform var(--t) var(--r2-ease); }
+body.r2on details.r2help[open] > summary::before { transform: rotate(45deg); }
+body.r2on details.r2help .hint { margin: 10px 0 0; max-width: 80ch; }
 @media (max-width: 560px) {
-  body[data-g="tvs"] .sub { font-size: 13px; margin-bottom: 12px; }
-  body[data-g="tvs"] .tvt .r2ln.adb { display: none; }   /* the PC toolkit address – not needed on a phone */
-  body[data-g="tvs"] main h1 { font-size: 13px; }
+  body.r2on .sub { font-size: 13px; margin-bottom: 12px; }
+  body.r2on .tvt .r2ln.adb { display: none; }   /* the PC toolkit address – not needed on a phone */
+  body.r2on main h1 { font-size: 13px; }
 }
 
 /* PS4 games page */
-body[data-g="tvs"] .pkseg { gap: 6px; }
-body[data-g="tvs"] .pkseg button { border: 1px solid var(--r2-line2); color: var(--r2-sub); padding: 10px 4px; }
-body[data-g="tvs"] .pkseg button[aria-pressed="true"], body[data-g="tvs"] .pkseg button.on { border-color: var(--r2-fg); color: var(--r2-fg); }
-body[data-g="tvs"] .pkrc button.on, body[data-g="tvs"] .pktog.on { background: transparent; color: var(--r2-fg); border-color: var(--r2-fg); }
-body[data-g="tvs"] .pkrc button.on small { color: var(--r2-sub); }
-body[data-g="tvs"] .pkrc button:not(.on), body[data-g="tvs"] .pktog:not(.on) { background: transparent; }
-body[data-g="tvs"] .pkrc button, body[data-g="tvs"] .pktog { border-radius: 6px; transition: border-color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
-body[data-g="tvs"] .pkrc button:hover, body[data-g="tvs"] .pktog:hover { transform: translateY(var(--r2-lift)); border-color: var(--r2-fg); }
-body[data-g="tvs"] .pkname { font: 400 16px/1.5 var(--r2-pixel); letter-spacing: .1em; text-transform: uppercase; }
-body[data-g="tvs"] .pklbl { font: 400 8px var(--r2-pixel); letter-spacing: .24em; color: var(--r2-sub); }
-body[data-g="tvs"] .pkcard, body[data-g="tvs"] .pkx { border-radius: 12px; background: transparent; }
+body.r2on .pkseg { gap: 6px; }
+body.r2on .pkseg button { border: 1px solid var(--r2-line2); color: var(--r2-sub); padding: 10px 4px; }
+body.r2on .pkseg button[aria-pressed="true"], body.r2on .pkseg button.on { border-color: var(--r2-fg); color: var(--r2-fg); }
+body.r2on .pkrc button.on, body.r2on .pktog.on { background: transparent; color: var(--r2-fg); border-color: var(--r2-fg); }
+body.r2on .pkrc button.on small { color: var(--r2-sub); }
+body.r2on .pkrc button:not(.on), body.r2on .pktog:not(.on) { background: transparent; }
+body.r2on .pkrc button, body.r2on .pktog { border-radius: 6px; transition: border-color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+body.r2on .pkrc button:hover, body.r2on .pktog:hover { transform: translateY(var(--r2-lift)); border-color: var(--r2-fg); }
+body.r2on .pkname { font: 400 16px/1.5 var(--r2-pixel); letter-spacing: .1em; text-transform: uppercase; }
+body.r2on .pklbl { font: 400 8px var(--r2-pixel); letter-spacing: .24em; color: var(--r2-sub); }
+body.r2on .pkcard, body.r2on .pkx { border-radius: 12px; background: transparent; }
 
-body[data-g="tvs"] .pkpills span { border-radius: 4px; background: transparent; border: 1px solid var(--r2-line); }
-body[data-g="tvs"] .pkrow, body[data-g="tvs"] .pkchk { transition: background var(--t) var(--r2-ease), padding var(--t) var(--r2-ease); border-radius: 4px; }
-body[data-g="tvs"] .pkrow:hover { background: color-mix(in srgb, var(--r2-fg) 5%, transparent); padding-left: 8px; }
+body.r2on .pkpills span { border-radius: 4px; background: transparent; border: 1px solid var(--r2-line); }
+body.r2on .pkrow, body.r2on .pkchk { transition: background var(--t) var(--r2-ease), padding var(--t) var(--r2-ease); border-radius: 4px; }
+body.r2on .pkrow:hover { background: color-mix(in srgb, var(--r2-fg) 5%, transparent); padding-left: 8px; }
 
 /* Test a TV */
-body[data-g="tvs"] .tlock { border-radius: 12px; background: transparent; border-color: var(--r2-line2); }
-body[data-g="tvs"] .tlock.on { border-color: var(--r2-ok); }
-body[data-g="tvs"] .tlock .pick button { border: 1px solid var(--r2-line2); padding: 7px 12px; }
-body[data-g="tvs"] .tlock .pick button[aria-pressed="true"] { background: transparent; border-color: var(--rc); color: var(--r2-fg); }
-body[data-g="tvs"] .tcard { border-top: 1px solid var(--r2-line); border-radius: 12px; }
-body[data-g="tvs"] .tcard h3 { display: flex; align-items: center; gap: 10px; font: 400 13px var(--r2-pixel); letter-spacing: .12em; color: var(--rc); }
-body[data-g="tvs"] .tcard h3 .r2-pix { width: 15px; height: auto; }
-body[data-g="tvs"] .tst { color: var(--r2-sub); }
+body.r2on .tlock { border-radius: 12px; background: transparent; border-color: var(--r2-line2); }
+body.r2on .tlock.on { border-color: var(--r2-ok); }
+body.r2on .tlock .pick button { border: 1px solid var(--r2-line2); padding: 7px 12px; }
+body.r2on .tlock .pick button[aria-pressed="true"] { background: transparent; border-color: var(--rc); color: var(--r2-fg); }
+body.r2on .tcard { border-top: 1px solid var(--r2-line); border-radius: 12px; }
+body.r2on .tcard h3 { display: flex; align-items: center; gap: 10px; font: 400 13px var(--r2-pixel); letter-spacing: .12em; color: var(--rc); }
+body.r2on .tcard h3 .r2-pix { width: 15px; height: auto; }
+body.r2on .tst { color: var(--r2-sub); }
+
+/* ---------- the rest of the control centre (every area) ---------- */
+/* selected buttons (filters, segments, room pickers): an outline in the area's / room's colour with a light tint – never a
+   solid block with dark text (that broke in light mode) */
+body.r2on button[aria-pressed="true"] { background: color-mix(in srgb, var(--rc, var(--gc)) 14%, transparent) !important; border-color: var(--rc, var(--gc)) !important; color: var(--r2-fg) !important; box-shadow: none !important; }
+body.r2on .alf button, body.r2on .seg button, body.r2on .roompick button, body.r2on .sw .opts button, body.r2on .agtabs button, body.r2on .mvt {
+  border-radius: 6px; transition: border-color var(--t) var(--r2-ease), background var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+body.r2on .alf button:hover, body.r2on .seg button:hover, body.r2on .roompick button:hover, body.r2on .sw .opts button:hover, body.r2on .mvt:hover { transform: translateY(var(--r2-lift)); }
+/* information tags */
+body.r2on .chip.clock { background: color-mix(in srgb, var(--r2-fg) 12%, transparent); color: var(--r2-fg); }
+body.r2on .chip.live, body.r2on .chip.hbok, body.r2on .chip.ack { color: var(--r2-fg); background: color-mix(in srgb, var(--r2-ok) 16%, transparent); }
+body.r2on .chip.soon, body.r2on .chip.pending { color: var(--r2-fg); background: color-mix(in srgb, var(--r2-warn) 16%, transparent); }
+body.r2on .chip.room { color: var(--rc); background: color-mix(in srgb, var(--rc) 12%, transparent); }
+body.r2on .hnum > b { background: var(--gc); color: var(--r2-bg); border-radius: 6px; }
+body.r2on .mcal .d.has { background: color-mix(in srgb, var(--gc) 14%, transparent); border-color: var(--gc); }
+/* lists and rows */
+body.r2on .alrow, body.r2on .tnr, body.r2on .ag { border-radius: 10px; }
+body.r2on .room { border-top: 1px solid var(--r2-line); border-radius: 12px; }
+body.r2on .room h3 { display: flex; align-items: center; gap: 10px; font: 400 13px var(--r2-pixel); letter-spacing: .12em; color: var(--rc); }
+body.r2on .room h3 .r2-pix { width: 15px; height: auto; }
+/* pop-up windows (edit an event, a room, a sound): solid, rounded, and they open with the same motion as R2UI.ask */
+body.r2on dialog { background: var(--r2-bg); color: var(--r2-fg); border: 1px solid var(--r2-line2); border-radius: 14px; }
+body.r2on dialog[open] { animation: r2-pop var(--t2) var(--r2-ease) both; }
+body.r2on dialog::backdrop { background: color-mix(in srgb, #000 58%, transparent); animation: r2-fade var(--t2) var(--r2-ease) both; }
+/* phones: a page's intro is two lines at most – tap it to read the rest (owner, 26 Nov: no walls of wrapped text) */
+@media (max-width: 560px) {
+  body.r2on main .sub { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+  body.r2on main .sub.open { display: block; -webkit-line-clamp: unset; }
+}
 </style>
 </head>
-<body>
+<body class="r2on">
 <header class="top"><div class="wrap">
   <div class="brand" id="brand">ROUND2 <small>CONTROL CENTRE</small></div>
   <button type="button" class="r2mode" id="r2mode" title="Dark / light / auto"><svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 .75a5.25 5.25 0 0 1 0 10.5z" fill="currentColor"/></svg><span>dark</span></button>
@@ -1811,7 +1840,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
   function idle() { return document.hidden || Date.now() - r2Touch > 10 * 60000; }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
   function toast(m) {
-    if (window.R2UI && ['tvs'].indexOf(document.body.getAttribute('data-g')) >= 0) { R2UI.toast(m); return; }   /* Round2 UI areas: the animated note (26 Nov) */
+    if (window.R2UI) { R2UI.toast(m); return; }   /* Round2 UI areas: the animated note (26 Nov) */
     var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
   function ymd(d) {   /* day-ok: formats a date it's given */
    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
@@ -1984,7 +2013,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
   };
   $('tok').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('tokGo').click(); });
   document.addEventListener('click', function (e) {
-    if (e.target && e.target.id === 'signout') { if (confirm('Remove the GitHub key from this computer?')) { ls('r2m.token', null); location.reload(); } }
+    if (e.target && e.target.id === 'signout') { if (r2gate('signout', 'Remove the GitHub key from this computer?', function () { ls('r2m.token', null); location.reload(); })) { ls('r2m.token', null); location.reload(); } }
   });
   $('devName').textContent = /Mac/.test(navigator.platform) ? 'Mac' : /Win/.test(navigator.platform) ? 'Windows PC' : 'this computer';
 
@@ -3014,7 +3043,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     }
     /* tap the open booking again → close it (owner, 16 Nov: "after opening 1 entry I can't click it again to close") */
     function unpick() {
-      if (cur.ref && !confirm('A payment for this move is still waiting. Close it anyway? (A guest who pays later is still moved by the engine.)')) return;
+      if (cur.ref && !r2gate('mvun', 'A payment for this move is still waiting. Close it anyway?\n\nA guest who pays later is still moved by the engine.', function () { unpick(); })) return;
       stop(); cur.bk = null; cur.slot = null; cur.q = null; cur.ref = '';
       [].forEach.call($('mvList').querySelectorAll('.mvbk'), function (el) { el.setAttribute('aria-pressed', 'false'); });
       $('mvPick').hidden = true; $('mvQuote').hidden = true; $('mvFree').innerHTML = ''; $('mvPay').innerHTML = '';
@@ -3110,7 +3139,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     function stop() { if (cur.poll) clearInterval(cur.poll); cur.poll = null; }
     function now(how) {
       if (!cur.q || needWhy()) return;
-      if (how === 'shop' && !confirm('Paid ' + $('mvTotal').querySelector('b').textContent + ' in the HitPay app (Tap to Pay)? The booking moves now.')) return;
+      if (how === 'shop' && !r2gate('mvpaid', 'Paid ' + $('mvTotal').querySelector('b').textContent + ' in the HitPay app (Tap to Pay)?\n\nThe booking moves now.', function () { now(how); })) return;
       $('mvPay').innerHTML = '<p class="hint">Moving…</p>';
       gm(Object.assign({ action: 'mvnow', how: how }, base())).then(function (j) { if (j.error) { $('mvPay').innerHTML = '<p class="hint">' + esc(j.error) + '</p>'; return; } done(j.moved); });
     }
@@ -3291,7 +3320,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     };
     $('sRecent').addEventListener('click', function (e) {
       var u = e.target.getAttribute && e.target.getAttribute('data-undo'); if (!u) return;
-      if (!confirm('Undo this extension? The EXT notes are deleted and the messages go back to the old times.')) return;
+      if (!r2gate('undo:' + u, 'Undo this extension?\n\nThe EXT notes are deleted and the messages go back to the old times.', function () { var x = document.querySelector('[data-undo="' + u + '"]'); if (x) x.click(); })) return;
       e.target.disabled = true;
       call({ action: 'extundo', id: u }).then(function (j) { toast(j && j.ok ? 'Undone' + ((j.problems || []).length ? ' (some parts need a look: ' + j.problems.join('; ') + ')' : '') : 'Couldn’t undo: ' + ((j && j.error) || 'no answer')); load(); });
     });
@@ -4715,7 +4744,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     }
     $('scGo').onclick = function () {   /* a full run costs ~650 SimplyBook requests: say so when the day is already busy */
       gm({ action: 'auto', lite: '1' }).then(function (a) { return a.sbToday || 0; }, function () { return 0; }).then(function (n) {
-        if (n > 4000 && !confirm('SimplyBook has had ' + n + ' requests today (guideline ~5,000, hard stop ~10,000).\n\nA full check adds about 650. For changes that can’t touch bookings, use the Light check instead.\n\nRun the full check anyway?')) return;
+        if (n > 4000 && !r2gate('scfull', 'SimplyBook has had ' + n + ' requests today (guideline ~5,000, hard stop ~10,000).\n\nA full check adds about 650. For changes that can’t touch bookings, use the Light check instead.\n\nRun the full check anyway?', function () { $('scGo').click(); })) return;
         run(false);
       });
     };
@@ -4764,7 +4793,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
           $('tab-autowrap').addEventListener('click', function (e) {
             var b = e.target.closest && e.target.closest('button'); if (!b) return;
             var sw = b.getAttribute('data-aw'), k = b.getAttribute('data-awk');
-            if (sw) { if (sw === 'off' && !confirm('Turn off auto wrap-up? Messages already queued stay; nothing new is added.')) return; b.disabled = true; b.textContent = '…'; load({ set: sw, by: 'control centre' }); }
+            if (sw) { if (sw === 'off' && !r2gate('awoff', 'Turn off auto wrap-up?\n\nMessages already queued stay; nothing new is added.', function () { b.click(); })) return; b.disabled = true; b.textContent = '…'; load({ set: sw, by: 'control centre' }); }
             else if (k) { b.disabled = true; load({ key: k, sess: b.getAttribute('data-aws') }); }
           });
         }
@@ -4862,7 +4891,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     function test(kind) { msg('Sending…'); withSub(function (sub) { return api('/push/test', { endpoint: sub.endpoint, kind: kind || '' }).then(function (j) { msg(j.ok ? 'Sent. It should pop up within a few seconds (lock the phone to see it on the lock screen).' : j.error, !j.ok); }); }); }
     function save() { var ks = kinds(); withSub(function (sub) { return api('/push/sub', { sub: sub.toJSON(), kinds: ks, label: label() }).then(function (j) { if (j.error) throw new Error(j.error); toast('Saved.'); return refresh(); }); }); }
     function off() {
-      if (!confirm('Stop alerts on this phone?')) return;
+      if (!r2gate('pushoff', 'Stop alerts on this phone?', function () { off(); })) return;
       withSub(function (sub) { return api('/push/unsub', { endpoint: sub.endpoint }).then(function () { return sub.unsubscribe(); }).then(function () { toast('Alerts are off for this phone.'); return refresh(); }); });
     }
     /* Did the alerts arrive? (owner, 14 Nov: "the reminders don't come on time", 2–3 copies at once). Every phone tells the
@@ -5020,7 +5049,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     }
     function del(id) {
       var k = find(id);
-      if (!confirm('Remove the ' + k.name + ' from this device? The pages it opens will lock until it’s added again.')) return;
+      if (!r2gate('kdel:' + id, 'Remove the ' + k.name + ' from this device?\n\nThe pages it opens will lock until it’s added again.', function () { del(id); })) return;
       ls(k.store, null);
       if (id === 'gh') { dropMenuKey(); location.reload(); return; }
       if (id === 'staff') document.querySelectorAll('iframe.gframe').forEach(function (f) { f.removeAttribute('src'); });
@@ -5066,7 +5095,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
       };
       $('keysWipe').onclick = function () {
         if (!unlocked) return;
-        if (!confirm('Remove every key from this device? Everything except Home, Website, the systems list and Help will lock until keys are added again.')) return;
+        if (!r2gate('kwipe', 'Remove every key from this device?\n\nEverything except Home, Website, the systems list and Help will lock until keys are added again.', function () { $('keysWipe').click(); })) return;
         LIST.forEach(function (k) { ls(k.store, null); });
         dropMenuKey();
         ls('r2m.tab', 'keys'); location.reload();
@@ -5098,7 +5127,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
         var n = b.getAttribute('data-kxs') || b.getAttribute('data-kxx');
         if (b.id === 'kExpAdd') { var nm = $('kExpName').value.trim(), d = $('kExpDate').value; if (!nm || !d) { $('kExpMsg').textContent = 'Type the key’s name and pick its expiry date.'; return; } $('kExpMsg').textContent = ''; expLoad({ do: 'set', name: nm, label: nm, date: d }); $('kExpName').value = ''; $('kExpDate').value = ''; return; }
         if (b.hasAttribute('data-kxs')) { var inp = $('kExp').querySelector('input[data-kxd="' + n + '"]'); expLoad({ do: 'set', name: n, date: inp ? inp.value : '' }); return; }
-        if (b.hasAttribute('data-kxx')) { if (n !== 'GH_TOKEN' && !confirm('Remove this date?')) return; expLoad({ do: 'del', name: n }); }
+        if (b.hasAttribute('data-kxx')) { if (n !== 'GH_TOKEN' && !r2gate('kxx:' + n, 'Remove this date?', function () { b.click(); })) return; expLoad({ do: 'del', name: n }); }
       });
     }
     return { open: function () { if (!ready) { ready = true; init(); } setLock(!gated()); draw(); expInit(); expLoad(); }, close: function () { if (ready) setLock(true); } };
@@ -5144,7 +5173,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     var t = null;
     function unsaved() { return !!document.querySelector('dialog[open]') || ($('mText') && $('mText').value.trim() && !$('tab-messages').hidden); }
     function go(home) {
-      if (unsaved() && !confirm('Reload the control centre? Anything not sent or saved yet will be lost.')) return;
+      if (unsaved() && !r2gate('reload', 'Reload the control centre?\n\nAnything not sent or saved yet will be lost.', function () { go(home); })) return;
       if (home) ls('r2m.tab', 'home');
       location.reload();
     }
@@ -5259,14 +5288,14 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
   /* four main tabs, each with its own pages; a main tab reopens on the page last used in it */
   $('tabs').addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('[data-group]'), g = t && t.getAttribute('data-group'); if (g) { var s = ls('r2m.sub.' + g); tab(s && groupOf(s) === g ? s : GROUPS[g][0][0]); } });
   /* ---- Round2 UI (name pending; manager/ui/README.md) – which areas wear it, the light/dark switch, room icons ---- */
-  function r2areas() { return ['tvs']; }   /* add an area's name here once it's moved over (body[data-g] + the r2-skin block) */
+  function r2areas() { return Object.keys(GROUPS); }   /* every area wears the Round2 UI (26 Nov) */
   /* a question that needs a yes: in Round2 UI areas the animated pop-up (R2UI.ask), elsewhere the browser's box as before.
      The pop-up can't stop the code the way confirm() does, so the action asks first and runs again once the answer is yes. */
   var r2pass = {};
   function r2gate(k, text, redo, no) {
     if (r2pass[k]) { delete r2pass[k]; return true; }
-    if (!window.R2UI || r2areas().indexOf(document.body.getAttribute('data-g')) < 0) { var y = confirm(text); if (!y && no) no(); return y; }
-    R2UI.ask(text, { ok: /^(Remove|Delete|Take|Put \d+ PS4)/.test(text) ? 'Yes' : 'Yes, go ahead', danger: /^(Remove|Delete)/.test(text) })
+    if (!window.R2UI || r2areas().indexOf(document.body.getAttribute('data-g')) < 0 || document.querySelector('dialog[open]')) { var y = confirm(text); if (!y && no) no(); return y; }   /* an open edit window sits above every pop-up: keep the browser's box there */
+    R2UI.ask(text, { ok: /^(Remove|Delete|Take|Put \d+ PS4|Stop|Turn off|Undo)/.test(text) ? 'Yes' : 'Yes, go ahead', danger: /^(Remove|Delete|Stop alerts|Turn off)/.test(text) })
       .then(function (ok) { if (ok) { r2pass[k] = 1; redo(); } else if (no) no(); });
     return false;
   }
@@ -5274,13 +5303,46 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
   /* room names on tiles and cards get their pixel icon (the same set as the TV menu, iPhone widget and Mac board) */
   function r2deco() {
     if (!window.R2UI || r2areas().indexOf(document.body.getAttribute('data-g')) < 0) return;
-    Array.prototype.forEach.call(document.querySelectorAll('main .tvt b, main .tcard h3'), function (el) {
+    Array.prototype.forEach.call(document.querySelectorAll('main .tvt b, main .tcard h3, main .room h3'), function (el) {
       if (el.querySelector('svg') || el.closest('.tvv')) return;
       var R = R2UI.room(el.textContent.trim()); if (!R.cls) return;
       el.insertAdjacentHTML('afterbegin', R2UI.pixSvg(R.icon, el.tagName === 'H3' ? 15 : 14, 'var(--rc)'));
     });
   }
   $('r2mode').addEventListener('click', function () { var m = r2mode(r2mode() === 'dark' ? 'light' : r2mode() === 'light' ? 'auto' : 'dark'); document.documentElement.setAttribute('data-theme', m); $('r2mode').querySelector('span').textContent = m; });
+  (function r2help() {
+    Array.prototype.forEach.call(document.querySelectorAll('main > section'), function (sec) {
+      var run = [], el = sec.lastElementChild;
+      while (el && el.matches('p.hint') && !el.id && !el.closest('details')) { run.unshift(el); el = el.previousElementSibling; }
+      if (!run.length || sec.querySelector(':scope > details.r2help')) return;
+      var d = document.createElement('details'); d.className = 'r2help'; d.innerHTML = '<summary>How this page works</summary>';
+      sec.insertBefore(d, run[0]); run.forEach(function (p) { d.appendChild(p); });
+    });
+  })();
+  document.querySelector('main').addEventListener('click', function (e) { var s2 = e.target.closest && e.target.closest('.sub'); if (s2 && !e.target.closest('a,button,input,select')) s2.classList.toggle('open'); });
+  /* the pages shown inside the control centre (Add a session, Guest links) are their own pages: dress them in the same
+     Round2 UI from here – same tokens, buttons/information rule, light/dark (same-origin frames only) */
+  var R2FRAME = ':root:root{--bg:var(--r2-bg);--panel:var(--r2-bg);--panel2:color-mix(in srgb,var(--r2-fg) 5%,var(--r2-bg));--line:var(--r2-line);--line2:var(--r2-line2);' +
+    '--ink:var(--r2-fg);--mute:var(--r2-sub);--acc:var(--r2-fg);--accent:var(--r2-fg);--ok:var(--r2-ok);--warn:var(--r2-warn);--bad:var(--r2-bad);--focus:var(--r2-fg);--f:var(--r2-text)}' +
+    'html[data-theme=light]{color-scheme:light}html,body{font-family:var(--r2-text)!important;font-variant-numeric:tabular-nums}body.embed{background:transparent}' +
+    'button,.btn{border-radius:6px!important;text-transform:none!important;letter-spacing:.02em!important;transition:border-color var(--t) var(--r2-ease),background var(--t) var(--r2-ease),transform var(--t) var(--r2-ease)}' +
+    'button:hover:not(:disabled),.btn:hover:not(:disabled){transform:translateY(var(--r2-lift))}button:active:not(:disabled),.btn:active:not(:disabled){transform:scale(var(--r2-press))}' +
+    '.btn{background:transparent!important;border:1px solid var(--r2-line2)!important;color:var(--r2-fg)!important}.btn.primary,.btn.ok{background:var(--r2-fg)!important;border-color:var(--r2-fg)!important;color:var(--r2-bg)!important}' +
+    '.btn.danger.sure{background:var(--r2-bad)!important;color:#fff!important}button[aria-pressed=true]{background:color-mix(in srgb,var(--rc,var(--r2-fg)) 14%,transparent)!important;border-color:var(--rc,var(--r2-fg))!important;color:var(--r2-fg)!important}' +
+    'button[aria-pressed=true] .n{color:var(--r2-fg)!important}.mini{background:color-mix(in srgb,var(--r2-fg) 5%,transparent)!important;border:0!important;border-radius:10px}' +
+    'input,select,textarea{border-radius:6px!important;background:transparent!important;color:var(--r2-fg)!important;border-color:var(--r2-line2)!important;font-family:var(--r2-text)!important}' +
+    '.card,.panel,section.card{border-radius:12px!important}h1,h2{font-family:var(--r2-pixel)!important;font-weight:400!important;letter-spacing:.12em!important;font-size:14px!important;text-transform:uppercase}';
+  function r2frame(f) {
+    try {
+      var d = f.contentDocument; if (!d || !d.documentElement) return;
+      d.documentElement.setAttribute('data-theme', document.documentElement.getAttribute('data-theme') || 'dark');
+      if (d.getElementById('r2kit')) return;
+      var l = d.createElement('link'); l.id = 'r2kit'; l.rel = 'stylesheet'; l.href = new URL('ui/r2-ui.css', location.href).href; d.head.appendChild(l);
+      var st = d.createElement('style'); st.textContent = R2FRAME; d.head.appendChild(st);
+    } catch (e) {}
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('iframe.gframe'), function (f) { f.addEventListener('load', function () { r2frame(f); }); });
+  new MutationObserver(function () { Array.prototype.forEach.call(document.querySelectorAll('iframe.gframe'), r2frame); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   var r2q = 0; new MutationObserver(function () { if (!r2q) r2q = requestAnimationFrame(function () { r2q = 0; r2deco(); }); }).observe(document.querySelector('main'), { childList: true, subtree: true });
   $('subtabs').addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-tab]'); if (b) tab(b.getAttribute('data-tab')); });
@@ -5839,7 +5901,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     });
   };
   $('pinReset').onclick = function () {
-    if (!confirm('Set every TV back to the default PIN, 555913?')) return;
+    if (!r2gate('pinreset', 'Set every TV back to the default PIN, 555913?', function () { $('pinReset').click(); })) return;
     data.staff = data.staff || {}; delete data.staff.pinHash; delete data.staff.pinLength;
     saveSettings('Staff PIN reset to default');
   };
@@ -5904,7 +5966,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     var c = document.getElementById('wgCopy'), r = document.getElementById('wgReset');
     if (c) c.onclick = function () { make(false); };
     var mc = document.getElementById('wgMac'); if (mc) mc.onclick = function () { make(false, 'mac'); };
-    if (r) r.onclick = function () { if (confirm('Make a new widget key? Widgets on every phone stop until they get the script again.')) make(true); };
+    if (r) r.onclick = function () { if (r2gate('wkey', 'Make a new widget key?\n\nWidgets on every phone stop until they get the script again.', function () { make(true); })) make(true); };
   })();
 
   /* ---------- start ---------- */
