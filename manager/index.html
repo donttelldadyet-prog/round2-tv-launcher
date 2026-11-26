@@ -620,6 +620,11 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
 #p4CsAutoMsg { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 </style>
 <style id="r2-skin">
+/* 27 Nov 4:20am (owner: "small headings like guest name, night of … consistent … for a keyed in box"): ONE field-label style on every
+   staff page = the kit's .r2-label (ui/r2-ui.css): 13.5px semibold, normal case, the text colour a little softer. The box's own text stays regular. */
+body label.f, body .f > span.f, body label.hint[for], .r2-label { font-size: 13.5px; font-weight: 600; letter-spacing: .01em; text-transform: none; color: color-mix(in srgb, var(--ink) 82%, transparent); }
+body label.f input, body label.f select, body label.f textarea, body label.hint[for] input, body label.hint[for] select { font-weight: 400; letter-spacing: 0; text-transform: none; }
+
 /* ======================================================================================================================
    ROUND2 UI SKIN – the whole control centre (TVs area 26 Nov, every area 26 Nov 9:30pm: owner "with this rules launch it on
    the whole control centre"). The control centre's own colour words (--bg,

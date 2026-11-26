@@ -82,6 +82,9 @@ Owner: *"everything is white and is separated by font size and font so it's hard
 8. **Related buttons are one even group** (`.r2-grp`): same widths, one block; on phones two across, a longer one spans the row
    (`.wide`). No emoji in buttons – words (and pixel icons if needed).
 9. **One short intro line per page**; explanations go in "+ How this page works" at the bottom; phones show 2 lines of intro.
+10. **Field labels look the same everywhere** (owner, 27 Nov): the small heading over a box you type in or pick from ("Guest name",
+   "Night of", "Mobile") is `.r2-label` – 13.5px semibold, normal case, text colour slightly softer; the box's own text stays
+   regular. Not uppercase-spaced, not grey hint text, not bold headings. Tick boxes keep their sentence in regular text.
 
 ## Motion (hover, press, reactions)
 

@@ -29,8 +29,12 @@ body.embed header, body.embed .wrap > h1, body.embed .wrap > .sub { display: non
 h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: .04em; }
 .sub, .hint { color: var(--mute); font-size: 14px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-top: 2px solid var(--ok); padding: 16px; margin: 12px 0; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-label { display: block; font-size: 13px; color: var(--mute); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-items: end; }   /* 27 Nov: boxes side by side line up even when one label wraps to two lines (Guest leaves / Pax) */
+/* 27 Nov 4:20am (owner: "small headings like guest name, night of … consistent … for a keyed in box"): ONE field-label style on every
+   staff page = the kit's .r2-label (ui/r2-ui.css): 13.5px semibold, normal case, the text colour a little softer. The box's own text stays regular. */
+label { display: block; font-size: 13.5px; font-weight: 600; letter-spacing: .01em; text-transform: none; color: color-mix(in srgb, var(--ink) 82%, transparent); }
+label input, label select, label textarea { font-weight: 400; letter-spacing: 0; text-transform: none; }
+label:has(input[type=checkbox]), label:has(input[type=radio]) { font-weight: 400; color: var(--ink); }
 input, select { display: block; width: 100%; margin-top: 5px; background: var(--panel2); color: var(--ink); border: 1px solid var(--line); padding: 11px 10px; font: inherit; border-radius: 0; -webkit-appearance: none; appearance: none; min-height: 46px; }
 input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -2px; }
 .rooms { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
