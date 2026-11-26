@@ -620,7 +620,7 @@ html body[data-g="tvs"] {
   --bg: var(--r2-bg); --panel: transparent; --panel2: color-mix(in srgb, var(--r2-fg) 4%, transparent);
   --line: var(--r2-line); --line2: var(--r2-line2); --ink: var(--r2-fg); --mute: var(--r2-sub);
   --accent: var(--r2-fg); --ok: var(--r2-ok); --warn: var(--r2-warn); --bad: var(--r2-bad); --focus: var(--r2-fg);
-  --c: var(--r2-fg); --gc: var(--r2-fg); --f: var(--r2-text);
+  --f: var(--r2-text);   /* --c / --gc stay the area's own colour (owner, 26 Nov: "the header tabs should keep the color codings") */
   background: var(--r2-bg); color: var(--r2-fg); font-family: var(--r2-text); font-variant-numeric: tabular-nums;
 }
 html[data-theme="light"] body[data-g="tvs"] { color-scheme: light; }
@@ -628,15 +628,14 @@ html[data-theme="light"] body[data-g="tvs"] { color-scheme: light; }
 body[data-g="tvs"] header.top { background: color-mix(in srgb, var(--r2-bg) 92%, transparent); }
 body[data-g="tvs"] .brand { border-color: var(--r2-fg); }
 body[data-g="tvs"] .brand.logo img { filter: var(--r2-logo-filter); }
-body[data-g="tvs"] nav.tabs button[aria-selected="true"] { background: transparent; border-bottom-color: var(--r2-fg); }
-body[data-g="tvs"] nav.tabs button .ico { color: var(--r2-sub); }
+body[data-g="tvs"] nav.tabs button[aria-selected="true"] { background: transparent; }
 
 /* the page bar: area label + pages as game-font tabs with a thin underline, ◐ on the right */
 body[data-g="tvs"] nav.subtabs { gap: 22px; background: var(--r2-bg); }
-body[data-g="tvs"] nav.subtabs .sect { color: var(--r2-sub); font: 400 8px var(--r2-pixel); letter-spacing: .24em; border-right-color: var(--r2-line); gap: 10px; }
+body[data-g="tvs"] nav.subtabs .sect { color: var(--gc); font: 400 8px var(--r2-pixel); letter-spacing: .24em; border-right-color: var(--r2-line); gap: 10px; }
 body[data-g="tvs"] nav.subtabs .sect .ico { width: 15px; height: 15px; }
 body[data-g="tvs"] nav.subtabs button[data-tab] { position: relative; border: 0; border-radius: 0; background: none; padding: 6px 0 9px; font: 400 8px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); transition: color var(--t) var(--r2-ease); }
-body[data-g="tvs"] nav.subtabs button[data-tab]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--r2-fg); transform: scaleX(0); transform-origin: left; opacity: 0; transition: transform var(--t2) var(--r2-ease), opacity var(--t) var(--r2-ease); }
+body[data-g="tvs"] nav.subtabs button[data-tab]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--gc); transform: scaleX(0); transform-origin: left; opacity: 0; transition: transform var(--t2) var(--r2-ease), opacity var(--t) var(--r2-ease); }
 body[data-g="tvs"] nav.subtabs button[data-tab]:hover { color: var(--r2-fg); }
 body[data-g="tvs"] nav.subtabs button[data-tab]:hover::after { transform: scaleX(.35); opacity: .4; }
 body[data-g="tvs"] nav.subtabs button[aria-current="page"] { background: none; color: var(--r2-fg); font-weight: 400; }
@@ -651,8 +650,13 @@ body[data-g="tvs"] .r2mode svg { width: 12px; height: 12px; }
 @media (max-width: 560px) { body[data-g="tvs"] .r2mode { padding: 7px; } body[data-g="tvs"] .r2mode span { display: none; } }
 
 /* type: page titles are labels (game font); everything else Quicksand */
-body[data-g="tvs"] main > section > h1::before, body[data-g="tvs"] main > section > .row h1::before, body[data-g="tvs"] .pkhd h1::before { display: none; }
-body[data-g="tvs"] main h1 { font: 400 15px/1.5 var(--r2-pixel); letter-spacing: .14em; text-transform: uppercase; }
+/* page titles: the area's colour, with its thin bar (rounded like the logo's II) */
+body[data-g="tvs"] main > section > .row:first-child, body[data-g="tvs"] .pkhd { margin-top: 26px; align-items: center !important; }
+body[data-g="tvs"] main > section > h1:first-child { margin-top: 26px; }
+body[data-g="tvs"] main > section > .row:first-child + .sub, body[data-g="tvs"] main > section > h1 + .sub { margin-top: 6px; }
+body[data-g="tvs"] main h1 { display: flex; align-items: center; gap: 12px; font: 400 15px/1.5 var(--r2-pixel); letter-spacing: .14em; text-transform: uppercase; color: var(--gc); }
+body[data-g="tvs"] main > section > h1::before, body[data-g="tvs"] main > section > .row h1::before, body[data-g="tvs"] .pkhd h1::before { content: ''; flex: none; width: 4px; height: 1.15em; border-radius: 2px; background: var(--gc); }
+body[data-g="tvs"] .pkname { color: var(--r2-fg); }
 body[data-g="tvs"] main h3 { font-weight: 600; }
 body[data-g="tvs"] .sub { font-size: 14px; max-width: 72ch; }
 body[data-g="tvs"] .hint { font-size: 12.5px; line-height: 1.5; }
@@ -723,6 +727,20 @@ body[data-g="tvs"] .tvt details summary { font-size: 12px; }
 body[data-g="tvs"] .tvt .r2ln.on > span { color: var(--r2-fg); } body[data-g="tvs"] .tvt .r2ln.w > span { color: var(--r2-warn); }
 .tvt .r2ln .r2-pix { width: 11px; height: auto; }
 body[data-g="tvs"] .tvt .tvv { display: block; margin-top: 12px; }
+
+/* "How this page works": the long explanations, folded away (owner, 26 Nov: on phones every page's instructions just wrap
+   into walls of text) */
+body[data-g="tvs"] details.r2help { margin-top: 18px; border-top: 1px solid var(--r2-line); padding-top: 12px; }
+body[data-g="tvs"] details.r2help > summary { font: 400 8px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); padding: 6px 0; list-style: none; display: flex; align-items: center; gap: 10px; }
+body[data-g="tvs"] details.r2help > summary::-webkit-details-marker { display: none; }
+body[data-g="tvs"] details.r2help > summary::before { content: '+'; font: 600 14px var(--r2-text); width: 16px; text-align: center; transition: transform var(--t) var(--r2-ease); }
+body[data-g="tvs"] details.r2help[open] > summary::before { transform: rotate(45deg); }
+body[data-g="tvs"] details.r2help .hint { margin: 10px 0 0; max-width: 80ch; }
+@media (max-width: 560px) {
+  body[data-g="tvs"] .sub { font-size: 13px; margin-bottom: 12px; }
+  body[data-g="tvs"] .tvt .r2ln.adb { display: none; }   /* the PC toolkit address – not needed on a phone */
+  body[data-g="tvs"] main h1 { font-size: 13px; }
+}
 
 /* PS4 games page */
 body[data-g="tvs"] .pkseg { gap: 6px; }
@@ -1053,17 +1071,20 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
 
   <section id="tab-tvs" hidden>
     <div class="row" style="justify-content:space-between;align-items:flex-end"><h1 style="margin:0">TVs</h1><button class="btn ghost" type="button" id="tvRefresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
-    <p class="sub">Each room’s TV: on or off, what’s on screen, and its app version. Checks in every 5 minutes; updates here every 20 seconds.</p>
+    <p class="sub">Each room’s TV – on or off, what’s on, app version.</p>
     <div class="banner warn" id="tvKeyBox" hidden><div class="grow">Add the <b>TV messages key</b> (Keys) to see the TVs.</div></div>
     <div id="tvTiles"></div>
-    <p class="hint">⬆️ <b>Update now</b> won’t send if the TV is off, its Staff tools say updates are NOT ALLOWED, or the room has guests (its own – not the twin’s system block) now or starting within 10 minutes. Updating by hand on the TV always works.</p>
-    <p class="hint">⚠️ <b>Home-button helper stopped</b> (Kai) = TCL’s Safety Guard closed the part that makes Home open Round2. It restarts by itself within about 20 seconds; if Home still opens the TV’s own screen, see Help › If a TV is stuck › Kai only.</p>
-    <p class="hint">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won’t get messages. Open Round2 Home on that TV to restart it, or see Help › If a TV is stuck.</p>
+    <details class="r2help"><summary>How this page works</summary>
+      <p class="hint">Each TV reports every 5 minutes, and straight away when something changes; this page redraws every 20 seconds. <b>Refresh</b> asks them all to report now (answers within about 30 s).</p>
+      <p class="hint">⬆️ <b>Update now</b> won’t send if the TV is off, its Staff tools say updates are NOT ALLOWED, or the room has guests (its own – not the twin’s system block) now or starting within 10 minutes. Updating by hand on the TV always works.</p>
+      <p class="hint">⚠️ <b>Home-button helper stopped</b> (Kai) = TCL’s Safety Guard closed the part that makes Home open Round2. It restarts by itself within about 20 seconds; if Home still opens the TV’s own screen, see Help › If a TV is stuck › Kai only.</p>
+      <p class="hint">Offline = no check-in for 12 min (TV off, no internet, or its helper stopped) – it won’t get messages. Open Round2 Home on that TV to restart it, or see Help › If a TV is stuck.</p>
+    </details>
   </section>
 
   <section id="tab-ps4s" hidden>
     <div class="row" style="justify-content:space-between;align-items:flex-end"><h1 style="margin:0">PS4s</h1><button class="btn ghost" type="button" id="p4Refresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
-    <p class="sub">Each room’s PS4 (once its Round2 helper is installed): online, Sony blocked, temperature, free space, what’s being played. The PS4 reports every 15 minutes and checks for jobs from here every minute.</p>
+    <p class="sub">Each room’s PS4 – online, what’s playing, temperature, space.</p>
     <div class="banner warn" id="p4KeyBox" hidden><div class="grow">Add the <b>staff code</b> (Keys) to see the PS4s.</div></div>
     <div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0"><button class="btn" type="button" id="p4WakeEarly">⏰ Wake early-bird rooms</button><button class="btn" type="button" id="p4WakeAll">⏰ Wake all</button><button class="btn" type="button" id="p4SleepAll">😴 Sleep all</button><span class="hint" id="p4GroupMsg"></span></div>
     <div id="p4Tiles"></div>
@@ -1084,10 +1105,13 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
       <div id="p4DnsRooms" class="row" style="gap:10px;flex-wrap:wrap;margin-top:6px"></div>
       <div class="row" style="gap:6px;margin-top:6px"><input id="p4DnsConfirm" placeholder="Type SEND" style="width:110px" autocomplete="off"><button class="btn primary" type="button" id="p4DnsSend">Send to the ticked PS4s</button></div>
       <p class="hint" id="p4DnsMsg" style="margin:6px 0 0"></p><div id="p4DnsLog" class="hint" style="margin-top:6px"></div></details>
-    <p class="hint">🧹 <b>Clean up</b> deletes the stuck game/system update downloads (never PS Vue’s – it keeps the Vue jailbreak working) and guests’ screenshots and clips. Games, patches and saves are never touched. It won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open on the PS4 – checked here, again when the PS4 picks it up, and on the PS4 itself. The TV shows a pop-up when it starts and when it’s done.</p>
-    <p class="hint">⬆️ <b>Updates:</b> with the Round2 starter installed, a PS4 updates its helper by itself in quiet time (no game open, no guests in the room within the next hour). <b>Update now</b> does it straight away (not within 10 minutes of a session). A new version that doesn’t work is swapped back to the old one by itself, and the tile says so.</p>
-    <p class="hint">⏰ <b>Remote wake</b> (trial, 16 Nov): a PS4 in <b>rest mode</b> (orange light – not switched off) that has been registered once can be woken from here – another PS4 that is on sends the wake. In the morning, the first PS4 switched on between 7am and 11:15am wakes the rooms with an <b>early-bird (11am) booking</b> by itself. A woken PS4 waits at “press the PS button”. <span id="p4WakeRun"></span></p>
-    <p class="hint">Offline = the PS4 hasn’t checked for jobs for 3 minutes (off, rest mode, or not jailbroken since it was switched on – the helper starts with the jailbreak).</p>
+    <details class="r2help"><summary>How this page works</summary>
+      <p class="hint">Each PS4 (once its Round2 helper is installed) reports every 15 minutes and checks for jobs from here every minute.</p>
+      <p class="hint">🧹 <b>Clean up</b> deletes the stuck game/system update downloads (never PS Vue’s – it keeps the Vue jailbreak working) and guests’ screenshots and clips. Games, patches and saves are never touched. It won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open on the PS4 – checked here, again when the PS4 picks it up, and on the PS4 itself. The TV shows a pop-up when it starts and when it’s done.</p>
+      <p class="hint">⬆️ <b>Updates:</b> with the Round2 starter installed, a PS4 updates its helper by itself in quiet time (no game open, no guests in the room within the next hour). <b>Update now</b> does it straight away (not within 10 minutes of a session). A new version that doesn’t work is swapped back to the old one by itself, and the tile says so.</p>
+      <p class="hint">⏰ <b>Remote wake</b> (trial, 16 Nov): a PS4 in <b>rest mode</b> (orange light – not switched off) that has been registered once can be woken from here – another PS4 that is on sends the wake. In the morning, the first PS4 switched on between 7am and 11:15am wakes the rooms with an <b>early-bird (11am) booking</b> by itself. A woken PS4 waits at “press the PS button”. <span id="p4WakeRun"></span></p>
+      <p class="hint">Offline = the PS4 hasn’t checked for jobs for 3 minutes (off, rest mode, or not jailbroken since it was switched on – the helper starts with the jailbreak).</p>
+    </details>
   </section>
 
   <section id="tab-pkgs" hidden>
@@ -1154,7 +1178,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
 
   <section id="tab-tests" hidden>
     <h1>TV tests</h1>
-    <p class="sub">Check any room's TV from here: send a test message or a test food alert and watch it arrive. Nothing reaches the kitchen, and the test order isn't real.</p>
+    <p class="sub">Send one TV a test message or food alert. Nothing reaches the kitchen.</p>
     <div class="banner warn" data-needkey hidden><div class="grow">Add the <b>TV messages key</b> under <b>Tests &amp; systems › Keys</b> first (once per phone or computer).</div></div>
     <div class="tlock" id="tLock"></div>
     <div class="rooms" id="tRooms"></div>
@@ -2115,12 +2139,11 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
           var fn = frontName(x.r, h.front);
           /* Android: the Home-button helper stopped in the last 24 h, and why (6 Nov – Kai's stopped mid-film) */
           var gx = (h.exits || []).filter(function (e) { return e.p === 'guard' && R2Day.now() - e.t < 86400e3; })[0];
-          var gl = gx ? ln('', 'Home-button helper stopped ' + esc(nice2(gx.t)) + ' (' + esc(ago2(gx.t)) + ') · ' + esc(gx.why) + (gx.d ? ' · “' + esc(gx.d) + '”' : ''), 'w') : '';   /* exact time + Android's own description (7 Nov) */
+          var gl = gx ? '<div title="' + esc(nice2(gx.t) + ' · ' + gx.why + (gx.d ? ' · ' + gx.d : '')) + '">' + ln('', 'Home helper stopped ' + esc(ago2(gx.t)) + ' ago', 'w') + '</div>' : '';   /* the exact time + Android's reason on hover (shorter on phones, 26 Nov) */   /* exact time + Android's own description (7 Nov) */
           /* its address on the shop network (TV app 1.0.286+), for the PC toolkit – "connect kai" finds it by itself (15 Nov) */
-          var il = h.ip && h.tv === 'android' ? ln('', 'ADB ' + esc(h.ip) + ':5555') : '';
+          var il = h.ip && h.tv === 'android' ? ln('', 'ADB ' + esc(h.ip) + ':5555', 'adb') : '';
           return t('ok', 'ok', 'Online', (fn ? ln('tv', esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : ''), 'on') : '') + gl + il);
-        }).join('') + '</div><p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date()).toLowerCase()) +
-          '. Each TV reports every 5 minutes, and straight away when something changes. Refresh asks them all to report now (answers arrive within about 30 s).</p>';
+        }).join('') + '</div><p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date()).toLowerCase()) + '</p>';
       });
     }
     var tvReady = false, tvTimer = null;
@@ -3942,7 +3965,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
         return;
       }
       el.className = 'tlock';
-      el.innerHTML = '<div><b>Lock in the TV you\u2019re testing first.</b> Tests can only go to that one TV, so a mis-tap can\u2019t reach a room with guests in it.</div>' +
+      el.innerHTML = '<div><b>Lock in the TV you\u2019re testing first</b><span class="hint" style="display:block;margin-top:2px">so a mis-tap can\u2019t reach a room with guests</span></div>' +
         '<div class="pick">' + Object.keys(ROOMS).map(function (k) { return '<button type="button" data-pick="' + k + '" style="--rc:' + ROOMS[k].c + '" aria-pressed="' + (k === pick) + '">' + esc(ROOMS[k].name) + '</button>'; }).join('') + '</div>' +
         '<div><button class="btn primary" type="button" data-lockin="1"' + (pick ? '' : ' disabled') + '>' + (pick ? 'Lock in ' + esc(ROOMS[pick].name) : 'Pick a TV above') + '</button></div>';
     }
