@@ -94,7 +94,9 @@ const Kick = ({ children, color, size = 7 }) => <div style={{ fontFamily: 'PS2P'
 const Dot = ({ c, size = 6 }) => <i style={{ width: size, height: size, borderRadius: '50%', background: c, display: 'inline-block', flex: 'none' }} />;
 /* a status chip drawn like the logo's II bars: a thin outline with small round corners; the state is only the dot's colour */
 const Chip = ({ c, children, sm, strong, fill, dim, tap }) => (
-  <span className={tap ? 'mo-btn' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: sm ? 6 : 8, padding: sm ? '3px 9px' : '6px 12px', borderRadius: 6, border: `1px solid ${strong ? c : K.line2}`, background: fill || 'transparent', opacity: dim ? 0.85 : 1,
+  /* (26 Nov, Round2 UI rule 5) information = a soft fill, no outline – buttons are outlines; .strong = more of the colour */
+  <span className={tap ? 'mo-btn' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: sm ? 6 : 8, padding: sm ? '3px 9px' : '6px 12px', borderRadius: 6,
+    border: `1px solid ${tap ? K.line2 : 'transparent'}`, background: tap ? 'transparent' : fill || (strong && c ? `color-mix(in srgb, ${c} 16%, transparent)` : `color-mix(in srgb, ${K.fg} 8%, transparent)`), opacity: dim ? 0.85 : 1,
     color: K.fg, fontWeight: 600, fontSize: sm ? 11.5 : 13, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', fontVariantNumeric: 'tabular-nums' }}>
     {c && <span className={fill ? 'mo-breathe' : undefined} style={{ display: 'inline-flex' }}><Dot c={c} size={sm ? 5 : 6} /></span>}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{children}</span></span>);
 const Line = ({ icon, children, bold, color }) => (
@@ -438,7 +440,7 @@ export const render = (s, d) => {
         which order, is the owner's choice (25 Nov): "Choose" at the right of the line, or STRIP at the top of this file */}
     <div style={{ position: 'relative', margin: '18px 0 16px' }}>
       <div style={{ height: 1, background: K.line }} />
-      {d && <span role="button" onClick={() => d({ type: 'PICK' })} style={{ position: 'absolute', right: 0, top: -4, padding: '0 0 0 10px', background: K.bg, color: s.pick ? K.fg : K.sub, cursor: 'pointer' }}><Kick color={s.pick ? K.fg : K.sub}>{s.pick ? 'Done' : 'Choose'}</Kick></span>}
+      {d && <span role="button" className="mo-btn" onClick={() => d({ type: 'PICK' })} style={{ position: 'absolute', right: 0, top: -12, padding: '6px 10px', borderRadius: 6, border: `1px solid ${s.pick ? K.fg : K.line2}`, background: K.bg, color: s.pick ? K.fg : K.sub, cursor: 'pointer' }}><Kick color={s.pick ? K.fg : K.sub}>{s.pick ? 'Done' : 'Choose'}</Kick></span>}
     </div>
     {s.pick ? <div className="mo-in"><Picker s={s} d={d} /></div> :
     <div className="mo-in" style={{ display: 'grid', gridTemplateColumns: (s.strip || STRIP).map((k) => (TILES[k] || {}).w || '1fr').join(' '), alignItems: 'start' }}>
