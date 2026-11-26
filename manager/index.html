@@ -14,6 +14,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Round2 UI (name pending) – the design language from the Mac board (manager/ui/README.md). Moving the control centre over one
+     area at a time (owner, 26 Nov: "lets do the whole TVs tab"): only pages under body[data-g="tvs"] wear it so far. -->
+<link rel="stylesheet" href="ui/r2-ui.css">
+<script type="module" src="ui/r2-ui.js"></script>
 <style>
 :root {
   --bg: #06050A; --panel: #110E1A; --panel2: #191527; --line: rgba(244,241,251,.12); --line2: rgba(244,241,251,.22);
@@ -603,10 +607,155 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   nav.subtabs .sect { padding-right: 8px; margin-right: 0; }
 }
 </style>
+<style id="r2-skin">
+/* ======================================================================================================================
+   ROUND2 UI SKIN – the TVs area (Status · PS4s · PS4 games · Test a TV). The control centre's own colour words (--bg,
+   --panel, --ink …) are pointed at the Round2 UI tokens, so every existing piece follows: monochrome (white on black /
+   black on white – ◐ in the page bar), thin rounded outlines instead of filled panels, Quicksand text, the game font only
+   for labels and room names, colour only for rooms and states. Behaviour is untouched – this is looks only.
+   Next areas: copy this block's selector list (and the tile changes in the page code) to their data-g.
+   ====================================================================================================================== */
+html:has(body[data-g="tvs"]) { background: var(--r2-bg); }
+html body[data-g="tvs"] {
+  --bg: var(--r2-bg); --panel: transparent; --panel2: color-mix(in srgb, var(--r2-fg) 4%, transparent);
+  --line: var(--r2-line); --line2: var(--r2-line2); --ink: var(--r2-fg); --mute: var(--r2-sub);
+  --accent: var(--r2-fg); --ok: var(--r2-ok); --warn: var(--r2-warn); --bad: var(--r2-bad); --focus: var(--r2-fg);
+  --c: var(--r2-fg); --gc: var(--r2-fg); --f: var(--r2-text);
+  background: var(--r2-bg); color: var(--r2-fg); font-family: var(--r2-text); font-variant-numeric: tabular-nums;
+}
+html[data-theme="light"] body[data-g="tvs"] { color-scheme: light; }
+@media (prefers-color-scheme: light) { html[data-theme="auto"] body[data-g="tvs"] { color-scheme: light; } }
+body[data-g="tvs"] header.top { background: color-mix(in srgb, var(--r2-bg) 92%, transparent); }
+body[data-g="tvs"] .brand { border-color: var(--r2-fg); }
+body[data-g="tvs"] .brand.logo img { filter: var(--r2-logo-filter); }
+body[data-g="tvs"] nav.tabs button[aria-selected="true"] { background: transparent; border-bottom-color: var(--r2-fg); }
+body[data-g="tvs"] nav.tabs button .ico { color: var(--r2-sub); }
+
+/* the page bar: area label + pages as game-font tabs with a thin underline, ◐ on the right */
+body[data-g="tvs"] nav.subtabs { gap: 22px; background: var(--r2-bg); }
+body[data-g="tvs"] nav.subtabs .sect { color: var(--r2-sub); font: 400 8px var(--r2-pixel); letter-spacing: .24em; border-right-color: var(--r2-line); gap: 10px; }
+body[data-g="tvs"] nav.subtabs .sect .ico { width: 15px; height: 15px; }
+body[data-g="tvs"] nav.subtabs button[data-tab] { position: relative; border: 0; border-radius: 0; background: none; padding: 6px 0 9px; font: 400 8px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); transition: color var(--t) var(--r2-ease); }
+body[data-g="tvs"] nav.subtabs button[data-tab]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--r2-fg); transform: scaleX(0); transform-origin: left; opacity: 0; transition: transform var(--t2) var(--r2-ease), opacity var(--t) var(--r2-ease); }
+body[data-g="tvs"] nav.subtabs button[data-tab]:hover { color: var(--r2-fg); }
+body[data-g="tvs"] nav.subtabs button[data-tab]:hover::after { transform: scaleX(.35); opacity: .4; }
+body[data-g="tvs"] nav.subtabs button[aria-current="page"] { background: none; color: var(--r2-fg); font-weight: 400; }
+body[data-g="tvs"] nav.subtabs button[aria-current="page"]::after { transform: scaleX(1); opacity: 1; }
+/* ◐ dark / light / auto – in the top bar, only in areas that wear the Round2 UI */
+.r2mode { display: none; }
+body[data-g="tvs"] .r2mode { display: inline-flex; margin-left: auto; cursor: pointer; flex: none; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--r2-line2); border-radius: 6px; background: none;
+  font: 400 7px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-fg); transition: transform var(--t) var(--r2-ease), border-color var(--t) var(--r2-ease); }
+body[data-g="tvs"] .r2mode:hover { border-color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
+body[data-g="tvs"] .r2mode:active { transform: scale(var(--r2-press)); }
+body[data-g="tvs"] .r2mode svg { width: 12px; height: 12px; }
+@media (max-width: 560px) { body[data-g="tvs"] .r2mode { padding: 7px; } body[data-g="tvs"] .r2mode span { display: none; } }
+
+/* type: page titles are labels (game font); everything else Quicksand */
+body[data-g="tvs"] main > section > h1::before, body[data-g="tvs"] main > section > .row h1::before, body[data-g="tvs"] .pkhd h1::before { display: none; }
+body[data-g="tvs"] main h1 { font: 400 15px/1.5 var(--r2-pixel); letter-spacing: .14em; text-transform: uppercase; }
+body[data-g="tvs"] main h3 { font-weight: 600; }
+body[data-g="tvs"] .sub { font-size: 14px; max-width: 72ch; }
+body[data-g="tvs"] .hint { font-size: 12.5px; line-height: 1.5; }
+body[data-g="tvs"] details summary { text-transform: none; letter-spacing: .01em; font-size: 13px; transition: color var(--t) var(--r2-ease); }
+body[data-g="tvs"] details summary:hover { color: var(--r2-fg); }
+body[data-g="tvs"] code, body[data-g="tvs"] pre { font-family: ui-monospace, Menlo, monospace; }
+
+/* buttons: outline, small round corners; the one solid button is the main action; rise on hover, shrink on press */
+body[data-g="tvs"] .btn, body[data-g="tvs"] .tvu, body[data-g="tvs"] .pkseg button, body[data-g="tvs"] .tlock .pick button {
+  border-radius: 6px; background: transparent; text-transform: none; letter-spacing: .02em; font: 600 13px var(--r2-text); box-shadow: none;
+  transition: border-color var(--t) var(--r2-ease), background var(--t) var(--r2-ease), color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+body[data-g="tvs"] .btn { padding: 9px 14px; border: 1px solid var(--r2-line2); color: var(--r2-fg); }
+body[data-g="tvs"] .btn:hover:not(:disabled), body[data-g="tvs"] .tvu:hover:not(:disabled) { border-color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
+body[data-g="tvs"] .btn:active:not(:disabled), body[data-g="tvs"] .tvu:active:not(:disabled) { transform: scale(var(--r2-press)); transition-duration: calc(var(--t) / 2); }
+body[data-g="tvs"] .btn.primary { background: var(--r2-fg); border-color: var(--r2-fg); color: var(--r2-bg); }
+body[data-g="tvs"] .btn.danger, body[data-g="tvs"] .btn.pkred { border-color: var(--r2-bad); color: var(--r2-bad); }
+body[data-g="tvs"] .btn.ghost { border-color: var(--r2-line2); }
+
+/* cards, banners, inputs */
+body[data-g="tvs"] .card { background: transparent; border: 1px solid var(--r2-line); border-radius: 12px; }
+body[data-g="tvs"] details.card > summary { color: var(--r2-fg); }
+body[data-g="tvs"] .banner { position: relative; background: transparent; border: 1px solid var(--r2-line2); border-radius: 12px; padding-left: 30px; }
+body[data-g="tvs"] .banner::before { content: ''; position: absolute; left: 14px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--r2-sub); }
+body[data-g="tvs"] .banner.ok::before { background: var(--r2-ok); } body[data-g="tvs"] .banner.warn::before { background: var(--r2-warn); }
+body[data-g="tvs"] .banner.bad { border-color: var(--r2-bad); } body[data-g="tvs"] .banner.bad::before { background: var(--r2-bad); }
+body[data-g="tvs"] .banner.ok, body[data-g="tvs"] .banner.warn { border-color: var(--r2-line2); }
+body[data-g="tvs"] input:not([type=checkbox]):not([type=radio]), body[data-g="tvs"] select, body[data-g="tvs"] textarea {
+  border-radius: 6px; background: transparent; border: 1px solid var(--r2-line2); color: var(--r2-fg); font-family: var(--r2-text); transition: border-color var(--t) var(--r2-ease); }
+body[data-g="tvs"] input:not([type=checkbox]):not([type=radio]):focus, body[data-g="tvs"] select:focus, body[data-g="tvs"] textarea:focus { border-color: var(--r2-fg); outline: none; }
+body[data-g="tvs"] select option { background: var(--r2-bg); color: var(--r2-fg); }
+body[data-g="tvs"] input[type=checkbox] { accent-color: var(--r2-fg); }
+body[data-g="tvs"] .chip { border-radius: 6px; text-transform: none; letter-spacing: .02em; font-weight: 600; }
+
+/* ---------- room tiles (Status and PS4s): like the Mac board – room name in the game font and its colour, thin outline that
+   takes the room colour while the TV / PS4 is on, state as a small dot ---------- */
+body[data-g="tvs"] .tvgrid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin: 10px 0 12px; }
+body[data-g="tvs"] .p4grid { grid-template-columns: 1fr; } @media (min-width: 900px) { body[data-g="tvs"] .p4grid { grid-template-columns: repeat(2, 1fr); } }
+body[data-g="tvs"] .tvt { position: relative; border: 1px solid var(--r2-line); border-left-width: 1px; border-radius: 12px; background: transparent; padding: 15px 16px 16px;
+  transition: border-color var(--t2) var(--r2-ease), transform var(--t) var(--r2-ease), background var(--t) var(--r2-ease); }
+body[data-g="tvs"] .tvt:hover { transform: translateY(var(--r2-lift)); border-color: color-mix(in srgb, var(--rc) var(--r2-hover-tint), var(--r2-line)); }
+body[data-g="tvs"] .tvt.ok, body[data-g="tvs"] .tvt.lit { border-color: var(--rc); }
+/* a TV / PS4 that's off or offline keeps the plain outline – the red is its status box (red rooms like Vale and Max own red) */
+body[data-g="tvs"] .tvt.bad, body[data-g="tvs"] .p4grid .tvt:not(.lit) { border-color: var(--r2-line) !important; }
+body[data-g="tvs"] .tvt .r2st .r2-chip { display: inline-flex; color: var(--r2-fg); }
+body[data-g="tvs"] .tvt .r2st .r2-chip > span { display: inline; font-size: 12px; color: var(--r2-fg); }
+body[data-g="tvs"] .tvt.bad .r2st .r2-chip { border-color: var(--r2-bad); }
+body[data-g="tvs"] .tvt b { display: flex; align-items: center; gap: 9px; font: 400 11px var(--r2-pixel); letter-spacing: .12em; text-transform: uppercase; color: var(--rc); }
+/* the two pale room colours have darker light-mode versions in the UI tokens (Atlas white → grey, Scarlett yellow → gold) */
+body[data-g="tvs"] [style*="--rc:#E9E7EF"] { --rc: var(--r2-atlas) !important; }
+body[data-g="tvs"] [style*="--rc:#F2C21B"] { --rc: var(--r2-scarlett) !important; }
+body[data-g="tvs"] .tvt b .r2-pix { width: 14px; height: auto; }
+body[data-g="tvs"] .tvt span, body[data-g="tvs"] .p4grid .tvt span { font-size: 13px; color: var(--r2-sub); }
+body[data-g="tvs"] .p4grid .tvt { gap: 6px 14px; padding: 15px 16px 16px; }
+body[data-g="tvs"] .p4grid .tvt b { margin-bottom: 6px; }
+body[data-g="tvs"] .tvt .tvv { color: var(--r2-sub) !important; font-size: 12px; }
+body[data-g="tvs"] .tvt .tvv .uo::before, body[data-g="tvs"] .tvt .tvv .uw::before, body[data-g="tvs"] .tvt .tvv .ub::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin: 0 6px 1px 0; vertical-align: middle; background: var(--r2-ok); }
+body[data-g="tvs"] .tvt .tvv .uw::before { background: var(--r2-warn); } body[data-g="tvs"] .tvt .tvv .ub::before { background: var(--r2-bad); }
+body[data-g="tvs"] .tvt .tvv .uo, body[data-g="tvs"] .tvt .tvv .uw, body[data-g="tvs"] .tvt .tvv .ub { color: var(--r2-fg); }
+body[data-g="tvs"] .tvt .tvu { border: 1px solid var(--r2-line2); color: var(--r2-fg); padding: 7px 12px; font-size: 12.5px; }
+body[data-g="tvs"] .tvt .tvu[data-tvu] { border-color: var(--rc); }
+body[data-g="tvs"] .p4grid .tvt .tvu { padding: 9px 12px; }
+body[data-g="tvs"] .tvt details summary { font-size: 12px; }
+/* the TV status tile's own pieces (written by the TVs page code) */
+.tvt .r2st { margin: 13px 0 0; }
+.tvt .r2ln { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--r2-sub); min-width: 0; }
+.tvt .r2ln.on { color: var(--r2-fg); font-weight: 600; } .tvt .r2ln.w { color: var(--r2-warn); }
+.tvt .r2ln > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+body[data-g="tvs"] .tvt .r2ln.on > span { color: var(--r2-fg); } body[data-g="tvs"] .tvt .r2ln.w > span { color: var(--r2-warn); }
+.tvt .r2ln .r2-pix { width: 11px; height: auto; }
+body[data-g="tvs"] .tvt .tvv { display: block; margin-top: 12px; }
+
+/* PS4 games page */
+body[data-g="tvs"] .pkseg { gap: 6px; }
+body[data-g="tvs"] .pkseg button { border: 1px solid var(--r2-line2); color: var(--r2-sub); padding: 10px 4px; }
+body[data-g="tvs"] .pkseg button[aria-pressed="true"], body[data-g="tvs"] .pkseg button.on { border-color: var(--r2-fg); color: var(--r2-fg); }
+body[data-g="tvs"] .pkrc button.on, body[data-g="tvs"] .pktog.on { background: transparent; color: var(--r2-fg); border-color: var(--r2-fg); }
+body[data-g="tvs"] .pkrc button.on small { color: var(--r2-sub); }
+body[data-g="tvs"] .pkrc button:not(.on), body[data-g="tvs"] .pktog:not(.on) { background: transparent; }
+body[data-g="tvs"] .pkrc button, body[data-g="tvs"] .pktog { border-radius: 6px; transition: border-color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+body[data-g="tvs"] .pkrc button:hover, body[data-g="tvs"] .pktog:hover { transform: translateY(var(--r2-lift)); border-color: var(--r2-fg); }
+body[data-g="tvs"] .pkname { font: 400 16px/1.5 var(--r2-pixel); letter-spacing: .1em; text-transform: uppercase; }
+body[data-g="tvs"] .pklbl { font: 400 8px var(--r2-pixel); letter-spacing: .24em; color: var(--r2-sub); }
+body[data-g="tvs"] .pkcard, body[data-g="tvs"] .pkx { border-radius: 12px; background: transparent; }
+body[data-g="tvs"] .pktag { border-radius: 6px; }
+body[data-g="tvs"] .pkpills span { border-radius: 4px; background: transparent; border: 1px solid var(--r2-line); }
+body[data-g="tvs"] .pkrow, body[data-g="tvs"] .pkchk { transition: background var(--t) var(--r2-ease), padding var(--t) var(--r2-ease); border-radius: 4px; }
+body[data-g="tvs"] .pkrow:hover { background: color-mix(in srgb, var(--r2-fg) 5%, transparent); padding-left: 8px; }
+
+/* Test a TV */
+body[data-g="tvs"] .tlock { border-radius: 12px; background: transparent; border-color: var(--r2-line2); }
+body[data-g="tvs"] .tlock.on { border-color: var(--r2-ok); }
+body[data-g="tvs"] .tlock .pick button { border: 1px solid var(--r2-line2); padding: 7px 12px; }
+body[data-g="tvs"] .tlock .pick button[aria-pressed="true"] { background: transparent; border-color: var(--rc); color: var(--r2-fg); }
+body[data-g="tvs"] .tcard { border-top: 1px solid var(--r2-line); border-radius: 12px; }
+body[data-g="tvs"] .tcard h3 { display: flex; align-items: center; gap: 10px; font: 400 13px var(--r2-pixel); letter-spacing: .12em; color: var(--rc); }
+body[data-g="tvs"] .tcard h3 .r2-pix { width: 15px; height: auto; }
+body[data-g="tvs"] .tst { color: var(--r2-sub); }
+</style>
 </head>
 <body>
 <header class="top"><div class="wrap">
   <div class="brand" id="brand">ROUND2 <small>CONTROL CENTRE</small></div>
+  <button type="button" class="r2mode" id="r2mode" title="Dark / light / auto"><svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5.25" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 .75a5.25 5.25 0 0 1 0 10.5z" fill="currentColor"/></svg><span>dark</span></button>
   <nav class="tabs" role="tablist" id="tabs">
     <button role="tab" aria-selected="true" data-group="home">Home</button>
     <button role="tab" aria-selected="false" data-group="sess">Bookings</button>
@@ -1949,21 +2098,27 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
           .then(function (a) { return { r: r, hb: a[0], upd: a[1] }; }).catch(function () { return { r: r, err: true }; });
       })).then(function (list) {
         $('tvTiles').innerHTML = '<div class="tvgrid">' + list.map(function (x) {
-          var R = ROOMS[x.r], h = x.hb, now = R2Day.now(), t = function (cls, txt) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b><span>' + txt + '</span>' + updLine(x) + '</div>'; };
-          if (x.err) return t('', 'Couldn’t check');
-          if (!h || !h.t) return t('', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
-          if (h.failsafe) return t('bad', 'Failsafe · open Round2 Home');
+          /* (26 Nov, owner: the TVs area in the Round2 UI) a tile like the Mac board's: room name in the game font and its colour,
+             the state as a small status box with a dot, then plain lines (what's on screen, warnings, address), then the version */
+          var R = ROOMS[x.r], h = x.hb, now = R2Day.now(), U = window.R2UI, pix = function (n, z, c) { return U ? U.pixSvg(n, z || 11, c || 'currentColor') : ''; };
+          var icon = U ? U.room(x.r === 'maximillion' ? 'Max' : R.name).icon : '';
+          var ln = function (ic, txt, cls) { return '<div class="r2ln ' + (cls || '') + '">' + (ic ? pix(ic) : '') + '<span>' + txt + '</span></div>'; };
+          var t = function (cls, st, txt, more) { return '<div class="tvt ' + cls + '" style="--rc:' + R.c + '"><b>' + pix(icon, 14, 'var(--rc)') + esc(x.r === 'maximillion' ? 'Max' : R.name) + '</b>' +
+            '<div class="r2st"><span class="r2-chip sm ' + st + '"><span>' + txt + '</span></span></div>' + (more || '') + updLine(x) + '</div>'; };
+          if (x.err) return t('', 'next', 'Couldn’t check');
+          if (!h || !h.t) return t('', '', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
+          if (h.failsafe) return t('bad', 'bad', 'Failsafe', ln('', 'Open Round2 Home on this TV'));
           /* LG with Quick Start+ (owner, 3 Nov): its last check-in said "going to sleep" – the TV then freezes and stops checking
              in, so that stays the answer until it wakes (not "Offline", not "Online") */
-          if (h.pw && h.pw !== 'Active') return t('sleep', '💤 Screen off · asleep since ' + esc(nice2(h.t)));
-          if (now - h.t > 12 * 60000) return t('bad', 'Offline since ' + esc(nice2(h.t)));
+          if (h.pw && h.pw !== 'Active') return t('sleep', 'next', 'Screen off', ln('', 'Asleep since ' + esc(nice2(h.t))));
+          if (now - h.t > 12 * 60000) return t('bad', 'bad', 'Offline', ln('', 'Since ' + esc(nice2(h.t))));
           var fn = frontName(x.r, h.front);
           /* Android: the Home-button helper stopped in the last 24 h, and why (6 Nov – Kai's stopped mid-film) */
           var gx = (h.exits || []).filter(function (e) { return e.p === 'guard' && R2Day.now() - e.t < 86400e3; })[0];
-          var gl = gx ? '<br><small>⚠️ Home-button helper stopped ' + esc(nice2(gx.t)) + ' (' + esc(ago2(gx.t)) + ') · ' + esc(gx.why) + (gx.d ? ' · “' + esc(gx.d) + '”' : '') + '</small>' : '';   /* exact time + Android's own description (7 Nov) */
+          var gl = gx ? ln('', 'Home-button helper stopped ' + esc(nice2(gx.t)) + ' (' + esc(ago2(gx.t)) + ') · ' + esc(gx.why) + (gx.d ? ' · “' + esc(gx.d) + '”' : ''), 'w') : '';   /* exact time + Android's own description (7 Nov) */
           /* its address on the shop network (TV app 1.0.286+), for the PC toolkit – "connect kai" finds it by itself (15 Nov) */
-          var il = h.ip && h.tv === 'android' ? '<br><small style="color:var(--mute)">ADB ' + esc(h.ip) + ':5555</small>' : '';
-          return t('ok', '✓ Online' + (fn ? ' · ' + esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : '') : '') + gl + il);
+          var il = h.ip && h.tv === 'android' ? ln('', 'ADB ' + esc(h.ip) + ':5555') : '';
+          return t('ok', 'ok', 'Online', (fn ? ln('tv', esc(fn) + (h.frontAt > 0 && h.frontAt <= R2Day.now() + 60000 ? ' · ' + ago2(h.frontAt) : ''), 'on') : '') + gl + il);
         }).join('') + '</div><p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date()).toLowerCase()) +
           '. Each TV reports every 5 minutes, and straight away when something changes. Refresh asks them all to report now (answers arrive within about 30 s).</p>';
       });
@@ -3226,9 +3381,12 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
          Rest mode we sent is known from the job itself; helper 1.1.14+ says when the PS4 last woke and sends the starter's log. */
       var lines = [], warn = [], more = [];
       var byUs = !on && p.cmd && p.cmd.do === 'look' && /\/_rest/.test(p.cmd.p || '') && p.cmd.state === 'done' && p.cmd.doneAt && Math.abs((p.poll || 0) - p.cmd.doneAt) < 3 * 60000 && !(p.cmd.res && /refused/.test(JSON.stringify(p.cmd.res)));
-      if (byUs) lines.push('<span style="color:var(--warn,#F2C21B);font-weight:700">😴 Rest mode · sent by us ' + esc(ago(p.cmd.doneAt)) + '</span>');
-      else if (!on) lines.push('<span style="color:var(--bad);font-weight:700">Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '') + '</span><span class="tvv" style="white-space:normal">Asleep, off, or helper stopped</span>');
-      else lines.push('<span style="color:var(--ok)">✓ Online' + (p.running ? ' · playing ' + esc(p.runName || p.running) : '') + '</span>');
+      /* (26 Nov, Round2 UI) the state as a small status box with a dot, like the TVs page; what's playing on its own line */
+      var st = function (c, t) { return '<div class="r2st"><span class="r2-chip sm ' + c + '"><span>' + t + '</span></span></div>'; };
+      var U = window.R2UI, pad = U ? U.pixSvg('pad', 11) : '';
+      if (byUs) lines.push(st('wait', 'Rest mode · sent by us ' + esc(ago(p.cmd.doneAt))));
+      else if (!on) lines.push(st('bad', 'Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '')) + '<span class="tvv" style="white-space:normal">Asleep, off, or helper stopped</span>');
+      else lines.push(st('ok', 'Online') + (p.running ? '<div class="r2ln on">' + pad + '<span>' + esc(p.runName || p.running) + '</span></div>' : ''));
       if (p.sony !== 'blocked') warn.push('⚠️ Sony NOT blocked – check its DNS (127.0.0.1)');
       if (p.rolled) warn.push('↩️ Helper ' + p.rolled + ' – it stays on ' + (p.v || 'the old version') + ' until a newer one is out');
       if (p.updGuard && p.updGuard.blocked) warn.push('🛡️ Stopped ' + p.updGuard.blocked + ' system update' + (p.updGuard.blocked > 1 ? 's' : '') + (p.updGuard.agoS >= 0 ? ' (last ' + esc(ago(now - p.updGuard.agoS * 1000)) + ')' : ''));
@@ -3259,7 +3417,7 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
         : busy ? '' : '<button type="button" class="tvu" data-p4clean="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4junk="' + junk + '">🧹 Clean up' + (junk ? ' · ' + gb(junk) : '') + '</button>' +
           (p.v && !p4newer('1.1.53', p.v) && !(p.clean && (p.clean.state === 'running' || p.clean.state === 'paused')) ? ' <button type="button" class="tvu" data-p4reset="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '">🧽 Clean slate now</button>' : '') +
           (p.boot && !old && latest && p.v && p4newer(latest, p.v) ? ' <button type="button" class="tvu" data-p4upd="' + esc(p.id) + '" data-p4room="' + esc(R.name) + '" data-p4v="' + esc(latest) + '">⬆️ Update to ' + esc(latest) + '</button>' : '');
-      return '<div class="tvt" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><div class="p4i"><b>' + esc(R.name) + '</b>' + lines.join('') +
+      return '<div class="tvt' + (on ? ' lit' : '') + '" style="--rc:' + R.c + (on ? '' : ';border-color:var(--bad);border-left-color:' + R.c) + '"><div class="p4i"><b>' + esc(R.name) + '</b>' + lines.join('') +
         (warn.length ? '<span style="color:var(--bad);font-weight:700;white-space:normal">' + warn.map(esc).join('<br>') + '</span>' : '') + lg + '</div><div class="p4b">' + btn + '</div></div>';
     }
     function draw() {
@@ -5027,6 +5185,9 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
     Array.prototype.forEach.call(document.querySelectorAll('#tabs button'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-group') === g); });
     var subs = GROUPS[g];
     $('subtabs').innerHTML = g === 'home' && subs.length < 2 ? '' : '<span class="sect" title="' + AREAS[g][0].replace('&', '&amp;') + '">' + ico(g) + '<span>' + AREAS[g][0].replace('&', '&amp;') + '</span></span>' + (subs.length < 2 ? '' : subs.map(function (x) { return '<button type="button" data-tab="' + x[0] + '"' + (x[0] === n ? ' aria-current="page"' : '') + '>' + x[1] + '</button>'; }).join(''));
+    /* Round2 UI (26 Nov): areas already moved over get the ◐ dark / light / auto switch in their page bar – remembered on this device */
+    $('r2mode').querySelector('span').textContent = r2mode();
+    document.documentElement.setAttribute('data-theme', r2areas().indexOf(g) >= 0 ? r2mode() : 'dark');
     [document.querySelector('#tabs [aria-selected="true"]'), document.querySelector('#subtabs [aria-current="page"]')].forEach(function (el) {   /* phones: keep the current tab and page in view in the sideways-scrolling bars */
       if (!el) return; var bar = el.parentNode; if (bar.scrollWidth <= bar.clientWidth) return;
       bar.scrollLeft = el.offsetLeft - bar.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;
@@ -5070,7 +5231,22 @@ nav.subtabs { position: sticky; top: var(--hh, 64px); z-index: 4; background: va
   });
   /* four main tabs, each with its own pages; a main tab reopens on the page last used in it */
   $('tabs').addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('[data-group]'), g = t && t.getAttribute('data-group'); if (g) { var s = ls('r2m.sub.' + g); tab(s && groupOf(s) === g ? s : GROUPS[g][0][0]); } });
-  $('subtabs').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-tab]'); if (b) tab(b.getAttribute('data-tab')); });
+  /* ---- Round2 UI (name pending; manager/ui/README.md) – which areas wear it, the light/dark switch, room icons ---- */
+  function r2areas() { return ['tvs']; }   /* add an area's name here once it's moved over (body[data-g] + the r2-skin block) */
+  function r2mode(v) { if (v) ls('r2-theme', v); var m = ls('r2-theme'); return ['dark', 'light', 'auto'].indexOf(m) >= 0 ? m : 'dark'; }
+  /* room names on tiles and cards get their pixel icon (the same set as the TV menu, iPhone widget and Mac board) */
+  function r2deco() {
+    if (!window.R2UI || r2areas().indexOf(document.body.getAttribute('data-g')) < 0) return;
+    Array.prototype.forEach.call(document.querySelectorAll('main .tvt b, main .tcard h3'), function (el) {
+      if (el.querySelector('svg') || el.closest('.tvv')) return;
+      var R = R2UI.room(el.textContent.trim()); if (!R.cls) return;
+      el.insertAdjacentHTML('afterbegin', R2UI.pixSvg(R.icon, el.tagName === 'H3' ? 15 : 14, 'var(--rc)'));
+    });
+  }
+  $('r2mode').addEventListener('click', function () { var m = r2mode(r2mode() === 'dark' ? 'light' : r2mode() === 'light' ? 'auto' : 'dark'); document.documentElement.setAttribute('data-theme', m); $('r2mode').querySelector('span').textContent = m; });
+  var r2q = 0; new MutationObserver(function () { if (!r2q) r2q = requestAnimationFrame(function () { r2q = 0; r2deco(); }); }).observe(document.querySelector('main'), { childList: true, subtree: true });
+  $('subtabs').addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-tab]'); if (b) tab(b.getAttribute('data-tab')); });
   $('roomFilter').innerHTML = '<option value="all">All rooms</option>' + Object.keys(ROOMS).map(function (k) { return '<option value="' + k + '">' + ROOMS[k].name + '</option>'; }).join('');
   $('roomFilter').onchange = renderList;
   $('rooms').addEventListener('click', function (e) {

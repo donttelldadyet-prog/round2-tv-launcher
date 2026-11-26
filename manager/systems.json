@@ -1,6 +1,6 @@
 {
  "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
- "updated": "2026-11-25",
+ "updated": "2026-11-26",
  "areas": [
   {
    "name": "Website & booking",
@@ -476,9 +476,9 @@
     {
      "name": "Round2 UI – one design language for staff screens",
      "status": "build",
-     "what": "Started 25 Nov (owner: 'make a branch for our design into React UI elements … roll out to staff facing apps first … get the design feel and language consistent'). Taken from the Mac board v9: monochrome like the logo (white on black / black on white, light/dark/auto), thin rounded outlines, Quicksand text, game font only for labels and room names, colour only for rooms and states, the ring = guests in, every big number a countdown with words. Plain CSS + JS for the control centre, React components for the Mac board and anything new; a style guide page at ui/. Lives on the branch r2-ui until the owner approves – then the control centre's screens move over one at a time.",
+     "what": "Started 25 Nov (owner: 'make a branch for our design into React UI elements … roll out to staff facing apps first … get the design feel and language consistent'). Taken from the Mac board v9: monochrome like the logo (white on black / black on white, light/dark/auto), thin rounded outlines, Quicksand text, game font only for labels and room names, colour only for rooms and states, the ring = guests in, every big number a countdown with words. Plain CSS + JS for the control centre, React components for the Mac board and anything new; a style guide page at ui/. Lives on the branch r2-ui until the owner approves – then the control centre's screens move over one at a time. 26 Nov: the whole TVs area (Status, PS4s, PS4 games, Test a TV) moved over – looks only, behaviour unchanged; ◐ dark/light/auto in the top bar there; branch r2-tvs until the owner OKs it.",
      "runs": "Style guide page (staff.round2.sg/ui/ once merged)",
-     "code": "round2-tv-launcher · manager/ui/ (r2-ui.css, r2-ui.js, r2-ui.jsx, index.html, README.md) – branch r2-ui"
+     "code": "round2-tv-launcher · manager/ui/ (r2-ui.css, r2-ui.js, r2-ui.jsx, index.html, README.md) – branch r2-ui · manager/index.html (#r2-skin, r2areas())"
     }
    ]
   }
