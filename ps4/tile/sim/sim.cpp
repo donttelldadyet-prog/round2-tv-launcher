@@ -37,7 +37,7 @@ int main() {
   for (int s = 0; s < 3; s++) { for (int i = 0; i < 3; i++) B.bst[i] = sts[s][i]; memset(B.lit, 0, sizeof B.lit); B.last_lit = -9; double tt = 10;
     for (int i = 0; i < 3; i++) if (B.bst[i] == 'd') { B.lit[i] = 1; B.lit_t[i] = 0; }
     S.pmode = 1; S.prog = pr[s]; snprintf(S.plab, sizeof S.plab, "%d of 3 profiles ready", s);
-    memcpy(BUF, BG0, W * H * 4); load_still(F, C, S, 3); card_sweep(KX, KY, 3.2); draw_rows(F, C, S, B, tt, 389, 1); load_bar(F, S, 389 + 3 * PRS - 12 + 22, 40);
+    memcpy(BUF, BG0, W * H * 4); load_still(F, C, S, 3); card_sweep(KX, KY, 3.2); draw_rows(F, C, S, B, tt, 389, 1); card_live(F, S, B, tt); load_bar(F, S, 389 + 3 * PRS - 12 + 22, 40);
     snprintf(fn, sizeof fn, "load_%d.ppm", s); save(fn); }
   /* five rows */
   B.bn = 5; const char *c5[] = { "Kaeden profile", "Karen", "Ronnie", "Player 3", "Player 4" }; for (int i = 0; i < 5; i++) { strcpy(B.bcur[i], c5[i]); strcpy(B.btgt[i], c5[i]); B.lit[i] = 0; }

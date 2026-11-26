@@ -81,7 +81,8 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 }
 
 #include "draw.h"
-#define TILE_V "0.17"   /* 0.17 (owner 27 Nov 2:43am: the "Closing in" countdown was cut ~2 s in): a load with nothing to copy waited 10 s before "ready", so ready + what happens next (4 + 6 s) ran past the menu add-on's 20-s wait and its log-out cut it. With the helper's live file: 3 s. */
+#define TILE_V "0.18"   /* 0.18 (owner 27 Nov 3:04am, Karen's save screen v3 of 2:53-2:59am): premium crew card (brushed metal, gold chip, glows, edge light, shadow), faces fade onto the card as profiles get ready + PLAYERS n/m, ready rows tint green, scan sub-line on two lines, "Waiting for your phone" with pulsing dots. */
+/* 0.17   /* 0.17 (owner 27 Nov 2:43am: the "Closing in" countdown was cut ~2 s in): a load with nothing to copy waited 10 s before "ready", so ready + what happens next (4 + 6 s) ran past the menu add-on's 20-s wait and its log-out cut it. With the helper's live file: 3 s. */
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
 
@@ -292,6 +293,7 @@ int main() {
         if (pnn[0] && atoi(pnn) > 1) snprintf(S.plab, sizeof S.plab, "%s (player %s of %s)  -  %d of %d games", pnw, pkk, pnn, done, total); else snprintf(S.plab, sizeof S.plab, "%d of %d games", done, total); }
       else { S.pmode = 2; snprintf(S.plab, sizeof S.plab, "Getting ready"); }
       draw_rows(F, C, S, B, nowt, 389, 1);
+      if (it >= intro) card_live(F, S, B, nowt);   /* 0.18: faces + PLAYERS on the card */
       load_bar(F, S, B.bn > 0 ? 389 + B.bn * PRS - 12 + 22 : 399, frame);
     }
     else if (mode == 2) { ready_live(S, it); draw_rows(F, C, S, B, nowt, 400, 0); }

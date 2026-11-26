@@ -1,6 +1,6 @@
 # Package metadata.
 TITLE       := Round2
-VERSION     := 0.17
+VERSION     := 0.18
 TITLE_ID    := RTWO00001
 CONTENT_ID  := IV0000-RTWO00001_00-ROUND2MEMBERS000
 
