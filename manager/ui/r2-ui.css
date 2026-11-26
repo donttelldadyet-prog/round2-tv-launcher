@@ -190,11 +190,11 @@
 .r2-toggle input:checked + i::after { left: 24px; background: var(--c, var(--r2-ok)); border-color: var(--c, var(--r2-ok)); }
 .r2-toggle input:focus-visible + i { outline: 2px solid var(--r2-fg); outline-offset: 2px; }
 
-/* Tabs – game-font labels, a thin underline for the current one */
 .r2-tabs { display: flex; gap: 22px; border-bottom: var(--r2-line-w) solid var(--r2-line); }
-.r2-tab { appearance: none; background: none; border: 0; padding: 0 0 11px; margin-bottom: -1px; cursor: pointer; font-family: var(--r2-pixel);
-  font-size: 8px; letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); border-bottom: 1.5px solid transparent; }
-.r2-tab[aria-selected="true"] { color: var(--r2-fg); }
+/* Tabs – the text font (one block per tab; the game font's wide spacing made multi-word tabs read as several – 27 Nov) */
+.r2-tab { appearance: none; background: none; border: 0; padding: 0 0 11px; margin-bottom: -1px; cursor: pointer; font: 600 14px var(--r2-text);
+  letter-spacing: .01em; white-space: nowrap; color: var(--r2-sub); border-bottom: 1.5px solid transparent; }
+.r2-tab[aria-selected="true"] { color: var(--r2-fg); font-weight: 700; }
 
 /* List – rows split by thin lines (bookings, messages, logs) */
 .r2-list { display: grid; }

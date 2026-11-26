@@ -25,7 +25,7 @@ colours are our product but our main feel is monochrome."* What that means on sc
 | Font | Used for | Never for |
 |---|---|---|
 | **Quicksand** (`--r2-text`) – thin, rounded, like the logo's strokes | all text; 300 for big numbers, 500 text, 600 names/times | – |
-| **Press Start 2P** (`--r2-pixel`) – our game font | small labels (TONIGHT, UP NEXT, LEFT), tabs, **room names** | sentences, numbers, buttons |
+| **Press Start 2P** (`--r2-pixel`) – our game font | small labels (TONIGHT, UP NEXT, LEFT), page titles, **room names** | sentences, numbers, buttons, **tabs** (multi-word tabs blur together – 27 Nov) |
 
 Files: `manager/widget/fonts/` (both OFL – free to use).
 

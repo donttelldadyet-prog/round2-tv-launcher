@@ -631,14 +631,16 @@ body.r2on .brand.logo img { filter: var(--r2-logo-filter); }
 body.r2on nav.tabs button[aria-selected="true"] { background: transparent; }
 
 /* the page bar: area label + pages as game-font tabs with a thin underline, ◐ on the right */
-body.r2on nav.subtabs { gap: 22px; background: var(--r2-bg); }
+body.r2on nav.subtabs { gap: 26px; background: var(--r2-bg); }
 body.r2on nav.subtabs .sect { color: var(--gc); font: 400 8px var(--r2-pixel); letter-spacing: .24em; border-right-color: var(--r2-line); gap: 10px; }
 body.r2on nav.subtabs .sect .ico { width: 15px; height: 15px; }
-body.r2on nav.subtabs button[data-tab] { position: relative; border: 0; border-radius: 0; background: none; padding: 6px 0 9px; font: 400 8px var(--r2-pixel); letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); transition: color var(--t) var(--r2-ease); }
+/* page tabs in the text font, each one a single block (owner, 27 Nov: "very hard to discern which are separate" – the game font's
+   wide letter-spacing made "PS4 GAMES" / "TEST A TV" read as several tabs) */
+body.r2on nav.subtabs button[data-tab] { position: relative; border: 0; border-radius: 0; background: none; padding: 7px 0 9px; font: 600 14px var(--r2-text); letter-spacing: .01em; text-transform: none; white-space: nowrap; color: var(--r2-sub); transition: color var(--t) var(--r2-ease); }
 body.r2on nav.subtabs button[data-tab]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--gc); transform: scaleX(0); transform-origin: left; opacity: 0; transition: transform var(--t2) var(--r2-ease), opacity var(--t) var(--r2-ease); }
 body.r2on nav.subtabs button[data-tab]:hover { color: var(--r2-fg); }
 body.r2on nav.subtabs button[data-tab]:hover::after { transform: scaleX(.35); opacity: .4; }
-body.r2on nav.subtabs button[aria-current="page"] { background: none; color: var(--r2-fg); font-weight: 400; }
+body.r2on nav.subtabs button[aria-current="page"] { background: none; color: var(--r2-fg); font-weight: 700; }
 body.r2on nav.subtabs button[aria-current="page"]::after { transform: scaleX(1); opacity: 1; }
 /* ◐ dark / light / auto – in the top bar, only in areas that wear the Round2 UI */
 .r2mode { display: none; }
@@ -742,6 +744,12 @@ body.r2on details.r2help .hint { margin: 10px 0 0; max-width: 80ch; }
   body.r2on .tvt .r2ln.adb { display: none; }   /* the PC toolkit address – not needed on a phone */
   body.r2on main h1 { font-size: 13px; }
 }
+
+/* PS4s: wake / sleep as one even group (owner, 27 Nov: "the wake all buttons stack weirdly") */
+.p4grp { display: grid; grid-template-columns: auto auto auto; justify-content: start; gap: 8px; margin: 12px 0 4px; }
+.p4grp .btn { justify-content: center; text-align: center; }
+@media (max-width: 560px) { .p4grp { grid-template-columns: 1fr 1fr; justify-content: stretch; } .p4grp #p4WakeEarly { grid-column: 1 / -1; } }
+#p4GroupMsg:empty { display: none; }
 
 /* PS4 games page */
 body.r2on .pkseg { gap: 6px; }
@@ -1116,7 +1124,8 @@ body.r2on dialog::backdrop { background: color-mix(in srgb, #000 58%, transparen
     <div class="row" style="justify-content:space-between;align-items:flex-end"><h1 style="margin:0">PS4s</h1><button class="btn ghost" type="button" id="p4Refresh" style="padding:4px 10px;font-size:11px">Refresh</button></div>
     <p class="sub">Each room’s PS4 – online, what’s playing, temperature, space.</p>
     <div class="banner warn" id="p4KeyBox" hidden><div class="grow">Add the <b>staff code</b> (Keys) to see the PS4s.</div></div>
-    <div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0"><button class="btn" type="button" id="p4WakeEarly">⏰ Wake early-bird rooms</button><button class="btn" type="button" id="p4WakeAll">⏰ Wake all</button><button class="btn" type="button" id="p4SleepAll">😴 Sleep all</button><span class="hint" id="p4GroupMsg"></span></div>
+    <div class="p4grp"><button class="btn" type="button" id="p4WakeAll">Wake all</button><button class="btn" type="button" id="p4SleepAll">Sleep all</button><button class="btn" type="button" id="p4WakeEarly">Wake early-bird rooms</button></div>
+    <p class="hint" id="p4GroupMsg"></p>
     <div id="p4Tiles"></div>
     <details class="card" id="p4CsBox" style="margin-top:12px;padding:10px 12px" open><summary><b>🧽 Clean slate</b> – after each session</summary>
       <p class="hint" style="margin:8px 0 6px">After each guest session the PS4 saves every guest save to its own storage, then clears the profiles for the next guest. It waits while someone is still playing and skips if the guest extended or the next guest is already in. Never touched: GT Sport on Max, PS Vue.</p>
