@@ -28,9 +28,13 @@ jobs:
           echo "toolchain at $TC"; ls $TC; ls $TC/bin/linux
           chmod +x $TC/bin/linux/* || true
           echo "OO_PS4_TOOLCHAIN=$TC" >> $GITHUB_ENV
+      - name: OpenSSL 1.1 (PkgTool.Core is a self-contained .NET Core 3.1 app)
+        run: |
+          curl -fsSL -o /tmp/ossl.tgz https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1w/openssl-1.1.1w.tar.gz
+          tar -xzf /tmp/ossl.tgz -C /tmp && cd /tmp/openssl-1.1.1w
+          ./config shared --prefix=/opt/ossl11 --openssldir=/opt/ossl11 >/dev/null && make -j4 >/dev/null 2>&1 && make install_sw >/dev/null
+          echo "LD_LIBRARY_PATH=/opt/ossl11/lib" >> $GITHUB_ENV
       - name: Build
-        env:
-          DOTNET_ROLL_FORWARD: Major
         run: |
           cd ps4/tile && make 2>&1 | tail -40
           ls -la *.pkg
