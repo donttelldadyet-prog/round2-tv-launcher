@@ -1,0 +1,310 @@
+/* ==========================================================================================================
+   Round2 UI – the design language for staff-facing screens (control centre, Mac board, phone widgets)
+   Started 25 Nov 2026 from the Mac board v9, the first design the owner called "a huge improvement".
+   Rules (read README.md): monochrome like the logo · thin rounded lines, outlines not fills · colour only for
+   rooms and states · game font only for small labels and room names · every number says what it counts.
+   Use: <link rel="stylesheet" href="ui/r2-ui.css">  then  <html data-theme="dark|light|auto">
+   ========================================================================================================== */
+
+@font-face { font-family: 'R2 Pixel'; src: url(../widget/fonts/PressStart2P-Regular.ttf); font-display: swap; }
+@font-face { font-family: 'R2 Text'; font-weight: 300 700; src: url(../widget/fonts/Quicksand.ttf); font-display: swap; }
+
+/* ---------- tokens ---------- */
+:root {
+  /* type */
+  --r2-pixel: 'R2 Pixel', ui-monospace, monospace;      /* labels + room names only */
+  --r2-text: 'R2 Text', -apple-system, system-ui, sans-serif;
+  --r2-size: 13px;
+  /* shape – from the logo: thin strokes, small round corners */
+  --r2-line-w: 1px;
+  --r2-ring-w: 2.5px;
+  --r2-r-chip: 6px;
+  --r2-r-card: 12px;
+  --r2-r-panel: 18px;
+  --r2-gap: 14px;
+  --r2-pad: 16px;
+  /* motion – ONE place for how everything moves (the live preview's Motion lab edits these and copies them out).
+     Feel: calm and precise like the logo's lines – short, smooth, no bounce. */
+  --r2-dur: 180ms;            /* hover / press / switch */
+  --r2-dur-slow: 420ms;       /* state changes (a room going from In to Cleaning), things appearing */
+  --r2-ease: cubic-bezier(.2, .8, .2, 1);
+  --r2-lift: -2px;            /* how far a card / button rises on hover */
+  --r2-press: .97;            /* how much it shrinks while pressed */
+  --r2-hover-tint: 45%;       /* how much of the room colour a tile's outline takes on hover */
+  --r2-ring-draw: 900ms;      /* the ring drawing itself when it appears */
+  --r2-breathe: 2.4s;         /* the "Ending" dot breathing */
+  --r2-slow: 1;               /* slow-motion multiplier for checking animations (preview only: 4 = 4× slower) */
+  --t: calc(var(--r2-dur) * var(--r2-slow));
+  --t2: calc(var(--r2-dur-slow) * var(--r2-slow));
+  /* rooms – the product colours (the only colours besides states) */
+  --r2-vale: #E8436A; --r2-kaeden: #4DB848; --r2-scarlett: #F2C21B; --r2-bella: #7A5BE0;
+  --r2-kai: #24B49A; --r2-atlas: #E9E7EF; --r2-max: #E0402F;
+}
+/* dark = white on black (default) */
+:root, [data-theme="dark"] {
+  --r2-bg: #050505; --r2-fg: #f5f5f5; --r2-sub: rgba(245,245,245,.5);
+  --r2-line: rgba(245,245,245,.14); --r2-line2: rgba(245,245,245,.3);
+  --r2-ok: #4DB848; --r2-warn: #ff9f43; --r2-clean: #F2C21B; --r2-bad: #ff4d5e;
+  --r2-logo-filter: none;
+}
+/* light = black on white; the logo turns black; two room colours darkened so they read on white */
+[data-theme="light"] {
+  --r2-bg: #fafafa; --r2-fg: #0a0a0a; --r2-sub: rgba(10,10,10,.52);
+  --r2-line: rgba(10,10,10,.13); --r2-line2: rgba(10,10,10,.28);
+  --r2-ok: #2e8b36; --r2-warn: #d9731a; --r2-clean: #b38a00; --r2-bad: #d13348;
+  --r2-logo-filter: invert(1);
+  --r2-atlas: #7d7a8c; --r2-scarlett: #c79a00;
+}
+@media (prefers-color-scheme: light) {
+  [data-theme="auto"] {
+    --r2-bg: #fafafa; --r2-fg: #0a0a0a; --r2-sub: rgba(10,10,10,.52);
+    --r2-line: rgba(10,10,10,.13); --r2-line2: rgba(10,10,10,.28);
+    --r2-ok: #2e8b36; --r2-warn: #d9731a; --r2-clean: #b38a00; --r2-bad: #d13348;
+    --r2-logo-filter: invert(1);
+    --r2-atlas: #7d7a8c; --r2-scarlett: #c79a00;
+  }
+}
+
+/* room colour as a class: sets --c for everything inside (outline when lit, chip, name, ring, icon) */
+.r2-vale { --c: var(--r2-vale); } .r2-kaeden { --c: var(--r2-kaeden); } .r2-scarlett { --c: var(--r2-scarlett); }
+.r2-bella { --c: var(--r2-bella); } .r2-kai { --c: var(--r2-kai); } .r2-atlas { --c: var(--r2-atlas); } .r2-max { --c: var(--r2-max); }
+
+/* ---------- base ---------- */
+.r2 { background: var(--r2-bg); color: var(--r2-fg); font-family: var(--r2-text); font-size: var(--r2-size); line-height: 1.35;
+  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+.r2 *, .r2 *::before, .r2 *::after { box-sizing: border-box; }
+.r2-sub { color: var(--r2-sub); }
+.r2-logo { display: block; height: 26px; filter: var(--r2-logo-filter); }
+.r2-rule { height: var(--r2-line-w); background: var(--r2-line); border: 0; margin: 18px 0; }
+
+/* Kick – the small game-font label above a group ("TONIGHT", "UP NEXT", "LEFT") */
+.r2-kick { font-family: var(--r2-pixel); font-size: 7px; letter-spacing: .28em; text-transform: uppercase; color: var(--r2-sub); white-space: nowrap; }
+.r2-kick.sm { font-size: 6px; }
+
+/* Room name – game font in the room's colour */
+.r2-room { display: inline-flex; align-items: center; gap: 10px; font-family: var(--r2-pixel); font-size: 12px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--c, var(--r2-fg)); }
+.r2-room.sm { font-size: 9px; gap: 8px; }
+
+/* Panel – the outer board/page surface */
+.r2-panel { background: var(--r2-bg); border: var(--r2-line-w) solid var(--r2-line); border-radius: var(--r2-r-panel); padding: 22px 24px 24px; }
+
+/* Card – a thin rounded outline; .lit = guests in → the outline takes the room's colour */
+.r2-card { border: var(--r2-line-w) solid var(--r2-line); border-radius: var(--r2-r-card); padding: 15px var(--r2-pad) var(--r2-pad); min-width: 0; }
+.r2-card.lit { border-color: var(--c); }
+
+/* BUTTON OR INFORMATION? (owner, 26 Nov: "we need to distinguish which are buttons and which are information boxes")
+   - you can press it  → an OUTLINE, nothing inside (.r2-btn, .r2-chip.tap, tabs, toggles), and it rises when the mouse is on it
+   - it only tells you → a soft FILL, no outline (.r2-chip, .r2-notice), and it never moves
+   Cards are containers (an outline around a group); a card you can open shows corner brackets on hover.
+
+   Chip – an information box. The state is the dot's colour; inside a room it's the room colour.
+   .strong = a little more of the colour in the fill · .fill = the strongest fill + a breathing dot (e.g. "Ending") ·
+   .sm = small (messages) · .tap = it's a button after all (outline, rises on hover) */
+.r2-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 12px; border-radius: var(--r2-r-chip);
+  border: var(--r2-line-w) solid transparent; background: color-mix(in srgb, var(--r2-fg) 7%, transparent);
+  color: var(--r2-fg); font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; }
+.r2-chip > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.r2-chip::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--dot); display: none; }
+.r2-chip.dot::before, .r2-chip.ok::before, .r2-chip.wait::before, .r2-chip.bad::before, .r2-chip.next::before { display: inline-block; }
+.r2-chip.dot { --dot: var(--c, var(--r2-sub)); }
+.r2-chip.strong { background: color-mix(in srgb, var(--dot, var(--c, var(--r2-fg))) 14%, transparent); }
+.r2-chip.fill { background: color-mix(in srgb, var(--dot, var(--c, var(--r2-fg))) 24%, transparent); }
+.r2-chip.tap { background: transparent; border-color: var(--r2-line2); }
+.r2-chip.sm { gap: 6px; padding: 3px 9px; font-size: 11.5px; }
+.r2-chip.sm::before { width: 5px; height: 5px; }
+/* state dots for messages / health */
+.r2-chip.ok { --dot: var(--r2-ok); } .r2-chip.wait { --dot: var(--r2-warn); } .r2-chip.bad { --dot: var(--r2-bad); } .r2-chip.next { --dot: var(--r2-sub); }
+
+/* Countdown – the big number is ALWAYS a countdown to the next change, with words saying what it counts to */
+.r2-count { display: flex; align-items: baseline; gap: 8px; }
+.r2-count b { font-weight: 300; font-size: 36px; line-height: 1; letter-spacing: .02em; }
+.r2-count.quiet b { color: var(--r2-sub); }       /* not guests-in (cleaning left / till arrival) */
+.r2-count.hot b { color: var(--c, var(--r2-warn)); } /* ending soon */
+.r2-num { font-weight: 300; font-size: 28px; line-height: 1; }
+
+/* Line – pixel icon + text (guest, TV, PS4) */
+.r2-line { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 500; color: var(--r2-sub); }
+.r2-line.bold { font-weight: 600; color: var(--r2-fg); }
+.r2-line.room { color: var(--c); }
+.r2-line > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.r2-pix { display: block; flex: none; shape-rendering: crispEdges; }
+
+/* Ring – ONE meaning: guests in. Fills as the booking is used; the middle says how long they booked. */
+.r2-ring { position: relative; flex: none; width: 92px; height: 92px; }
+.r2-ring svg { display: block; transform: rotate(-90deg); }
+.r2-ring .track { fill: none; stroke: var(--r2-line); stroke-width: 2; }
+.r2-ring .used { fill: none; stroke: var(--c, var(--r2-fg)); stroke-width: var(--r2-ring-w); stroke-linecap: round; }
+.r2-ring .mid { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 5px; text-align: center; }
+.r2-ring .mid b { font-weight: 300; font-size: 19px; line-height: 1; }
+
+/* Then – who's next in this room */
+.r2-then { display: grid; gap: 4px; justify-items: end; text-align: right; }
+.r2-then b { font-weight: 600; white-space: nowrap; }
+.r2-then .gap.tight { color: var(--r2-warn); }
+
+/* Strip – the quiet info row under the main tiles: columns split by thin lines, no boxes */
+.r2-strip { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: start; }
+.r2-strip > * { display: grid; gap: 9px; align-content: start; min-width: 0; padding: 0 20px; border-left: var(--r2-line-w) solid var(--r2-line); }
+.r2-strip > :first-child { padding-left: 4px; border-left: 0; }
+.r2-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.r2-row .push { flex: 1; }
+
+/* Room grid – the six rooms are the main view */
+.r2-rooms { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: minmax(196px, auto); gap: var(--r2-gap); }
+.r2-tile { display: flex; flex-direction: column; }
+.r2-tile .body { display: flex; gap: 12px; margin-top: 13px; flex: 1; }
+.r2-tile .main { flex: 1; min-width: 0; display: grid; align-content: start; gap: 10px; }
+.r2-tile .side { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; flex: none; }
+.r2-tile .msgs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+@media (max-width: 900px) { .r2-rooms { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .r2-rooms { grid-template-columns: 1fr; } .r2-strip { grid-auto-flow: row; gap: 16px; } .r2-strip > * { border-left: 0; padding: 0 4px; } }
+
+/* ---------- controls for staff screens (same language: outlines, small round corners, no fills until pressed/on) ---------- */
+.r2-btn { appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 0 16px;
+  border-radius: var(--r2-r-chip); border: var(--r2-line-w) solid var(--r2-line2); background: transparent; color: var(--r2-fg);
+  font: 600 13px var(--r2-text); letter-spacing: .02em; cursor: pointer;
+  transition: border-color var(--t) var(--r2-ease), background var(--t) var(--r2-ease), color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+.r2-btn:hover { border-color: var(--r2-fg); }
+.r2-btn:focus-visible { outline: 2px solid var(--c, var(--r2-fg)); outline-offset: 2px; }
+.r2-btn.solid { background: var(--r2-fg); color: var(--r2-bg); border-color: var(--r2-fg); }   /* the ONE main action on a screen */
+.r2-btn.room { border-color: var(--c); }
+.r2-btn.danger { border-color: var(--r2-bad); color: var(--r2-bad); }
+.r2-btn.quiet { border-color: transparent; color: var(--r2-sub); }
+.r2-btn.quiet:hover { color: var(--r2-fg); }
+.r2-btn:disabled { opacity: .4; cursor: default; }
+
+.r2-field { display: grid; gap: 7px; }
+.r2-input { width: 100%; min-height: 38px; padding: 0 12px; border-radius: var(--r2-r-chip); border: var(--r2-line-w) solid var(--r2-line2);
+  background: transparent; color: var(--r2-fg); font: 500 14px var(--r2-text); }
+.r2-input::placeholder { color: var(--r2-sub); }
+.r2-input:focus { outline: none; border-color: var(--c, var(--r2-fg)); }
+
+/* Toggle – a thin outlined pill; the knob is a small rounded bar (the logo's II), filled when on */
+.r2-toggle { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.r2-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.r2-toggle i { position: relative; width: 38px; height: 22px; border-radius: 7px; border: var(--r2-line-w) solid var(--r2-line2); transition: border-color var(--t) var(--r2-ease); }
+.r2-toggle i::after { content: ''; position: absolute; top: 4px; left: 5px; width: 6px; height: 12px; border-radius: 2px;
+  border: var(--r2-line-w) solid var(--r2-sub); transition: left var(--t) var(--r2-ease), width var(--t) var(--r2-ease), background var(--t) var(--r2-ease), border-color var(--t) var(--r2-ease); }
+.r2-toggle input:checked + i { border-color: var(--c, var(--r2-ok)); }
+.r2-toggle input:checked + i::after { left: 24px; background: var(--c, var(--r2-ok)); border-color: var(--c, var(--r2-ok)); }
+.r2-toggle input:focus-visible + i { outline: 2px solid var(--r2-fg); outline-offset: 2px; }
+
+/* Tabs – game-font labels, a thin underline for the current one */
+.r2-tabs { display: flex; gap: 22px; border-bottom: var(--r2-line-w) solid var(--r2-line); }
+.r2-tab { appearance: none; background: none; border: 0; padding: 0 0 11px; margin-bottom: -1px; cursor: pointer; font-family: var(--r2-pixel);
+  font-size: 8px; letter-spacing: .24em; text-transform: uppercase; color: var(--r2-sub); border-bottom: 1.5px solid transparent; }
+.r2-tab[aria-selected="true"] { color: var(--r2-fg); }
+
+/* List – rows split by thin lines (bookings, messages, logs) */
+.r2-list { display: grid; }
+.r2-list > * { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 4px; border-top: var(--r2-line-w) solid var(--r2-line); }
+.r2-list > :first-child { border-top: 0; }
+
+/* Notice – a message for staff (information): a soft fill + state dot, no outline; "needs someone" gets a red-tinted fill */
+.r2-notice { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r2-r-card);
+  border: 0; background: color-mix(in srgb, var(--r2-fg) 6%, transparent); }
+.r2-notice.bad { background: color-mix(in srgb, var(--r2-bad) 14%, transparent); }
+.r2-notice::before { content: ''; flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--dot, var(--r2-sub)); }
+.r2-notice.ok { --dot: var(--r2-ok); } .r2-notice.wait { --dot: var(--r2-warn); } .r2-notice.bad { --dot: var(--r2-bad); }
+.r2-notice b { display: block; font-weight: 600; }
+.r2-notice span { color: var(--r2-sub); }
+
+
+
+/* ==========================================================================================================
+   MOTION – hover, press and reactions. Every timing comes from the tokens at the top (--r2-dur, --r2-ease …).
+   ========================================================================================================== */
+/* buttons: rise a little on hover, settle and shrink slightly while pressed */
+.r2-btn:hover:not(:disabled) { transform: translateY(var(--r2-lift)); }
+.r2-btn:active:not(:disabled) { transform: translateY(0) scale(var(--r2-press)); transition-duration: calc(var(--t) / 2); }
+.r2-btn.solid:hover:not(:disabled) { background: color-mix(in srgb, var(--r2-fg) 88%, var(--r2-bg)); }
+.r2-btn.room:hover:not(:disabled) { background: color-mix(in srgb, var(--c) 12%, transparent); }
+.r2-btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--r2-bad) 12%, transparent); }
+
+/* cards and room tiles: outline takes some of the room colour and the card rises; state changes fade slowly */
+.r2-card { transition: border-color var(--t2) var(--r2-ease), transform var(--t) var(--r2-ease), background var(--t) var(--r2-ease); }
+.r2-card.tap { cursor: pointer; }
+.r2-card.tap:hover, .r2-tile.tap:hover { transform: translateY(var(--r2-lift)); border-color: color-mix(in srgb, var(--c, var(--r2-fg)) var(--r2-hover-tint), var(--r2-line)); }
+.r2-card.tap.lit:hover { border-color: var(--c); background: color-mix(in srgb, var(--c) 5%, transparent); }
+.r2-card.tap:active { transform: scale(calc((1 + var(--r2-press)) / 2)); }
+
+/* chips: tappable ones brighten their outline; "Ending" breathes its dot */
+.r2-chip { transition: border-color var(--t2) var(--r2-ease), background var(--t2) var(--r2-ease), color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
+.r2-chip.tap { cursor: pointer; }
+.r2-chip.tap:hover { border-color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
+.r2-chip.tap:active { transform: scale(var(--r2-press)); }
+.r2-chip.fill::before { animation: r2-breathe calc(var(--r2-breathe) * var(--r2-slow)) ease-in-out infinite; }
+@keyframes r2-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* the ring draws itself when it appears (needs --C = its circumference, set by ringSvg() / <Ring>) */
+.r2-ring .used { animation: r2-draw calc(var(--r2-ring-draw) * var(--r2-slow)) var(--r2-ease) both; transition: stroke-dasharray var(--t2) var(--r2-ease); }
+@keyframes r2-draw { from { stroke-dasharray: 0 var(--C, 300); } }
+
+/* countdown number: a soft fade when it changes meaning (In → Cleaning) – add .r2-in to replay */
+.r2-in { animation: r2-in var(--t2) var(--r2-ease) both; }
+@keyframes r2-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* toggle: the knob slides and squashes a little while pressed */
+.r2-toggle:hover i { border-color: var(--r2-fg); }
+.r2-toggle:active i::after { width: 10px; }
+.r2-toggle input:checked + i::after { transition-delay: 0s; }
+.r2-toggle:active input:checked + i::after { left: 20px; }
+
+/* tabs: the underline grows from the left; hovering shows a faint one */
+.r2-tab { position: relative; border-bottom: 0; transition: color var(--t) var(--r2-ease); }
+.r2-tab::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--c, var(--r2-fg));
+  transform: scaleX(0); transform-origin: left; transition: transform var(--t2) var(--r2-ease), opacity var(--t) var(--r2-ease); opacity: 0; }
+.r2-tab:hover { color: var(--r2-fg); }
+.r2-tab:hover::after { transform: scaleX(.35); opacity: .4; }
+.r2-tab[aria-selected="true"]::after { transform: scaleX(1); opacity: 1; }
+.r2-tab:focus-visible { outline: 2px solid var(--r2-fg); outline-offset: 4px; }
+
+/* list rows: a faint wash and a small nudge right */
+.r2-list > * { transition: background var(--t) var(--r2-ease), padding var(--t) var(--r2-ease); border-radius: 4px; }
+.r2-list.tap > *:hover { background: color-mix(in srgb, var(--r2-fg) 5%, transparent); padding-left: 10px; cursor: pointer; }
+
+/* inputs: outline eases to the text colour */
+.r2-input { transition: border-color var(--t) var(--r2-ease); }
+.r2-input:hover { border-color: var(--r2-sub); }
+
+/* notices slide in */
+.r2-notice { animation: r2-in var(--t2) var(--r2-ease) both; }
+
+/* motion off: for people who ask their device for less motion, or the preview's switch */
+@media (prefers-reduced-motion: reduce) { .r2 *, .r2 *::before, .r2 *::after { animation: none !important; transition: none !important; } }
+[data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after { animation: none !important; transition: none !important; }
+
+/* ---------- pop-ups, toasts and pages (26 Nov, owner: "needs our animations and transitions … between pages and tabs … popups") ----------
+   R2UI.ask(text) – a question that needs a yes (replaces the browser's own grey confirm box); R2UI.toast(text) – a short
+   note at the bottom; .r2-enter on a page that has just opened – it rises in, its tiles one after another. */
+.r2-ask-back { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, #000 58%, transparent); animation: r2-fade var(--t2) var(--r2-ease) both; }
+.r2-ask { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow: auto; display: grid; gap: 14px; padding: 20px 20px 16px;
+  background: var(--r2-bg); color: var(--r2-fg); border: var(--r2-line-w) solid var(--r2-line2); border-radius: 14px;
+  font: 500 14px/1.5 var(--r2-text); animation: r2-pop var(--t2) var(--r2-ease) both; }
+.r2-ask .r2-ask-q { margin: 0; font: 600 17px/1.35 var(--r2-text); letter-spacing: 0; text-transform: none; color: var(--r2-fg); }
+.r2-ask p { margin: 0; max-width: none; color: var(--r2-sub); white-space: pre-line; font-size: 13.5px; }
+.r2-ask .r2-ask-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.r2-ask-back.out { animation: r2-fade-out calc(var(--t) * 1.2) var(--r2-ease) both; }
+.r2-ask-back.out .r2-ask { animation: r2-pop-out calc(var(--t) * 1.2) var(--r2-ease) both; }
+@keyframes r2-fade { from { opacity: 0; } }
+@keyframes r2-fade-out { to { opacity: 0; } }
+@keyframes r2-pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes r2-pop-out { to { opacity: 0; transform: translateY(6px) scale(.98); } }
+.r2-toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); z-index: 1001; transform: translateX(-50%);
+  max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px; background: var(--r2-fg); color: var(--r2-bg);
+  font: 600 13.5px/1.4 var(--r2-text); animation: r2-toast-in var(--t2) var(--r2-ease) both; }
+.r2-toast.out { animation: r2-toast-out var(--t) var(--r2-ease) both; }
+@keyframes r2-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+@keyframes r2-toast-out { to { opacity: 0; transform: translate(-50%, 8px); } }
+.r2-enter { animation: r2-in var(--t2) var(--r2-ease) both; }
+.r2-enter .r2-rooms > *, .r2-enter .r2-stagger > * { animation: r2-in var(--t2) var(--r2-ease) both; }
+.r2-enter .r2-rooms > :nth-child(2), .r2-enter .r2-stagger > :nth-child(2) { animation-delay: 40ms; }
+.r2-enter .r2-rooms > :nth-child(3), .r2-enter .r2-stagger > :nth-child(3) { animation-delay: 80ms; }
+.r2-enter .r2-rooms > :nth-child(4), .r2-enter .r2-stagger > :nth-child(4) { animation-delay: 120ms; }
+.r2-enter .r2-rooms > :nth-child(5), .r2-enter .r2-stagger > :nth-child(5) { animation-delay: 160ms; }
+.r2-enter .r2-rooms > :nth-child(6), .r2-enter .r2-stagger > :nth-child(6) { animation-delay: 200ms; }
+.r2-enter .r2-rooms > :nth-child(n+7), .r2-enter .r2-stagger > :nth-child(n+7) { animation-delay: 240ms; }
+@media (prefers-reduced-motion: reduce) { .r2-ask-back, .r2-ask, .r2-toast, .r2-enter, .r2-enter * { animation: none !important; } }
+[data-motion="off"] .r2-ask-back, [data-motion="off"] .r2-ask, [data-motion="off"] .r2-toast { animation: none !important; }
