@@ -1,5 +1,9 @@
 # Round2 – notes for Claude
 
+- **Before every release (owner, 27 Nov 2026 3:04am: "everytime a new version is pushed, check design if there are updates"):** before
+  building/pushing a new tile, helper, member page or engine version, pull round2sg-home and read `git log` of `design/` + `index.html`
+  and HANDOFF "DESIGN → FUNCTION CONCERNS" since the last release – build in anything new for the screens you touch (e.g. a new
+  `design/tile/save-screen-v*.html` mockup → the tile), or say in HANDOFF why not.
 - **Run the System check before and after any change** (control centre › Tests & systems › System check). Add a step for
   every new feature that touches another part. Why and how: `docs/system-check.md`. This is the owner's standing rule.
   **Two sizes (owner, 16 Nov 2026):** the **Light check** for changes that can't touch bookings (PS4 helper, TV app, the
