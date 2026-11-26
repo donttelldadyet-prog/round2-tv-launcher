@@ -1,0 +1,44 @@
+# Builds the Round2 PS4 tile package (fPKG RTWO00001) on GitHub's machines.
+# Only builds; releasing to the PS4s (branch ps4-tile) is a separate, checked step.
+name: PS4 tile package
+on:
+  push:
+    branches: [tile-v2]
+    paths: ['ps4/tile/**', '.github/workflows/ps4-tile.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq clang-18 lld-18 >/dev/null
+          sudo ln -sf /usr/bin/clang-18 /usr/local/bin/clang
+          sudo ln -sf /usr/bin/clang++-18 /usr/local/bin/clang++
+          sudo ln -sf /usr/bin/ld.lld-18 /usr/local/bin/ld.lld
+          curl -fsSL -o /tmp/oo.tgz https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/v0.5.4/toolchain-llvm-18.tar.gz
+          mkdir -p /opt/oo && tar -xzf /tmp/oo.tgz -C /opt/oo
+          TC=$(dirname $(dirname $(dirname $(find /opt/oo -path '*bin/linux/create-fself' | head -1))))
+          echo "toolchain at $TC"; ls $TC; ls $TC/bin/linux
+          chmod +x $TC/bin/linux/* || true
+          echo "OO_PS4_TOOLCHAIN=$TC" >> $GITHUB_ENV
+      - name: Build
+        env:
+          DOTNET_ROLL_FORWARD: Major
+        run: |
+          cd ps4/tile && make 2>&1 | tail -40
+          ls -la *.pkg
+          sha256sum *.pkg eboot.bin | tee build-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: round2-tile
+          path: |
+            ps4/tile/*.pkg
+            ps4/tile/eboot.bin
+            ps4/tile/build-sha256.txt
