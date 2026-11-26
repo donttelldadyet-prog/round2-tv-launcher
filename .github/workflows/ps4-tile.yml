@@ -7,7 +7,7 @@ on:
     paths: ['ps4/tile/**', '.github/workflows/ps4-tile.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -39,6 +39,14 @@ jobs:
           cd ps4/tile && make 2>&1 | tail -40
           ls -la *.pkg
           sha256sum *.pkg eboot.bin | tee build-sha256.txt
+      - name: Put the package on branch ps4-tile-staging (checked before it goes to ps4-tile, which the PS4s update from)
+        run: |
+          cd ps4/tile; V=$(grep -m1 '^VERSION' Makefile | awk '{print $3}'); P=IV0000-RTWO00001_00-ROUND2MEMBERS000.pkg
+          mkdir -p /tmp/st && cp $P /tmp/st/round2_tile.pkg && cp eboot.bin /tmp/st/
+          printf '{"v":"%s","sha256":"%s","size":%s}' "$V" "$(sha256sum $P | cut -d' ' -f1)" "$(stat -c%s $P)" > /tmp/st/round2_tile.json
+          echo "built from ${GITHUB_SHA}" > /tmp/st/SOURCE.txt; cat /tmp/st/round2_tile.json
+          cd /tmp/st && git init -q -b ps4-tile-staging && git add -A && git -c user.name=github-actions -c user.email=actions@github.com commit -qm "tile $V staging build (${GITHUB_SHA::7})"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" ps4-tile-staging
       - uses: actions/upload-artifact@v4
         with:
           name: round2-tile
