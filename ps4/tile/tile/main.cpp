@@ -81,7 +81,8 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 }
 
 #include "draw.h"
-#define TILE_V "0.18"   /* 0.18 (owner 27 Nov 3:04am, Karen's save screen v3 of 2:53-2:59am): premium crew card (brushed metal, gold chip, glows, edge light, shadow), faces fade onto the card as profiles get ready + PLAYERS n/m, ready rows tint green, scan sub-line on two lines, "Waiting for your phone" with pulsing dots. */
+#define TILE_V "0.19"   /* 0.19: frames drawn in normal memory, then copied to the screen (the screen memory is very slow to read) */
+/* 0.18   /* 0.18 (owner 27 Nov 3:04am, Karen's save screen v3 of 2:53-2:59am): premium crew card (brushed metal, gold chip, glows, edge light, shadow), faces fade onto the card as profiles get ready + PLAYERS n/m, ready rows tint green, scan sub-line on two lines, "Waiting for your phone" with pulsing dots. */
 /* 0.17   /* 0.17 (owner 27 Nov 2:43am: the "Closing in" countdown was cut ~2 s in): a load with nothing to copy waited 10 s before "ready", so ready + what happens next (4 + 6 s) ran past the menu add-on's 20-s wait and its log-out cut it. With the helper's live file: 3 s. */
 #include <orbis/SystemService.h>
 #define ENGINE_HOST "round2-book.donttelldadyet.workers.dev"
@@ -227,6 +228,10 @@ int main() {
   pthread_t th; pthread_create(&th, NULL, poller, NULL);
 
   uint32_t *BASE = (uint32_t *)malloc(W * H * 4), *BG0 = (uint32_t *)malloc(W * H * 4);
+  /* 0.19 (owner 27 Nov 3:14am: "ps4 tile seems laggy … is it cpu encoded?"): the screen memory is graphics memory the CPU writes
+     well but reads very slowly (write-combined), and every soft edge / glow / text pixel READS the pixel under it. Each frame is now
+     drawn in normal memory (WORK) and copied to the screen in one go. */
+  uint32_t *WORK = (uint32_t *)malloc(W * H * 4);   /* none = drawn straight on the screen as before */
   int frame = 0, busy = 0, done = 0, total = 0; char st[24] = "wait"; Color AC = GOLD; float shown = 0;
   char pkk[8] = "", pnn[8] = "", pnw[32] = "";
   int seen_loading = 0, howto = 0, seen_bar = 0, signedin = 0; double ready_t0 = 0, done_since = 0;   /* 0.08; 0.11: seen_bar, done_since */
@@ -269,12 +274,12 @@ int main() {
       if (nm != mode) { mode = nm; mode_t0 = now_s(); base_ok = 0; }
       if (memcmp(&AC, &bgAC, sizeof AC)) { bgAC = AC; if (BG0) bg_v2(BG0, AC); base_ok = 0; } }
     /* each frame: the screen (its intro, or the still picture from BASE), then the moving parts */
-    double nowt = now_s(), it = nowt - mode_t0, intro = mode == 0 ? 1.6 : mode == 1 ? 1.2 : mode == 2 ? 1.0 : 0.05; FB = scene->Buf();
+    double nowt = now_s(), it = nowt - mode_t0, intro = mode == 0 ? 1.6 : mode == 1 ? 1.2 : mode == 2 ? 1.0 : 0.05; FB = WORK ? WORK : scene->Buf();
     if (it < intro || !BASE) { if (BG0) memcpy(FB, BG0, W * H * 4);
       if (mode == 0) scan_still(F, C, S, it); else if (mode == 1) load_still(F, C, S, it); else if (mode == 2) ready_still(F, C, S, it); else next_still(F, C, S); base_ok = 0; }
     else { if (!base_ok) { FB = BASE; if (BG0) memcpy(BASE, BG0, W * H * 4);
         if (mode == 0) scan_still(F, C, S, 99); else if (mode == 1) load_still(F, C, S, 99); else if (mode == 2) ready_still(F, C, S, 99); else next_still(F, C, S);
-        base_ok = 1; FB = scene->Buf(); }
+        base_ok = 1; FB = WORK ? WORK : scene->Buf(); }
       memcpy(FB, BASE, W * H * 4); }
     GA = 255;
     if (mode == 0) scan_live(S, nowt, ease((float)((it - 0.4) / 0.8)));
@@ -305,6 +310,7 @@ int main() {
       if (mode == 3) next_live(F, C, S, it, tb + tn - e, tn);
       if (e >= tb + tn) { sceSystemServiceLoadExec("exit", NULL); exit(0); }
     }
+    if (WORK) memcpy(scene->Buf(), WORK, W * H * 4);   /* 0.19: one straight copy to the screen */
     scene->SubmitFlip(frame); scene->FrameWait(frame); scene->FrameBufferSwap(); frame++;
   }
   return 0;
