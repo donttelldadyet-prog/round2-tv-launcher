@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.154"   /* 1.1.154 the tile is no longer closed by the tile-update check unless an update is really there (it closed the tile mid-countdown) + a kept player's picture is put on too; 1.1.153 a member's picture that couldn't go on a signed-in profile is put on as soon as it signs out (av-pending.txt); 1.1.152 "/_memadd" = a second crew joins the room on the free profiles (nobody else's profile is touched) + a profile taking a NEW player is released first when it holds someone else's games; 1.1.151 Round2 tile first on the home screen after each load / clean slate (/_fold.pin); 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.155"   /* 1.1.155 the tile is closed for real ~40 s after a member load if it is still open (its own exit only goes to the home screen);  1.1.154 the tile is no longer closed by the tile-update check unless an update is really there (it closed the tile mid-countdown) + a kept player's picture is put on too; 1.1.153 a member's picture that couldn't go on a signed-in profile is put on as soon as it signs out (av-pending.txt); 1.1.152 "/_memadd" = a second crew joins the room on the free profiles (nobody else's profile is touched) + a profile taking a NEW player is released first when it holds someone else's games; 1.1.151 Round2 tile first on the home screen after each load / clean slate (/_fold.pin); 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -112,6 +112,7 @@ static void fold_set(const char *spec);
 static void hexs(const unsigned char *b, int n, char *o);
 static void look_pkgjob(const char *spec); static void look_pkgstop(void); static void look_pkgrm(const char *spec);
 static int bg_load(char *why, size_t wn); static int (*bg_unreg)(int);
+static long long g_tile_bye;   /* 1.1.155: a member load finished at (time) -> the tile is closed for real 40 s later if still open */
 static long long g_after_load; /* 1.1.119: a member load batch just finished (time) -> pop-up once the tile is gone */
 static long long cd_last_in, cd_play_from; static int cd_input = -2; /* 1.1.56: button detector (-2 not tried, -1 not readable, 0/1) */
 static int snap_covered(const char *u, const char *t, const char *nm, long long stamp); /* 1.1.52 */
@@ -3306,7 +3307,7 @@ static void switch_resume(const char *key) {   /* the release is done: start the
    slot" link x<k>), clean ones first. Too few free spares = refused before anything changes. Each profile keeps its own member link,
    so after the session every player's saves go back to their own crew. */
 static void look_memplay(const char *key, const char *spec) {
-  int add = !strncmp(spec, "/_memadd.", 9);
+  int add = !strncmp(spec, "/_memadd.", 9); g_tile_bye = 0;
   char buf[200], *tok[12]; int nt = 0; snprintf(buf, sizeof buf, "%s", spec + (add ? 9 : 10));
   for (char *p = buf, *q; p && nt < 12; p = q) { q = strchr(p, '.'); if (q) *q++ = 0; tok[nt++] = p; }
   if (nt < 3 || !(nt % 2) || !mem_ok(tok[0])) { look_kv("memplay/error", "bad spec"); return; }
@@ -3411,7 +3412,7 @@ static void look_memplay(const char *key, const char *spec) {
       if (pu != mainu_) av_apply(key, pu, tok[0], tok[1 + 2 * i]); }   /* 1.1.154 (owner 27 Nov 2:24am: Karen loaded again, picture still Ryan's): a kept player gets their picture too */
     else { ngo++; sv_log("member play: %s/%s '%s' stays on profile %08x; %d game(s) were played in another room since - only those load", tok[0], tok[1 + 2 * i], shown, pu, n); } }
   if (keptmsg[0]) bpop("%s: already on this PS4 - saves kept as they are", keptmsg);
-  if (!ngo) { g_mb_end = (long long)time(0) + 180; char v[200]; snprintf(v, sizeof v, "%08x %s already on this PS4 - nothing to load", mainu_, keptmsg); look_kv("memplay/ready", v); unlink("/data/round2/memqn"); keep_order(1); return; }
+  if (!ngo) { g_mb_end = (long long)time(0) + 180; char v[200]; snprintf(v, sizeof v, "%08x %s already on this PS4 - nothing to load", mainu_, keptmsg); look_kv("memplay/ready", v); unlink("/data/round2/memqn"); keep_order(1); g_tile_bye = time(0); return; }
   { FILE *qf = fopen("/data/round2/memqn", "w"); if (qf) { fprintf(qf, "%d %s\n", ngo, tok[2]); fclose(qf); } } /* 1.1.101 */
   int first = -1; for (int i = 0; i < np && i < 6; i++) if (go[i]) { first = i; break; }
   { FILE *f = 0; for (int i = first + 1; i < np && i < 6; i++) if (go[i]) { if (!f) f = fopen(MEMQ, "w"); if (f) fprintf(f, "%s %s %s %s\n", tok[0], tok[1 + 2 * i], tok[2 + 2 * i], posv[i]); } if (f) fclose(f); }
@@ -4181,7 +4182,7 @@ static void clean_step(const char *key, int budget) {
       if (!strcmp(kd, "prep") && !more_q) g_mb_end = (long long)time(0) + 180;
       if (!strcmp(kd, "prep") && more_q) memplay_next(key); /* 1.1.94: next ticked player */
       if (!strcmp(kd, "prep") && !more_q) { char pv[260]; app_pin(-1, pv, sizeof pv); }   /* 1.1.151: the tile first again before everyone signs in */
-      if (!strcmp(kd, "prep") && !more_q) { unlink("/data/round2/memqn"); keep_order(1); g_after_load = time(0); } /* 1.1.101: batch finished – profiles back in order; 1.1.119: pop-up once the tile is gone */
+      if (!strcmp(kd, "prep") && !more_q) { unlink("/data/round2/memqn"); keep_order(1); g_after_load = time(0); g_tile_bye = time(0); } /* 1.1.101: batch finished – profiles back in order; 1.1.119: pop-up once the tile is gone */
       if (!strcmp(kd, "prep")) { char s4[400]; report(key, s4, sizeof s4); } /* tell the tile at once (next player started, or all ready) */
       sv_log("restore test DONE: %d games, %d failed, %.0f s in all (%.1f s a game on average)", done, fails, atof(tb), done ? atof(tb) / done : 0.0);
       if (strcmp(kd, "prep")) bpop_key("clprog", "Download test DONE: %d games, %d failed, %.0f s in all (%.1f s a game)", done, fails, atof(tb), done ? atof(tb) / done : 0.0); } }
@@ -5837,6 +5838,13 @@ int main(void) {
       if (did) { report(key, status, sizeof status); write_status(status); } }
     if (key[0] && (m == 2 || (m && m % 30 == 0))) { r2_where("tile", 1); tile_check(key, 0); } /* 1.1.87: Round2 tile updates */
     if (key[0]) { r2_where("avatar", 1); av_pending_tick(key); }   /* 1.1.153 */
+    /* 1.1.155 (owner 27 Nov 2:34am: "after press ps button to log into karen the ps4 tile is still running"): the tile's own
+       close (sceSystemServiceLoadExec "exit") only takes the TV to the home screen - the app stays open behind it, and if PS is
+       pressed during its countdown it never gets that far. 40 s after a member load finished (the tile's ready + "what happens
+       next" screens are at most ~35 s), if no new load started and the tile is still open, the helper closes it for real. */
+    if (g_tile_bye && time(0) - g_tile_bye >= 40) { char rt[32] = "", st5[16] = ""; running_title(rt, sizeof rt); cl_rd("state", st5, sizeof st5);
+      if (file_exists("/data/round2/memqn") || file_exists(MEMQ) || !strcmp(st5, "running") || !strcmp(st5, "paused")) g_tile_bye = time(0);   /* a load is on - wait */
+      else { g_tile_bye = 0; if (!strcmp(rt, "RTWO00001")) { char cr[160]; close_game(cr, sizeof cr); sv_log("tile: still open 40 s after the member load - closed for real: %s", cr); } } }
     if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
     if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
     if (key[0]) defer_tick(key); /* 1.1.123: pre-load backups to the cloud after the load */
