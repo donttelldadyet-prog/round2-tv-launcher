@@ -3,3 +3,8 @@ eboot.bin
 pkg.gp4
 sce_sys/param.sfo
 *.pkg
+sim/sim
+sim/*.o
+sim/*.ppm
+sim/*.png
+sim/out/

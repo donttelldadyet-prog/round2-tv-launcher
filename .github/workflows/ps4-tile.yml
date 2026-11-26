@@ -3,7 +3,7 @@
 name: PS4 tile package
 on:
   push:
-    branches: [tile-v2]
+    branches: [tile-v2, ps4-helper]
     paths: ['ps4/tile/**', '.github/workflows/ps4-tile.yml']
   workflow_dispatch:
 permissions:
