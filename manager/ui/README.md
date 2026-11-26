@@ -39,8 +39,13 @@ Files: `manager/widget/fonts/` (both OFL – free to use).
    `till arrival` (both grey). Never a number without words.
 4. **The ring has one meaning: guests are in.** It fills as the booking is used and the middle says how long they booked.
    Not used for cleaning, arrivals or anything else. "Extended" is its own line under the guest's name.
-5. **One solid button per screen** – the main action. Everything else is an outline; "quiet" for cancel/back.
-6. **Same clock everywhere:** times are Singapore time from the engine (`r2Now()` / `clockOff`), never the device.
+5. **Button or information – never ambiguous** (owner, 26 Nov). Anything you can press is an **outline** with nothing
+   inside, and it rises when the mouse is on it. Anything that only tells you something (status boxes, notices, tags) is a
+   **soft fill with no outline**, and it never moves. Cards are containers; a card that opens shows corner brackets on hover.
+   **One solid button per screen** – the main action; "quiet" for cancel/back.
+6. **Things move the same way everywhere:** pages rise in when opened (their tiles one after another), questions that need a
+   yes open as an animated pop-up (`R2UI.ask`, never the browser's grey box), notes slide up from the bottom (`R2UI.toast`).
+7. **Same clock everywhere:** times are Singapore time from the engine (`r2Now()` / `clockOff`), never the device.
 
 ## Files
 

@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RoomTile, Chip, Button, Toggle, Tabs, Field, List, Notice, Kick, RoomName, UI_NAME } from './r2-ui.jsx';
-import { ROOMS, clk, setTheme } from './r2-ui.js';
+import { ROOMS, clk, setTheme, ask, toast } from './r2-ui.js';
 
 /* ---------- the motion tokens the lab can change (defaults = r2-ui.css) ---------- */
 const EASES = {
@@ -133,6 +133,15 @@ function Preview() {
       <Kick>List rows – hover</Kick>
       <List tap>{[['Kai', '9:51pm', 'Jess', 'ok', 'paid'], ['Max', '10:51pm', 'Ravi', 'wait', 'not paid'], ['Bella', '1:51am', 'Mei', 'ok', 'paid']].map(([rr, t, n, s, p]) =>
         <div key={rr}><b style={{ width: 58 }}>{t}</b><RoomName r={rr} sm /><span>{n}</span><span style={{ flex: 1 }} /><Chip sm state={s}>{p}</Chip></div>)}</List>
+    </section>
+
+    <section className="pv">
+      <Kick>Pop-ups – a question that needs a yes, and a note</Kick>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Button onClick={() => ask('Update Kai’s TV now?\n\nIt won’t send if the TV is off or the room has guests now or within 10 minutes.').then((ok) => toast(ok ? 'Kai: update sent' : 'Not sent'))}>Ask a question</Button>
+        <Button variant="danger" onClick={() => ask('Remove GT7 from Max?\n\nIt can be installed again from the laptop.', { ok: 'Remove', danger: true }).then((ok) => ok && toast('Removed'))}>Ask (danger)</Button>
+        <Button variant="quiet" onClick={() => toast('Saved – the TVs pick it up within a minute')}>Show a note</Button>
+      </div>
     </section>
 
     <section className="pv">

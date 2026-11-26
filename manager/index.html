@@ -678,17 +678,18 @@ body[data-g="tvs"] .btn.ghost { border-color: var(--r2-line2); }
 /* cards, banners, inputs */
 body[data-g="tvs"] .card { background: transparent; border: 1px solid var(--r2-line); border-radius: 12px; }
 body[data-g="tvs"] details.card > summary { color: var(--r2-fg); }
-body[data-g="tvs"] .banner { position: relative; background: transparent; border: 1px solid var(--r2-line2); border-radius: 12px; padding-left: 30px; }
+/* information boxes: a soft fill, no outline – buttons are outlines (owner, 26 Nov: "distinguish which are buttons and which are
+   information boxes"; manager/ui/README.md rule 5) */
+body[data-g="tvs"] .banner { position: relative; background: color-mix(in srgb, var(--r2-fg) 6%, transparent); border: 0; border-radius: 12px; padding-left: 30px; }
 body[data-g="tvs"] .banner::before { content: ''; position: absolute; left: 14px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--r2-sub); }
 body[data-g="tvs"] .banner.ok::before { background: var(--r2-ok); } body[data-g="tvs"] .banner.warn::before { background: var(--r2-warn); }
-body[data-g="tvs"] .banner.bad { border-color: var(--r2-bad); } body[data-g="tvs"] .banner.bad::before { background: var(--r2-bad); }
-body[data-g="tvs"] .banner.ok, body[data-g="tvs"] .banner.warn { border-color: var(--r2-line2); }
+body[data-g="tvs"] .banner.bad { background: color-mix(in srgb, var(--r2-bad) 14%, transparent); } body[data-g="tvs"] .banner.bad::before { background: var(--r2-bad); }
 body[data-g="tvs"] input:not([type=checkbox]):not([type=radio]), body[data-g="tvs"] select, body[data-g="tvs"] textarea {
   border-radius: 6px; background: transparent; border: 1px solid var(--r2-line2); color: var(--r2-fg); font-family: var(--r2-text); transition: border-color var(--t) var(--r2-ease); }
 body[data-g="tvs"] input:not([type=checkbox]):not([type=radio]):focus, body[data-g="tvs"] select:focus, body[data-g="tvs"] textarea:focus { border-color: var(--r2-fg); outline: none; }
 body[data-g="tvs"] select option { background: var(--r2-bg); color: var(--r2-fg); }
 body[data-g="tvs"] input[type=checkbox] { accent-color: var(--r2-fg); }
-body[data-g="tvs"] .chip { border-radius: 6px; text-transform: none; letter-spacing: .02em; font-weight: 600; }
+body[data-g="tvs"] .chip, body[data-g="tvs"] .pktag { border-radius: 6px; border-color: transparent !important; background: color-mix(in srgb, var(--r2-fg) 7%, transparent); text-transform: none; letter-spacing: .02em; font-weight: 600; }
 
 /* ---------- room tiles (Status and PS4s): like the Mac board – room name in the game font and its colour, thin outline that
    takes the room colour while the TV / PS4 is on, state as a small dot ---------- */
@@ -702,7 +703,7 @@ body[data-g="tvs"] .tvt.ok, body[data-g="tvs"] .tvt.lit { border-color: var(--rc
 body[data-g="tvs"] .tvt.bad, body[data-g="tvs"] .p4grid .tvt:not(.lit) { border-color: var(--r2-line) !important; }
 body[data-g="tvs"] .tvt .r2st .r2-chip { display: inline-flex; color: var(--r2-fg); }
 body[data-g="tvs"] .tvt .r2st .r2-chip > span { display: inline; font-size: 12px; color: var(--r2-fg); }
-body[data-g="tvs"] .tvt.bad .r2st .r2-chip { border-color: var(--r2-bad); }
+
 body[data-g="tvs"] .tvt b { display: flex; align-items: center; gap: 9px; font: 400 11px var(--r2-pixel); letter-spacing: .12em; text-transform: uppercase; color: var(--rc); }
 /* the two pale room colours have darker light-mode versions in the UI tokens (Atlas white → grey, Scarlett yellow → gold) */
 body[data-g="tvs"] [style*="--rc:#E9E7EF"] { --rc: var(--r2-atlas) !important; }
@@ -754,7 +755,7 @@ body[data-g="tvs"] .pkrc button:hover, body[data-g="tvs"] .pktog:hover { transfo
 body[data-g="tvs"] .pkname { font: 400 16px/1.5 var(--r2-pixel); letter-spacing: .1em; text-transform: uppercase; }
 body[data-g="tvs"] .pklbl { font: 400 8px var(--r2-pixel); letter-spacing: .24em; color: var(--r2-sub); }
 body[data-g="tvs"] .pkcard, body[data-g="tvs"] .pkx { border-radius: 12px; background: transparent; }
-body[data-g="tvs"] .pktag { border-radius: 6px; }
+
 body[data-g="tvs"] .pkpills span { border-radius: 4px; background: transparent; border: 1px solid var(--r2-line); }
 body[data-g="tvs"] .pkrow, body[data-g="tvs"] .pkchk { transition: background var(--t) var(--r2-ease), padding var(--t) var(--r2-ease); border-radius: 4px; }
 body[data-g="tvs"] .pkrow:hover { background: color-mix(in srgb, var(--r2-fg) 5%, transparent); padding-left: 8px; }
@@ -1181,7 +1182,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     <p class="sub">Send one TV a test message or food alert. Nothing reaches the kitchen.</p>
     <div class="banner warn" data-needkey hidden><div class="grow">Add the <b>TV messages key</b> under <b>Tests &amp; systems › Keys</b> first (once per phone or computer).</div></div>
     <div class="tlock" id="tLock"></div>
-    <div class="rooms" id="tRooms"></div>
+    <div class="rooms r2-stagger" id="tRooms"></div>
   </section>
 
   <section id="tab-foodmenu" hidden>
@@ -1809,7 +1810,9 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
   ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, function () { r2Touch = Date.now(); }, { passive: true, capture: true }); });
   function idle() { return document.hidden || Date.now() - r2Touch > 10 * 60000; }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
-  function toast(m) { var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
+  function toast(m) {
+    if (window.R2UI && ['tvs'].indexOf(document.body.getAttribute('data-g')) >= 0) { R2UI.toast(m); return; }   /* Round2 UI areas: the animated note (26 Nov) */
+    var t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200); }
   function ymd(d) {   /* day-ok: formats a date it's given */
    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   /* Singapore date, whatever the device's own time zone (time check 2 Nov): a laptop abroad or a TV set to UTC must agree */
@@ -2121,7 +2124,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
         return Promise.all([req('GET', url(r, 'helper')).catch(function () { return null; }), req('GET', url(r, 'update')).catch(function () { return null; })])
           .then(function (a) { return { r: r, hb: a[0], upd: a[1] }; }).catch(function () { return { r: r, err: true }; });
       })).then(function (list) {
-        $('tvTiles').innerHTML = '<div class="tvgrid">' + list.map(function (x) {
+        $('tvTiles').innerHTML = '<div class="tvgrid r2-stagger">' + list.map(function (x) {
           /* (26 Nov, owner: the TVs area in the Round2 UI) a tile like the Mac board's: room name in the game font and its colour,
              the state as a small status box with a dot, then plain lines (what's on screen, warnings, address), then the version */
           var R = ROOMS[x.r], h = x.hb, now = R2Day.now(), U = window.R2UI, pix = function (n, z, c) { return U ? U.pixSvg(n, z || 11, c || 'currentColor') : ''; };
@@ -2131,11 +2134,11 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
             '<div class="r2st"><span class="r2-chip sm ' + st + '"><span>' + txt + '</span></span></div>' + (more || '') + updLine(x) + '</div>'; };
           if (x.err) return t('', 'next', 'Couldn’t check');
           if (!h || !h.t) return t('', '', x.r === 'kaeden' ? 'Renovation · not reporting' : 'Not reporting yet');
-          if (h.failsafe) return t('bad', 'bad', 'Failsafe', ln('', 'Open Round2 Home on this TV'));
+          if (h.failsafe) return t('bad', 'bad strong', 'Failsafe', ln('', 'Open Round2 Home on this TV'));
           /* LG with Quick Start+ (owner, 3 Nov): its last check-in said "going to sleep" – the TV then freezes and stops checking
              in, so that stays the answer until it wakes (not "Offline", not "Online") */
           if (h.pw && h.pw !== 'Active') return t('sleep', 'next', 'Screen off', ln('', 'Asleep since ' + esc(nice2(h.t))));
-          if (now - h.t > 12 * 60000) return t('bad', 'bad', 'Offline', ln('', 'Since ' + esc(nice2(h.t))));
+          if (now - h.t > 12 * 60000) return t('bad', 'bad strong', 'Offline', ln('', 'Since ' + esc(nice2(h.t))));
           var fn = frontName(x.r, h.front);
           /* Android: the Home-button helper stopped in the last 24 h, and why (6 Nov – Kai's stopped mid-film) */
           var gx = (h.exits || []).filter(function (e) { return e.p === 'guard' && R2Day.now() - e.t < 86400e3; })[0];
@@ -2165,7 +2168,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
         if (tu) {
           if (!gKey()) { toast('Needs the staff code (Keys).'); return; }
           var nm = ROOMS[tu].name;
-          if (!confirm('Update ' + nm + '’s TV now?\n\nIt won’t send if the TV is off, updates are NOT ALLOWED in its Staff tools, or the room has guests (its own – not the twin’s system block) now or within 10 minutes. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.')) return;
+          if (!r2gate('tvu:' + tu, 'Update ' + nm + '’s TV now?\n\nIt won’t send if the TV is off, updates are NOT ALLOWED in its Staff tools, or the room has guests (its own – not the twin’s system block) now or within 10 minutes. LG TVs install by themselves (about a minute – don’t switch it off). Android TVs only get it ready: staff then press Install in Staff tools › Update app.', function () { var x = document.querySelector('[data-tvu=\"' + tu + '\"]'); if (x) x.click(); })) return;
           e.target.disabled = true; e.target.textContent = 'Sending…';
           fetch(HOOK, { method: 'POST', body: new URLSearchParams({ staff: gKey(), action: 'tvupdate', room: tu, by: 'control centre' }) }).then(function (r) { return r.json(); })
             .then(function (j) { toast(j.ok ? nm + ': update sent' + (j.tv === 'android' ? ' – it will say Ready, then Install in Staff tools.' : ' – watch the tile.') : nm + ': ' + (j.error || 'not sent')); status(); setTimeout(status, 20000); setTimeout(status, 60000); setTimeout(status, 120000); },
@@ -3407,8 +3410,8 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
       /* (26 Nov, Round2 UI) the state as a small status box with a dot, like the TVs page; what's playing on its own line */
       var st = function (c, t) { return '<div class="r2st"><span class="r2-chip sm ' + c + '"><span>' + t + '</span></span></div>'; };
       var U = window.R2UI, pad = U ? U.pixSvg('pad', 11) : '';
-      if (byUs) lines.push(st('wait', 'Rest mode · sent by us ' + esc(ago(p.cmd.doneAt))));
-      else if (!on) lines.push(st('bad', 'Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '')) + '<span class="tvv" style="white-space:normal">Asleep, off, or helper stopped</span>');
+      if (byUs) lines.push(st('wait strong', 'Rest mode · sent by us ' + esc(ago(p.cmd.doneAt))));
+      else if (!on) lines.push(st('bad strong', 'Offline' + (p.poll ? ' since ' + esc(ago(p.poll)) : '')) + '<span class="tvv" style="white-space:normal">Asleep, off, or helper stopped</span>');
       else lines.push(st('ok', 'Online') + (p.running ? '<div class="r2ln on">' + pad + '<span>' + esc(p.runName || p.running) + '</span></div>' : ''));
       if (p.sony !== 'blocked') warn.push('⚠️ Sony NOT blocked – check its DNS (127.0.0.1)');
       if (p.rolled) warn.push('↩️ Helper ' + p.rolled + ' – it stays on ' + (p.v || 'the old version') + ' until a newer one is out');
@@ -3452,7 +3455,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
         var wr = j.wakeRun; $('p4WakeRun').textContent = wr ? 'Last morning wake: ' + wr.day + ', started by ' + ((ROOMS[RK(wr.by)] || {}).name || wr.by) + ' – ' + ((wr.rooms || []).length ? 'woke ' + wr.rooms.map(function (r) { return (ROOMS[RK(r)] || {}).name || r; }).join(', ') : (wr.note || 'nothing to wake')) + '.' : '';
         var order = Object.keys(ROOMS).map(ER), L = (j.list || []).slice().sort(function (a, b) { return (a.room ? order.indexOf(a.room) : 99) - (b.room ? order.indexOf(b.room) : 99); });
         var have = L.map(function (p) { return p.room; }), missing = order.filter(function (r) { return have.indexOf(r) < 0; });
-        $('p4Tiles').innerHTML = '<div class="tvgrid p4grid">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><div class="p4i"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div></div>'; }).join('') + '</div>' +
+        $('p4Tiles').innerHTML = '<div class="tvgrid p4grid r2-stagger">' + L.map(tile).join('') + missing.map(function (r) { var R = ROOMS[RK(r)]; return '<div class="tvt" style="--rc:' + R.c + '"><div class="p4i"><b>' + esc(R.name) + '</b><span>' + (r === 'kaeden' ? 'Renovation · helper not installed yet' : 'Helper not installed yet') + '</span></div></div>'; }).join('') + '</div>' +
           '<p class="hint" style="margin-top:8px">Checked ' + esc(new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit', second: '2-digit' }).format(new Date(R2Day.now())).toLowerCase()) + '.</p>';
         var live = L.some(function (p) { return p.cmd && (p.cmd.state === 'sent' || p.cmd.state === 'taken' || (p.cmd.do === 'update' && p.cmd.state === 'done')) && R2Day.now() - p.cmd.at < 10 * 60000; });
         if (live && !fast) fast = setTimeout(function () { fast = 0; if (!$('tab-ps4s').hidden) draw(); }, 10000);   /* follow a clean-up closely */
@@ -3554,7 +3557,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     function sleepAll() {
       var now = R2Day.now(), on = lastList.filter(function (p) { return p.room && p.poll && now - p.poll < 3 * 60000; });
       if (!on.length) { $('p4GroupMsg').textContent = 'No PS4 is on.'; return; }
-      if (!confirm('Put ' + on.length + ' PS4(s) into rest mode?\n\nA room with guests now or within 15 minutes, or with a game open, stays on.')) return;
+      if (!r2gate('p4sleep', 'Put ' + on.length + ' PS4(s) into rest mode?\n\nA room with guests now or within 15 minutes, or with a game open, stays on.', function () { $('p4SleepAll').click(); })) return;
       $('p4GroupMsg').textContent = 'Sending…';
       Promise.all(on.map(function (p) { return gm({ action: 'ps4look', id: p.id, paths: '/_rest', by: 'control centre (sleep all)' }).then(function (j) { return rname(p) + (j.ok ? '' : ' ✗ ' + (j.error || '')); }); })).then(function (r) {
         $('p4GroupMsg').textContent = 'Rest mode sent: ' + r.join(', ') + '. Each PS4 picks it up within a minute.'; setTimeout(draw, 90000);
@@ -3580,14 +3583,14 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
       $('p4Tiles').addEventListener('change', function (e) {
         var id = e.target.getAttribute && e.target.getAttribute('data-p4map'); if (!id || !e.target.value) return;
         var nm = e.target.options[e.target.selectedIndex].text;
-        if (!confirm('This PS4 is in ' + nm + '?\n\n(If another PS4 was linked to ' + nm + ', it gets unlinked.)')) { e.target.value = ''; return; }
+        var sel = e.target; if (!r2gate('p4map:' + id, 'This PS4 is in ' + nm + '?\n\n(If another PS4 was linked to ' + nm + ', it gets unlinked.)', function () { sel.dispatchEvent(new Event('change', { bubbles: true })); }, function () { sel.value = ''; })) return;
         gm({ action: 'ps4map', id: id, room: e.target.value }).then(function (j) { toast(j.ok ? 'Linked to ' + nm : (j.error || 'Not linked')); draw(); });
       });
       $('p4Tiles').addEventListener('click', function (e) {
         var u = e.target.closest && e.target.closest('[data-p4upd]');
         if (u) {
           var un = u.getAttribute('data-p4room'), uv = u.getAttribute('data-p4v');
-          if (!confirm('Update ' + un + '’s PS4 helper to ' + uv + ' now?\n\nIt won’t send if the room has guests (its own – not the twin’s system block) now or within 10 minutes, or a game is open. The PS4 downloads it, checks it, and switches over in about a minute (pop-ups on the TV). If the new version doesn’t work, it goes back to the old one by itself.')) return;
+          if (!r2gate('p4upd:' + u.getAttribute('data-p4upd'), 'Update ' + un + '’s PS4 helper to ' + uv + ' now?\n\nIt won’t send if the room has guests (its own – not the twin’s system block) now or within 10 minutes, or a game is open. The PS4 downloads it, checks it, and switches over in about a minute (pop-ups on the TV). If the new version doesn’t work, it goes back to the old one by itself.', function () { var x = document.querySelector('[data-p4upd="' + u.getAttribute('data-p4upd') + '"]'); if (x) x.click(); })) return;
           u.disabled = true; u.textContent = 'Sending…';
           gm({ action: 'ps4update', id: u.getAttribute('data-p4upd'), by: 'control centre' }).then(function (j) {
             toast(j.ok ? un + ': update sent – the PS4 picks it up within a minute' : un + ': ' + (j.error || 'not sent')); draw();
@@ -3606,7 +3609,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
         var sp = e.target.closest && e.target.closest('[data-p4stop]');
         if (sp) {   /* 17 Nov: stop a reset countdown (the guests got an extension) – the PS4 picks it up within a minute */
           var sn = sp.getAttribute('data-p4room');
-          if (!confirm('Stop the reset countdown on ' + sn + '’s PS4?\n\nNothing gets closed or cleared. Add the extension in SimplyBook too, or the next reset is planned at the old time.')) return;
+          if (!r2gate('p4stop:' + sp.getAttribute('data-p4stop'), 'Stop the reset countdown on ' + sn + '’s PS4?\n\nNothing gets closed or cleared. Add the extension in SimplyBook too, or the next reset is planned at the old time.', function () { var x = document.querySelector('[data-p4stop="' + sp.getAttribute('data-p4stop') + '"]'); if (x) x.click(); })) return;
           sp.disabled = true; sp.textContent = 'Stopping…';
           gm({ action: 'ps4look', id: sp.getAttribute('data-p4stop'), paths: '/_reset.cancel', by: 'control centre: stop reset' }).then(function (j) { toast(j.ok ? sn + ': stop sent – the PS4 picks it up within a minute (guests see “reset cancelled”)' : sn + ': ' + (j.error || 'not sent')); draw(); }, function () { toast('Couldn’t reach the engine.'); draw(); });
           return;
@@ -3614,7 +3617,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
         var rs = e.target.closest && e.target.closest('[data-p4reset]');
         if (rs) {
           var rn = rs.getAttribute('data-p4room');
-          if (!confirm('Clean slate ' + rn + '’s PS4 now?\n\nCloses the game, signs out the spare profiles, copies every save to the PS4’s own storage and then removes it, deletes profiles guests made, names the spares Player 1–4 with default pictures.\n\nNot during a guest session. GT Sport on Max’s main profile, PS Vue and homebrew settings are never touched.')) return;
+          if (!r2gate('p4reset:' + rs.getAttribute('data-p4reset'), 'Clean slate ' + rn + '’s PS4 now?\n\nCloses the game, signs out the spare profiles, copies every save to the PS4’s own storage and then removes it, deletes profiles guests made, names the spares Player 1–4 with default pictures.\n\nNot during a guest session. GT Sport on Max’s main profile, PS Vue and homebrew settings are never touched.', function () { var x = document.querySelector('[data-p4reset="' + rs.getAttribute('data-p4reset') + '"]'); if (x) x.click(); })) return;
           rs.disabled = true; rs.textContent = 'Sending…';
           gm({ action: 'ps4reset', id: rs.getAttribute('data-p4reset'), by: 'control centre' }).then(function (j) {
             toast(j.ok ? rn + ': clean slate sent – the PS4 picks it up within a minute; progress shows on its tile' : rn + ': ' + (j.error || 'not sent')); draw();
@@ -3623,7 +3626,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
         }
         var b = e.target.closest && e.target.closest('[data-p4clean]'); if (!b) return;
         var nm = b.getAttribute('data-p4room'), junk = +b.getAttribute('data-p4junk') || 0;
-        if (!confirm('Clean up ' + nm + '’s PS4 now?' + (junk ? '\n\nFrees about ' + gb(junk) + '.' : '') + '\n\nDeletes: stuck update downloads and guests’ screenshots/clips.\nKeeps: games, patches, saves, PS Vue’s download.\n\nIt won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open. The TV shows a pop-up when it starts and when it’s done.')) return;
+        if (!r2gate('p4clean:' + b.getAttribute('data-p4clean'), 'Clean up ' + nm + '’s PS4 now?' + (junk ? '\n\nFrees about ' + gb(junk) + '.' : '') + '\n\nDeletes: stuck update downloads and guests’ screenshots/clips.\nKeeps: games, patches, saves, PS Vue’s download.\n\nIt won’t run if the room has guests (its own – not the twin’s system block) now or within 15 minutes, or a game is open. The TV shows a pop-up when it starts and when it’s done.', function () { var x = document.querySelector('[data-p4clean="' + b.getAttribute('data-p4clean') + '"]'); if (x) x.click(); })) return;
         b.disabled = true; b.textContent = 'Sending…';
         gm({ action: 'ps4clean', id: b.getAttribute('data-p4clean'), by: 'control centre' }).then(function (j) {
           toast(j.ok ? nm + ': clean-up sent – the PS4 picks it up within a minute' : nm + ': ' + (j.error || 'not sent')); draw();
@@ -3688,7 +3691,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
       if (!items.length) { msgEl.innerHTML = 'Nothing to send.' + (warn.length ? '<div style="color:var(--warn)">⚠ ' + warn.map(esc).join('<br>⚠ ') + '</div>' : ''); return; }
       var per = {}, size = 0, rm = items[0].op === 'rm'; items.forEach(function (it) { per[it.room] = (per[it.room] || 0) + 1; size += +it.mb || 0; });
       var txt = (rm ? 'Remove ' : 'Install ') + items.length + ' item(s)' + (rm ? '' : ', ' + gb(size)) + '?\n' + Object.keys(per).map(function (r) { return cap(r) + ': ' + per[r]; }).join(' · ') + (warn.length ? '\n\nSkipped:\n' + warn.join('\n') : '') + '\n\nEach PS4 does it when its room has no guest for the next hour.';
-      if (!confirm(txt)) return;
+      if (!r2gate('pkq', txt, function () { queue(items, warn, by, msgEl, after); })) return;
       msgEl.textContent = 'Sending…';
       gm({ action: 'pkgsend', items: JSON.stringify(items), rest: rest ? '1' : '', by: by }).then(function (j) {
         msgEl.innerHTML = j.error ? '⚠ ' + esc(j.error) : '✅ ' + j.queued + ' job(s) queued on ' + j.rooms + ' PS4(s). See Queue.' + (warn.length ? '<div style="color:var(--warn)">Skipped: ' + warn.map(esc).join(' · ') + '</div>' : '');
@@ -3757,7 +3760,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
       [].forEach.call(el.querySelectorAll('[data-pkrow]'), function (d) { d.onclick = function () { var k = d.getAttribute('data-pkrow'); openRow = openRow === k ? '' : k; drawRoom(true); }; });
       [].forEach.call(el.querySelectorAll('[data-pkup]'), function (b) { b.onclick = function () { var g = G[b.getAttribute('data-pkup')]; queue([item(r, patchOf(g))], [], 'control centre: update', $('pkMsgR'), function () { openRow = ''; }); }; });
       [].forEach.call(el.querySelectorAll('[data-pkrmg],[data-pkrmp]'), function (b) { b.onclick = function () { var k = b.getAttribute('data-pkrmg') || b.getAttribute('data-pkrmp'), c2 = b.hasAttribute('data-pkrmg') ? 'gd' : 'gp', x = inst(r, k), t = (x && x.t) || k;
-        if (c2 === 'gd' && !(G[k] && G[k].gd.length) && !confirm(t + ' is not on your laptop, so it can\'t be installed again from here. Remove it anyway?')) return;
+        if (c2 === 'gd' && !(G[k] && G[k].gd.length) && !r2gate('pkrm:' + k, t + ' is not on your laptop, so it can\'t be installed again from here. Remove it anyway?', function () { b.onclick(); })) return;
         queue([{ room: r, op: 'rm', tid: k, cat: c2, title: t }], [], 'control centre: remove', $('pkMsgR'), function () { openRow = ''; }); }; });
       [].forEach.call(el.querySelectorAll('[data-pkcan]'), function (b) { b.onclick = function () { gm({ action: 'pkgcancel', room: r, jid: b.getAttribute('data-pkcan'), by: 'control centre' }).then(function () { openRow = ''; loadQ(); }); }; });
     }
@@ -3895,7 +3898,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
       on('[data-form]', 'onclick', function (c, e) { e.preventDefault(); var x = c.getAttribute('data-form').split('|'); folders[+x[0]].tids.splice(+x[1], 1); saveFolders('✅ Removed – press Send to its rooms.'); });
       on('[data-fosend]', 'onclick', function (c) { foldSend(+c.getAttribute('data-fosend'), false); });
       on('[data-fodel]', 'onclick', function (c) { foldSend(+c.getAttribute('data-fodel'), true); });
-      on('[data-foforget]', 'onclick', function (c) { var i = +c.getAttribute('data-foforget'); if (!confirm('Delete "' + folders[i].name + '" from this list? It stays on the PS4s it was sent to – use "Take off the PS4s" first to remove it there.')) return; folders.splice(i, 1); saveFolders('✅ Deleted from the list.'); });
+      on('[data-foforget]', 'onclick', function (c) { var i = +c.getAttribute('data-foforget'); if (!r2gate('fo:' + i, 'Delete "' + folders[i].name + '" from this list? It stays on the PS4s it was sent to – use "Take off the PS4s" first to remove it there.', function () { c.onclick(); })) return; folders.splice(i, 1); saveFolders('✅ Deleted from the list.'); });
     }
     function foldSend(i, del) {
       var fo = folders[i], m = $('pkMsg3'); if (!fo) return;
@@ -3903,7 +3906,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
       var tg = fTarget(fo).filter(function (r) { return rooms[r] && rooms[r].id && vge(rooms[r].v, '1.1.145'); }); if (!tg.length) { m.textContent = 'None of its rooms has helper 1.1.145 yet.'; return; }
       var nm = fo.name.replace(/ /g, '_'), cmds = [];
       if (del) cmds.push('/_fold.del.' + nm); else { if (fo.oldName && fo.oldName !== fo.name) cmds.push('/_fold.del.' + fo.oldName.replace(/ /g, '_')); cmds.push('/_fold.set.' + nm + '.' + fo.tids.join('-')); }
-      if (!confirm((del ? 'Take the folder "' + fo.name + '" off ' : 'Put the folder "' + fo.name + '" (' + fo.tids.length + ' games) on every profile of ') + tg.map(cap).join(', ') + '?\nA PS4 with a game open says no – send again later. Shows after the next profile switch / clean slate.')) return;
+      if (!r2gate('fs:' + i + del, (del ? 'Take the folder "' + fo.name + '" off ' : 'Put the folder "' + fo.name + '" (' + fo.tids.length + ' games) on every profile of ') + tg.map(cap).join(', ') + '?\nA PS4 with a game open says no – send again later. Shows after the next profile switch / clean slate.', function () { foldSend(i, del); })) return;
       m.textContent = 'Sending…';
       Promise.all(tg.map(function (r) { return gm({ action: 'ps4look', id: rooms[r].id, paths: cmds.join(';'), by: 'control centre: folders' }).then(function (j) { return [r, j]; }); })).then(function (rs) {
         var bad = rs.filter(function (x) { return x[1].error; }); fo.sent = fo.sent || {}; rs.forEach(function (x) { if (!x[1].error) { if (del) delete fo.sent[x[0]]; else fo.sent[x[0]] = Date.now(); } });
@@ -5217,6 +5220,7 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
     });
     var needGh = GH_TABS.indexOf(n) >= 0 && !token && !viaEngine;
     TABS.forEach(function (k) { $('tab-' + k).hidden = k !== n || needGh; });
+    if (window.R2UI && r2areas().indexOf(g) >= 0 && !needGh) R2UI.enter($('tab-' + n));   /* the page rises in, its tiles one after another */
     $('signin').hidden = !needGh;
     if (needGh) return;
     if (n === 'settings') renderSettings();
@@ -5256,6 +5260,16 @@ body[data-g="tvs"] .tst { color: var(--r2-sub); }
   $('tabs').addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('[data-group]'), g = t && t.getAttribute('data-group'); if (g) { var s = ls('r2m.sub.' + g); tab(s && groupOf(s) === g ? s : GROUPS[g][0][0]); } });
   /* ---- Round2 UI (name pending; manager/ui/README.md) – which areas wear it, the light/dark switch, room icons ---- */
   function r2areas() { return ['tvs']; }   /* add an area's name here once it's moved over (body[data-g] + the r2-skin block) */
+  /* a question that needs a yes: in Round2 UI areas the animated pop-up (R2UI.ask), elsewhere the browser's box as before.
+     The pop-up can't stop the code the way confirm() does, so the action asks first and runs again once the answer is yes. */
+  var r2pass = {};
+  function r2gate(k, text, redo, no) {
+    if (r2pass[k]) { delete r2pass[k]; return true; }
+    if (!window.R2UI || r2areas().indexOf(document.body.getAttribute('data-g')) < 0) { var y = confirm(text); if (!y && no) no(); return y; }
+    R2UI.ask(text, { ok: /^(Remove|Delete|Take|Put \d+ PS4)/.test(text) ? 'Yes' : 'Yes, go ahead', danger: /^(Remove|Delete)/.test(text) })
+      .then(function (ok) { if (ok) { r2pass[k] = 1; redo(); } else if (no) no(); });
+    return false;
+  }
   function r2mode(v) { if (v) ls('r2-theme', v); var m = ls('r2-theme'); return ['dark', 'light', 'auto'].indexOf(m) >= 0 ? m : 'dark'; }
   /* room names on tiles and cards get their pixel icon (the same set as the TV menu, iPhone widget and Mac board) */
   function r2deco() {

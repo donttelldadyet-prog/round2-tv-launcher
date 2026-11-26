@@ -20,8 +20,9 @@ export const Pix = ({ name, size = 14, color = 'currentColor' }) => {
 export const Kick = ({ children, sm, as: T = 'div' }) => <T className={cx('r2-kick', sm && 'sm')}>{children}</T>;
 /** a room's name in the game font and its colour, with its icon */
 export const RoomName = ({ r, sm }) => { const R = room(r); return <span className={cx('r2-room', sm && 'sm', R.cls)}><Pix name={R.icon} size={sm ? 11 : 15} color="var(--c)" />{R.r}</span>; };
-/** status box. state: 'ok' | 'wait' | 'bad' | 'next' (message/health dot) – or inside a room tile use dot (room colour).
-    strong = outline in the colour; fill = light fill in the colour ("Ending") */
+/** information box (soft fill, no outline). state: 'ok' | 'wait' | 'bad' | 'next' (message/health dot) – or inside a room tile
+    use dot (room colour). strong = more of the colour in the fill; fill = the strongest fill + breathing dot ("Ending").
+    Give it onClick and it becomes a button (outline, rises on hover) – button or information is never ambiguous. */
 export const Chip = ({ children, state, dot, strong, fill, sm, className, onClick }) =>
   <span className={cx('r2-chip', state, dot && 'dot', strong && 'strong', fill && 'fill', sm && 'sm', onClick && 'tap', className)} onClick={onClick}
     role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}><span>{children}</span></span>;

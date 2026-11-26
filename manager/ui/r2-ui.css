@@ -93,16 +93,24 @@
 .r2-card { border: var(--r2-line-w) solid var(--r2-line); border-radius: var(--r2-r-card); padding: 15px var(--r2-pad) var(--r2-pad); min-width: 0; }
 .r2-card.lit { border-color: var(--c); }
 
-/* Chip – status box drawn like the logo's II bars. The state is the dot's colour; inside a room it's the room colour.
-   .strong = outline in the colour · .fill = light fill in the colour (e.g. "Ending") · .sm = small (messages) */
+/* BUTTON OR INFORMATION? (owner, 26 Nov: "we need to distinguish which are buttons and which are information boxes")
+   - you can press it  → an OUTLINE, nothing inside (.r2-btn, .r2-chip.tap, tabs, toggles), and it rises when the mouse is on it
+   - it only tells you → a soft FILL, no outline (.r2-chip, .r2-notice), and it never moves
+   Cards are containers (an outline around a group); a card you can open shows corner brackets on hover.
+
+   Chip – an information box. The state is the dot's colour; inside a room it's the room colour.
+   .strong = a little more of the colour in the fill · .fill = the strongest fill + a breathing dot (e.g. "Ending") ·
+   .sm = small (messages) · .tap = it's a button after all (outline, rises on hover) */
 .r2-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 12px; border-radius: var(--r2-r-chip);
-  border: var(--r2-line-w) solid var(--r2-line2); color: var(--r2-fg); font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; }
+  border: var(--r2-line-w) solid transparent; background: color-mix(in srgb, var(--r2-fg) 7%, transparent);
+  color: var(--r2-fg); font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; }
 .r2-chip > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .r2-chip::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--dot); display: none; }
 .r2-chip.dot::before, .r2-chip.ok::before, .r2-chip.wait::before, .r2-chip.bad::before, .r2-chip.next::before { display: inline-block; }
 .r2-chip.dot { --dot: var(--c, var(--r2-sub)); }
-.r2-chip.strong { border-color: var(--dot, var(--c)); }
-.r2-chip.fill { background: color-mix(in srgb, var(--dot, var(--c)) 16%, transparent); }
+.r2-chip.strong { background: color-mix(in srgb, var(--dot, var(--c, var(--r2-fg))) 14%, transparent); }
+.r2-chip.fill { background: color-mix(in srgb, var(--dot, var(--c, var(--r2-fg))) 24%, transparent); }
+.r2-chip.tap { background: transparent; border-color: var(--r2-line2); }
 .r2-chip.sm { gap: 6px; padding: 3px 9px; font-size: 11.5px; }
 .r2-chip.sm::before { width: 5px; height: 5px; }
 /* state dots for messages / health */
@@ -193,10 +201,10 @@
 .r2-list > * { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 11px 4px; border-top: var(--r2-line-w) solid var(--r2-line); }
 .r2-list > :first-child { border-top: 0; }
 
-/* Notice – a message for staff: outline + state dot, never a coloured block */
+/* Notice – a message for staff (information): a soft fill + state dot, no outline; "needs someone" gets a red-tinted fill */
 .r2-notice { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r2-r-card);
-  border: var(--r2-line-w) solid var(--r2-line2); }
-.r2-notice.bad { border-color: var(--r2-bad); }   /* only "needs someone" gets a coloured outline */
+  border: 0; background: color-mix(in srgb, var(--r2-fg) 6%, transparent); }
+.r2-notice.bad { background: color-mix(in srgb, var(--r2-bad) 14%, transparent); }
 .r2-notice::before { content: ''; flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--dot, var(--r2-sub)); }
 .r2-notice.ok { --dot: var(--r2-ok); } .r2-notice.wait { --dot: var(--r2-warn); } .r2-notice.bad { --dot: var(--r2-bad); }
 .r2-notice b { display: block; font-weight: 600; }
@@ -224,7 +232,7 @@
 /* chips: tappable ones brighten their outline; "Ending" breathes its dot */
 .r2-chip { transition: border-color var(--t2) var(--r2-ease), background var(--t2) var(--r2-ease), color var(--t) var(--r2-ease), transform var(--t) var(--r2-ease); }
 .r2-chip.tap { cursor: pointer; }
-.r2-chip.tap:hover { border-color: var(--dot, var(--r2-fg)); }
+.r2-chip.tap:hover { border-color: var(--r2-fg); transform: translateY(var(--r2-lift)); }
 .r2-chip.tap:active { transform: scale(var(--r2-press)); }
 .r2-chip.fill::before { animation: r2-breathe calc(var(--r2-breathe) * var(--r2-slow)) ease-in-out infinite; }
 @keyframes r2-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
@@ -266,3 +274,37 @@
 /* motion off: for people who ask their device for less motion, or the preview's switch */
 @media (prefers-reduced-motion: reduce) { .r2 *, .r2 *::before, .r2 *::after { animation: none !important; transition: none !important; } }
 [data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after { animation: none !important; transition: none !important; }
+
+/* ---------- pop-ups, toasts and pages (26 Nov, owner: "needs our animations and transitions … between pages and tabs … popups") ----------
+   R2UI.ask(text) – a question that needs a yes (replaces the browser's own grey confirm box); R2UI.toast(text) – a short
+   note at the bottom; .r2-enter on a page that has just opened – it rises in, its tiles one after another. */
+.r2-ask-back { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, #000 58%, transparent); animation: r2-fade var(--t2) var(--r2-ease) both; }
+.r2-ask { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow: auto; display: grid; gap: 14px; padding: 20px 20px 16px;
+  background: var(--r2-bg); color: var(--r2-fg); border: var(--r2-line-w) solid var(--r2-line2); border-radius: 14px;
+  font: 500 14px/1.5 var(--r2-text); animation: r2-pop var(--t2) var(--r2-ease) both; }
+.r2-ask .r2-ask-q { margin: 0; font: 600 17px/1.35 var(--r2-text); letter-spacing: 0; text-transform: none; color: var(--r2-fg); }
+.r2-ask p { margin: 0; max-width: none; color: var(--r2-sub); white-space: pre-line; font-size: 13.5px; }
+.r2-ask .r2-ask-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.r2-ask-back.out { animation: r2-fade-out calc(var(--t) * 1.2) var(--r2-ease) both; }
+.r2-ask-back.out .r2-ask { animation: r2-pop-out calc(var(--t) * 1.2) var(--r2-ease) both; }
+@keyframes r2-fade { from { opacity: 0; } }
+@keyframes r2-fade-out { to { opacity: 0; } }
+@keyframes r2-pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes r2-pop-out { to { opacity: 0; transform: translateY(6px) scale(.98); } }
+.r2-toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); z-index: 1001; transform: translateX(-50%);
+  max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 8px; background: var(--r2-fg); color: var(--r2-bg);
+  font: 600 13.5px/1.4 var(--r2-text); animation: r2-toast-in var(--t2) var(--r2-ease) both; }
+.r2-toast.out { animation: r2-toast-out var(--t) var(--r2-ease) both; }
+@keyframes r2-toast-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+@keyframes r2-toast-out { to { opacity: 0; transform: translate(-50%, 8px); } }
+.r2-enter { animation: r2-in var(--t2) var(--r2-ease) both; }
+.r2-enter .r2-rooms > *, .r2-enter .r2-stagger > * { animation: r2-in var(--t2) var(--r2-ease) both; }
+.r2-enter .r2-rooms > :nth-child(2), .r2-enter .r2-stagger > :nth-child(2) { animation-delay: 40ms; }
+.r2-enter .r2-rooms > :nth-child(3), .r2-enter .r2-stagger > :nth-child(3) { animation-delay: 80ms; }
+.r2-enter .r2-rooms > :nth-child(4), .r2-enter .r2-stagger > :nth-child(4) { animation-delay: 120ms; }
+.r2-enter .r2-rooms > :nth-child(5), .r2-enter .r2-stagger > :nth-child(5) { animation-delay: 160ms; }
+.r2-enter .r2-rooms > :nth-child(6), .r2-enter .r2-stagger > :nth-child(6) { animation-delay: 200ms; }
+.r2-enter .r2-rooms > :nth-child(n+7), .r2-enter .r2-stagger > :nth-child(n+7) { animation-delay: 240ms; }
+@media (prefers-reduced-motion: reduce) { .r2-ask-back, .r2-ask, .r2-toast, .r2-enter, .r2-enter * { animation: none !important; } }
+[data-motion="off"] .r2-ask-back, [data-motion="off"] .r2-ask, [data-motion="off"] .r2-toast { animation: none !important; }
