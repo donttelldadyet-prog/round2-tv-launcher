@@ -50,7 +50,7 @@
 #if defined(R2_V116)
 #define R2_VERSION "1.1.116"   /* 20 Nov 7:10pm: round2_shell4 crashed Kaeden's menu on auto-load -> 1.1.116 test = release code, no auto-load */
 #elif R2_SHELL
-#define R2_VERSION "1.1.152"   /* 1.1.152 "/_memadd" = a second crew joins the room on the free profiles (nobody else's profile is touched) + a profile taking a NEW player is released first when it holds someone else's games; 1.1.151 Round2 tile first on the home screen after each load / clean slate (/_fold.pin); 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
+#define R2_VERSION "1.1.153"   /* 1.1.153 a member's picture that couldn't go on a signed-in profile is put on as soon as it signs out (av-pending.txt); 1.1.152 "/_memadd" = a second crew joins the room on the free profiles (nobody else's profile is touched) + a profile taking a NEW player is released first when it holds someone else's games; 1.1.151 Round2 tile first on the home screen after each load / clean slate (/_fold.pin); 1.1.150 old full-size cloud saves re-sent slim after a load; 1.1.149 tile-live.txt for the tile + batch end no longer early; 1.1.148 load board for the tile's profile cards; 1.1.147 report straight after a PKG download ends (next job starts in 1-3 min, not up to 15); 1.1.146 folder INSERT no longer cut; 1.1.145 /_fold.set + /_fold.del on every profile; 1.1.144 /_fold.list + /_fold.ren (home-screen folders); 1.1.143 /_tail.<file>@<line> reads from the top; 1.1.142 appdb-short.txt; 1.1.141 /_appdb read-only home-folder probe; 1.1.140 crash log says where; 1.1.139 empty pieces not sent + replays left out of member saves + /_resend; 1.1.138 stale save-list row replaced + failed part-making taken back; 1.1.117 shell5 + one try; 1.1.118 shell6, /_shtest end; 1.1.119 shell7 + fg.txt + pop-up after the tile closes; 1.1.120 tile download straight to a file; 1.1.121 bundles via a file + light reports during member loads; 1.1.122 "part already exists" = use it; 1.1.123 pre-load backup to the cloud AFTER the load; 1.1.124 switch = release the other profiles first, fast fg, shell9; 1.1.137 save downloads straight to files + fingerprints + no member upload after a failed load */
 #else
 #define R2_VERSION "1.1.114"
 #endif
@@ -3138,11 +3138,38 @@ static void look_avlib(const char *key, const char *spec) {
   char v[160]; snprintf(v, sizeof v, "%d avatars found, %d uploaded, %d failed, %d too big, %lds", n, up, bad, big, (long)(time(0) - t0));
   sv_log("avlib: %s", v); look_kv(bad ? "avlib/partial" : "avlib/done", v);
 }
+/* 1.1.153 (owner 27 Nov 2:16am, Kaeden: "i logged into karen bozz and aliff bozz account over hipponips and the profile picture
+   isn't changed to karen's"): Ryan's profile was still signed in when Karen's load renamed it, and a picture can only be changed on
+   a signed-out profile – so it kept Ryan's. Now the picture waits in /data/round2/av-pending.txt ("<user> <member> <slot>", one
+   line per profile, the newest load wins) and av_pending_tick() (each check-in) puts it on the moment that profile is signed out –
+   only if the profile still belongs to that member (its owner link), else the line is dropped. */
+#define AVPEND "/data/round2/av-pending.txt"
+static void av_pending_set(uint32_t uid, const char *id, const char *sl) {
+  char b[2048] = "", line[128]; size_t n = 0; FILE *f = fopen(AVPEND, "r"); char u[16]; snprintf(u, sizeof u, "%08x", uid);
+  if (f) { while (fgets(line, sizeof line, f)) if (strncmp(line, u, 8) && n + strlen(line) < sizeof b - 1) { strcpy(b + n, line); n += strlen(line); } fclose(f); }
+  if (id && id[0]) snprintf(b + n, sizeof b - n, "%s %s %s\n", u, id, sl);
+  if (!b[0]) unlink(AVPEND); else put_file(AVPEND, b);
+}
+static int av_apply(const char *key, uint32_t uid, const char *id, const char *sl);
+static void av_pending_tick(const char *key) {
+  if (!file_exists(AVPEND) || snap_on || clean_on) return;
+  char b[2048] = ""; FILE *f = fopen(AVPEND, "r"); if (!f) return; size_t k = fread(b, 1, sizeof b - 1, f); fclose(f); b[k] = 0;
+  for (char *ln = b, *nx; ln && *ln; ln = nx) { nx = strchr(ln, '\n'); if (nx) *nx++ = 0;   /* no strtok: av_apply may use it */
+    char u[16], id[48], sl[16]; if (sscanf(ln, "%15s %47s %15s", u, id, sl) != 3) continue; uint32_t uid = (uint32_t)strtoul(u, 0, 16);
+    if (!prof_slot_base(uid)) { av_pending_set(uid, 0, 0); continue; }   /* profile gone */
+    char op[120], tg[64] = "", want[80]; snprintf(op, sizeof op, "/data/round2/prep/owner_%08x.txt", uid); snprintf(want, sizeof want, "%s/%s", id, sl);
+    FILE *g = fopen(op, "r"); if (g) { if (fgets(tg, sizeof tg, g)) tg[strcspn(tg, "\r\n")] = 0; fclose(g); }
+    if (strcmp(tg, want)) { sv_log("avatar: waiting picture for %08x dropped - the profile now belongs to '%s'", uid, tg); av_pending_set(uid, 0, 0); continue; }
+    if (user_signed_in(uid)) continue;   /* still signed in: next time */
+    int r = av_apply(key, uid, id, sl); if (r >= 0 || !user_signed_in(uid)) av_pending_set(uid, 0, 0);
+    sv_log("avatar: waiting picture %s/%s -> %08x after sign-out: %s", id, sl, uid, r > 0 ? "put on" : r == 0 ? "no picture" : "failed");
+  }
+}
 static int av_apply(const char *key, uint32_t uid, const char *id, const char *sl) {
   if (uid == r2_main_user()) return 0;
   char k[120], why[160]; unsigned char *data = 0; size_t len = 0; snprintf(k, sizeof k, "members/%s/%s/avatar.bin", id, sl);
   if (sv_get_raw(key, k, &data, &len, why, sizeof why)) { sv_log("avatar: %s/%s has no picture yet (%s)", id, sl, why); free(data); return 0; }
-  if (user_signed_in(uid)) { sv_log("avatar: %08x is signed in - picture not changed", uid); free(data); return -1; }
+  if (user_signed_in(uid)) { sv_log("avatar: %08x is signed in - picture waits until it signs out", uid); free(data); av_pending_set(uid, id, sl); return -1; }   /* 1.1.153 */
   int nf = 0; if (len < 8 || memcmp(data, "R2AV ", 5) || (nf = atoi((char *)data + 5)) < 1 || nf > 20) { sv_log("avatar: %s bad bundle", k); free(data); return -1; }
   { char pn[40]; sceUserServiceGetUserName((int32_t)uid, pn, sizeof pn); bpop_key("av", "Putting the chosen picture on profile '%s'", pn); }
   char td[120], rv[200]; av_dir(uid, td, sizeof td); sv_rights_up(rv, sizeof rv); mkdir(td, 0777); av_keep(uid, td);
@@ -3157,6 +3184,7 @@ static int av_apply(const char *key, uint32_t uid, const char *id, const char *s
   }
   sv_rights_back(); free(data);
   sv_log("avatar: %s/%s -> profile %08x: %d file(s) written, %d failed", id, sl, uid, cp, bad);
+  if (!bad) { char u8[16]; snprintf(u8, sizeof u8, "%08x", uid); FILE *pf = fopen(AVPEND, "r"); if (pf) { char l2[128]; int has = 0; while (fgets(l2, sizeof l2, pf)) if (!strncmp(l2, u8, 8)) has = 1; fclose(pf); if (has) av_pending_set(uid, 0, 0); } }   /* 1.1.153: done – nothing waits */
   return bad ? -1 : cp;
 }
 /* 1.1.94 (owner 20 Nov 12:53am: tick several crew players and load them at once): "/_memplay.<member>.<slot>.<Name>[.<slot>.<Name>…]"
@@ -5797,6 +5825,7 @@ int main(void) {
       if (!did && m % 3 == 0) bpop_key("hb", "Online - checked in (%.2f s), no jobs. %s%s", tm_now() - t, snap_on ? "Backup running. " : clean_on ? "Copy/clean running. " : "", g_awake_until > (long long)time(0) ? "Staying awake." : "");
       if (did) { report(key, status, sizeof status); write_status(status); } }
     if (key[0] && (m == 2 || (m && m % 30 == 0))) { r2_where("tile", 1); tile_check(key, 0); } /* 1.1.87: Round2 tile updates */
+    if (key[0]) { r2_where("avatar", 1); av_pending_tick(key); }   /* 1.1.153 */
     if (!clean_on && !snap_on) keep_order(0); /* 1.1.101: main, Player 1-4 stay in order */
     if (key[0]) { r2_where("save watch", 1); sw_tick(key); } /* 1.1.102: save when the game closes */
     if (key[0]) defer_tick(key); /* 1.1.123: pre-load backups to the cloud after the load */
