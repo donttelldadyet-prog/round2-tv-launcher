@@ -81,7 +81,8 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 }
 
 #include "draw.h"
-#define TILE_V "0.21"   /* 0.21 (owner 27 Nov 11:37pm, Karen's member journey v5): real card shape; Scan waits with an empty deck + dashed outline (the card comes from the phone's Load); Loading = the card drops into a reader with a bar per profile (list dropped); Ready without wiggle; bigger LCD-style closing countdown */
+#define TILE_V "0.22"   /* 0.22 (Karen 28 Nov 3:59am): the loading screen keeps its profiles (helper board only when it has rows, an empty board mid-load keeps them, one crew bar when there are none) and gets the older loading bar back under the reader */
+/* 0.21   /* 0.21 (owner 27 Nov 11:37pm, Karen's member journey v5): real card shape; Scan waits with an empty deck + dashed outline (the card comes from the phone's Load); Loading = the card drops into a reader with a bar per profile (list dropped); Ready without wiggle; bigger LCD-style closing countdown */
 /* 0.20   /* 0.20 (owner 27 Nov 12:29pm, Karen's save screen v4): the orb on Scan + Ready is replaced by a memory card that wakes when a phone scans, slides into a save deck (on the phone's swipe-up or by itself) and lights the crew's room passport; scan-screen polls every 4 s */
 /* 0.19   /* 0.19: frames drawn in normal memory, then copied to the screen (the screen memory is very slow to read) */
 /* 0.18   /* 0.18 (owner 27 Nov 3:04am, Karen's save screen v3 of 2:53-2:59am): premium crew card (brushed metal, gold chip, glows, edge light, shadow), faces fade onto the card as profiles get ready + PLAYERS n/m, ready rows tint green, scan sub-line on two lines, "Waiting for your phone" with pulsing dots. */
@@ -262,11 +263,14 @@ int main() {
       pthread_mutex_unlock(&mx);
       if (lv_ok) { strcpy(st, lv_state == 'l' ? "loading" : "done"); }   /* 0.13: the helper on this PS4 knows best */
       AC = hexc(co, GOLD); busy = !strcmp(st, "loading") || !strcmp(st, "reset");
-      { char bd[640]; pthread_mutex_lock(&mx); strcpy(bd, g_board); pthread_mutex_unlock(&mx); if (lv_ok) strcpy(bd, lv_board); B.bn = 0; char *p = bd;   /* 0.12 */
+      { char bd[640]; pthread_mutex_lock(&mx); strcpy(bd, g_board); pthread_mutex_unlock(&mx); if (lv_ok && lv_board[0]) strcpy(bd, lv_board);   /* 0.22 (Karen 28 Nov 3:59am: LOADING 0/0, rows flick on and off): the helper's board only when it has rows, else the engine's */
+        int keep_bn = B.bn; if (!bd[0] && busy && keep_bn > 0) goto board_done;   /* 0.22: an empty board mid-load keeps the rows we had */
+        B.bn = 0; { char *p = bd;
         while (*p && B.bn < 5) { char *e = strchr(p, '|'); if (e) *e = 0; char *f[4] = { p, (char *)"", (char *)"", (char *)"" }; int k = 1;
           for (char *q = p; *q && k < 4; q++) if (*q == '~') { *q = 0; f[k++] = q + 1; }
           int n = B.bn; B.bst[n] = f[0][0]; snprintf(B.bcur[n], 32, "%s", f[1]); snprintf(B.btgt[n], 32, "%s", f[2][0] ? f[2] : f[1]); snprintf(B.bwho[n], 32, "%s", f[3]); B.bn++;
-          if (!e) break; p = e + 1; }
+          if (!e) break; p = e + 1; } }
+        board_done:
         if (busy && !was_busy) { memset(B.lit, 0, sizeof B.lit); B.last_lit = 0; } was_busy = busy; }
       if (lv_ok && B.bn > 0 && lv_state != 'l' && (!ti[0] || strncmp(ti, "Sorry", 5))) { ti[0] = 0; line[0] = 0; line2[0] = 0; }   /* 0.13 */
       if (busy) { seen_loading = 1; if (total > 0) seen_bar = 1; if (ready_t0 && !howto) ready_t0 = 0; done_since = 0; }   /* 0.11: back to loading = not the end */

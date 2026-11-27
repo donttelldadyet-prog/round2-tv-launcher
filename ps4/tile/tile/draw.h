@@ -479,6 +479,13 @@ static void card_live(const Fonts &F, const TScr &S, const TRows &B, double t) {
     rrline(x - 2, y - 2, KW + 4, KH + 4, 32, 2, S.AC, (int)(110 * a)); rrline(x - 5, y - 5, KW + 10, KH + 10, 35, 3, S.AC, (int)(40 * a)); }
 }
 /* the bar under the rows + "n of m profiles ready" (pmode 1 = filled to prog, 2 = a sliding piece while it gets ready) */
+static void load_bar_at(const Fonts &F, const TScr &S, int x0, int y, int pw, int frame) {   /* 0.22: the older loading bar, anywhere */
+  rrect(x0, y, pw, 8, 4, WHITE, 20);
+  if (S.pmode == 1) { int fw = (int)(pw * S.prog); if (fw < 12) fw = 12; rrect(x0, y, fw, 8, 4, S.AC, 255);
+    int sx = (frame * 6) % (fw + 120) - 120; clip(x0, y, x0 + fw, y + 8); for (int x = sx; x < sx + 120; x++) { int a = 80 - abs(x - sx - 60) * 80 / 60; for (int j = 0; j < 8; j++) blend(x0 + x, y + j, WHITE, a); } noclip(); }
+  else if (S.pmode == 2) { int span = pw - 110, p = (frame * 4) % (2 * span), x = p < span ? p : 2 * span - p; rrect(x0 + x, y, 110, 8, 4, S.AC, 255); }
+  if (S.plab[0]) { int w = textw(F.r22, S.plab); text(F.r22, S.plab, x0 + pw / 2 - w / 2, bl(F.r22, y + 26, 29), LAV); }
+}
 static void load_bar(const Fonts &F, const TScr &S, int y, int frame) {
   rrect(PX0, y, PW, 8, 4, WHITE, 20);
   if (S.pmode == 1) { int fw = (int)(PW * S.prog); if (fw < 12) fw = 12; rrect(PX0, y, fw, 8, 4, S.AC, 255);
@@ -757,6 +764,10 @@ static void load_v5(const Fonts &F, const TCfg &C, const TScr &S, const TRows &B
   { int fx = SPR_L.x + MCW / 2 - (nd - 1) * 13 - 13;   /* faces pop onto the label as each is ready */
     for (int i = 0, k = 0; i < n; i++) if (B.bst[i] == 'd') { float e = ease((float)((now - g_lit[i]) / 0.35)); float r = 11 * (0.4f + 0.6f * e);
       Color cc = i == 0 ? S.AC : AVC[(i + 3) % 4]; circ((float)(fx + k * 26 + 13), (float)(SPR_L.y + dy + 24 + 60), r + 2, { 23, 22, 27 }, (int)(255 * e)); circ((float)(fx + k * 26 + 13), (float)(SPR_L.y + dy + 24 + 60), r, cc, (int)(255 * e)); k++; } }
+  if (n == 0) {   /* 0.22: no rows from the board – one bar for the crew, filled by the whole load */
+    int by = SPR_L.y + dy + 130, bx = SPR_L.x + 28, tx = bx + 28, tw = MCW - 56 - 28 - 26; circ((float)(bx + 10), (float)(by + 10), 10, S.AC, 255);
+    char l[2] = { (S.crew[0] ? S.crew[0] : (g_mc.crew[0] ? g_mc.crew[0] : 'R')), 0 }; if (l[0] >= 'a' && l[0] <= 'z') l[0] -= 32; int lw2 = textw(F.pix12, l); text(F.pix12, l, bx + 10 - lw2 / 2 + 1, by + 16, DARK);
+    rrect(tx, by + 5, tw, 10, 5, WHITE, 20); float f = S.pmode == 1 ? S.prog : (float)(0.5 - 0.5 * cos(now * 2.0)) * 0.6f; if (f > 0.02f) rrect(tx, by + 5, (int)(tw * f), 10, 5, S.AC, 255); }
   for (int i = 0; i < n; i++) {   /* one bar per profile */
     int by = SPR_L.y + dy + 130 + i * 24, bx = SPR_L.x + 28; char c = B.bst[i]; Color cc = i == 0 ? S.AC : AVC[(i + 3) % 4];
     circ((float)(bx + 10), (float)(by + 10), 10, cc, 255); char l[2] = { i == 0 ? (S.rname[0] ? S.rname[0] : 'R') : (B.btgt[i][0] ? B.btgt[i][0] : '?'), 0 }; if (l[0] >= 'a' && l[0] <= 'z') l[0] -= 32;
@@ -774,8 +785,10 @@ static void load_v5(const Fonts &F, const TCfg &C, const TScr &S, const TRows &B
   if (it >= 0.55 && it < 1.3) glow_box(RDX - 144, RDCUT, 288, 26, 7, 30, S.AC, (int)(220 * (1 - (it - 0.55) / 0.75)));   /* the reader lights as the card lands */
   if (nl && !allset) { float q = (float)fmod(now, 1.4) / 1.4f; int sx = RDX - 228 + (int)(456 * q); for (int i = -40; i < 40; i++) blend(sx + i, RDCUT + 9 + 1, S.AC, (int)(160 * (1 - fabsf(i / 40.f))));   /* light sweep */ }
   deck_led(RDX, RDCUT, S.AC, allset ? 1.f : nl ? (fmod(now, 0.3) < 0.15 ? 1.f : 0.2f) : 0.5f);
-  char lc[32]; if (allset) snprintf(lc, sizeof lc, "ALL SET!"); else snprintf(lc, sizeof lc, "LOADING %d/%d", nd, n);
-  deck_lcd(F, RDX, RDCUT, lc, S.AC, 255, 0, 0, 0, 0);
+  /* 0.22 (Karen: keep the older loading bar instead of the LCD LOADING n/N): the reader's screen just reads, the bar + words sit under it */
+  char lc[32]; if (allset) snprintf(lc, sizeof lc, "ALL SET!"); else { int dots = (int)(now / 0.3) % 4; snprintf(lc, sizeof lc, "%s%.*s", C.v_read, dots, "..."); }
+  deck_lcd(F, RDX, RDCUT, lc, S.AC, 255, 1, allset ? 3 : (fmod(now, 2.6) < 0.14 ? 4 : 0), 0, 0);
+  load_bar_at(F, S, RDX - 228, RDCUT + 9 + SLH + 42, 456, (int)(now * 60));
   if (allset) glow_disc((float)RDX, (float)(SPR_L.y + MCH / 2), 140, 120, S.AC, 40);
 }
 /* 3 · Ready: the v5 card in the deck, happy, passport lit (no wiggle) */

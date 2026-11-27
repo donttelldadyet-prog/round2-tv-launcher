@@ -50,6 +50,7 @@ int main() {
   B.bn = 5; const char *c5[] = { "Kaeden profile", "Karen", "Ronnie", "Player 3", "Player 4" }; for (int i = 0; i < 5; i++) { strcpy(B.bcur[i], c5[i]); strcpy(B.btgt[i], c5[i]); B.lit[i] = 0; }
   strcpy(B.bst, "dlww"); B.bst[4] = 'w'; B.lit[0] = 1; S.prog = 0.3f; strcpy(S.plab, "1 of 3 profiles ready");
   memcpy(BUF, BG0, W * H * 4); load_still(F, C, S, 3); load_v5(F, C, S, B, 10, 3.2); save("load_5rows.ppm");
+  { TRows B0; memset(&B0, 0, sizeof B0); S.pmode = 1; S.prog = 0.4f; strcpy(S.plab, "1 of 2 games"); memcpy(BUF, BG0, W * H * 4); load_still(F, C, S, 3); load_v5(F, C, S, B0, 10, 3.2); save("load_norows.ppm"); }
   /* ready */
   S.done = 1; S.busy = 0; B.bn = 3; for (int i = 0; i < 3; i++) { strcpy(B.bcur[i], cur[i]); strcpy(B.btgt[i], tg[i]); B.bst[i] = 'd'; B.lit[i] = 1; B.lit_t[i] = -5; }
   double tr[] = { 0.15, 0.3, 0.6, 1.0, 2.6 };
