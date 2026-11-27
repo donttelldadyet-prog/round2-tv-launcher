@@ -81,7 +81,8 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 }
 
 #include "draw.h"
-#define TILE_V "0.19"   /* 0.19: frames drawn in normal memory, then copied to the screen (the screen memory is very slow to read) */
+#define TILE_V "0.20"   /* 0.20 (owner 27 Nov 12:29pm, Karen's save screen v4): the orb on Scan + Ready is replaced by a memory card that wakes when a phone scans, slides into a save deck (on the phone's swipe-up or by itself) and lights the crew's room passport; scan-screen polls every 4 s */
+/* 0.19   /* 0.19: frames drawn in normal memory, then copied to the screen (the screen memory is very slow to read) */
 /* 0.18   /* 0.18 (owner 27 Nov 3:04am, Karen's save screen v3 of 2:53-2:59am): premium crew card (brushed metal, gold chip, glows, edge light, shadow), faces fade onto the card as profiles get ready + PLAYERS n/m, ready rows tint green, scan sub-line on two lines, "Waiting for your phone" with pulsing dots. */
 /* 0.17   /* 0.17 (owner 27 Nov 2:43am: the "Closing in" countdown was cut ~2 s in): a load with nothing to copy waited 10 s before "ready", so ready + what happens next (4 + 6 s) ran past the menu add-on's 20-s wait and its log-out cut it. With the helper's live file: 3 s. */
 #include <orbis/SystemService.h>
@@ -167,6 +168,13 @@ static void *poller(void *) {
       if (strcmp(co, g_color) || strcmp(rn, g_rname) || strcmp(dn, g_done) || strcmp(tt, g_total) || strcmp(pk, g_pk) || strcmp(pn, g_pn) || strcmp(pw, g_pnow)) { strcpy(g_color, co); strcpy(g_rname, rn); strcpy(g_done, dn); strcpy(g_total, tt); strcpy(g_pk, pk); strcpy(g_pn, pn); strcpy(g_pnow, pw); g_dirty = 2; }
       { static char bd[640]; jget(buf, "board", bd, sizeof bd); if (strcmp(bd, g_board)) { strcpy(g_board, bd); g_dirty = 2; } }   /* 0.12 */
       { char cw[48], sn[8], va[8]; jget(buf, "crew", cw, sizeof cw); jget(buf, "since", sn, sizeof sn); jget(buf, "valid", va, sizeof va); if (strcmp(cw, g_crew) || strcmp(sn, g_since) || strcmp(va, g_valid)) { strcpy(g_crew, cw); strcpy(g_since, sn); strcpy(g_valid, va); g_dirty = 2; } }   /* 0.14; 0.16: valid = VALID TO (when the engine sends it) */
+      { /* 0.20 (v4): a phone with this room's code is signed in (scrw/spass/sago), it swiped the card up (siago); the loaded crew's passport (pass) */
+        char cw[24], sp[64], sa[12], si[12], lp[64]; jget(buf, "scrw", cw, sizeof cw); jget(buf, "spass", sp, sizeof sp); jget(buf, "sago", sa, sizeof sa); jget(buf, "siago", si, sizeof si); jget(buf, "pass", lp, sizeof lp);
+        double tn = sceKernelGetProcessTime() / 1e6;
+        if (!cw[0]) { g_mc.scan_t = 0; g_mc.ins_t = 0; g_mc.crew[0] = 0; }
+        else { if (!g_mc.scan_t || strcmp(cw, g_mc.crew)) { g_mc.scan_t = tn - atof(sa); if (g_mc.scan_t <= 0) g_mc.scan_t = 0.001; g_mc.ins_t = 0; snprintf(g_mc.crew, sizeof g_mc.crew, "%s", cw); }
+          if (si[0] && !g_mc.ins_t) { g_mc.ins_t = tn - atof(si); if (g_mc.ins_t <= 0) g_mc.ins_t = 0.001; } }
+        if (sp[0]) snprintf(g_mc.pass, sizeof g_mc.pass, "%s", sp); if (lp[0]) snprintf(g_mc.lpass, sizeof g_mc.lpass, "%s", lp); }
       jget(buf, "title", ti, sizeof ti); jget(buf, "room", room, sizeof room); jget(buf, "url", u, sizeof u); jget(buf, "line", l, sizeof l); jget(buf, "line2", l2, sizeof l2); jget(buf, "status", st, sizeof st);
       if (strcmp(room, g_room) || strcmp(u, g_url) || strcmp(l, g_line) || strcmp(l2, g_line2) || strcmp(st, g_status) || strcmp(ti, g_title) || g_err[0]) {
         strcpy(g_title, ti); strcpy(g_room, room); strcpy(g_url, u); strcpy(g_line, l); strcpy(g_line2, l2); strcpy(g_status, st); g_err[0] = 0; g_dirty = 2; }
@@ -185,12 +193,17 @@ static void *poller(void *) {
           CG("c1", c.c[0]) CG("c2", c.c[1]) CG("c3", c.c[2]) CG("c1n", c.cn[0]) CG("c2n", c.cn[1]) CG("c3n", c.cn[2])
           CG("w_kick", c.w_kick) CG("w_title", c.w_title) CG("w_sub", c.w_sub) CG("w_ready", c.w_ready) CG("w_ready2", c.w_ready2)
           CG("n_title", c.n_title) CG("n1", c.n[0]) CG("n2", c.n[1]) CG("n3", c.n[2]) CG("n4", c.n[3]) CG("n5", c.n[4])
+          CG("v_lab", c.v_lab) CG("v_wait", c.v_wait) CG("v_conn", c.v_conn) CG("v_load", c.v_load) CG("v_insert", c.v_insert) CG("v_hi", c.v_hi) CG("v_read", c.v_read)
+          CG("v_found", c.v_found) CG("v_all", c.v_all) CG("v_saved", c.v_saved) CG("v_press", c.v_press)
           #undef CG
           jget(cb, "t_burst", v, sizeof v); if (v[0]) { float f = (float)atof(v); if (f >= 0.5f && f <= 5) c.t_burst = f; }
           jget(cb, "t_next", v, sizeof v); if (v[0]) { float f = (float)atof(v); if (f >= 3 && f <= 20) c.t_next = f; }
           pthread_mutex_lock(&mx); g_cfg = c; g_dirty = 2; pthread_mutex_unlock(&mx); cfg_at = tn; }
         else cfg_at = tn - 540; } }   /* failed: try again in a minute */
-    sceKernelSleep(strcmp(g_status, "loading") && strcmp(g_status, "reset") ? 20 : 3);   /* faster while something is moving (0.08: 3 s) */
+    /* faster while something is moving (0.08: 3 s); 0.20: 4 s on the scan screen for its first 3 min and while a phone is connected,
+       so the card wakes up soon after a scan (the engine reuses its answer for 3 s) */
+    { double tn = sceKernelGetProcessTime() / 1e6; int scan = !strcmp(g_status, "ready") && (tn < 180 || (g_mc.scan_t > 0 && tn - g_mc.scan_t < 300));
+      if (!strcmp(g_status, "loading") || !strcmp(g_status, "reset")) sceKernelSleep(3); else if (scan) sceKernelSleep(4); else sceKernelSleep(15); }
   }
   return 0;
 }
@@ -282,7 +295,7 @@ int main() {
         base_ok = 1; FB = WORK ? WORK : scene->Buf(); }
       memcpy(FB, BASE, W * H * 4); }
     GA = 255;
-    if (mode == 0) scan_live(S, nowt, ease((float)((it - 0.4) / 0.8)));
+    if (mode == 0) { scan_live(S, nowt, ease((float)((it - 0.4) / 0.8))); scan_v4(F, C, S, nowt, it); }   /* 0.20: the memory card */
     else if (mode == 1) {
       if (it >= intro) card_sweep(KX, KY, it);
       int bnt = 0, bnd = 0, bli = 0; for (int i = 0; i < B.bn; i++) { char c = B.bst[i]; if (c == 'w' || c == 'l' || c == 'd' || c == 'f') bnt++; if (c == 'd' || c == 'f') bnd++; if (c == 'l') bli = 1; }
@@ -301,7 +314,7 @@ int main() {
       if (it >= intro) card_live(F, S, B, nowt);   /* 0.18: faces + PLAYERS on the card */
       load_bar(F, S, B.bn > 0 ? 389 + B.bn * PRS - 12 + 22 : 399, frame);
     }
-    else if (mode == 2) { ready_live(S, it); draw_rows(F, C, S, B, nowt, 400, 0); }
+    else if (mode == 2) { ready_v4(F, C, S, it); draw_rows(F, C, S, B, nowt, 400, 0); }   /* 0.20: the card in the deck */
     if (!busy) shown = 0;   /* 0.13 */
     if (!ready_t0 && done_since && seen_loading && now_s() - done_since >= (lv_ok ? 3 : 10) && (!strcmp(st, "done") || !strcmp(st, "off"))) ready_t0 = now_s();   /* 0.11: nothing-to-load fallback; 0.17: 3 s with the helper's file */
     if (ready_t0) {   /* 0.08: ready, then "what happens next", then close – both times from design/tile.json */
