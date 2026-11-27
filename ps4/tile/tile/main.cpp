@@ -81,7 +81,8 @@ unsigned char *stbi_load_from_memory(unsigned char const *buffer, int len, int *
 }
 
 #include "draw.h"
-#define TILE_V "0.20"   /* 0.20 (owner 27 Nov 12:29pm, Karen's save screen v4): the orb on Scan + Ready is replaced by a memory card that wakes when a phone scans, slides into a save deck (on the phone's swipe-up or by itself) and lights the crew's room passport; scan-screen polls every 4 s */
+#define TILE_V "0.21"   /* 0.21 (owner 27 Nov 11:37pm, Karen's member journey v5): real card shape; Scan waits with an empty deck + dashed outline (the card comes from the phone's Load); Loading = the card drops into a reader with a bar per profile (list dropped); Ready without wiggle; bigger LCD-style closing countdown */
+/* 0.20   /* 0.20 (owner 27 Nov 12:29pm, Karen's save screen v4): the orb on Scan + Ready is replaced by a memory card that wakes when a phone scans, slides into a save deck (on the phone's swipe-up or by itself) and lights the crew's room passport; scan-screen polls every 4 s */
 /* 0.19   /* 0.19: frames drawn in normal memory, then copied to the screen (the screen memory is very slow to read) */
 /* 0.18   /* 0.18 (owner 27 Nov 3:04am, Karen's save screen v3 of 2:53-2:59am): premium crew card (brushed metal, gold chip, glows, edge light, shadow), faces fade onto the card as profiles get ready + PLAYERS n/m, ready rows tint green, scan sub-line on two lines, "Waiting for your phone" with pulsing dots. */
 /* 0.17   /* 0.17 (owner 27 Nov 2:43am: the "Closing in" countdown was cut ~2 s in): a load with nothing to copy waited 10 s before "ready", so ready + what happens next (4 + 6 s) ran past the menu add-on's 20-s wait and its log-out cut it. With the helper's live file: 3 s. */
@@ -295,9 +296,8 @@ int main() {
         base_ok = 1; FB = WORK ? WORK : scene->Buf(); }
       memcpy(FB, BASE, W * H * 4); }
     GA = 255;
-    if (mode == 0) { scan_live(S, nowt, ease((float)((it - 0.4) / 0.8))); scan_v4(F, C, S, nowt, it); }   /* 0.20: the memory card */
+    if (mode == 0) { scan_live(S, nowt, ease((float)((it - 0.4) / 0.8))); scan_v5(F, C, S, nowt, it); }   /* 0.21: the empty deck waits for the phone's card */
     else if (mode == 1) {
-      if (it >= intro) card_sweep(KX, KY, it);
       int bnt = 0, bnd = 0, bli = 0; for (int i = 0; i < B.bn; i++) { char c = B.bst[i]; if (c == 'w' || c == 'l' || c == 'd' || c == 'f') bnt++; if (c == 'd' || c == 'f') bnd++; if (c == 'l') bli = 1; }
       if (B.bn > 0 && bnt > 0) {   /* 0.13 (owner: 1 of 3 profiles in = the bar a third full): the bar is the whole load, player by player */
         int pd = lv_ok ? lv_pd : done, pt = lv_ok ? lv_pt : total; static int lastk = -1; static double since2 = 0; int key = bnd * 100 + pd; if (key != lastk) { lastk = key; since2 = now_s(); }
@@ -310,11 +310,9 @@ int main() {
         S.pmode = 1; S.prog = shown;
         if (pnn[0] && atoi(pnn) > 1) snprintf(S.plab, sizeof S.plab, "%s (player %s of %s)  -  %d of %d games", pnw, pkk, pnn, done, total); else snprintf(S.plab, sizeof S.plab, "%d of %d games", done, total); }
       else { S.pmode = 2; snprintf(S.plab, sizeof S.plab, "Getting ready"); }
-      draw_rows(F, C, S, B, nowt, 389, 1);
-      if (it >= intro) card_live(F, S, B, nowt);   /* 0.18: faces + PLAYERS on the card */
-      load_bar(F, S, B.bn > 0 ? 389 + B.bn * PRS - 12 + 22 : 399, frame);
+      load_v5(F, C, S, B, nowt, it);   /* 0.21 (v5): the card in its reader shows each profile – the list is dropped */
     }
-    else if (mode == 2) { ready_v4(F, C, S, it); draw_rows(F, C, S, B, nowt, 400, 0); }   /* 0.20: the card in the deck */
+    else if (mode == 2) { ready_v5(F, C, S, it); draw_rows(F, C, S, B, nowt, 400, 0); }   /* 0.21: the v5 card in the deck, no wiggle */
     if (!busy) shown = 0;   /* 0.13 */
     if (!ready_t0 && done_since && seen_loading && now_s() - done_since >= (lv_ok ? 3 : 10) && (!strcmp(st, "done") || !strcmp(st, "off"))) ready_t0 = now_s();   /* 0.11: nothing-to-load fallback; 0.17: 3 s with the helper's file */
     if (ready_t0) {   /* 0.08: ready, then "what happens next", then close – both times from design/tile.json */

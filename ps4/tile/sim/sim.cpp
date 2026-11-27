@@ -27,13 +27,13 @@ int main() {
   uint32_t *BG0 = (uint32_t *)malloc(W * H * 4), *BUF = (uint32_t *)malloc(W * H * 4); FB = BUF; bg_v2(BG0, S.AC);
   char fn[64];
   double ts[] = { 0.3, 0.8, 1.3, 3, 5.2 };
-  for (int i = 0; i < 5; i++) { memcpy(BUF, BG0, W * H * 4); scan_still(F, C, S, ts[i]); scan_live(S, ts[i], ease((float)((ts[i] - 0.4) / 0.8))); scan_v4(F, C, S, 100 + ts[i], ts[i]); snprintf(fn, sizeof fn, "scan_%d.ppm", i); save(fn); }
+  for (int i = 0; i < 5; i++) { memcpy(BUF, BG0, W * H * 4); scan_still(F, C, S, ts[i]); scan_live(S, ts[i], ease((float)((ts[i] - 0.4) / 0.8))); scan_v5(F, C, S, 100 + ts[i], ts[i]); snprintf(fn, sizeof fn, "scan_%d.ppm", i); save(fn); }
   /* 0.20: v4 card states – sleepy, phone connected, inserting, blocks lighting, inserted (PASS env = passport, default 4 rooms) */
   { const char *pp = getenv("PASS") ? getenv("PASS") : "vale,kai,kaeden,max"; strcpy(g_mc.pass, pp); strcpy(g_mc.crew, getenv("CREW") ? getenv("CREW") : "Night Owls");
     double nows[] = { 99, 100.3, 101.2, 102.5, 103.3, 105 }; g_mc.scan_t = 0;
-    memcpy(BUF, BG0, W * H * 4); scan_still(F, C, S, 99); scan_live(S, 107.3, 1); scan_v4(F, C, S, 107.3, 9); save("v4_0sleepy.ppm");
+    memcpy(BUF, BG0, W * H * 4); scan_still(F, C, S, 99); scan_live(S, 107.3, 1); scan_v5(F, C, S, 107.3, 9); save("v4_0sleepy.ppm");
     g_mc.scan_t = 100; g_mc.ins_t = 0;
-    for (int i = 0; i < 6; i++) { if (i >= 2) g_mc.ins_t = 100.5; memcpy(BUF, BG0, W * H * 4); scan_still(F, C, S, 99); scan_live(S, nows[i], 1); scan_v4(F, C, S, nows[i] + (i >= 2 ? 0 : 0), 9); snprintf(fn, sizeof fn, "v4_%d.ppm", i + 1); save(fn); }
+    for (int i = 0; i < 6; i++) { if (i >= 2) g_mc.ins_t = 100.5; memcpy(BUF, BG0, W * H * 4); scan_still(F, C, S, 99); scan_live(S, nows[i], 1); scan_v5(F, C, S, nows[i] + (i >= 2 ? 0 : 0), 9); snprintf(fn, sizeof fn, "v4_%d.ppm", i + 1); save(fn); }
     g_mc.scan_t = 0; }
   strcpy(S.st, "reset"); strcpy(S.line, "This room is being reset (3 of 7 games). Member saves load right after."); memcpy(BUF, BG0, W * H * 4); scan_still(F, C, S, 3); scan_live(S, 3); save("scan_reset.ppm");
   /* loading */
@@ -44,16 +44,16 @@ int main() {
   for (int s = 0; s < 3; s++) { for (int i = 0; i < 3; i++) B.bst[i] = sts[s][i]; memset(B.lit, 0, sizeof B.lit); B.last_lit = -9; double tt = 10;
     for (int i = 0; i < 3; i++) if (B.bst[i] == 'd') { B.lit[i] = 1; B.lit_t[i] = 0; }
     S.pmode = 1; S.prog = pr[s]; snprintf(S.plab, sizeof S.plab, "%d of 3 profiles ready", s);
-    memcpy(BUF, BG0, W * H * 4); load_still(F, C, S, 3); card_sweep(KX, KY, 3.2); draw_rows(F, C, S, B, tt, 389, 1); card_live(F, S, B, tt); load_bar(F, S, 389 + 3 * PRS - 12 + 22, 40);
+    memcpy(BUF, BG0, W * H * 4); load_still(F, C, S, 3); load_v5(F, C, S, B, tt, 3.2);
     snprintf(fn, sizeof fn, "load_%d.ppm", s); save(fn); }
   /* five rows */
   B.bn = 5; const char *c5[] = { "Kaeden profile", "Karen", "Ronnie", "Player 3", "Player 4" }; for (int i = 0; i < 5; i++) { strcpy(B.bcur[i], c5[i]); strcpy(B.btgt[i], c5[i]); B.lit[i] = 0; }
   strcpy(B.bst, "dlww"); B.bst[4] = 'w'; B.lit[0] = 1; S.prog = 0.3f; strcpy(S.plab, "1 of 3 profiles ready");
-  memcpy(BUF, BG0, W * H * 4); load_still(F, C, S, 3); draw_rows(F, C, S, B, 10, 389, 1); load_bar(F, S, 389 + 5 * PRS - 12 + 22, 40); save("load_5rows.ppm");
+  memcpy(BUF, BG0, W * H * 4); load_still(F, C, S, 3); load_v5(F, C, S, B, 10, 3.2); save("load_5rows.ppm");
   /* ready */
   S.done = 1; S.busy = 0; B.bn = 3; for (int i = 0; i < 3; i++) { strcpy(B.bcur[i], cur[i]); strcpy(B.btgt[i], tg[i]); B.bst[i] = 'd'; B.lit[i] = 1; B.lit_t[i] = -5; }
   double tr[] = { 0.15, 0.3, 0.6, 1.0, 2.6 };
-  for (int i = 0; i < 5; i++) { memcpy(BUF, BG0, W * H * 4); ready_still(F, C, S, tr[i]); ready_v4(F, C, S, tr[i]); draw_rows(F, C, S, B, 30, 400, 0); snprintf(fn, sizeof fn, "ready_%d.ppm", i); save(fn); }
+  for (int i = 0; i < 5; i++) { memcpy(BUF, BG0, W * H * 4); ready_still(F, C, S, tr[i]); ready_v5(F, C, S, tr[i]); draw_rows(F, C, S, B, 30, 400, 0); snprintf(fn, sizeof fn, "ready_%d.ppm", i); save(fn); }
   /* next */
   double tn[] = { 0.5, 1.0, 2.5 };
   for (int i = 0; i < 3; i++) { memcpy(BUF, BG0, W * H * 4); next_still(F, C, S); next_live(F, C, S, tn[i], 6 - tn[i], 6); snprintf(fn, sizeof fn, "next_%d.ppm", i); save(fn); }

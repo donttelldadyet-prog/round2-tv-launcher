@@ -185,7 +185,7 @@ struct TScr { char room[32], rname[32], url[200], crew[48], since[8], valid[8], 
 static const int LX = 130, RX = 1790, OCX = 960, OCY = 570, ORB_R = 165, ARC_R = 260, QX = 1440, QY = 330, QS = 300;
 static const int KX = 748, KY = 389, KW = 560, KH = 353;                 /* the crew card (0.18: v3 – between the words and the list, top = first row) */
 static const int PX0 = 1370, PW = 420, PRH = 86, PRS = 98;               /* the rows */
-static const int SX0 = 820, SY0 = 300, SW = 980;                         /* the steps */
+static const int SX0 = 820, SY0 = 318, SW = 980;   /* 0.21: steps start level with the heading */                         /* the steps */
 
 /* chrome: room-colour line on top, the logo (46 px high), the room's name in a pill top-right */
 static void chrome(const Fonts &F, const TScr &S, float k_line = 1) {
@@ -316,6 +316,7 @@ static void corners(int x, int y, int s, Color c, int a, float snap) {
 /* still parts; t = seconds since it opened (intro ~1.6 s: top line draws, words rise 0.08 s apart, QR + corners snap in) */
 static int g_wtx = 0;   /* 0.18: where the waiting dots go (set by scan_still) */
 static void mc_deck(const TScr &S); static void mc_build(const TScr &S);   /* 0.20: the v4 memory card + save deck (below) */
+struct Spr; static void spr_build_S(const TScr &S); static void spr_build_L(const TScr &S); static void deck_L(const TScr &S);   /* 0.21 */
 static void scan_still(const Fonts &F, const TCfg &C, const TScr &S, double t) {
   Color AC = S.AC; float k; GA = 255; chrome(F, S, ease((float)(t / 0.45)));
   const double w0 = 0.3; int dy, y;
@@ -334,7 +335,7 @@ static void scan_still(const Fonts &F, const TCfg &C, const TScr &S, double t) {
     if (S.title[0]) y = wrap(F.body, S.title, LX, y, 600, 40, sc);
     y = wrap(F.tiny, S.line, LX, y + 4, 600, 32, S.title[0] ? INK : sc); if (S.line2[0]) wrap(F.tiny, S.line2, LX, y + 4, 600, 32, DIM); }
   if (C.s_foot[0]) { GA = (int)(255 * k); text(F.tiny, C.s_foot, LX, 880, LAV); }
-  GA = 255; mc_deck(S); mc_build(S);   /* 0.20: replaces the orb + its arc word */
+  GA = 255; mc_deck(S);   /* 0.20: replaces the orb + its arc word; 0.21: no card on Scan (it comes from the phone) */
   k = ease((float)((t - 0.8) / 0.35)); GA = (int)(255 * k);
   if (S.url[0]) draw_qr(S.url, QX, QY, QS); else { rrect(QX, QY, QS, QS, 18, CARD, 255); text(F.tiny, "QR code appears when", QX + 40, QY + 140, DIM); text(F.tiny, "Round2 answers", QX + 70, QY + 176, DIM); }
   GA = 255; if (t > 0.95) corners(QX, QY, QS, AC, 255, (float)((t - 0.95) / 0.25));
@@ -415,7 +416,7 @@ static void card_sweep(int x, int y, double t) {   /* one soft light band every 
 }
 static void load_still(const Fonts &F, const TCfg &C, const TScr &S, double t) {
   float k; GA = 255; chrome(F, S);
-  k = ease((float)(t / 0.7)); GA = (int)(255 * k); crew_card(F, C, S, KX, KY + (int)(40 * (1 - k)));
+  GA = 255; deck_L(S); spr_build_L(S);   /* 0.21 (v5): the card reader in the right half – the card drops in live (load_v5) */
   k = ease((float)((t - 0.5) / 0.5)); int dy = (int)(14 * (1 - k)); int y = heading(F, C.w_kick, S.AC, C.w_title, S.crew, 330, 620, dy, (int)(255 * k));
   char b[200]; put_crew(b, sizeof b, C.w_sub, S.crew); GA = (int)(255 * k); y = wrap(F.body, b, LX, y + 24, 560, 42, SUBC);
   if (S.line[0]) wrap(F.tiny, S.line, LX, y + 14, 560, 32, !strncmp(S.line, "Sorry", 5) ? RED : S.AC);
@@ -491,7 +492,7 @@ static void ready_still(const Fonts &F, const TCfg &C, const TScr &S, double t) 
   float k; GA = 255; chrome(F, S);
   k = ease((float)((t - 0.2) / 0.5)); int dy = (int)(14 * (1 - k)); int y = heading(F, C.cn[0][0] ? C.cn[0] : "SAVES LOADED", S.AC, C.w_ready, S.crew, 330, 620, dy, (int)(255 * k));
   char b[200]; put_crew(b, sizeof b, C.w_ready2, S.crew); GA = (int)(255 * k); ps_text(F, F.body, b, LX, y + 24, 560, 47, SUBC, 52, 3, F.sb16);
-  GA = 255; mc_deck(S); mc_build(S);   /* 0.20: the save deck (the card is drawn live by ready_v4) */
+  GA = 255; mc_deck(S); spr_build_S(S);   /* 0.20: the save deck; 0.21: the v5 card sprite (drawn live by ready_v5) */
   GA = 255; if (S.err[0]) text(F.tiny, S.err, LX, 1056, DIM);
 }
 /* the orb bouncing in ("blop"), its two rings rippling out, a burst of sparkles in the room colours */
@@ -635,6 +636,160 @@ static void ready_v4(const Fonts &F, const TCfg &C, const TScr &S, double it) {
   float lp = 0.5f - 0.5f * cosf((float)(it * 6.2831853 / 1.4)); glow_disc(1144, 696, 6, 10 + 12 * lp, S.AC, (int)(200 - 60 * lp)); circ(1144, 696, 8.4f, S.AC, 255);
   int ps = fmod(it, 3.2) >= 1.6; mc_lcd(F, ps ? C.v_press : C.v_saved, S.AC, 255, ps);
 }
+/* ================= 0.21 – Karen's member journey v5 (27 Nov 11:20pm, owner 11:37pm "make it live") =================
+   The memory card gets its real shape (rounded cut corner top-right, a notch on each side, smoky shell with a circuit board
+   inside, recessed gold contacts, foil label). Scan: the deck waits EMPTY with a dashed card-shaped "your save goes here"
+   outline and falling chevrons (solid + faster once a phone is connected, dim when sleepy); the deck's screen has the eyes.
+   Loading: the card drops into a reader in the right half (level with "Hey, <crew>!") – one bar per profile fills
+   Waiting → Loading → Ready with a tick, faces pop onto the label, a charging line climbs the card edge, sparks + a flash
+   at the reader per profile, the reader's light sweeps while reading, LCD "LOADING n/N" → "ALL SET!". The list on the
+   right is dropped (the card shows it). Ready: the card sits in the deck, no wiggle. Card drawn once into a sprite. */
+struct Spr { uint32_t *px; int x, y, w, h, kind; Color ac; };
+static Spr SPR_S = { 0, 828, 259, 264, 348, -1, { 1, 2, 3 } }, SPR_L = { 0, 1198, 270, 264, 348, -1, { 1, 2, 3 } };
+static const int RDX = 1330, RDCUT = 552;   /* the loading reader: centre x, the mouth's top line */
+static float mc5_cov(float i, float j, float w, float h) {   /* inside the card shape? (0..1, soft edge) */
+  float r = j < h / 2 ? 14.f : 10.f, c = rr_cov(i, j, 0, 0, w, h, r); if (c <= 0) return 0;
+  float d = ((w - i) + j - 36) * 0.7071f; c = fminf(c, clampf(d + 0.5f, 0, 1));   /* the cut corner (top right) */
+  float n0 = h * 54 / 290, n1 = h * 104 / 290, nd = w * 7 / 220; if (j > n0 && j < n1) c = fminf(c, clampf(i - nd + 0.5f, 0, 1));   /* left notch */
+  float m0 = h * 60 / 290, m1 = h * 78 / 290, md = w * 3.5f / 220; if (j > m0 && j < m1) c = fminf(c, clampf(w - md - i + 0.5f, 0, 1));   /* right notch */
+  return c;
+}
+static void mc5_body(const TScr &S, int x, int y, int kind) {   /* kind 0: passport blocks (scan/ready), 1: profile bars (loading) */
+  const int w = MCW, h = MCH; Color g0 = { 70, 64, 79 }, g1 = { 31, 27, 37 }, g2 = { 19, 16, 22 };
+  for (int j = -2; j < h + 2; j++) for (int i = -2; i < w + 2; i++) {
+    float cov = mc5_cov(i + 0.5f, j + 0.5f, (float)w, (float)h); if (cov <= 0) continue;
+    float t = (i * 0.6f + j) / (w * 0.6f + h); Color c = t < 0.55f ? mixc(g0, g1, t / 0.55f) : mixc(g1, g2, (t - 0.55f) / 0.45f);
+    float in = mc5_cov(i + 0.5f - 2, j + 0.5f - 2, (float)w - 4, (float)h - 4); if (in < 1) c = mixc(c, WHITE, 0.4f - 0.32f * j / h);   /* the edge */
+    float gl = ((i - w * 0.1f) * 0.47f - (j)) ; if (gl > -30 && gl < 40 && j < h * 0.6f) c = mixc(c, WHITE, 0.08f);   /* glass glare */
+    blend(x + i, y + j, c, (int)(235 * cov)); }
+  { Color tr = mixc(S.AC, { 90, 83, 99 }, 0.6f);   /* the circuit board inside */
+    for (int k = 0; k < 9; k++) { int x0 = x + 36 + k * 22, xm = x + 104 + k * 7; for (int j = 0; j < 10; j++) blend(x0, y + h - 54 - j, tr, 150);
+      for (int j = 0; j < 14; j++) blend(x0 + (xm - x0) * j / 14, y + h - 64 - j, tr, 150); for (int j = 0; j < 6; j++) blend(xm, y + h - 78 - j, tr, 150); }
+    rrect(x + w / 2 - 36, y + h - 104, 72, 19, 3, { 13, 11, 16 }, 255); rrline(x + w / 2 - 36, y + h - 104, 72, 19, 3, 1, WHITE, 40); }
+  { const int lx = x + 24, ly = y + 24, lw = w - 24 - 36, lh = 96; Color l0 = mixc(S.AC, WHITE, 0.15f), l2 = mixc(S.AC, BLACK, 0.4f);   /* the label */
+    for (int j = 0; j < lh; j++) for (int i = 0; i < lw; i++) { float cov = rr_cov((float)(lx + i), (float)(ly + j), (float)lx, (float)ly, (float)lw, (float)lh, 10); if (cov <= 0) continue;
+      float t = (i + j) / (float)(lw + lh); Color c = t < 0.5f ? mixc(l0, S.AC, t / 0.5f) : mixc(S.AC, l2, (t - 0.5f) / 0.5f); if (j < 2) c = mixc(c, WHITE, 0.45f); if (j > lh - 3) c = mixc(c, BLACK, 0.18f);
+      blend(lx + i, ly + j, c, (int)(255 * cov)); }
+    rrline(lx - 3, ly - 3, lw + 6, lh + 6, 13, 3, BLACK, 64); }
+  if (kind == 0) for (int b = 0; b < 7; b++) { int bx = x + 24 + b * 31; rrect(bx, y + 136, 25, 70, 5, WHITE, 15); rrline(bx, y + 136, 25, 70, 5, 1, WHITE, 15); }
+  { const int px = x + 26, py = y + h - 12 - 52, pw = w - 52;   /* recessed contacts */
+    rrect(px, py, pw, 52, 7, { 11, 9, 14 }, 255); for (int p = 0; p < 9; p++) { int qx = px + 8 + p * ((pw - 16 + 5) / 9), qw = (pw - 16 + 5) / 9 - 5;
+      for (int j = 0; j < 46; j++) for (int i = 0; i < qw; i++) blend(qx + i, py + 6 + j, mixc({ 226, 192, 106 }, { 156, 124, 52 }, j / 45.f), 255); } }
+}
+static void spr_build(Spr &P, const TScr &S, int kind) {
+  if (P.px && P.kind == kind && !memcmp(&P.ac, &S.AC, sizeof S.AC)) return;
+  if (!P.px) P.px = (uint32_t *)malloc(P.w * P.h * 4); if (!P.px) return;
+  uint32_t *keep = (uint32_t *)malloc(P.w * P.h * 4); if (!keep) return;
+  for (int j = 0; j < P.h; j++) memcpy(keep + j * P.w, FB + (P.y + j) * W + P.x, P.w * 4);
+  mc5_body(S, P.x, P.y, kind);
+  for (int j = 0; j < P.h; j++) { memcpy(P.px + j * P.w, FB + (P.y + j) * W + P.x, P.w * 4); memcpy(FB + (P.y + j) * W + P.x, keep + j * P.w, P.w * 4); }
+  free(keep); P.kind = kind; P.ac = S.AC;
+}
+static void spr_blit(const Spr &P, int dy, int cut) { if (!P.px) return; for (int j = 0; j < P.h; j++) { int Y = P.y + dy + j; if (Y < 0 || Y >= cut) continue; memcpy(FB + Y * W + P.x, P.px + j * P.w, P.w * 4); } }
+static void deck_at(const TScr &S, int cx, int cut) {   /* a deck (reader) whose mouth's top is at y = cut, centred on cx */
+  int sx = cx - 228, sy = cut + 9;
+  glow_disc((float)cx, (float)cut - 120, 110, 150, S.AC, 55);
+  for (int j = -30; j < 30; j++) for (int i = -210; i < 210; i++) { float ex = i / 200.f, ey = j / 22.f, d = sqrtf(ex * ex + ey * ey); if (d < 1) blend(cx + i, cut + 171 + j, BLACK, (int)(150 * (1 - d))); }
+  for (int j = 0; j < SLH; j++) for (int i = 0; i < SLW; i++) { float cov = rr_cov((float)(sx + i), (float)(sy + j), (float)sx, (float)sy, (float)SLW, (float)SLH, 24); if (cov <= 0) continue;
+    Color c = mixc({ 38, 33, 44 }, { 20, 17, 24 }, j / (float)SLH); if (j < 3) c = mixc(c, WHITE, 0.12f); blend(sx + i, sy + j, c, (int)(255 * cov)); }
+  rrline(sx, sy, SLW, SLH, 24, 2, WHITE, 26);
+  rrect(cx - 144, cut, 288, 26, 7, { 5, 4, 8 }, 255); for (int i = cx - 137; i < cx + 137; i++) blend(i, cut + 26, WHITE, 36);
+  rrect(sx + 41, sy + 65, 276, 48, 10, { 7, 6, 10 }, 255); rrline(sx + 41, sy + 65, 276, 48, 10, 1, WHITE, 20);
+  circ((float)(sx + 412), (float)(sy + 89), 8.4f, { 58, 52, 64 }, 255);
+}
+static void deck_lcd(const Fonts &F, int cx, int cut, const char *s, Color AC, int a, int eyes, int ekind, float look, int ps) {   /* eyes: small eyes first (v5) */
+  int sx = cx - 228, sy = cut + 9, x = sx + 58, cy = sy + 89; Color c = mixc(AC, WHITE, 0.2f);
+  if (eyes) { for (int e = 0; e < 2; e++) { int ex = x + e * 13 + (int)look; int hh = ekind == 1 ? 3 : ekind == 2 ? 16 : ekind == 3 ? 6 : ekind == 4 ? 2 : 13;
+      if (ekind == 3) { for (int i = 0; i < 9; i++) blend(ex + i - 1, cy - 2 - (i == 0 || i == 8 ? 0 : i == 1 || i == 7 ? 2 : 3), c, 255); }
+      else rect(ex, cy - hh / 2 + (ekind == 1 ? 4 : 0), 6, hh, c); } x += 38; }
+  char u[40]; snprintf(u, sizeof u, "%s", s); for (char *q = u; *q; q++) if (*q >= 'a' && *q <= 'z') *q -= 32; while (textw(F.pix12, u, 2) > (eyes ? 192 : 230) && strlen(u) > 1) u[strlen(u) - 1] = 0;
+  GA = a; int xe = text(F.pix12, u, x, bl(F.pix12, sy + 65, 48), c, 1, 2);
+  if (ps) { circ((float)(xe + 22), (float)cy, 14.f, c, a); circ((float)(xe + 22), (float)cy, 11.5f, { 7, 6, 10 }, 255); int w = textw(F.pix12, "PS"); text(F.pix12, "PS", xe + 22 - w / 2 + 1, cy + 6, c); }
+  GA = 255;
+}
+static void deck_led(int cx, int cut, Color AC, float on) { int sx = cx - 228, sy = cut + 9; if (on <= 0) return; glow_disc((float)(sx + 412), (float)(sy + 89), 6, 14, AC, (int)(200 * on)); circ((float)(sx + 412), (float)(sy + 89), 8.4f, AC, (int)(255 * on)); }
+/* the dashed card-shaped outline where the save goes + three falling chevrons */
+static void ghost(const TScr &S, double now, int named, int sleepy) {
+  const int x = SPR_S.x, y = SPR_S.y, w = MCW, h = MCH; Color c = mixc(S.AC, WHITE, 0.3f); int a = sleepy ? 64 : named ? 230 : 115;
+  float off = (float)fmod(now * (named ? 0 : 27), 19.0);
+  /* perimeter: walk the outline (top edge to the cut, the cut, right side, bottom, left side) */
+  static float P[2600][2]; static int np = 0; if (!np) { float t;
+    for (t = 14; t < w - 36; t += 1) { P[np][0] = t; P[np][1] = 0; np++; }
+    for (t = 0; t < 36 * 1.41f; t += 1) { P[np][0] = w - 36 + t / 1.41f; P[np][1] = t / 1.41f; np++; }
+    for (t = 36; t < h - 10; t += 1) { P[np][0] = (float)w; P[np][1] = t; np++; }
+    for (t = w - 10; t > 10; t -= 1) { P[np][0] = t; P[np][1] = (float)h; np++; }
+    for (t = h - 10; t > 14; t -= 1) { P[np][0] = 0; P[np][1] = t; np++; } }
+  for (int k = 0; k < np; k++) { if (!named && fmod(k + off, 19.0) > 10) continue; circ(x + P[k][0], y + P[k][1], 1.4f, c, a); }
+  if (!sleepy) { double sp = named ? 1.0 : 1.8;
+    for (int k = 0; k < 3; k++) { double q = fmod(now - k * 0.3 * sp / 1.8 + 10, sp) / sp; float al = q < 0.4 ? (float)(q / 0.4) * 0.8f : 0.8f * (float)(1 - (q - 0.4) / 0.6); int cy = y + h / 2 - 30 + k * 26 + (int)(-10 + 24 * q);
+      for (int i = -22; i <= 22; i++) { int yy = cy - abs(i) * 14 / 22; for (int tt = -3; tt <= 3; tt++) blend(x + w / 2 + i, yy + tt, c, (int)(255 * al * (1 - abs(tt) / 4.f))); } } }
+}
+static void scan_v5(const Fonts &F, const TCfg &C, const TScr &S, double now, double it) {
+  if (it < 0.45) return;
+  const MCst &M = g_mc; int named = M.scan_t > 0, sleepy = !named && it > 5.2; char lcd[40]; snprintf(lcd, sizeof lcd, "%s", C.v_insert);
+  float br = 0.5f - 0.5f * cosf((float)(now * 6.2831853 / 2.6)); glow_box(816, MCCUT, 288, 26, 7, 16, S.AC, (int)(30 + 60 * br));   /* the slot breathes */
+  ghost(S, now, named, sleepy);
+  int ek = sleepy ? 1 : 0; float look = 0; if (!sleepy && !named) { if (fmod(now, 2.6) < 0.14) ek = 4; double lq = fmod(now, 4.1); if (lq < 1.3) look = 4; }
+  const char *wt = C.v_wait;
+  if (named) { double ts = now - M.scan_t; ek = ts < 0.7 ? 2 : (fmod(ts, 2.6) < 0.14 ? 4 : 0); put_crew(lcd, sizeof lcd, C.v_hi, M.crew); wt = C.v_conn;
+    if (ts < 0.5) glow_box(816, MCCUT, 288, 26, 7, 26, S.AC, (int)(200 * (1 - ts / 0.5))); }
+  deck_lcd(F, 960, MCCUT, lcd, S.AC, named || sleepy || fmod(now, 1.1) < 0.55 ? 255 : 64, 1, ek, look, 0);
+  { int w4 = textw(F.r22, wt), x4 = QX + QS / 2 - (w4 + 60) / 2 + 60; text(F.r22, wt, x4, bl(F.r22, 768, 29), TMC); g_wtx = x4 - 60; }
+}
+/* the label's live parts on a card blitted at (P.x, P.y + dy): eyes, name, faces (loading), foil sheen */
+static void mc5_label(const Fonts &F, const TScr &S, const Spr &P, int dy, int kind, float blink, const char *name, int cut) {
+  const int lx = P.x + 24, ly = P.y + dy + 24, lw = MCW - 60; clip(0, 0, W, cut);
+  mc_eyes((float)(lx + lw / 2), (float)(ly + 26), kind, blink, 0);
+  { char up[24]; snprintf(up, sizeof up, "%s", name); for (char *c = up; *c; c++) if (*c >= 'a' && *c <= 'z') *c -= 32; int w = textw(F.pix12, up, 2); while (w > lw - 20 && strlen(up) > 1) { up[strlen(up) - 1] = 0; w = textw(F.pix12, up, 2); }
+    float lum = (S.AC.r * 0.299f + S.AC.g * 0.587f + S.AC.b * 0.114f) / 255.f; text(F.pix12, up, lx + lw / 2 - w / 2, ly + 96 - 14, lum > 0.72f ? Color{ 27, 13, 20 } : WHITE, 1, 2); }
+  noclip();
+}
+/* 2 · Loading: the card drops into the reader (0.7 s, a little bounce), bars fill per profile, faces pop on the label */
+static double g_lit[5]; static char g_litc[5];
+static void load_v5(const Fonts &F, const TCfg &C, const TScr &S, const TRows &B, double now, double it) {
+  static const float T[] = { 0, .55f, .7f, .8f, .9f }, V[] = { -560, 8, -6, 2, 0 }; int dy = it < 0.9 ? (int)kf(T, V, 5, (float)it) : 0;
+  static double last_it = 1e9; if (it < last_it) memset(g_litc, 0, sizeof g_litc); last_it = it;   /* a new Loading screen */
+  int n = B.bn > 5 ? 5 : B.bn, nd = 0, nl = 0; for (int i = 0; i < n; i++) { char c = B.bst[i]; if (c == 'd' && g_litc[i] != 'd') g_lit[i] = now; g_litc[i] = c; if (c == 'd') nd++; if (c == 'l') nl = 1; }
+  spr_blit(SPR_L, dy, RDCUT);
+  int allset = n > 0 && nd == n;
+  mc5_label(F, S, SPR_L, dy, allset ? 3 : 0, fmod(now, 2.6) < 0.14 ? 1.f : 0, S.crew[0] ? S.crew : g_mc.crew, RDCUT);
+  clip(0, 0, W, RDCUT);
+  { int fx = SPR_L.x + MCW / 2 - (nd - 1) * 13 - 13;   /* faces pop onto the label as each is ready */
+    for (int i = 0, k = 0; i < n; i++) if (B.bst[i] == 'd') { float e = ease((float)((now - g_lit[i]) / 0.35)); float r = 11 * (0.4f + 0.6f * e);
+      Color cc = i == 0 ? S.AC : AVC[(i + 3) % 4]; circ((float)(fx + k * 26 + 13), (float)(SPR_L.y + dy + 24 + 60), r + 2, { 23, 22, 27 }, (int)(255 * e)); circ((float)(fx + k * 26 + 13), (float)(SPR_L.y + dy + 24 + 60), r, cc, (int)(255 * e)); k++; } }
+  for (int i = 0; i < n; i++) {   /* one bar per profile */
+    int by = SPR_L.y + dy + 130 + i * 24, bx = SPR_L.x + 28; char c = B.bst[i]; Color cc = i == 0 ? S.AC : AVC[(i + 3) % 4];
+    circ((float)(bx + 10), (float)(by + 10), 10, cc, 255); char l[2] = { i == 0 ? (S.rname[0] ? S.rname[0] : 'R') : (B.btgt[i][0] ? B.btgt[i][0] : '?'), 0 }; if (l[0] >= 'a' && l[0] <= 'z') l[0] -= 32;
+    int lw2 = textw(F.pix12, l); text(F.pix12, l, bx + 10 - lw2 / 2 + 1, by + 16, i == 0 ? DARK : WHITE);
+    int tx = bx + 28, tw = MCW - 56 - 28 - 26; rrect(tx, by + 5, tw, 10, 5, WHITE, 20);
+    float f = c == 'd' ? 1.f : c == 'l' ? (float)(0.15 + 0.7 * (0.5 - 0.5 * cos(fmod(now - g_lit[i], 3.0) * 1.047))) : 0.f; if (c == 'l' && S.prog > 0) f = fmaxf(f, 0.2f);
+    if (f > 0) { rrect(tx, by + 5, (int)(tw * f), 10, 5, cc, 255); glow_box(tx, by + 5, (int)(tw * f), 10, 5, 8, cc, 70); }
+    if (c == 'd') { int kx = tx + tw + 8, ky = by + 10; for (int q = 0; q < 6; q++) rect(kx + q, ky + q / 2, 2, 2, GREEN); for (int q = 0; q < 10; q++) rect(kx + 5 + q, ky + 3 - q, 2, 2, GREEN); }
+    if (c == 'f') text(F.pix12, "!", tx + tw + 8, by + 16, RED); }
+  { float pr = n ? (float)nd / n : 0; int ex = SPR_L.x + MCW - 4, y1 = SPR_L.y + dy + MCH - 60, y0 = y1 - (int)((MCH - 100) * pr);   /* the charging line */
+    for (int y = y0; y < y1; y++) { blend(ex, y, S.AC, 255); blend(ex - 1, y, S.AC, 160); for (int g = 2; g < 9; g++) blend(ex - g, y, S.AC, 60 - g * 6); } }
+  noclip();
+  for (int i = 0; i < n; i++) if (B.bst[i] == 'd') { mc_sparks(now, g_lit[i], i % 7, (float)(SPR_L.x + MCW - 30), (float)(SPR_L.y + dy + 140 + i * 24));
+    if (now - g_lit[i] < 0.6) glow_box(RDX - 144, RDCUT, 288, 26, 7, 22, S.AC, (int)(200 * (1 - (now - g_lit[i]) / 0.6))); }
+  if (it >= 0.55 && it < 1.3) glow_box(RDX - 144, RDCUT, 288, 26, 7, 30, S.AC, (int)(220 * (1 - (it - 0.55) / 0.75)));   /* the reader lights as the card lands */
+  if (nl && !allset) { float q = (float)fmod(now, 1.4) / 1.4f; int sx = RDX - 228 + (int)(456 * q); for (int i = -40; i < 40; i++) blend(sx + i, RDCUT + 9 + 1, S.AC, (int)(160 * (1 - fabsf(i / 40.f))));   /* light sweep */ }
+  deck_led(RDX, RDCUT, S.AC, allset ? 1.f : nl ? (fmod(now, 0.3) < 0.15 ? 1.f : 0.2f) : 0.5f);
+  char lc[32]; if (allset) snprintf(lc, sizeof lc, "ALL SET!"); else snprintf(lc, sizeof lc, "LOADING %d/%d", nd, n);
+  deck_lcd(F, RDX, RDCUT, lc, S.AC, 255, 0, 0, 0, 0);
+  if (allset) glow_disc((float)RDX, (float)(SPR_L.y + MCH / 2), 140, 120, S.AC, 40);
+}
+/* 3 · Ready: the v5 card in the deck, happy, passport lit (no wiggle) */
+static void ready_v5(const Fonts &F, const TCfg &C, const TScr &S, double it) {
+  const char *pass = g_mc.lpass[0] ? g_mc.lpass : g_mc.pass[0] ? g_mc.pass : "kaeden"; char nm[24]; snprintf(nm, sizeof nm, "%.20s", S.crew[0] ? S.crew : g_mc.crew); char *pl = strstr(nm, " + "); if (pl) *pl = 0;
+  const int dy = 115; spr_blit(SPR_S, dy, MCCUT); mc5_label(F, S, SPR_S, dy, 3, 0, nm, MCCUT);
+  clip(0, 0, W, MCCUT); for (int b = 0; b < 7; b++) if (pass_has(pass, b)) { int bx = SPR_S.x + 24 + b * 31, by = SPR_S.y + dy + 136; glow_box(bx, by, 25, 70, 5, 16, ROOMC[b], 90); rrect(bx, by, 25, 70, 5, ROOMC[b], 255); for (int i = bx + 3; i < bx + 22; i++) blend(i, by + 1, WHITE, 128); } noclip();
+  float lp = 0.5f - 0.5f * cosf((float)(it * 6.2831853 / 1.4)); glow_disc(1144, 696, 6, 10 + 12 * lp, S.AC, (int)(200 - 60 * lp)); circ(1144, 696, 8.4f, S.AC, 255);
+  int ps = fmod(it, 3.2) >= 1.6; deck_lcd(F, 960, MCCUT, ps ? C.v_press : C.v_saved, S.AC, 255, 1, 3, 0, ps);
+  glow_disc(960, (float)(SPR_S.y + dy + 100), 140, 120, S.AC, 35);
+}
+static void spr_build_S(const TScr &S) { spr_build(SPR_S, S, 0); }
+static void spr_build_L(const TScr &S) { spr_build(SPR_L, S, 1); }
+static void deck_L(const TScr &S) { deck_at(S, RDX, RDCUT); }
 static void ready_live(const TScr &S, double t) {
   static const float T[] = { 0, .1f, .2f, .33f, .43f, .58f, 1 }, TY[] = { 0, -30, 4, -18, 2, 0, 0 }, SX[] = { 1, .9f, 1.15f, .94f, 1.08f, .98f, 1 }, SY[] = { 1, 1.12f, .85f, 1.07f, .92f, 1.02f, 1 };
   float bt = (float)(t / 1.4); float ty = bt < 1 ? kf(T, TY, 7, bt) : 0, sx = bt < 1 ? kf(T, SX, 7, bt) : 1, sy = bt < 1 ? kf(T, SY, 7, bt) : 1;
@@ -665,12 +820,12 @@ static void next_live(const Fonts &F, const TCfg &C, const TScr &S, double t, do
     if (small_[0]) text(F.tiny, small_, SX0 + 96 + dx, bl(F.tiny, ty + mh + 4, 31), LAV);
     GA = (int)(18 * k); recta(SX0 + dx, y + hgt - 1, SW, 1, WHITE, 255); GA = 255;
     y += hgt; }
-  /* "Closing in N" with a ring that empties clockwise from the top */
-  int cx = 1622 + 20, cy = 986; float frac = (float)(left / total); if (frac < 0) frac = 0;
-  annulus((float)cx, (float)cy, 14, 4, WHITE, 31);
-  for (int yy = cy - 19; yy <= cy + 19; yy++) for (int xx = cx - 19; xx <= cx + 19; xx++) { float dx = xx + 0.5f - cx, dy = yy + 0.5f - cy, d = sqrtf(dx * dx + dy * dy); float cov = clampf(fminf(d - 14 + 0.5f, 18 - d + 0.5f), 0, 1); if (cov <= 0) continue;
-    float ang = atan2f(dx, -dy); if (ang < 0) ang += 6.2831853f; if (ang <= frac * 6.2831853f) blend(xx, yy, S.AC, (int)(255 * cov)); }
-  char cl[32]; int n = (int)left + 1; if (left <= 0.05) snprintf(cl, sizeof cl, "Closing"); else snprintf(cl, sizeof cl, "Closing in %d", n);
-  text(F.r22, cl, 1676, bl(F.r22, 971, 29), TMC);
+  /* 0.21 (Karen v5 10:55pm: bigger, clearer "Closing in"): a glowing deck-screen box centred at the bottom – thick blocks run out,
+     then CLOSING */
+  { const int bw = 480, bh = 70, bx = 960 - bw / 2, by = 950; float frac = (float)(left / total); if (frac < 0) frac = 0;
+    glow_box(bx, by, bw, bh, 16, 22, S.AC, 70); rrect(bx, by, bw, bh, 16, { 7, 6, 10 }, 255); rrline(bx, by, bw, bh, 16, 2, S.AC, 200);
+    int nb = 6, on = (int)ceilf(frac * nb); for (int i = 0; i < nb; i++) { int qx = bx + 26 + i * 24; if (i < on) { glow_box(qx, by + 17, 16, 36, 3, 8, S.AC, 90); rrect(qx, by + 17, 16, 36, 3, S.AC, 255); } else rrect(qx, by + 17, 16, 36, 3, WHITE, 24); }
+    char cl[32]; int n = (int)left + 1; if (left <= 0.05) snprintf(cl, sizeof cl, "CLOSING"); else snprintf(cl, sizeof cl, "CLOSING %d", n);
+    text(F.pix24, cl, bx + 26 + nb * 24 + 18, bl(F.pix24, by, bh), mixc(S.AC, WHITE, 0.25f), 1, 3); }
 }
 #endif
