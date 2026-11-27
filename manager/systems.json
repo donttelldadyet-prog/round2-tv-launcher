@@ -1,6 +1,6 @@
 {
  "_readme": "Control centre › Systems reads this file. Keep it up to date whenever a system changes stage. Plain words – the owners read it. ‘All systems’ shows what is RUNNING (live, test, broken, off); ‘Planned’ shows what isn't running yet (build, planned, parked). status: live = guests/staff use it now · test = running, still being checked · build = being built · planned = decided, not started · parked = idea on the shelf · off = switched off/retired · broken = should work but doesn't.",
- "updated": "2026-11-26",
+ "updated": "2026-11-27",
  "areas": [
   {
    "name": "Website & booking",
@@ -130,6 +130,12 @@
      "status": "test",
      "what": "Removing a player from a crew now gives a one-time code (30 days, shown on the crew's page under Removed players). The removed player types it when they join with their own phone (or a crew types it under 'Got a claim code?') and their saves move to that account – nothing is copied twice, and a PS4 that still has them tonight sends their saves to the new account. Two crews in one room: when a second crew logs in with the same TV code, their players go on the free Player profiles and the first crew's profiles stay as they are; each player's saves go back to their own crew. Needs PS4 helper 1.1.152 (on the test channel, not installed yet) – rooms on older helpers load one crew at a time as before. Also in 1.1.152: a profile taking a new player is cleared first when it still holds someone else's games.",
      "runs": "Booking engine (member page /m + claim codes) + PS4 helper 1.1.152 (test) · System check › Member claim codes"
+    },
+    {
+     "name": "PS4 save screen v4: memory card + save deck (27 Nov, Karen's design)",
+     "status": "testing",
+     "what": "On the PS4 tile the orb is replaced by a little memory card with eyes above a save deck. It wakes up when a phone with the room's code signs in (crew name, 'HI, <CREW>!'), slides into the deck when the guest swipes the card up on the phone (or by itself after a few seconds), lights the crew's room passport block by block and says SAVE FOUND n/7. The Ready screen shows the card in the deck (GAME SAVED / PRESS PS). New member PINs are 6 numbers.",
+     "runs": "Booking engine (loadst + act insert, /ps4/tile scrw/spass/sago/siago/pass, /ps4/tilecfg v_* words, member page swipe card) + PS4 tile 0.20 (Kaeden only) · System check › PS4 save screen v4"
     },
     {
      "name": "New member page + new PS4 tile screens (24 Nov, design's membership look)",

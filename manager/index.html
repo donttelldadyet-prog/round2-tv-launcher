@@ -4578,11 +4578,24 @@ body.r2on dialog::backdrop { background: color-mix(in srgb, #000 58%, transparen
           return 'Tile words from ' + (c.from === 'design' ? 'design/tile.json' : 'the built-in defaults') + ' · ready ' + c.t_burst + ' s, closing ' + c.t_next + ' s · title "' + c.s_title + '"';
         });
       }); })
+      .then(function () { return step('PS4 save screen v4: memory card + phone swipe (nothing changes)', function () {
+        /* 27 Nov (Karen's save screen v4 – tile 0.20): a phone signed in with a room's code wakes the TV's memory card (engine
+           tiletok.scan → /ps4/tile scrw/spass/sago), the phone's swipe-up slides it in (act insert), the deck-screen words come
+           from design/tile.json (v_*), and the member page carries the swipe card. Read-only: a fake insert must be refused. */
+        return Promise.all([fetch(ENG + '/ps4/tilecfg').then(function (r) { return r.json(); }),
+          fetch(ENG + '/m/api', { method: 'POST', body: JSON.stringify({ act: 'insert', room: 'kaeden', k: 'nope' }) }).then(function (r) { return r.json(); }).catch(function () { return {}; }),
+          fetch(ENG + '/m?room=kaeden&k=x').then(function (r) { return r.text(); }).catch(function () { return ''; })]).then(function (r) {
+          var c = r[0] || {}; must(c.v_lab && c.v_hi && c.v_found && c.v_wait, 'The v4 deck-screen words did not come back: ' + JSON.stringify(c).slice(0, 120));
+          must(r[1] && r[1].error, 'An insert without a signed-in member and the room code must be refused: ' + JSON.stringify(r[1]).slice(0, 120));
+          must(!r[2] || r[2].indexOf('function mcPhone') > -1, 'The member page lost its memory card to swipe');
+          return 'Deck screen "' + c.v_insert + '" / "' + c.v_hi + '" / "' + c.v_found + '" · fake insert refused · member page has the swipe card';
+        });
+      }); })
       .then(function () { return step('Member claim codes + two crews in a room (nothing changes)', function () {
         /* 22 Nov (owner: a removed player claims their saves with a code; two crews load in one room): the engine must check a claim
            code BEFORE it makes an account (a wrong code = no account), and a PS4 save list must stay locked to the PS4 key. Which
            rooms' helpers can take a second crew (1.1.152+) is listed – the others load one crew at a time, as before. Read-only. */
-        return Promise.all([fetch(ENG + '/m/api', { method: 'POST', body: JSON.stringify({ act: 'join', name: 'SysCheck', phone: '80000001', pin: '2580', claim: 'ZZZZ-ZZZZ' }) }).then(function (r) { return r.json(); }).catch(function () { return {}; }),
+        return Promise.all([fetch(ENG + '/m/api', { method: 'POST', body: JSON.stringify({ act: 'join', name: 'SysCheck', phone: '80000001', pin: '258013', claim: 'ZZZZ-ZZZZ' })   /* 27 Nov: new PINs are 6 numbers */ }).then(function (r) { return r.json(); }).catch(function () { return {}; }),
           fetch(ENG + '/ps4/sget?k=members/zz-check/p1/index.txt').then(function (r) { return r.status; }), gm({ action: 'ps4list' })]).then(function (r) {
           must(r[0].field === 'jx', 'A wrong claim code wasn’t refused before joining: ' + JSON.stringify(r[0]).slice(0, 140));
           must(r[1] === 403, 'A member’s save list must refuse anyone without the PS4 key (got ' + r[1] + ')');
